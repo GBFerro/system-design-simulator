@@ -335,11 +335,12 @@ Contributions are welcome — new problems, components, trade-off cards, bug fix
 ```bash
 npm ci            # Install exact locked dependencies
 npm run dev       # Start the dev server
-npm run lint      # Run ESLint
+npm run lint      # Run oxlint
+npm run format    # Format with oxfmt
 npm run build     # Production build (also type-checks)
 ```
 
-CI runs `npm run lint` and `npm run build` on every push and pull request, so run both locally before opening a PR. Bug reports and feature requests have [issue templates](.github/ISSUE_TEMPLATE) — filling them in makes triage much faster.
+CI runs `npm run lint`, `npm run format:check` and `npm run build` on every push and pull request, so run them locally before opening a PR. Bug reports and feature requests have [issue templates](.github/ISSUE_TEMPLATE) — filling them in makes triage much faster.
 
 **Good first contributions:** add a design problem to `src/data/problems.ts` (+ its `interviewData.ts` entry), author a trade-off card, or improve concept-library content. Every formula, figure, and real-world attribution should be technically correct — this content teaches people preparing for real interviews.
 

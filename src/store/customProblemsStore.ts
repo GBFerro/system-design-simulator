@@ -40,7 +40,7 @@ interface CustomProblemsState {
 
 export const useCustomProblemsStore = create<CustomProblemsState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       problems: [],
 
       addProblem: (problem) => {

@@ -7,7 +7,6 @@ import type { CategoryScore, ScoringGraph } from "@/types/scoring";
 // monitoring 2 = 20
 export function scoreTradeoffs(
   nodes: Node<ComponentNodeData>[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _edges: Edge[],
   graph: ScoringGraph
 ): CategoryScore {

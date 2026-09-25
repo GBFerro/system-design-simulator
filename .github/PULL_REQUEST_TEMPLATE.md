@@ -4,7 +4,7 @@
 
 ## Checklist
 
-- [ ] `npm run lint` passes
+- [ ] `npm run lint` and `npm run format:check` pass
 - [ ] `npm run build` passes (this also runs the type-check)
 - [ ] Verified the affected flow in the browser (desktop and, if UI, 375px mobile)
 - [ ] Scoring rules still cap each category at exactly 20 points (if touched)

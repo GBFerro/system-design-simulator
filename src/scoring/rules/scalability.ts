@@ -6,7 +6,6 @@ import type { CategoryScore, ScoringGraph } from "@/types/scoring";
 // DB scaling 3 + CDN 3 + LB->compute wiring 2 = 20
 export function scoreScalability(
   nodes: Node<ComponentNodeData>[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _edges: Edge[],
   graph: ScoringGraph
 ): CategoryScore {
