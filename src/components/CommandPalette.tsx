@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { useReactFlow, type Node } from "@xyflow/react";
+import { useReactFlow } from "@xyflow/react";
 import {
   Search,
   Play,
@@ -25,7 +25,9 @@ import type { SystemComponent } from "@/types/component";
 import { PROBLEMS } from "@/data/problems";
 import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { useCustomComponentsStore } from "@/store/customComponentsStore";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { useCanvasStore } from "@/store/canvasStore";
+import { createComponentNode } from "@/lib/nodeFactory";
+import { visibleCanvasCenter } from "@/lib/placement";
 import { useAppStore } from "@/store/appStore";
 import { ICON_MAP } from "@/lib/icons";
 
@@ -89,7 +91,7 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
   const listRef = useRef<HTMLDivElement>(null);
 
   const { screenToFlowPosition } = useReactFlow();
-  const addNode = useCanvasStore((s) => s.addNode);
+  const placeNode = useCanvasStore((s) => s.placeNode);
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
   const setSelectedProblem = useAppStore((s) => s.setSelectedProblem);
@@ -100,32 +102,13 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
 
   const addComponent = useCallback(
     (component: SystemComponent) => {
-      const wrapper = document.querySelector(".react-flow");
-      const rect = wrapper?.getBoundingClientRect();
-      const center = screenToFlowPosition({
-        x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
-        y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
-      });
-      const jitter = () => (Math.random() - 0.5) * 60;
-      const node: Node<ComponentNodeData> = {
-        id: `${component.id}-${crypto.randomUUID?.() ?? Date.now().toString(36)}`,
-        type: "component",
-        position: { x: center.x + jitter(), y: center.y + jitter() },
-        data: {
-          componentId: component.id,
-          label: component.label,
-          icon: component.icon,
-          category: component.category,
-          replicas: 1,
-          maxQPS: component.maxQPS,
-          latencyMs: component.latencyMs,
-          scalable: component.scalable,
-        },
-      };
-      addNode(node);
+      placeNode(
+        createComponentNode(component, { x: 0, y: 0 }),
+        visibleCanvasCenter(screenToFlowPosition),
+      );
       showToast(`Added ${component.label}`, "success");
     },
-    [screenToFlowPosition, addNode, showToast],
+    [screenToFlowPosition, placeNode, showToast],
   );
 
   const allComponents = useMemo<SystemComponent[]>(

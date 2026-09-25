@@ -33,7 +33,9 @@ import { useSimulationStore } from "@/store/simulationStore";
 import { usePenStore } from "@/store/penStore";
 import { PROBLEMS } from "@/data/problems";
 import { useCustomProblemsStore } from "@/store/customProblemsStore";
-import { type Node, useReactFlow } from "@xyflow/react";
+import { useReactFlow } from "@xyflow/react";
+import { createTextNode } from "@/lib/nodeFactory";
+import { visibleCanvasCenter } from "@/lib/placement";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
 import { exportAsPng, exportAsSvg, exportAsJSON } from "@/lib/exportCanvas";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
@@ -68,7 +70,7 @@ export function TopBar({
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const { screenToFlowPosition } = useReactFlow();
-  const addNode = useCanvasStore((s) => s.addNode);
+  const placeNode = useCanvasStore((s) => s.placeNode);
   const isSimulating = useSimulationStore((s) => s.isRunning);
 
   // Undo/redo — subscribe to stack lengths so the buttons enable/disable reactively
@@ -91,23 +93,8 @@ export function TopBar({
     customProblems.find((p) => p.id === selectedProblemId);
 
   const addTextNote = useCallback(() => {
-    // Center of the visible canvas (not the window — sidebars offset it)
-    const wrapper = document.querySelector(".react-flow");
-    const rect = wrapper?.getBoundingClientRect();
-    const position = screenToFlowPosition({
-      x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
-      y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
-    });
-
-    const newNode: Node = {
-      id: `text-${crypto.randomUUID()}`,
-      type: "text",
-      position,
-      data: { text: "" },
-      connectable: false,
-    };
-    addNode(newNode);
-  }, [screenToFlowPosition, addNode]);
+    placeNode(createTextNode({ x: 0, y: 0 }), visibleCanvasCenter(screenToFlowPosition));
+  }, [screenToFlowPosition, placeNode]);
 
   const handleExportPng = useCallback(async () => {
     setExportOpen(false);

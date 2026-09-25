@@ -8,6 +8,7 @@ import { useCanvasStore } from "@/store/canvasStore";
 import { Server } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
+import { NodeActionsToolbar } from "./NodeActionsToolbar";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
 
@@ -91,6 +92,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
         }
       `}
     >
+      <NodeActionsToolbar nodeId={id} />
+
       {/* Status indicator dot */}
       <div
         className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-zinc-900 ${statusDot}`}

@@ -1,37 +1,39 @@
 "use client";
 
-import { getComponentById } from "@/data/components";
-import { useAppStore } from "@/store/appStore";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
-import { usePenStore } from "@/store/penStore";
 import {
-  Background,
-  BackgroundVariant,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  ReactFlow,
   Controls,
   MiniMap,
-  ReactFlow,
+  Background,
+  BackgroundVariant,
   useReactFlow,
-  type Edge,
   type Node,
-  type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { motion } from "framer-motion";
+import { nodeTypes } from "./nodes/nodeTypes";
+import { edgeTypes } from "./edges/edgeTypes";
+import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { usePenStore } from "@/store/penStore";
+import { useAppStore } from "@/store/appStore";
+import { visibleCanvasCenter } from "@/lib/placement";
 import {
   BookOpen,
   GraduationCap,
-  HelpCircle,
   Layers,
   Lock,
   MousePointer2,
   Sparkles,
+  HelpCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
-import { CanvasTabBar } from "./CanvasTabBar";
-import { edgeTypes } from "./edges/edgeTypes";
-import { nodeTypes } from "./nodes/nodeTypes";
-import { PenOverlay } from "./PenOverlay";
-import { PenToolbar } from "./PenToolbar";
+import { motion } from "framer-motion";
 
 // Orchestrated staggered reveal for the empty state — one deliberate page-load
 // moment rather than scattered micro-animations.
@@ -43,6 +45,32 @@ const emptyItem = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const } },
 };
+import { CanvasTabBar } from "./CanvasTabBar";
+import { PenOverlay } from "./PenOverlay";
+import { PenToolbar } from "./PenToolbar";
+import { CANVAS_DROP_ATTR } from "./PaletteDnd";
+import { CanvasContextMenu, type ContextMenuState, type ContextTarget } from "./CanvasContextMenu";
+import { useCanvasShortcuts } from "./useCanvasShortcuts";
+
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP = 10;
+
+/** Which canvas element (node, edge or empty pane) an event landed on. */
+function contextTargetOf(el: EventTarget | null): ContextTarget | null {
+  if (!(el instanceof Element)) return null;
+  const node = el.closest(".react-flow__node");
+  if (node?.getAttribute("data-id")) return { kind: "node", id: node.getAttribute("data-id")! };
+  const edge = el.closest(".react-flow__edge");
+  if (edge?.getAttribute("data-id")) return { kind: "edge", id: edge.getAttribute("data-id")! };
+  if (el.closest(".react-flow__pane")) return { kind: "pane" };
+  return null;
+}
+
+function centerOf(el: Element | null): { x: number; y: number } | null {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
 
 interface DesignCanvasProps {
   onPickProblem?: () => void;
@@ -65,10 +93,7 @@ export function DesignCanvas({
   const onNodesChange = useCanvasStore((s) => s.onNodesChange);
   const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
   const onConnect = useCanvasStore((s) => s.onConnect);
-  const addNode = useCanvasStore((s) => s.addNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const setSelectedNode = useCanvasStore((s) => s.setSelectedNode);
-  const setSelectedEdge = useCanvasStore((s) => s.setSelectedEdge);
   const tabs = useCanvasStore((s) => s.tabs);
   const activeTabId = useCanvasStore((s) => s.activeTabId);
   const isReadOnly = tabs.find((t) => t.id === activeTabId)?.readOnly === true;
@@ -103,78 +128,79 @@ export function DesignCanvas({
     return () => window.removeEventListener("textnode:update", handleTextNodeUpdate);
   }, [updateNodeData]);
 
-  const onDragOver = useCallback((event: DragEvent) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "copy";
-  }, []);
-
-  const onDrop = useCallback(
-    (event: DragEvent) => {
-      event.preventDefault();
-      if (isReadOnly) return;
-
-      const componentId = event.dataTransfer.getData("application/systemsim-component");
-      if (!componentId) return;
-
-      const component = getComponentById(componentId);
-      if (!component) return;
-
-      const position = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      const newNode: Node<ComponentNodeData> = {
-        id: `${componentId}-${crypto.randomUUID()}`,
-        type: "component",
-        position,
-        data: {
-          componentId: component.id,
-          label: component.label,
-          icon: component.icon,
-          category: component.category,
-          replicas: 1,
-          maxQPS: component.maxQPS,
-          latencyMs: component.latencyMs,
-          scalable: component.scalable,
-        },
-      };
-
-      addNode(newNode);
-    },
-    [screenToFlowPosition, addNode, isReadOnly],
+  // Last pointer position over the canvas, so paste lands under the cursor
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  const getPasteCenter = useCallback(
+    () =>
+      lastPointer.current
+        ? screenToFlowPosition(lastPointer.current)
+        : visibleCanvasCenter(screenToFlowPosition),
+    [screenToFlowPosition],
   );
 
-  const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      setSelectedNode(node.id);
-    },
-    [setSelectedNode],
-  );
-
-  const onEdgeClick = useCallback(
-    (_: React.MouseEvent, edge: Edge) => {
-      setSelectedEdge(edge.id);
-    },
-    [setSelectedEdge],
-  );
-
-  const onSelectionChange = useCallback(
-    ({ nodes, edges }: OnSelectionChangeParams) => {
-      if (nodes.length === 1 && edges.length === 0) setSelectedNode(nodes[0].id);
-      else if (edges.length === 1 && nodes.length === 0) setSelectedEdge(edges[0].id);
-      else if (nodes.length === 0 && edges.length === 0) {
-        setSelectedNode(null);
-        setSelectedEdge(null);
+  // Context menu: right-click, long-press (touch) or Shift+F10 / Menu key
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const openMenu = useCallback(
+    (target: ContextTarget, x: number, y: number) => {
+      if (penActive) return;
+      const s = useCanvasStore.getState();
+      // Acting on something outside the selection selects just that thing
+      if (target.kind === "node" && !s.nodes.find((n) => n.id === target.id)?.selected) {
+        s.selectOnly([target.id]);
+      } else if (target.kind === "edge" && !s.edges.find((e) => e.id === target.id)?.selected) {
+        s.selectOnly([], [target.id]);
       }
+      setMenu({ target, x, y });
     },
-    [setSelectedNode, setSelectedEdge],
+    [penActive],
   );
 
-  const onPaneClick = useCallback(() => {
-    setSelectedNode(null);
-    setSelectedEdge(null);
-  }, [setSelectedNode, setSelectedEdge]);
+  const openMenuForSelection = useCallback(() => {
+    const s = useCanvasStore.getState();
+    const node = s.nodes.find((n) => n.selected);
+    const edge = s.edges.find((e) => e.selected);
+    const at = (sel: string) => centerOf(reactFlowWrapper.current?.querySelector(sel) ?? null);
+    if (node) {
+      const p = at(`.react-flow__node[data-id="${CSS.escape(node.id)}"]`);
+      if (p) return openMenu({ kind: "node", id: node.id }, p.x, p.y);
+    }
+    if (edge) {
+      const p = at(`.react-flow__edge[data-id="${CSS.escape(edge.id)}"]`);
+      if (p) return openMenu({ kind: "edge", id: edge.id }, p.x, p.y);
+    }
+    const p = at(".react-flow");
+    if (p) openMenu({ kind: "pane" }, p.x, p.y);
+  }, [openMenu]);
+
+  useCanvasShortcuts({ getPasteCenter, openMenuForSelection });
+
+  const longPress = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(
+    null,
+  );
+  const cancelLongPress = useCallback(() => {
+    if (longPress.current) clearTimeout(longPress.current.timer);
+    longPress.current = null;
+  }, []);
+  const onPointerDownCapture = useCallback(
+    (e: ReactPointerEvent) => {
+      cancelLongPress(); // a second finger (pinch) cancels too
+      if (e.pointerType !== "touch" || !e.isPrimary) return;
+      const target = contextTargetOf(e.target);
+      if (!target) return;
+      const { clientX: x, clientY: y } = e;
+      longPress.current = { x, y, timer: setTimeout(() => openMenu(target, x, y), LONG_PRESS_MS) };
+    },
+    [cancelLongPress, openMenu],
+  );
+  const onPointerMoveCapture = useCallback(
+    (e: ReactPointerEvent) => {
+      const lp = longPress.current;
+      if (lp && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > LONG_PRESS_SLOP) cancelLongPress();
+    },
+    [cancelLongPress],
+  );
+  useEffect(() => cancelLongPress, [cancelLongPress]);
 
   const miniMapNodeColor = useMemo(
     () => (node: Node) => {
@@ -191,14 +217,19 @@ export function DesignCanvas({
   const isEmpty = nodes.length === 0;
 
   return (
-    <div
-      ref={reactFlowWrapper}
-      className="relative flex-1 flex flex-col"
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
+    <div ref={reactFlowWrapper} className="relative flex-1 flex flex-col">
       <CanvasTabBar />
-      <div className="relative flex-1 bg-background">
+      <div
+        {...{ [CANVAS_DROP_ATTR]: "" }}
+        className="relative flex-1 bg-background"
+        style={{ WebkitTouchCallout: "none" }}
+        onMouseMove={(e) => (lastPointer.current = { x: e.clientX, y: e.clientY })}
+        onMouseLeave={() => (lastPointer.current = null)}
+        onPointerDownCapture={onPointerDownCapture}
+        onPointerMoveCapture={onPointerMoveCapture}
+        onPointerUpCapture={cancelLongPress}
+        onPointerCancelCapture={cancelLongPress}
+      >
         <ReactFlow
           className="sf-canvas h-full w-full"
           nodes={nodes}
@@ -206,14 +237,26 @@ export function DesignCanvas({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={isReadOnly ? undefined : onConnect}
-          onSelectionChange={onSelectionChange}
           multiSelectionKeyCode={["Shift", "Meta", "Control"]}
           selectionOnDrag={!penActive}
           panOnScroll={!penActive}
           fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
-          onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
-          onPaneClick={onPaneClick}
+          onNodeContextMenu={(e, node) => {
+            e.preventDefault();
+            openMenu({ kind: "node", id: node.id }, e.clientX, e.clientY);
+          }}
+          onSelectionContextMenu={(e, selected) => {
+            e.preventDefault();
+            if (selected[0]) openMenu({ kind: "node", id: selected[0].id }, e.clientX, e.clientY);
+          }}
+          onEdgeContextMenu={(e, edge) => {
+            e.preventDefault();
+            openMenu({ kind: "edge", id: edge.id }, e.clientX, e.clientY);
+          }}
+          onPaneContextMenu={(e) => {
+            e.preventDefault();
+            openMenu({ kind: "pane" }, e.clientX, e.clientY);
+          }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           defaultEdgeOptions={{ type: "animated" }}
@@ -263,6 +306,7 @@ export function DesignCanvas({
 
         <PenOverlay />
         <PenToolbar />
+        {menu && <CanvasContextMenu menu={menu} onClose={closeMenu} />}
 
         {/* Read-only hint for reference tabs */}
         {isReadOnly && (

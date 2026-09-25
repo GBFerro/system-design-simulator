@@ -25,7 +25,7 @@ CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on ev
 
 ## Tech stack
 
-Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12 (ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion · perfect-freehand (pen) · html-to-image (export). No new runtime deps without good reason.
+Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12 (ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion · perfect-freehand (pen) · html-to-image (export) · @dnd-kit/core (palette drag). No new runtime deps without good reason.
 
 ## Architecture map
 
@@ -40,7 +40,7 @@ src/
     interview/    InterviewBar, phase panel, start dialog
     dialogs/      ModalShell (shared modal: focus trap/Escape/scroll) + Save/Load/Confirm/Support/Create*
     ui/           shadcn-style primitives, Toast
-  data/           components.ts (30 specs), problems.ts (35), conceptLibrary.ts,
+  data/           components.ts (36 specs), problems.ts (35), conceptLibrary.ts,
                   interviewData.ts, tradeoffCards.ts (21), learningPath.ts
   engine/         simulator.ts (traffic sim), constants.ts
   scoring/        scorer.ts + rules/ (scalability, availability, latency, cost, tradeoffs — 20 pts each)
@@ -59,11 +59,11 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 
 **Scoring (`scoring/`).** `scorer.ts` builds a shared `ScoringGraph` (cleaned adjacency + reachable-from-entry set) once and passes it to every rule. Presence checks must require reachability — placing a component without wiring it earns no points (with feedback saying so). Each category rule must total **exactly 20** max and never go negative; verify the arithmetic if you touch a rule.
 
-**Stores (`store/`).** Every persisted store uses `version: 1`, `skipHydration: true`, a no-op `migrate`, and `safeLocalStorage` (from `safeStorage.ts`, swallows QuotaExceeded + toasts). Hydration is deferred: `hydration.ts` exports `rehydrateAllStores()` and `useHasHydrated()` — call after mount to avoid SSR mismatch. `canvasStore` persists the active tab with empty nodes/edges (live copies live at the top level; reconstructed on rehydrate) and strips runtime fields (`utilization`/`status`/`isBottleneck`). It also has unpersisted undo/redo history (`undo`/`redo`/`canUndo`/`canRedo`, 50 entries, pushed before mutation) and `deleteEdge(id)`. `interviewStore` timer is timestamp-based (`startedAt`/`accumulatedMs`) so it survives background-tab throttling and refresh — never reintroduce tick-counting.
+**Stores (`store/`).** Every persisted store uses `version: 1`, `skipHydration: true`, a no-op `migrate`, and `safeLocalStorage` (from `safeStorage.ts`, swallows QuotaExceeded + toasts). Hydration is deferred: `hydration.ts` exports `rehydrateAllStores()` and `useHasHydrated()` — call after mount to avoid SSR mismatch. `canvasStore` persists the active tab with empty nodes/edges (live copies live at the top level; reconstructed on rehydrate) and strips runtime fields (`utilization`/`status`/`isBottleneck`). It also has unpersisted undo/redo history (`undo`/`redo`/`canUndo`/`canRedo`, 50 entries, pushed before mutation; consecutive arrow-key nudges share one entry) and an unpersisted `clipboard`. **Selection has one source of truth: `node.selected` / `edge.selected`** — there is no `selectedNodeId`; use `selectOnly`/`selectAll`/`clearSelection`. Editing actions act on the selection, push exactly one history entry, and no-op on read-only tabs by themselves: `deleteSelection`, `copySelection`/`pasteClipboard`, `duplicateSelection`, `nudgeSelection`, `changeReplicas`, `placeNode` (spiral search via `lib/placement.ts` so new nodes never overlap). `interviewStore` timer is timestamp-based (`startedAt`/`accumulatedMs`) so it survives background-tab throttling and refresh — never reintroduce tick-counting.
 
 **Persistence schema.** `SerializedEdge` must carry `data` (label/protocol/async) or edge metadata is lost on save/load. Export/import use a unified envelope `{ schemaVersion, name, problemId, nodes, edges, strokes }`; `importDesign` validates structurally and returns `{ ok, error? }`.
 
-**Canvas/UI.** `nodeTypes`/`edgeTypes` are module-level (never inline — causes remounts). Reference tabs (`tab.readOnly`) must gate dragging/connecting/dropping/delete. Keyboard shortcuts must no-op while typing in inputs; there is one delete path (`deleteKeyCode={null}` on ReactFlow + the AppShell handler covering node AND edge selection). Dialogs go through `ModalShell`. Touch: hover-only affordances are invisible on coarse pointers (Tailwind v4 gates `hover:` behind `@media(hover:hover)`) — gate visibility on `useIsCoarsePointer()` instead.
+**Canvas/UI.** `nodeTypes`/`edgeTypes` are module-level (never inline — causes remounts). Reference tabs (`tab.readOnly`) must gate dragging/connecting/dropping/delete. Keyboard shortcuts must no-op while typing in inputs; there is one delete path (`deleteKeyCode={null}` on ReactFlow + `components/canvas/useCanvasShortcuts.ts` → `deleteSelection()`; the node toolbar, context menu and panel call the same action). Selection-editing shortcuts live in that hook (inside the ReactFlow provider); app-level ones stay in AppShell. Palette → canvas drag goes through `PaletteDndProvider` (@dnd-kit, one path for mouse and touch); a drop is accepted by the canvas rect under the real pointer position, never by DOM hit-testing (the empty-state overlay covers the canvas). Create nodes with `lib/nodeFactory.ts`. Dialogs go through `ModalShell`. Touch: hover-only affordances are invisible on coarse pointers (Tailwind v4 gates `hover:` behind `@media(hover:hover)`) — gate visibility on `useIsCoarsePointer()` instead.
 
 ## Data conventions
 

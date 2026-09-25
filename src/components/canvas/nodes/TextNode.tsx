@@ -3,6 +3,7 @@
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { type NodeProps, type Node, NodeResizer } from "@xyflow/react";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
+import { NodeActionsToolbar } from "./NodeActionsToolbar";
 
 export interface TextNodeData {
   text: string;
@@ -100,6 +101,7 @@ function TextNodeInner({ data, selected, id }: NodeProps<TextNodeType>) {
 
   return (
     <>
+      <NodeActionsToolbar nodeId={id} />
       <NodeResizer
         isVisible={selected}
         minWidth={140}

@@ -1,13 +1,17 @@
 "use client";
 
-import { type DragEvent, useCallback, useState } from "react";
-import { useReactFlow, type Node } from "@xyflow/react";
+import { useCallback, useId, useState, type ReactNode, type Ref } from "react";
+import { useDraggable } from "@dnd-kit/core";
+import { useReactFlow } from "@xyflow/react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SYSTEM_COMPONENTS, COMPONENT_CATEGORIES, getComponentById } from "@/data/components";
 import { CONCEPT_LIBRARY } from "@/data/conceptLibrary";
 import { Server, GripVertical, Plus, Search as SearchIcon, Sparkles, Trash2 } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { useCanvasStore } from "@/store/canvasStore";
+import { createComponentNode } from "@/lib/nodeFactory";
+import { visibleCanvasCenter } from "@/lib/placement";
+import type { PaletteDragData } from "@/components/canvas/PaletteDnd";
 import { useAppStore } from "@/store/appStore";
 import { useCustomComponentsStore } from "@/store/customComponentsStore";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
@@ -41,7 +45,9 @@ export function ComponentPalette({
 }: ComponentPaletteProps = {}) {
   const [search, setSearch] = useState("");
   const { screenToFlowPosition } = useReactFlow();
-  const addNode = useCanvasStore((s) => s.addNode);
+  const placeNode = useCanvasStore((s) => s.placeNode);
+  // Two palettes can be mounted at once (desktop sidebar + mobile drawer)
+  const dragIdPrefix = useId();
   const customComponents = useCustomComponentsStore((s) => s.components);
   const deleteCustomComponent = useCustomComponentsStore((s) => s.deleteComponent);
   const isCoarse = useIsCoarsePointer();
@@ -49,56 +55,24 @@ export function ComponentPalette({
   const allComponents: SystemComponent[] = [...customComponents, ...SYSTEM_COMPONENTS];
   const customIds = new Set(customComponents.map((c) => c.id));
 
-  function handleDragStart(e: DragEvent, componentId: string) {
-    e.dataTransfer.setData("application/systemsim-component", componentId);
-    e.dataTransfer.effectAllowed = "copy";
-
-    const ghost = document.createElement("div");
-    ghost.style.cssText =
-      "position:absolute;top:-1000px;left:-1000px;padding:6px 12px;background:#18181b;border:1px solid #3f3f46;border-radius:8px;color:#e4e4e7;font-size:12px;font-family:system-ui;white-space:nowrap;";
-    const comp = allComponents.find((c) => c.id === componentId);
-    ghost.textContent = comp?.label ?? componentId;
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => document.body.removeChild(ghost), 0);
-  }
-
-  /** Tap-to-add: place the component at the visible canvas center. */
+  /** Tap-to-add: place the component near the visible canvas center, clear of other nodes. */
   const handleQuickAdd = useCallback(
     (componentId: string) => {
       const component = getComponentById(componentId);
       if (!component) return;
-
-      // Center of the canvas wrapper itself (window center is offset by sidebars)
-      const wrapper = document.querySelector(".react-flow");
-      const rect = wrapper?.getBoundingClientRect();
-      const center = screenToFlowPosition({
-        x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
-        y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
-      });
-      // Jitter the center so repeated taps don't stack exactly on top
-      const jitter = () => (Math.random() - 0.5) * 60;
-
-      const newNode: Node<ComponentNodeData> = {
-        id: `${componentId}-${crypto.randomUUID()}`,
-        type: "component",
-        position: { x: center.x + jitter(), y: center.y + jitter() },
-        data: {
-          componentId: component.id,
-          label: component.label,
-          icon: component.icon,
-          category: component.category,
-          replicas: 1,
-          maxQPS: component.maxQPS,
-          latencyMs: component.latencyMs,
-          scalable: component.scalable,
-        },
-      };
-      addNode(newNode);
+      const { tabs, activeTabId } = useCanvasStore.getState();
+      if (tabs.find((t) => t.id === activeTabId)?.readOnly) {
+        useAppStore.getState().showToast("Reference tabs are read-only", "info");
+        return;
+      }
+      placeNode(
+        createComponentNode(component, { x: 0, y: 0 }),
+        visibleCanvasCenter(screenToFlowPosition),
+      );
       useAppStore.getState().showToast(`Added ${component.label}`, "success");
       onComponentAdded?.();
     },
-    [screenToFlowPosition, addNode, onComponentAdded],
+    [screenToFlowPosition, placeNode, onComponentAdded],
   );
 
   const query = search.toLowerCase().trim();
@@ -178,12 +152,11 @@ export function ComponentPalette({
                         <Tooltip key={item.id}>
                           <TooltipTrigger
                             render={
-                              <div
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, item.id)}
-                                // Touch devices can't drag-and-drop: tapping the row adds the component
+                              <PaletteDraggable
+                                dragId={`${dragIdPrefix}:${item.id}`}
+                                componentId={item.id}
+                                // On touch, a quick tap adds the component; press-and-hold drags it
                                 onClick={isCoarse ? () => handleQuickAdd(item.id) : undefined}
-                                className="group flex cursor-grab items-center gap-2 rounded-md px-2 py-2 text-xs text-zinc-300 transition-colors hover:bg-zinc-800/80 hover:text-zinc-100 active:cursor-grabbing"
                               >
                                 <GripVertical className="h-3 w-3 shrink-0 text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100" />
                                 <div
@@ -225,7 +198,7 @@ export function ComponentPalette({
                                     <Trash2 className={isCoarse ? "h-4 w-4" : "h-3 w-3"} />
                                   </button>
                                 )}
-                              </div>
+                              </PaletteDraggable>
                             }
                           />
                           <TooltipContent side="right" sideOffset={8} className="max-w-[220px]">
@@ -241,6 +214,49 @@ export function ComponentPalette({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A palette row that can be dragged onto the canvas (see PaletteDndProvider). */
+function PaletteDraggable({
+  dragId,
+  componentId,
+  onClick,
+  children,
+  ref,
+  ...rest
+}: {
+  dragId: string;
+  componentId: string;
+  onClick?: () => void;
+  children: ReactNode;
+  ref?: Ref<HTMLDivElement>;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  const { setNodeRef, listeners, isDragging } = useDraggable({
+    id: dragId,
+    data: { componentId } satisfies PaletteDragData,
+  });
+  // The tooltip trigger passes its own ref (for anchoring) — keep both
+  const mergedRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      setNodeRef(el);
+      if (typeof ref === "function") ref(el);
+      else if (ref) (ref as { current: HTMLDivElement | null }).current = el;
+    },
+    [setNodeRef, ref],
+  );
+  return (
+    <div
+      {...rest}
+      ref={mergedRef}
+      {...listeners}
+      onClick={onClick}
+      data-palette-item={componentId}
+      style={{ touchAction: "manipulation" }}
+      className={`group flex cursor-grab items-center gap-2 rounded-md px-2 py-2 text-xs text-zinc-300 transition-colors hover:bg-zinc-800/80 hover:text-zinc-100 active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
+    >
+      {children}
     </div>
   );
 }

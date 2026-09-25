@@ -1,6 +1,6 @@
 # Spec 02: Editor confiável
 
-Parte da [v2](00-visao-geral.md) · Fase 0 · Tamanho P · Status: parcialmente implementado (commit `15ee9b7`)
+Parte da [v2](00-visao-geral.md) · Fase 0 · Tamanho P · Status: implementado
 
 | Campo               | Valor                                                                                                                                      |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -28,21 +28,32 @@ Os bugs foram reproduzidos no Chromium headless (Playwright) contra a `main` de 
 
 ## Status atual
 
-O commit `15ee9b7` (branch `fix/editor-drop-and-delete`) aplicou o patch mínimo:
+O commit `15ee9b7` aplicou o patch mínimo (B1, B2, B3 e o `maxZoom` do B5). O resto foi implementado na branch `feat/spec-02-editor`:
 
-| Item                                                                             | Status   |
-| -------------------------------------------------------------------------------- | -------- |
-| B1: `onDragOver`/`onDrop` no wrapper                                             | Feito    |
-| B2: `deleteSelection()` no store + AppShell chamando a action                    | Feito    |
-| B2: `onSelectionChange` sincronizando o painel                                   | Feito    |
-| B3: `multiSelectionKeyCode`, `selectionOnDrag`, `panOnDrag={[1]}`, `panOnScroll` | Feito    |
-| B5: `fitViewOptions={{ maxZoom: 1, padding: 0.2 }}`                              | Feito    |
-| B5: posicionamento em espiral                                                    | Pendente |
-| B4: `NodeToolbar` e menu de contexto                                             | Pendente |
-| B6: drag por pointer events (`@dnd-kit/core`)                                    | Pendente |
-| CAN-05: atalhos de copiar/colar/duplicar/mover                                   | Pendente |
-| `selectedNodeId` derivado + painel "N itens selecionados"                        | Pendente |
-| Suíte Playwright                                                                 | Pendente |
+| Item                                         | Status | Onde                                                                                                  |
+| -------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| B1: drop sobre o empty state                 | Feito  | `PaletteDnd.tsx`: o drop vale pelo retângulo do canvas, não pelo elemento sob o ponteiro              |
+| B2: seleção com fonte única                  | Feito  | `selectedNodeId`/`selectedEdgeId` saíram do store; o painel deriva de `node.selected`/`edge.selected` |
+| B3: multi-seleção (Shift/⌘/Ctrl, caixa)      | Feito  | `DesignCanvas.tsx`                                                                                    |
+| B4: `NodeToolbar` e menu de contexto         | Feito  | `nodes/NodeActionsToolbar.tsx`, `CanvasContextMenu.tsx`                                               |
+| B5: `maxZoom: 1` e posicionamento em espiral | Feito  | `lib/placement.ts`, action `placeNode`                                                                |
+| B6: drag por touch                           | Feito  | `PaletteDnd.tsx` (`@dnd-kit/core`)                                                                    |
+| CAN-05: atalhos                              | Feito  | `useCanvasShortcuts.ts` + `?` no AppShell (`ShortcutsDialog`)                                         |
+| Painel "N items selected"                    | Feito  | `RightPanel.tsx` (`MultiSelectionPanel`)                                                              |
+| Suíte Playwright B1–B6 + CAN-05              | Feito  | `tests/e2e/editor.spec.ts`                                                                            |
+| Testes do store e da espiral                 | Feito  | `tests/unit/editor.test.ts`                                                                           |
+
+### Decisões de implementação
+
+- **Sensores do dnd-kit:** `MouseSensor` (ativa após 6 px, para cliques continuarem funcionando) + `TouchSensor` (segurar 180 ms, para a lista da paleta continuar rolando com o dedo). Os dois alimentam o mesmo `onDragEnd`, então o caminho do drop é único. O `PointerSensor` puro exigiria `touch-action: none` nas linhas da paleta e mataria a rolagem no touch.
+- **Ponto do drop:** o `delta` do dnd-kit é ajustado pela rolagem da lista da paleta e desviou o drop em ~200 px num teste de touch. O provider rastreia a posição real do ponteiro/dedo durante o drag e usa essa posição.
+- **Mobile:** ao começar um drag no drawer da biblioteca, o drawer fecha para o canvas aparecer. Tocar rápido na linha continua adicionando no centro (tap-to-add).
+- **Atalhos:** os que editam a seleção ficam em `useCanvasShortcuts` (dentro do `ReactFlowProvider`, porque colar precisa de `screenToFlowPosition`); Delete é o único caminho e chama `deleteSelection()`. As setas movem 16 px (Shift = 64 px), e setas seguidas dentro de 600 ms viram um único passo de undo. Quando o foco está num nó, o próprio ReactFlow move o nó e o store registra o histórico do mesmo jeito.
+- **Colar** usa a última posição do mouse sobre o canvas (ou o centro visível) e busca espaço livre em espiral para o grupo inteiro.
+- **Read-only:** as actions do store recusam edição em tabs read-only por conta própria; o menu nessas tabs só oferece abrir no painel, copiar e selecionar tudo.
+- **Renomear:** o painel Props ganhou um campo Label; "Rename" no menu abre o painel e foca esse campo.
+- **Itens de specs futuras:** "Kill instance" ([Spec 08](08-chaos-engineering.md)) e "Auto-layout" ([Spec 13](13-editor-avancado.md)) aparecem desabilitados no menu com a tag "soon". A `NodeToolbar` não tem kill.
+- **Long-press:** 500 ms parado (tolerância de 10 px) abre o menu no touch; um segundo dedo (pinça) cancela.
 
 **Pan:** o diagnóstico original sugeria `panOnDrag={[1, 2]}` (meio e direito), mas o botão direito fica reservado para o menu de contexto (CAN-04). O patch usa `[1]` (meio), e o pan também funciona com Espaço+arrastar (`panActivationKeyCode` padrão do ReactFlow) e com scroll.
 
@@ -111,15 +122,15 @@ A partir do ponto alvo, testa posições numa espiral quadrada com passo igual a
 
 ## Critérios de aceite
 
-- [ ] Os 6 testes E2E (B1–B6) passam
-- [ ] Apagar uma multi-seleção é desfeito com um único ⌘Z
-- [ ] Drop no centro do canvas vazio cria 1 nó
-- [ ] Delete funciona depois de arrastar um nó
-- [ ] Shift+clique em 2 nós + Delete apaga os 2
-- [ ] Nenhuma ação de edição funciona em tab read-only
-- [ ] Tap-add 10 vezes seguidas não gera nenhum nó sobreposto
-- [ ] Drag da paleta funciona com touch emulado
-- [ ] `npm run build` e `npm run lint` passam
+- [x] Os 6 testes E2E (B1–B6) passam
+- [x] Apagar uma multi-seleção é desfeito com um único ⌘Z
+- [x] Drop no centro do canvas vazio cria 1 nó
+- [x] Delete funciona depois de arrastar um nó
+- [x] Shift+clique em 2 nós + Delete apaga os 2
+- [x] Nenhuma ação de edição funciona em tab read-only
+- [x] Tap-add 10 vezes seguidas não gera nenhum nó sobreposto
+- [x] Drag da paleta funciona com touch emulado
+- [x] `npm run build` e `npm run lint` passam
 
 ## Testes (Playwright)
 

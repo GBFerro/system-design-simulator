@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { Edge } from "@xyflow/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -19,11 +20,14 @@ import {
   MessageCircle,
   Layers,
   Pencil,
+  CopyPlus,
 } from "lucide-react";
 import { useCanvasStore, type ComponentNodeData, type CustomEdgeData } from "@/store/canvasStore";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
 import { getConceptByComponentId } from "@/data/conceptLibrary";
+import { getComponentById } from "@/data/components";
+import { OPEN_PROPERTIES_EVENT, consumePendingFocus } from "@/components/canvas/canvasEvents";
 import { SimulationControls } from "./SimulationControls";
 import { MetricsDisplay } from "./MetricsDisplay";
 import { ScoreReport } from "./ScoreReport";
@@ -163,14 +167,9 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
   );
 }
 
-function EdgePropertiesPanel() {
-  const selectedEdgeId = useCanvasStore((s) => s.selectedEdgeId);
-  const edges = useCanvasStore((s) => s.edges);
+function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
-  const deleteEdge = useCanvasStore((s) => s.deleteEdge);
-
-  const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
-  if (!selectedEdge) return null;
+  const deleteSelection = useCanvasStore((s) => s.deleteSelection);
 
   const data = (selectedEdge.data ?? {}) as CustomEdgeData;
   const protocols: CustomEdgeData["protocol"][] = [
@@ -267,7 +266,7 @@ function EdgePropertiesPanel() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => deleteEdge(selectedEdge.id)}
+          onClick={deleteSelection}
           className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
         >
           <Trash2 className="h-3 w-3" />
@@ -278,18 +277,82 @@ function EdgePropertiesPanel() {
   );
 }
 
+function MultiSelectionPanel({ nodeCount, edgeCount }: { nodeCount: number; edgeCount: number }) {
+  const duplicateSelection = useCanvasStore((s) => s.duplicateSelection);
+  const deleteSelection = useCanvasStore((s) => s.deleteSelection);
+  const parts = [
+    nodeCount && `${nodeCount} node${nodeCount > 1 ? "s" : ""}`,
+    edgeCount && `${edgeCount} connection${edgeCount > 1 ? "s" : ""}`,
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+        {nodeCount + edgeCount} items selected
+      </p>
+      <p className="text-xs text-zinc-400">{parts.join(" · ")}</p>
+      <div className="space-y-2">
+        {nodeCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={duplicateSelection}
+            className="w-full gap-1.5 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+          >
+            <CopyPlus className="h-3 w-3" />
+            Duplicate
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={deleteSelection}
+          className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
+        >
+          <Trash2 className="h-3 w-3" />
+          Delete selection
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function PropertiesTab() {
-  const selectedNodeId = useCanvasStore((s) => s.selectedNodeId);
-  const selectedEdgeId = useCanvasStore((s) => s.selectedEdgeId);
   const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const deleteSelection = useCanvasStore((s) => s.deleteSelection);
   const selectedProblemId = useAppStore((s) => s.selectedProblemId);
 
-  const selectedNode = nodes.find((n) => n.id === selectedNodeId) as
+  // Selection has one source of truth: node.selected / edge.selected
+  const selectedNodes = nodes.filter((n) => n.selected);
+  const selectedEdges = edges.filter((e) => e.selected);
+  const selectionCount = selectedNodes.length + selectedEdges.length;
+  const selectedNode = (selectionCount === 1 ? selectedNodes[0] : undefined) as
     | ((typeof nodes)[number] & { data: ComponentNodeData })
     | undefined;
+  const selectedEdge = selectionCount === 1 ? selectedEdges[0] : undefined;
   const problem = getProblemById(selectedProblemId);
+
+  // "Rename" from the canvas context menu focuses the label field
+  const labelRef = useRef<HTMLInputElement>(null);
+  const labelId = useId();
+  const selectedNodeId = selectedNode?.id;
+  useEffect(() => {
+    const tryFocus = () =>
+      requestAnimationFrame(() => {
+        const input = labelRef.current;
+        // Both the desktop panel and the mobile sheet can be mounted — only the visible one takes focus
+        if (!input || input.offsetParent === null) return;
+        if (consumePendingFocus() === "label") {
+          input.focus();
+          input.select();
+        }
+      });
+    tryFocus();
+    window.addEventListener(OPEN_PROPERTIES_EVENT, tryFocus);
+    return () => window.removeEventListener(OPEN_PROPERTIES_EVENT, tryFocus);
+  }, [selectedNodeId]);
 
   return (
     <div className="space-y-4">
@@ -347,7 +410,9 @@ function PropertiesTab() {
       <Separator className="bg-zinc-800" />
 
       {/* Selected node properties */}
-      {selectedNode && selectedNode.type === "text" ? (
+      {selectionCount > 1 ? (
+        <MultiSelectionPanel nodeCount={selectedNodes.length} edgeCount={selectedEdges.length} />
+      ) : selectedNode && selectedNode.type === "text" ? (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Text Annotation
@@ -375,7 +440,7 @@ function PropertiesTab() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => deleteNode(selectedNode.id)}
+              onClick={deleteSelection}
               className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
             >
               <Trash2 className="h-3 w-3" />
@@ -393,9 +458,31 @@ function PropertiesTab() {
               </p>
 
               <div className="space-y-2">
+                <div>
+                  <label htmlFor={labelId} className="mb-1 block text-xs text-zinc-400">
+                    Label
+                  </label>
+                  <input
+                    id={labelId}
+                    ref={labelRef}
+                    type="text"
+                    value={data.label as string}
+                    onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })}
+                    onBlur={(e) => {
+                      if (!e.target.value.trim()) {
+                        updateNodeData(selectedNode.id, {
+                          label: getComponentById(data.componentId as string)?.label ?? "Component",
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+                    }}
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/50"
+                  />
+                </div>
                 <div className="rounded-md bg-zinc-800 px-3 py-2">
-                  <p className="text-xs font-medium text-zinc-200">{data.label as string}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">
+                  <p className="text-xs text-zinc-500">
                     {data.category as string} · Max{" "}
                     {(data.maxQPS as number) === Infinity
                       ? "\u221e"
@@ -450,7 +537,7 @@ function PropertiesTab() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => deleteNode(selectedNode.id)}
+                  onClick={deleteSelection}
                   className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -463,8 +550,8 @@ function PropertiesTab() {
             </div>
           );
         })()
-      ) : selectedEdgeId ? (
-        <EdgePropertiesPanel />
+      ) : selectedEdge ? (
+        <EdgePropertiesPanel edge={selectedEdge} />
       ) : (
         <div className="flex flex-col items-center gap-3 py-6 text-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800">
