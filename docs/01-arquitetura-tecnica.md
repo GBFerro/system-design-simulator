@@ -1,6 +1,6 @@
 # Spec 01: Arquitetura técnica e requisitos não funcionais
 
-Parte da [v2](00-visao-geral.md) · Transversal (Fases 0 a 6) · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Transversal (Fases 0 a 6) · Status: infra de testes e CI implementada
 
 | Campo         | Valor                                                                             |
 | ------------- | --------------------------------------------------------------------------------- |
@@ -18,8 +18,8 @@ Cada dependência entra na fase da spec que precisa dela, não antes (o `CLAUDE.
 | Pacote                   | Para quê                                                           | Spec | Fase |
 | ------------------------ | ------------------------------------------------------------------ | ---- | ---- |
 | `@dnd-kit/core`          | Drag da paleta com pointer events (mouse + touch), resolve B1 e B6 | 02   | 0    |
-| `@playwright/test` (dev) | E2E do editor                                                      | 02   | 0    |
-| `vitest` (dev)           | Testes do motor e do scoring                                       | 04   | 1    |
+| `@playwright/test` (dev) | Smoke test (01) e E2E do editor (02)                               | 01   | 0    |
+| `vitest` (dev)           | Testes do scoring (01) e do motor (04)                             | 01   | 0    |
 | `comlink`                | API tipada entre a UI e o worker do motor                          | 04   | 1    |
 | `idb-keyval`             | Designs salvos e histórico de execuções em IndexedDB               | 05   | 1    |
 | `uplot`                  | Séries temporais leves (~45 KB) para o dashboard                   | 07   | 5    |
@@ -68,17 +68,21 @@ src/
 | Acessibilidade | Canvas operável por teclado (Tab entre nós, Shift+F10 para o menu); `prefers-reduced-motion` troca partículas por espessura de aresta; status também indicado por ícone, não só por cor | 02, 07          |
 | Privacidade    | Sem backend e sem telemetria; tudo roda no browser                                                                                                                                      | Todas           |
 
-Para medir a meta de bundle, registrar o tamanho do JS inicial do `npm run build` atual como baseline antes da Fase 1.
+Para medir a meta de bundle, `scripts/bundle-size.mjs` (`npm run bundle:check`) soma em gzip os scripts referenciados pelo `index.html` pré-renderizado de `/`, ou seja, tudo que carrega antes de qualquer `import()` dinâmico, e compara com `bundle-baseline.json`. Baseline de 25/09/2026: 10 arquivos, 479,7 KB gzip. O CI falha acima de +15%.
 
 ## Testes e CI
 
 1. **Motor (Vitest):** valores conhecidos de M/M/1 e M/M/c; throughput ≤ carga oferecida; cache com hit h reduz o banco para (1 − h); amplificação de retry igual à fórmula; mesma seed → mesmo snapshot; cada fault muda a métrica e volta ao baseline depois do heal (a garantia que o ArchSim declara). Ver [Spec 04](04-motor-de-simulacao.md) e [Spec 08](08-chaos-engineering.md).
 2. **Scoring (Vitest):** cada regra soma exatamente 20 e nunca fica negativa, como a invariante atual. Ver [Spec 09](09-modo-entrevista-v2.md).
 3. **Editor (Playwright):** um teste por bug B1–B6, usando os mesmos cenários do diagnóstico: drop no centro vazio, drag e depois Delete, Shift+clique em 2 nós, menu de contexto e touch. Ver [Spec 02](02-editor-confiavel.md).
-4. **CI (GitHub Actions):** o workflow atual já roda `lint` e `build`. Acrescentar `tsc --noEmit`, `vitest` e `playwright` em todo PR, com build obrigatório antes do merge.
+4. **CI (GitHub Actions, Node 22):** `lint`, `typecheck`, `vitest`, `build`, `bundle:check` e `playwright` em todo PR. O Node sobe de 20 para 22 porque o vitest 5 exige `^22.12` e o Node 20 saiu de suporte em abril de 2026.
+
+**Estado atual:** `tests/unit/scoring.test.ts` cobre a invariante das regras: o orçamento declarado em cada regra soma 20, e o score bruto fica em [0, 20] para as 35 referências, grafos-limite e 200 grafos aleatórios com seed. `tests/e2e/smoke.spec.ts` abre o app e checa o canvas vazio sem erros no console. Os testes de editor B1–B6 ficam com a [Spec 02](02-editor-confiavel.md).
+
+**Problema conhecido encontrado pelos testes:** a solução de referência do `web-crawler` é um ciclo puro (`message-queue ↔ app-server`) sem nó de in-degree 0. Nada fica alcançável, e ela tira 0 em Scalability, Latency e Trade-offs. Está isolada em `KNOWN_UNREACHABLE_REFERENCES` no teste até o dado ser corrigido.
 
 ## Critérios de aceite
 
 - [ ] Cada dependência nova entra junto com a primeira spec que a usa, com a justificativa no PR
-- [ ] Baseline de bundle registrado antes da Fase 1 e checado a cada fase
-- [ ] CI roda lint, tsc, build, vitest e playwright em todo PR
+- [x] Baseline de bundle registrado antes da Fase 1 e checado a cada fase
+- [x] CI roda lint, tsc, build, vitest e playwright em todo PR

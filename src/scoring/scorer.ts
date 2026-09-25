@@ -21,7 +21,7 @@ function getVerdict(total: number): { verdict: string; verdictColor: string } {
  * and the set of nodes reachable from entry points. Presence-based rules use
  * the reachable set so a pile of disconnected components doesn't score points.
  */
-function buildScoringGraph(nodes: Node<ComponentNodeData>[], edges: Edge[]): ScoringGraph {
+export function buildScoringGraph(nodes: Node<ComponentNodeData>[], edges: Edge[]): ScoringGraph {
   const nodeIds = new Set(nodes.map((n) => n.id));
   const adjacency = new Map<string, string[]>();
   const inDegree = new Map<string, number>();
