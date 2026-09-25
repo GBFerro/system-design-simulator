@@ -133,6 +133,7 @@ interface CanvasState {
   clearCanvas: () => void;
   deleteNode: (nodeId: string) => void;
   deleteEdge: (edgeId: string) => void;
+  deleteSelection: () => void;
 }
 
 export const useCanvasStore = create<CanvasState>()(
@@ -392,6 +393,22 @@ export const useCanvasStore = create<CanvasState>()(
             : state.selectedEdgeId,
         }));
       },
+      deleteSelection: () =>
+        set((state) => {
+          const nodeIds = new Set(state.nodes.filter((n) => n.selected).map((n) => n.id));
+          const edgeIds = new Set(state.edges.filter((e) => e.selected).map((e) => e.id));
+          if (nodeIds.size === 0 && edgeIds.size === 0) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            nodes: state.nodes.filter((n) => !nodeIds.has(n.id)),
+            edges: state.edges.filter(
+              (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)
+            ),
+            selectedNodeId: null,
+            selectedEdgeId: null,
+          };
+        }),
       deleteEdge: (edgeId) => {
         set((state) => ({
           history: pushedHistory(state),

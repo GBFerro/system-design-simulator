@@ -10,6 +10,7 @@ import {
   useReactFlow,
   type Node,
   type Edge,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
@@ -147,6 +148,18 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
     [setSelectedEdge]
   );
 
+  const onSelectionChange = useCallback(
+    ({ nodes, edges }: OnSelectionChangeParams) => {
+      if (nodes.length === 1 && edges.length === 0) setSelectedNode(nodes[0].id);
+      else if (edges.length === 1 && nodes.length === 0) setSelectedEdge(edges[0].id);
+      else if (nodes.length === 0 && edges.length === 0) {
+        setSelectedNode(null);
+        setSelectedEdge(null);
+      }
+    },
+    [setSelectedNode, setSelectedEdge]
+  );
+
   const onPaneClick = useCallback(() => {
     setSelectedNode(null);
     setSelectedEdge(null);
@@ -167,7 +180,7 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
   const isEmpty = nodes.length === 0;
 
   return (
-    <div ref={reactFlowWrapper} className="relative flex-1 flex flex-col">
+    <div ref={reactFlowWrapper} className="relative flex-1 flex flex-col" onDragOver={onDragOver} onDrop={onDrop}>
       <CanvasTabBar />
       <div className="relative flex-1 bg-background">
       <ReactFlow
@@ -177,8 +190,11 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={isReadOnly ? undefined : onConnect}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
+        onSelectionChange={onSelectionChange}
+        multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+        selectionOnDrag={!penActive}
+        panOnScroll={!penActive}
+        fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
@@ -187,7 +203,7 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
         defaultEdgeOptions={{ type: "animated" }}
         fitView
         proOptions={{ hideAttribution: true }}
-        panOnDrag={!penActive}
+        panOnDrag={penActive ? false : [1]}
         zoomOnScroll={!penActive}
         zoomOnPinch={!penActive}
         nodesDraggable={!penActive && !isReadOnly}
