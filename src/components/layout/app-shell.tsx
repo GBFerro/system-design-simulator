@@ -194,16 +194,12 @@ export function AppShell() {
       const key = e.key.toLowerCase();
 
       if (e.key === "Delete" || e.key === "Backspace") {
-        const { selectedNodeId, selectedEdgeId, deleteNode, deleteEdge, tabs, activeTabId } =
-          useCanvasStore.getState();
+        const { nodes, edges, deleteSelection, tabs, activeTabId } = useCanvasStore.getState();
         const isReadOnlyTab = tabs.find((t) => t.id === activeTabId)?.readOnly === true;
         if (isReadOnlyTab) return;
-        if (selectedNodeId) {
+        if (nodes.some((n) => n.selected) || edges.some((ed) => ed.selected)) {
           e.preventDefault();
-          deleteNode(selectedNodeId);
-        } else if (selectedEdgeId) {
-          e.preventDefault();
-          deleteEdge(selectedEdgeId);
+          deleteSelection();
         }
       }
 
