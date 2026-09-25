@@ -2,12 +2,12 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 5 · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | CST-01 a CST-03 (P1), CST-04 (P2), CST-05 (P0) |
-| Depende de | [Spec 03](03-catalogo-de-componentes.md) (`PricingSpec` no schema), [Spec 04](04-motor-de-simulacao.md) (`analyze()` para right-size) |
-| Consumida por | 09 (regra `cost`), 12 (quick fix de right-size) |
-| Arquivos principais | `domain/components/schemas/*` (preços), `components/panel/CostPanel`, `scoring/rules/cost.ts` |
+| Campo               | Valor                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Requisitos          | CST-01 a CST-03 (P1), CST-04 (P2), CST-05 (P0)                                                                                        |
+| Depende de          | [Spec 03](03-catalogo-de-componentes.md) (`PricingSpec` no schema), [Spec 04](04-motor-de-simulacao.md) (`analyze()` para right-size) |
+| Consumida por       | 09 (regra `cost`), 12 (quick fix de right-size)                                                                                       |
+| Arquivos principais | `domain/components/schemas/*` (preços), `components/panel/CostPanel`, `scoring/rules/cost.ts`                                         |
 
 ## Objetivo
 
@@ -29,11 +29,11 @@ Mostrar quanto a arquitetura custa por mês e por milhão de requests, ao vivo, 
 
 ```ts
 interface PricingSpec {
-  perInstanceHour: number;   // USD
-  baseMonthly: number;       // USD, custo fixo (ex.: LB, NAT)
-  perMillionRequests: number;// USD
-  perGbMonth?: number;       // storage, quando houver param de tamanho
-  assumptions: string;       // texto curto mostrado no breakdown
+  perInstanceHour: number; // USD
+  baseMonthly: number; // USD, custo fixo (ex.: LB, NAT)
+  perMillionRequests: number; // USD
+  perGbMonth?: number; // storage, quando houver param de tamanho
+  assumptions: string; // texto curto mostrado no breakdown
 }
 ```
 

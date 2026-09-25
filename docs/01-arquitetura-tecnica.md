@@ -2,10 +2,10 @@
 
 Parte da [v2](00-visao-geral.md) · Transversal (Fases 0 a 6) · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Escopo | Dependências novas, estrutura de pastas, decisões transversais, NFRs, testes e CI |
-| Consumida por | Todas as outras specs |
+| Campo         | Valor                                                                             |
+| ------------- | --------------------------------------------------------------------------------- |
+| Escopo        | Dependências novas, estrutura de pastas, decisões transversais, NFRs, testes e CI |
+| Consumida por | Todas as outras specs                                                             |
 
 ## Objetivo
 
@@ -15,16 +15,16 @@ Definir as decisões técnicas que valem para todas as specs da v2. A stack atua
 
 Cada dependência entra na fase da spec que precisa dela, não antes (o `CLAUDE.md` pede "no new runtime deps without good reason").
 
-| Pacote | Para quê | Spec | Fase |
-| --- | --- | --- | --- |
-| `@dnd-kit/core` | Drag da paleta com pointer events (mouse + touch), resolve B1 e B6 | 02 | 0 |
-| `@playwright/test` (dev) | E2E do editor | 02 | 0 |
-| `vitest` (dev) | Testes do motor e do scoring | 04 | 1 |
-| `comlink` | API tipada entre a UI e o worker do motor | 04 | 1 |
-| `idb-keyval` | Designs salvos e histórico de execuções em IndexedDB | 05 | 1 |
-| `uplot` | Séries temporais leves (~45 KB) para o dashboard | 07 | 5 |
-| `elkjs` | Auto-layout em camadas (CAN-07), carregado sob demanda | 13 | 6 |
-| `lz-string` | Design comprimido no hash da URL (PER-03) | 05 | 6 |
+| Pacote                   | Para quê                                                           | Spec | Fase |
+| ------------------------ | ------------------------------------------------------------------ | ---- | ---- |
+| `@dnd-kit/core`          | Drag da paleta com pointer events (mouse + touch), resolve B1 e B6 | 02   | 0    |
+| `@playwright/test` (dev) | E2E do editor                                                      | 02   | 0    |
+| `vitest` (dev)           | Testes do motor e do scoring                                       | 04   | 1    |
+| `comlink`                | API tipada entre a UI e o worker do motor                          | 04   | 1    |
+| `idb-keyval`             | Designs salvos e histórico de execuções em IndexedDB               | 05   | 1    |
+| `uplot`                  | Séries temporais leves (~45 KB) para o dashboard                   | 07   | 5    |
+| `elkjs`                  | Auto-layout em camadas (CAN-07), carregado sob demanda             | 13   | 6    |
+| `lz-string`              | Design comprimido no hash da URL (PER-03)                          | 05   | 6    |
 
 ## Estrutura de pastas
 
@@ -59,14 +59,14 @@ src/
 
 ## Requisitos não funcionais
 
-| Área | Meta | Spec que valida |
-| --- | --- | --- |
-| Motor | Tick ≤ 5 ms com 50 nós e 80 arestas, a 20×, num laptop médio | 04 |
-| Animação | 60 fps com 100 arestas e 2.000 partículas; métricas na UI a 10 fps | 07 |
-| Bundle | Worker, ELK e dashboard carregados sob demanda; JS inicial não cresce mais de 15% | Todas |
-| Determinismo | A mesma seed e o mesmo grafo dão o mesmo resultado, bit a bit | 04 |
-| Acessibilidade | Canvas operável por teclado (Tab entre nós, Shift+F10 para o menu); `prefers-reduced-motion` troca partículas por espessura de aresta; status também indicado por ícone, não só por cor | 02, 07 |
-| Privacidade | Sem backend e sem telemetria; tudo roda no browser | Todas |
+| Área           | Meta                                                                                                                                                                                    | Spec que valida |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Motor          | Tick ≤ 5 ms com 50 nós e 80 arestas, a 20×, num laptop médio                                                                                                                            | 04              |
+| Animação       | 60 fps com 100 arestas e 2.000 partículas; métricas na UI a 10 fps                                                                                                                      | 07              |
+| Bundle         | Worker, ELK e dashboard carregados sob demanda; JS inicial não cresce mais de 15%                                                                                                       | Todas           |
+| Determinismo   | A mesma seed e o mesmo grafo dão o mesmo resultado, bit a bit                                                                                                                           | 04              |
+| Acessibilidade | Canvas operável por teclado (Tab entre nós, Shift+F10 para o menu); `prefers-reduced-motion` troca partículas por espessura de aresta; status também indicado por ícone, não só por cor | 02, 07          |
+| Privacidade    | Sem backend e sem telemetria; tudo roda no browser                                                                                                                                      | Todas           |
 
 Para medir a meta de bundle, registrar o tamanho do JS inicial do `npm run build` atual como baseline antes da Fase 1.
 

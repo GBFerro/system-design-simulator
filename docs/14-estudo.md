@@ -2,11 +2,11 @@
 
 Parte da [v2](00-visao-geral.md) · LRN-01 contínuo, LRN-02 a 04 na Fase 6 · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | LRN-01 (P0), LRN-02 e LRN-03 (P1), LRN-04 (P2) |
-| Depende de | [Spec 03](03-catalogo-de-componentes.md) (componentes novos precisam de conceito), [Spec 05](05-persistencia-e-compartilhamento.md) (blueprints carregam como design) |
-| Arquivos principais | `data/conceptLibrary.ts`, `data/tradeoffCards.ts`, `data/learningPath.ts`, `data/problems.ts`, `components/sidebar/` |
+| Campo               | Valor                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requisitos          | LRN-01 (P0), LRN-02 e LRN-03 (P1), LRN-04 (P2)                                                                                                                        |
+| Depende de          | [Spec 03](03-catalogo-de-componentes.md) (componentes novos precisam de conceito), [Spec 05](05-persistencia-e-compartilhamento.md) (blueprints carregam como design) |
+| Arquivos principais | `data/conceptLibrary.ts`, `data/tradeoffCards.ts`, `data/learningPath.ts`, `data/problems.ts`, `components/sidebar/`                                                  |
 
 ## Objetivo
 
@@ -36,11 +36,11 @@ A cada spec que muda o catálogo ou o motor, a concept library é atualizada no 
 ```ts
 interface QuizQuestion {
   id: string;
-  conceptId: string;           // chave da conceptLibrary
+  conceptId: string; // chave da conceptLibrary
   prompt: string;
   options: string[];
   correctIndex: number;
-  explanation: string;         // mostrada depois da resposta
+  explanation: string; // mostrada depois da resposta
 }
 ```
 

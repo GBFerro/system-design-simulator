@@ -2,13 +2,13 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 2 (OBS-01 a 04) e Fase 5 (OBS-05 a 07) · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | OBS-01 a OBS-04 (P0), OBS-05 a OBS-07 (P1) |
-| Depende de | [Spec 04](04-motor-de-simulacao.md) (`TickSnapshot`, ring buffer) |
-| Consumida por | 08 (blast radius), 09 (relatório), 11 (SLO), 12 (advisor) |
+| Campo               | Valor                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Requisitos          | OBS-01 a OBS-04 (P0), OBS-05 a OBS-07 (P1)                                                                             |
+| Depende de          | [Spec 04](04-motor-de-simulacao.md) (`TickSnapshot`, ring buffer)                                                      |
+| Consumida por       | 08 (blast radius), 09 (relatório), 11 (SLO), 12 (advisor)                                                              |
 | Arquivos principais | novo `store/runtimeStore.ts`, `components/canvas/FlowParticles`, `components/panel/MetricsDashboard`, nó de componente |
-| Dependências novas | `uplot` (Fase 5) |
+| Dependências novas  | `uplot` (Fase 5)                                                                                                       |
 
 ## Objetivo
 
@@ -30,27 +30,40 @@ Mostrar o que o motor calcula: métricas por nó e globais no canvas e no painel
 
 ```ts
 interface NodeMetrics {
-  rpsIn: number; rpsOut: number;
-  utilization: number;          // ρ
+  rpsIn: number;
+  rpsOut: number;
+  utilization: number; // ρ
   queueDepth: number;
-  p50: number; p95: number; p99: number; // ms, só o hop
-  errorRate: number; drops: number;
+  p50: number;
+  p95: number;
+  p99: number; // ms, só o hop
+  errorRate: number;
+  drops: number;
   status: "ok" | "warn" | "critical" | "down";
-  extra?: {                     // OBS-03, por tipo
-    hitRatio?: number; queueLagSec?: number; poolUsage?: number;
-    replicationLagMs?: number; breakerState?: "closed" | "open" | "half-open";
+  extra?: {
+    // OBS-03, por tipo
+    hitRatio?: number;
+    queueLagSec?: number;
+    poolUsage?: number;
+    replicationLagMs?: number;
+    breakerState?: "closed" | "open" | "half-open";
   };
 }
 
 interface TickSnapshot {
-  t: number;                    // segundos simulados
+  t: number; // segundos simulados
   nodes: Record<string, NodeMetrics>;
   edges: Record<string, { rps: number; status: "ok" | "slow" | "error" }>;
   global: {
-    throughput: number; goodput: number; errorRate: number;
-    p50: number; p95: number; p99: number; availability: number;
+    throughput: number;
+    goodput: number;
+    errorRate: number;
+    p50: number;
+    p95: number;
+    p99: number;
+    availability: number;
   };
-  traces?: Trace[];             // OBS-06, amostrados
+  traces?: Trace[]; // OBS-06, amostrados
 }
 ```
 

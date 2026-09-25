@@ -2,12 +2,12 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 1 (PER-01/02) e Fase 6 (PER-03) · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | PER-01 (P0), PER-02 (P0), PER-03 (P1), PER-04 (P2, fora de escopo) |
-| Depende de | [Spec 03](03-catalogo-de-componentes.md) (formato de params e `EdgeRule`) |
+| Campo               | Valor                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Requisitos          | PER-01 (P0), PER-02 (P0), PER-03 (P1), PER-04 (P2, fora de escopo)                                               |
+| Depende de          | [Spec 03](03-catalogo-de-componentes.md) (formato de params e `EdgeRule`)                                        |
 | Arquivos principais | `store/*` (persist), `store/safeStorage.ts`, `store/hydration.ts`, `lib/exportCanvas.ts`, `lib/loadReference.ts` |
-| Dependências novas | `idb-keyval` (Fase 1), `lz-string` (Fase 6) |
+| Dependências novas  | `idb-keyval` (Fase 1), `lz-string` (Fase 6)                                                                      |
 
 ## Objetivo
 
@@ -32,16 +32,16 @@ As invariantes atuais continuam (`skipHydration: true`, `safeLocalStorage`, `reh
 
 ### Migração v1 → v2
 
-| Item v1 | v2 |
-| --- | --- |
-| `node.data.maxQPS` | `params.capacityPerInstance` |
-| `node.data.latencyMs` | `params.serviceTimeMs` |
-| `node.data.replicas` | `params.instances` |
-| Demais params | Defaults do schema do tipo |
-| Edge sem regra | `rule.kind = "always"`, `callsPerRequest = 1` |
-| Edge cache/CDN → qualquer | `rule.kind = "on_miss"` |
-| `edge.data` (label/protocol/async) | Preservado |
-| `utilization`/`status`/`isBottleneck` em `node.data` | Removidos (vão para o `runtimeStore`) |
+| Item v1                                              | v2                                            |
+| ---------------------------------------------------- | --------------------------------------------- |
+| `node.data.maxQPS`                                   | `params.capacityPerInstance`                  |
+| `node.data.latencyMs`                                | `params.serviceTimeMs`                        |
+| `node.data.replicas`                                 | `params.instances`                            |
+| Demais params                                        | Defaults do schema do tipo                    |
+| Edge sem regra                                       | `rule.kind = "always"`, `callsPerRequest = 1` |
+| Edge cache/CDN → qualquer                            | `rule.kind = "on_miss"`                       |
+| `edge.data` (label/protocol/async)                   | Preservado                                    |
+| `utilization`/`status`/`isBottleneck` em `node.data` | Removidos (vão para o `runtimeStore`)         |
 
 A migração é idempotente e nunca lança exceção: um nó com tipo desconhecido é mantido como `custom` com um warning.
 

@@ -392,7 +392,7 @@ export const useCanvasStore = create<CanvasState>()(
             future: [],
             nodes: state.nodes.filter((n) => !nodeIds.has(n.id)),
             edges: state.edges.filter(
-              (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)
+              (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
             ),
             selectedNodeId: null,
             selectedEdgeId: null,

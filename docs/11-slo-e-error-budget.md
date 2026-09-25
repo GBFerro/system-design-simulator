@@ -2,11 +2,11 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 5 · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | SLO-01 a SLO-03 (P1) |
-| Depende de | [Spec 07](07-metricas-e-observabilidade.md) (métricas globais), [Spec 08](08-chaos-engineering.md) (faults) |
-| Consumida por | 07 (alerta de burn rate), 09 (regras latency/availability e relatório) |
+| Campo               | Valor                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Requisitos          | SLO-01 a SLO-03 (P1)                                                                                                |
+| Depende de          | [Spec 07](07-metricas-e-observabilidade.md) (métricas globais), [Spec 08](08-chaos-engineering.md) (faults)         |
+| Consumida por       | 07 (alerta de burn rate), 09 (regras latency/availability e relatório)                                              |
 | Arquivos principais | `data/problems.ts` (SLOs), `components/panel/SloPanel`, `scoring/rules/latency.ts`, `scoring/rules/availability.ts` |
 
 ## Objetivo
@@ -26,8 +26,8 @@ Dar a cada problema metas mensuráveis (latência e disponibilidade), mostrar o 
 ```ts
 interface Slo {
   latency: { percentile: 50 | 95 | 99; thresholdMs: number };
-  availability: number;       // ex.: 0.999
-  windowSec: number;          // janela da execução, default 300 (5 min simulados)
+  availability: number; // ex.: 0.999
+  windowSec: number; // janela da execução, default 300 (5 min simulados)
 }
 ```
 

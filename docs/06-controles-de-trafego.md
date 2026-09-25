@@ -2,11 +2,11 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 2 (TRF-01 a 03) e Fase 6 (TRF-04 a 06) · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | TRF-01 a TRF-03 (P0), TRF-04 e TRF-05 (P1), TRF-06 (P2) |
-| Depende de | [Spec 04](04-motor-de-simulacao.md) (loop de tick, `setTraffic`, `setSpeed`) |
-| Arquivos principais | novo `engine/traffic/patterns.ts`, controles no painel Sim e na TopBar |
+| Campo               | Valor                                                                        |
+| ------------------- | ---------------------------------------------------------------------------- |
+| Requisitos          | TRF-01 a TRF-03 (P0), TRF-04 e TRF-05 (P1), TRF-06 (P2)                      |
+| Depende de          | [Spec 04](04-motor-de-simulacao.md) (loop de tick, `setTraffic`, `setSpeed`) |
+| Arquivos principais | novo `engine/traffic/patterns.ts`, controles no painel Sim e na TopBar       |
 
 ## Objetivo
 

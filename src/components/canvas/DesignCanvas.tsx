@@ -168,7 +168,7 @@ export function DesignCanvas({
         setSelectedEdge(null);
       }
     },
-    [setSelectedNode, setSelectedEdge]
+    [setSelectedNode, setSelectedEdge],
   );
 
   const onPaneClick = useCallback(() => {
@@ -191,70 +191,75 @@ export function DesignCanvas({
   const isEmpty = nodes.length === 0;
 
   return (
-    <div ref={reactFlowWrapper} className="relative flex-1 flex flex-col" onDragOver={onDragOver} onDrop={onDrop}>
+    <div
+      ref={reactFlowWrapper}
+      className="relative flex-1 flex flex-col"
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <CanvasTabBar />
       <div className="relative flex-1 bg-background">
-      <ReactFlow
-        className="sf-canvas h-full w-full"
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={isReadOnly ? undefined : onConnect}
-        onSelectionChange={onSelectionChange}
-        multiSelectionKeyCode={["Shift", "Meta", "Control"]}
-        selectionOnDrag={!penActive}
-        panOnScroll={!penActive}
-        fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
-        onNodeClick={onNodeClick}
-        onEdgeClick={onEdgeClick}
-        onPaneClick={onPaneClick}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        defaultEdgeOptions={{ type: "animated" }}
-        fitView
-        proOptions={{ hideAttribution: true }}
-        panOnDrag={penActive ? false : [1]}
-        zoomOnScroll={!penActive}
-        zoomOnPinch={!penActive}
-        nodesDraggable={!penActive && !isReadOnly}
-        nodesConnectable={!penActive && !isReadOnly}
-        elementsSelectable={!penActive}
-        connectionRadius={30}
-        deleteKeyCode={null}
-        snapToGrid
-        snapGrid={[16, 16]}
-      >
-        {/* Two-tier grid (fine dots + faint coarse lines), both edge-masked. */}
-        <Background
-          id="grid-lines"
-          variant={BackgroundVariant.Lines}
-          gap={120}
-          lineWidth={1}
-          color={lineColor}
-          className="!bg-transparent"
-        />
-        <Background
-          id="grid-dots"
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1}
-          color={dotColor}
-          className="!bg-transparent"
-        />
-        <Controls
-          className="!rounded-md !border !border-zinc-800 !bg-zinc-900 !shadow-sm [&>button]:!border-zinc-800 [&>button]:!bg-zinc-900 [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-800 [&>button:hover]:!text-zinc-200"
-          position="bottom-left"
-        />
-        <MiniMap
-          className="!hidden !rounded-md !border !border-zinc-800 !bg-zinc-900 md:!block"
-          maskColor={minimapMask}
-          nodeColor={miniMapNodeColor}
-          position="bottom-right"
-          // Lifted above the corner Support FAB so the two don't overlap
-          style={{ width: 140, height: 90, bottom: 72 }}
-        />
-      </ReactFlow>
+        <ReactFlow
+          className="sf-canvas h-full w-full"
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={isReadOnly ? undefined : onConnect}
+          onSelectionChange={onSelectionChange}
+          multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+          selectionOnDrag={!penActive}
+          panOnScroll={!penActive}
+          fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={onPaneClick}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={{ type: "animated" }}
+          fitView
+          proOptions={{ hideAttribution: true }}
+          panOnDrag={penActive ? false : [1]}
+          zoomOnScroll={!penActive}
+          zoomOnPinch={!penActive}
+          nodesDraggable={!penActive && !isReadOnly}
+          nodesConnectable={!penActive && !isReadOnly}
+          elementsSelectable={!penActive}
+          connectionRadius={30}
+          deleteKeyCode={null}
+          snapToGrid
+          snapGrid={[16, 16]}
+        >
+          {/* Two-tier grid (fine dots + faint coarse lines), both edge-masked. */}
+          <Background
+            id="grid-lines"
+            variant={BackgroundVariant.Lines}
+            gap={120}
+            lineWidth={1}
+            color={lineColor}
+            className="!bg-transparent"
+          />
+          <Background
+            id="grid-dots"
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            size={1}
+            color={dotColor}
+            className="!bg-transparent"
+          />
+          <Controls
+            className="!rounded-md !border !border-zinc-800 !bg-zinc-900 !shadow-sm [&>button]:!border-zinc-800 [&>button]:!bg-zinc-900 [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-800 [&>button:hover]:!text-zinc-200"
+            position="bottom-left"
+          />
+          <MiniMap
+            className="!hidden !rounded-md !border !border-zinc-800 !bg-zinc-900 md:!block"
+            maskColor={minimapMask}
+            nodeColor={miniMapNodeColor}
+            position="bottom-right"
+            // Lifted above the corner Support FAB so the two don't overlap
+            style={{ width: 140, height: 90, bottom: 72 }}
+          />
+        </ReactFlow>
 
         <PenOverlay />
         <PenToolbar />
