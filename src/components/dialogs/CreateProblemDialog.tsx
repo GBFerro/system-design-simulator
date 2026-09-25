@@ -70,7 +70,13 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
       title: trimmedTitle,
       difficulty,
       description: description.trim(),
-      requirements: { readsPerSec, writesPerSec, storageGB, latencyMs, users: users.trim() || "10M DAU" },
+      requirements: {
+        readsPerSec,
+        writesPerSec,
+        storageGB,
+        latencyMs,
+        users: users.trim() || "10M DAU",
+      },
       constraints,
       tags,
     });
@@ -98,12 +104,12 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
 
   return (
     <>
-    <ModalShell
-      open={open}
-      onClose={onClose}
-      panelClassName="max-w-lg p-5"
-      ariaLabel="Create custom problem"
-    >
+      <ModalShell
+        open={open}
+        onClose={onClose}
+        panelClassName="max-w-lg p-5"
+        ariaLabel="Create custom problem"
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-100">Create Custom Problem</h2>
           <button
@@ -226,7 +232,9 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
               onChange={(e) => setConstraintsText(e.target.value)}
               rows={3}
               className={inputClass + " resize-none"}
-              placeholder={"Enter constraints, one per line...\ne.g. Must support offline mode\nEnd-to-end encryption required"}
+              placeholder={
+                "Enter constraints, one per line...\ne.g. Must support offline mode\nEnd-to-end encryption required"
+              }
             />
           </div>
 
@@ -259,17 +267,17 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
             Create Problem
           </button>
         </div>
-    </ModalShell>
+      </ModalShell>
 
-    <ConfirmDialog
-      open={clearConfirmOpen}
-      title="Clear canvas and create problem?"
-      message="Creating this problem clears the current canvas. Your existing components and connections will be removed."
-      confirmText="Clear & create"
-      danger
-      onConfirm={createProblem}
-      onClose={() => setClearConfirmOpen(false)}
-    />
+      <ConfirmDialog
+        open={clearConfirmOpen}
+        title="Clear canvas and create problem?"
+        message="Creating this problem clears the current canvas. Your existing components and connections will be removed."
+        confirmText="Clear & create"
+        danger
+        onConfirm={createProblem}
+        onClose={() => setClearConfirmOpen(false)}
+      />
     </>
   );
 }

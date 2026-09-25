@@ -39,8 +39,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Data modeling requires denormalization",
       ],
     },
-    whenToChooseA: "When you need complex queries, transactions, or strong consistency (payments, inventory, user accounts).",
-    whenToChooseB: "When you need massive scale, flexible schema, or high write throughput (social feeds, IoT data, session stores).",
+    whenToChooseA:
+      "When you need complex queries, transactions, or strong consistency (payments, inventory, user accounts).",
+    whenToChooseB:
+      "When you need massive scale, flexible schema, or high write throughput (social feeds, IoT data, session stores).",
   },
   {
     id: "push-vs-pull",
@@ -60,11 +62,7 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
     },
     optionB: {
       name: "Fan-out on Read (Pull)",
-      pros: [
-        "No write amplification",
-        "Always fresh data",
-        "Simple write path",
-      ],
+      pros: ["No write amplification", "Always fresh data", "Simple write path"],
       cons: [
         "Slow reads — must aggregate at read time",
         "Higher read latency",
@@ -72,7 +70,8 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
       ],
     },
     whenToChooseA: "For most users with moderate follower counts where read latency matters most.",
-    whenToChooseB: "For celebrity/high-follower accounts, or when write simplicity is more important than read speed.",
+    whenToChooseB:
+      "For celebrity/high-follower accounts, or when write simplicity is more important than read speed.",
   },
   {
     id: "sync-vs-async",
@@ -106,8 +105,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Additional infrastructure (broker)",
       ],
     },
-    whenToChooseA: "When you need immediate responses and simple request-response flows (API gateway to service, user-facing reads).",
-    whenToChooseB: "For fire-and-forget tasks, cross-service events, or when you need to decouple producers from consumers (notifications, analytics, order processing).",
+    whenToChooseA:
+      "When you need immediate responses and simple request-response flows (API gateway to service, user-facing reads).",
+    whenToChooseB:
+      "For fire-and-forget tasks, cross-service events, or when you need to decouple producers from consumers (notifications, analytics, order processing).",
   },
   {
     id: "strong-vs-eventual",
@@ -139,8 +140,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Application must handle inconsistency",
       ],
     },
-    whenToChooseA: "For financial transactions, inventory counts, or anywhere correctness is non-negotiable.",
-    whenToChooseB: "For social feeds, analytics, caches, or anywhere slight staleness is acceptable for better performance.",
+    whenToChooseA:
+      "For financial transactions, inventory counts, or anywhere correctness is non-negotiable.",
+    whenToChooseB:
+      "For social feeds, analytics, caches, or anywhere slight staleness is acceptable for better performance.",
   },
   {
     id: "monolith-vs-microservices",
@@ -175,8 +178,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Data consistency challenges",
       ],
     },
-    whenToChooseA: "For early-stage products, small teams, or when the domain is not yet well understood.",
-    whenToChooseB: "For large organizations with clear domain boundaries, independent scaling needs, and dedicated platform teams.",
+    whenToChooseA:
+      "For early-stage products, small teams, or when the domain is not yet well understood.",
+    whenToChooseB:
+      "For large organizations with clear domain boundaries, independent scaling needs, and dedicated platform teams.",
   },
   {
     id: "rest-vs-grpc",
@@ -211,8 +216,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Code generation required",
       ],
     },
-    whenToChooseA: "For public APIs, browser clients, or when developer experience and debuggability matter most.",
-    whenToChooseB: "For internal service-to-service communication where performance, streaming, and strict contracts matter.",
+    whenToChooseA:
+      "For public APIs, browser clients, or when developer experience and debuggability matter most.",
+    whenToChooseB:
+      "For internal service-to-service communication where performance, streaming, and strict contracts matter.",
   },
   {
     id: "cache-aside-vs-write-through",
@@ -232,18 +239,15 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
     },
     optionB: {
       name: "Write-through",
-      pros: [
-        "Cache is always up-to-date",
-        "No stale data",
-        "Consistent read performance",
-      ],
+      pros: ["Cache is always up-to-date", "No stale data", "Consistent read performance"],
       cons: [
         "Write latency increases (write to cache + DB)",
         "Caches data that may never be read",
         "More complex write path",
       ],
     },
-    whenToChooseA: "For read-heavy workloads where some staleness is acceptable and you want to minimize cache size.",
+    whenToChooseA:
+      "For read-heavy workloads where some staleness is acceptable and you want to minimize cache size.",
     whenToChooseB: "When data freshness is critical and the write volume is manageable.",
   },
   {
@@ -279,8 +283,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Consistency challenges",
       ],
     },
-    whenToChooseA: "For early-stage systems, databases that are hard to shard, or when simplicity outweighs scale needs.",
-    whenToChooseB: "When you need fault tolerance, unlimited growth, or when individual machines cannot handle the load.",
+    whenToChooseA:
+      "For early-stage systems, databases that are hard to shard, or when simplicity outweighs scale needs.",
+    whenToChooseB:
+      "When you need fault tolerance, unlimited growth, or when individual machines cannot handle the load.",
   },
   {
     id: "polling-vs-websocket",
@@ -314,19 +320,17 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Reconnection logic needed",
       ],
     },
-    whenToChooseA: "For infrequent updates, simple dashboards, or when infrastructure does not support persistent connections.",
-    whenToChooseB: "For chat, live feeds, collaborative editing, gaming, or any feature needing sub-second updates.",
+    whenToChooseA:
+      "For infrequent updates, simple dashboards, or when infrastructure does not support persistent connections.",
+    whenToChooseB:
+      "For chat, live feeds, collaborative editing, gaming, or any feature needing sub-second updates.",
   },
   {
     id: "single-vs-multi-leader",
     title: "Single Leader vs Multi-Leader Replication",
     optionA: {
       name: "Single Leader",
-      pros: [
-        "No write conflicts",
-        "Simple consistency model",
-        "Easy to reason about ordering",
-      ],
+      pros: ["No write conflicts", "Simple consistency model", "Easy to reason about ordering"],
       cons: [
         "Single point of failure for writes",
         "Write latency for remote clients",
@@ -347,7 +351,8 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
       ],
     },
     whenToChooseA: "When strong consistency is required and most users are in one region.",
-    whenToChooseB: "For geo-distributed systems where write latency matters and you can handle conflict resolution (collaborative docs, multi-region apps).",
+    whenToChooseB:
+      "For geo-distributed systems where write latency matters and you can handle conflict resolution (collaborative docs, multi-region apps).",
   },
   {
     id: "hash-vs-range-partitioning",
@@ -378,8 +383,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Requires careful split-point selection",
       ],
     },
-    whenToChooseA: "For key-value lookups where even distribution matters (user IDs, session tokens, URL shortener).",
-    whenToChooseB: "When range scans are common (time-series data, alphabetical listings, log analysis).",
+    whenToChooseA:
+      "For key-value lookups where even distribution matters (user IDs, session tokens, URL shortener).",
+    whenToChooseB:
+      "When range scans are common (time-series data, alphabetical listings, log analysis).",
   },
   {
     id: "cdn-push-vs-pull",
@@ -399,19 +406,17 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
     },
     optionB: {
       name: "CDN Pull (Origin Pull)",
-      pros: [
-        "Only popular content is cached",
-        "Lower storage costs",
-        "Automatic cache population",
-      ],
+      pros: ["Only popular content is cached", "Lower storage costs", "Automatic cache population"],
       cons: [
         "First request is slow (cache miss)",
         "Thundering herd on cache expiry",
         "Less control over cached content",
       ],
     },
-    whenToChooseA: "For critical content that must always be fast (homepage assets, popular videos, app bundles).",
-    whenToChooseB: "For long-tail content where most items are rarely accessed (user profile images, old blog posts).",
+    whenToChooseA:
+      "For critical content that must always be fast (homepage assets, popular videos, app bundles).",
+    whenToChooseB:
+      "For long-tail content where most items are rarely accessed (user profile images, old blog posts).",
   },
   {
     id: "token-bucket-vs-sliding-window",
@@ -432,19 +437,17 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
     },
     optionB: {
       name: "Sliding Window Log/Counter",
-      pros: [
-        "Precise rate limiting",
-        "No boundary spikes",
-        "Accurate per-window counting",
-      ],
+      pros: ["Precise rate limiting", "No boundary spikes", "Accurate per-window counting"],
       cons: [
         "Higher memory usage (log of timestamps)",
         "More complex implementation",
         "Sliding window counter trades precision for memory",
       ],
     },
-    whenToChooseA: "When you want to allow short bursts while enforcing average rate (API gateways, general rate limiting).",
-    whenToChooseB: "When strict per-window accuracy matters and you cannot tolerate boundary bursts (financial APIs, security-sensitive endpoints).",
+    whenToChooseA:
+      "When you want to allow short bursts while enforcing average rate (API gateways, general rate limiting).",
+    whenToChooseB:
+      "When strict per-window accuracy matters and you cannot tolerate boundary bursts (financial APIs, security-sensitive endpoints).",
   },
   {
     id: "at-least-once-vs-exactly-once",
@@ -477,8 +480,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Transaction coordination adds latency and complexity",
       ],
     },
-    whenToChooseA: "For most messaging — accept duplicates and design idempotent consumers (notifications, analytics events, log processing).",
-    whenToChooseB: "For stream pipelines where duplicated results corrupt state (payments ledgers, counters, Kafka Streams apps) — knowing it dedupes processing, not delivery.",
+    whenToChooseA:
+      "For most messaging — accept duplicates and design idempotent consumers (notifications, analytics events, log processing).",
+    whenToChooseB:
+      "For stream pipelines where duplicated results corrupt state (payments ledgers, counters, Kafka Streams apps) — knowing it dedupes processing, not delivery.",
   },
   {
     id: "optimistic-vs-pessimistic-locking",
@@ -510,8 +515,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Lock held too long stalls everyone (e.g., SELECT FOR UPDATE across a slow operation)",
       ],
     },
-    whenToChooseA: "When conflicts are rare and throughput matters — version columns or CAS on user profiles, documents, low-contention rows.",
-    whenToChooseB: "When many writers fight over the same rows and retries would storm (ticket/seat booking, inventory decrement on a hot SKU).",
+    whenToChooseA:
+      "When conflicts are rare and throughput matters — version columns or CAS on user profiles, documents, low-contention rows.",
+    whenToChooseB:
+      "When many writers fight over the same rows and retries would storm (ticket/seat booking, inventory decrement on a hot SKU).",
   },
   {
     id: "sse-vs-websocket",
@@ -543,8 +550,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "You own reconnection, heartbeats, and backpressure logic",
       ],
     },
-    whenToChooseA: "For one-way streams — notifications, live feeds, progress updates, LLM token streaming. (Long-polling remains the lowest-common-denominator fallback: an HTTP request held open per message — simple, works everywhere, highest overhead.)",
-    whenToChooseB: "For bidirectional, low-latency interaction — chat, multiplayer games, collaborative editing.",
+    whenToChooseA:
+      "For one-way streams — notifications, live feeds, progress updates, LLM token streaming. (Long-polling remains the lowest-common-denominator fallback: an HTTP request held open per message — simple, works everywhere, highest overhead.)",
+    whenToChooseB:
+      "For bidirectional, low-latency interaction — chat, multiplayer games, collaborative editing.",
   },
   {
     id: "kafka-vs-rabbitmq",
@@ -576,8 +585,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Deep queues degrade broker performance",
       ],
     },
-    whenToChooseA: "For event streaming, analytics pipelines, event sourcing, or when multiple independent consumers need the same data with replay.",
-    whenToChooseB: "For task/work queues, complex routing rules, or per-message guarantees (job dispatch, RPC-style messaging, retry with dead-lettering).",
+    whenToChooseA:
+      "For event streaming, analytics pipelines, event sourcing, or when multiple independent consumers need the same data with replay.",
+    whenToChooseB:
+      "For task/work queues, complex routing rules, or per-message guarantees (job dispatch, RPC-style messaging, retry with dead-lettering).",
   },
   {
     id: "jwt-vs-session-tokens",
@@ -609,8 +620,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Cross-domain/microservice use needs extra plumbing",
       ],
     },
-    whenToChooseA: "For microservices and cross-domain APIs — keep JWTs short-lived and pair with refresh tokens to limit the revocation gap.",
-    whenToChooseB: "For classic web apps needing instant logout, ban, or session management — typically backed by Redis.",
+    whenToChooseA:
+      "For microservices and cross-domain APIs — keep JWTs short-lived and pair with refresh tokens to limit the revocation gap.",
+    whenToChooseB:
+      "For classic web apps needing instant logout, ban, or session management — typically backed by Redis.",
   },
   {
     id: "normalization-vs-denormalization",
@@ -642,8 +655,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Stale copies if propagation fails",
       ],
     },
-    whenToChooseA: "For OLTP relational cores where correctness and write integrity dominate (orders, accounts, inventory).",
-    whenToChooseB: "For read-heavy views (feeds, product pages, NoSQL aggregates) — and note most mature systems do both: a normalized source of truth plus denormalized read models or materialized views (CQRS).",
+    whenToChooseA:
+      "For OLTP relational cores where correctness and write integrity dominate (orders, accounts, inventory).",
+    whenToChooseB:
+      "For read-heavy views (feeds, product pages, NoSQL aggregates) — and note most mature systems do both: a normalized source of truth plus denormalized read models or materialized views (CQRS).",
   },
   {
     id: "batch-vs-stream-processing",
@@ -675,8 +690,10 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Reprocessing requires replayable sources and careful state resets",
       ],
     },
-    whenToChooseA: "For reports, ML training, billing runs — anywhere hours of latency is fine and reprocessability matters.",
-    whenToChooseB: "For fraud detection, live dashboards, alerting — anywhere seconds matter. (Lambda architecture runs both layers; Kappa simplifies to stream-only with replay.)",
+    whenToChooseA:
+      "For reports, ML training, billing runs — anywhere hours of latency is fine and reprocessability matters.",
+    whenToChooseB:
+      "For fraud detection, live dashboards, alerting — anywhere seconds matter. (Lambda architecture runs both layers; Kappa simplifies to stream-only with replay.)",
   },
   {
     id: "active-active-vs-active-passive",
@@ -708,7 +725,9 @@ export const TRADEOFF_CARDS: TradeoffCard[] = [
         "Failover paths rot unless regularly tested",
       ],
     },
-    whenToChooseA: "For global, latency-sensitive products that can resolve or avoid write conflicts (DynamoDB global tables, CRDT-based or region-pinned designs).",
-    whenToChooseB: "For systems where consistency is paramount and an RTO of minutes is acceptable (classic primary/DR Postgres setups).",
+    whenToChooseA:
+      "For global, latency-sensitive products that can resolve or avoid write conflicts (DynamoDB global tables, CRDT-based or region-pinned designs).",
+    whenToChooseB:
+      "For systems where consistency is paramount and an RTO of minutes is acceptable (classic primary/DR Postgres setups).",
   },
 ];

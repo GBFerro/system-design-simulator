@@ -327,7 +327,9 @@ export function AppShell() {
                 inert={!mobileSidebarOpen || undefined}
               >
                 <div className="flex h-10 shrink-0 items-center justify-between border-b border-zinc-800 px-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Library</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Library
+                  </span>
                   <button
                     onClick={() => setMobileSidebarOpen(false)}
                     className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
@@ -396,9 +398,18 @@ export function AppShell() {
 
         <SaveDialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} />
         <LoadDialog open={loadDialogOpen} onClose={() => setLoadDialogOpen(false)} />
-        <InterviewStartDialog open={interviewDialogOpen} onClose={() => setInterviewDialogOpen(false)} />
-        <CreateProblemDialog open={createProblemDialogOpen} onClose={() => setCreateProblemDialogOpen(false)} />
-        <CreateComponentDialog open={createComponentDialogOpen} onClose={() => setCreateComponentDialogOpen(false)} />
+        <InterviewStartDialog
+          open={interviewDialogOpen}
+          onClose={() => setInterviewDialogOpen(false)}
+        />
+        <CreateProblemDialog
+          open={createProblemDialogOpen}
+          onClose={() => setCreateProblemDialogOpen(false)}
+        />
+        <CreateComponentDialog
+          open={createComponentDialogOpen}
+          onClose={() => setCreateComponentDialogOpen(false)}
+        />
         <SupportDialog open={supportDialogOpen} onClose={() => setSupportDialogOpen(false)} />
         <CommandPalette
           key={commandOpen ? "cmd-open" : "cmd-closed"}
@@ -420,7 +431,10 @@ export function AppShell() {
           open={howItWorksOpen}
           onClose={() => setHowItWorksOpen(false)}
           onPickProblem={handlePickProblem}
-          onPlayWalkthrough={() => { setHowItWorksOpen(false); setWalkthroughOpen(true); }}
+          onPlayWalkthrough={() => {
+            setHowItWorksOpen(false);
+            setWalkthroughOpen(true);
+          }}
         />
         <Walkthrough
           open={walkthroughOpen}

@@ -56,9 +56,7 @@ export const useCustomProblemsStore = create<CustomProblemsState>()(
 
       updateProblem: (id, updates) => {
         set((s) => ({
-          problems: s.problems.map((p) =>
-            p.id === id ? { ...p, ...updates } : p
-          ),
+          problems: s.problems.map((p) => (p.id === id ? { ...p, ...updates } : p)),
         }));
       },
 
@@ -75,6 +73,6 @@ export const useCustomProblemsStore = create<CustomProblemsState>()(
       storage: createJSONStorage(() => safeLocalStorage),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       migrate: (state) => state as any,
-    }
-  )
+    },
+  ),
 );

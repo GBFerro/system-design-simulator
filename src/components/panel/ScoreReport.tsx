@@ -40,9 +40,7 @@ function CategorySection({ category, index = 0 }: { category: CategoryScore; ind
   const [expanded, setExpanded] = useState(false);
   const pct = (category.score / category.maxScore) * 100;
 
-  const barColor =
-    pct >= 80 ? "bg-emerald-500" :
-    pct >= 50 ? "bg-amber-500" : "bg-rose-500";
+  const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
 
   return (
     <div className="rounded-md bg-zinc-800 px-3 py-2.5">
@@ -56,9 +54,7 @@ function CategorySection({ category, index = 0 }: { category: CategoryScore; ind
           ) : (
             <ChevronRight className="h-3 w-3 text-zinc-400" />
           )}
-          <span className="text-xs font-medium text-zinc-300">
-            {category.category}
-          </span>
+          <span className="text-xs font-medium text-zinc-300">{category.category}</span>
         </div>
         <span className="font-mono text-xs text-zinc-400">
           {category.score}/{category.maxScore}
@@ -133,16 +129,15 @@ export function ScoreReport() {
         <div>
           <p className="text-xs font-medium text-zinc-300">Ready to evaluate</p>
           <p className="mt-1 max-w-[220px] text-xs text-zinc-500">
-            Design your system on the canvas, then click <span className="text-cyan-500">Score</span> to see how you did
+            Design your system on the canvas, then click{" "}
+            <span className="text-cyan-500">Score</span> to see how you did
           </p>
         </div>
       </div>
     );
   }
 
-  const topImprovements = scoreResult.categories
-    .flatMap((c) => c.feedback)
-    .slice(0, 3);
+  const topImprovements = scoreResult.categories.flatMap((c) => c.feedback).slice(0, 3);
 
   return (
     <ScrollArea className="h-full">
@@ -161,10 +156,13 @@ export function ScoreReport() {
               const progress = (scoreResult.total / 100) * circumference;
               // Tier-tinted gradient (base → lighter sheen) gives the ring depth
               const tier =
-                scoreResult.total >= 71 ? ["#059669", "#34d399"] :
-                scoreResult.total >= 51 ? ["#0891b2", "#22d3ee"] :
-                scoreResult.total >= 31 ? ["#d97706", "#fbbf24"] :
-                ["#dc2626", "#f87171"];
+                scoreResult.total >= 71
+                  ? ["#059669", "#34d399"]
+                  : scoreResult.total >= 51
+                    ? ["#0891b2", "#22d3ee"]
+                    : scoreResult.total >= 31
+                      ? ["#d97706", "#fbbf24"]
+                      : ["#dc2626", "#f87171"];
               return (
                 <svg width="96" height="96" className="-rotate-90">
                   <defs>
@@ -173,10 +171,21 @@ export function ScoreReport() {
                       <stop offset="100%" stopColor={tier[1]} />
                     </linearGradient>
                   </defs>
-                  <circle cx="48" cy="48" r={radius} fill="none" stroke="rgb(39,39,42)" strokeWidth="6" />
+                  <circle
+                    cx="48"
+                    cy="48"
+                    r={radius}
+                    fill="none"
+                    stroke="rgb(39,39,42)"
+                    strokeWidth="6"
+                  />
                   <motion.circle
-                    cx="48" cy="48" r={radius} fill="none"
-                    stroke="url(#scoreRing)" strokeWidth="6"
+                    cx="48"
+                    cy="48"
+                    r={radius}
+                    fill="none"
+                    stroke="url(#scoreRing)"
+                    strokeWidth="6"
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     initial={{ strokeDashoffset: circumference }}
@@ -202,18 +211,14 @@ export function ScoreReport() {
             {scoreResult.verdict}
           </Badge>
 
-          <p className="text-center text-xs text-zinc-500">
-            {scoreResult.summary}
-          </p>
+          <p className="text-center text-xs text-zinc-500">{scoreResult.summary}</p>
         </div>
 
         <Separator className="bg-zinc-800" />
 
         {/* Category breakdowns */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            Categories
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Categories</p>
           {scoreResult.categories.map((cat, i) => (
             <CategorySection key={cat.category} category={cat} index={i} />
           ))}

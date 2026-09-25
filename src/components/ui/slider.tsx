@@ -1,17 +1,17 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 interface SliderProps {
-  className?: string
-  value?: number[]
-  defaultValue?: number[]
-  min?: number
-  max?: number
-  step?: number
-  onValueChange?: (value: number[]) => void
-  disabled?: boolean
+  className?: string;
+  value?: number[];
+  defaultValue?: number[];
+  min?: number;
+  max?: number;
+  step?: number;
+  onValueChange?: (value: number[]) => void;
+  disabled?: boolean;
 }
 
 function Slider({
@@ -24,8 +24,8 @@ function Slider({
   onValueChange,
   disabled = false,
 }: SliderProps) {
-  const currentValue = value?.[0] ?? defaultValue?.[0] ?? min
-  const percentage = ((currentValue - min) / (max - min)) * 100
+  const currentValue = value?.[0] ?? defaultValue?.[0] ?? min;
+  const percentage = ((currentValue - min) / (max - min)) * 100;
 
   return (
     <div
@@ -49,7 +49,7 @@ function Slider({
         value={currentValue}
         disabled={disabled}
         onChange={(e) => {
-          onValueChange?.([Number(e.target.value)])
+          onValueChange?.([Number(e.target.value)]);
         }}
         className={cn(
           "absolute inset-0 m-0 h-full w-full cursor-pointer appearance-none bg-transparent",
@@ -57,11 +57,11 @@ function Slider({
           "[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-cyan-500 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:shadow-sm",
           "[&::-webkit-slider-runnable-track]:h-0 [&::-webkit-slider-runnable-track]:appearance-none",
           "[&::-moz-range-track]:h-0 [&::-moz-range-track]:appearance-none",
-          disabled && "pointer-events-none opacity-50"
+          disabled && "pointer-events-none opacity-50",
         )}
       />
     </div>
-  )
+  );
 }
 
-export { Slider }
+export { Slider };

@@ -90,7 +90,5 @@ export function loadReferenceIntoTab(problem: Problem): void {
     readOnly: true,
   });
 
-  useAppStore
-    .getState()
-    .showToast("Reference opened in new tab — your design is safe", "success");
+  useAppStore.getState().showToast("Reference opened in new tab — your design is safe", "success");
 }

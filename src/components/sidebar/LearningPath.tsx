@@ -120,7 +120,9 @@ export function LearningPath() {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs font-semibold ${TIER_COLORS[tier.name] ?? "text-zinc-300"}`}>
+                    <span
+                      className={`text-xs font-semibold ${TIER_COLORS[tier.name] ?? "text-zinc-300"}`}
+                    >
                       {tier.name}
                     </span>
                     <span className="text-[10px] text-zinc-400">
@@ -155,7 +157,9 @@ export function LearningPath() {
                         role="button"
                         tabIndex={0}
                         onClick={() => setSelectedProblem(pid)}
-                        onKeyDown={(e) => { if (e.key === "Enter") setSelectedProblem(pid); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setSelectedProblem(pid);
+                        }}
                         className={`flex w-full cursor-pointer flex-col gap-1 rounded-md border px-2.5 py-2 text-left transition-colors ${
                           isSelected
                             ? "border-cyan-500/50 bg-cyan-500/10"

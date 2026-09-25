@@ -14,9 +14,7 @@ import type { StateStorage } from "zustand/middleware";
 function notifyStorageFull(): void {
   import("./appStore")
     .then(({ useAppStore }) => {
-      useAppStore
-        .getState()
-        .showToast("Storage full — changes not persisted", "error");
+      useAppStore.getState().showToast("Storage full — changes not persisted", "error");
     })
     .catch(() => {
       // Nothing else we can do — persistence is best-effort.

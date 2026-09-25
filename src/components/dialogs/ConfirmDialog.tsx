@@ -24,9 +24,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
-  const confirmClass = danger
-    ? "bg-rose-600 hover:bg-rose-500"
-    : "bg-cyan-600 hover:bg-cyan-500";
+  const confirmClass = danger ? "bg-rose-600 hover:bg-rose-500" : "bg-cyan-600 hover:bg-cyan-500";
 
   return (
     <ModalShell open={open} onClose={onClose} panelClassName="max-w-sm p-6" ariaLabel={title}>

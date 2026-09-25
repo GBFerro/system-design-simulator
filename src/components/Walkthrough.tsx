@@ -3,8 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, Play, Pause, ChevronLeft, ChevronRight, RotateCcw, Sparkles,
-  Globe, Server, Database, Boxes, Network, Gauge, Command, Clock,
+  X,
+  Play,
+  Pause,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Sparkles,
+  Globe,
+  Server,
+  Database,
+  Boxes,
+  Network,
+  Gauge,
+  Command,
+  Clock,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -14,8 +27,16 @@ import {
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 function NodeBox({
-  icon: Icon, label, color, delay = 0,
-}: { icon: React.ComponentType<{ className?: string }>; label: string; color: string; delay?: number }) {
+  icon: Icon,
+  label,
+  color,
+  delay = 0,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  color: string;
+  delay?: number;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.8, y: 10 }}
@@ -44,7 +65,9 @@ function CountUp({ to, duration = 1400 }: { to: number; duration?: number }) {
       if (p < 1) raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
-    return () => { if (raf.current) cancelAnimationFrame(raf.current); };
+    return () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+    };
   }, [to, duration]);
   return <>{v}</>;
 }
@@ -84,9 +107,24 @@ function SceneWelcome() {
 function SceneBuild() {
   return (
     <div className="flex flex-wrap items-center justify-center gap-3">
-      <NodeBox icon={Globe} label="Load Balancer" color="bg-blue-500/10 text-blue-400 ring-blue-500/25" delay={0} />
-      <NodeBox icon={Server} label="App Server" color="bg-violet-500/10 text-violet-400 ring-violet-500/25" delay={0.35} />
-      <NodeBox icon={Database} label="Database" color="bg-amber-500/10 text-amber-400 ring-amber-500/25" delay={0.7} />
+      <NodeBox
+        icon={Globe}
+        label="Load Balancer"
+        color="bg-blue-500/10 text-blue-400 ring-blue-500/25"
+        delay={0}
+      />
+      <NodeBox
+        icon={Server}
+        label="App Server"
+        color="bg-violet-500/10 text-violet-400 ring-violet-500/25"
+        delay={0.35}
+      />
+      <NodeBox
+        icon={Database}
+        label="Database"
+        color="bg-amber-500/10 text-amber-400 ring-amber-500/25"
+        delay={0.7}
+      />
     </div>
   );
 }
@@ -94,12 +132,27 @@ function SceneBuild() {
 function SceneWire() {
   return (
     <div className="relative flex items-center justify-center gap-24">
-      <NodeBox icon={Server} label="App" color="bg-violet-500/10 text-violet-400 ring-violet-500/25" />
-      <NodeBox icon={Database} label="SQL DB" color="bg-amber-500/10 text-amber-400 ring-amber-500/25" />
-      <svg className="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none">
+      <NodeBox
+        icon={Server}
+        label="App"
+        color="bg-violet-500/10 text-violet-400 ring-violet-500/25"
+      />
+      <NodeBox
+        icon={Database}
+        label="SQL DB"
+        color="bg-amber-500/10 text-amber-400 ring-amber-500/25"
+      />
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        preserveAspectRatio="none"
+      >
         <motion.line
-          x1="42%" y1="50%" x2="58%" y2="50%"
-          stroke="#22d3ee" strokeWidth="2"
+          x1="42%"
+          y1="50%"
+          x2="58%"
+          y2="50%"
+          stroke="#22d3ee"
+          strokeWidth="2"
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ delay: 0.5, duration: 0.8, ease: EASE }}
@@ -133,12 +186,18 @@ function SceneSimulate() {
             />
           ))}
         </div>
-        <NodeBox icon={Server} label="App" color="bg-violet-500/10 text-violet-400 ring-violet-500/25" />
+        <NodeBox
+          icon={Server}
+          label="App"
+          color="bg-violet-500/10 text-violet-400 ring-violet-500/25"
+        />
       </div>
       <div className="w-full space-y-1.5">
         <div className="flex items-center justify-between text-[11px] text-zinc-400">
           <span>App Server utilization</span>
-          <span className="font-mono text-amber-400"><CountUp to={72} duration={1500} />%</span>
+          <span className="font-mono text-amber-400">
+            <CountUp to={72} duration={1500} />%
+          </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
           <motion.div
@@ -169,7 +228,13 @@ function SceneScore() {
           </defs>
           <circle cx="52" cy="52" r={radius} fill="none" stroke="rgb(39,39,42)" strokeWidth="7" />
           <motion.circle
-            cx="52" cy="52" r={radius} fill="none" stroke="url(#wt-ring)" strokeWidth="7" strokeLinecap="round"
+            cx="52"
+            cy="52"
+            r={radius}
+            fill="none"
+            stroke="url(#wt-ring)"
+            strokeWidth="7"
+            strokeLinecap="round"
             strokeDasharray={circ}
             initial={{ strokeDashoffset: circ }}
             animate={{ strokeDashoffset: circ - pct * circ }}
@@ -178,7 +243,9 @@ function SceneScore() {
           />
         </svg>
         <div className="absolute flex flex-col items-center">
-          <span className="font-mono text-3xl font-bold text-zinc-50"><CountUp to={88} /></span>
+          <span className="font-mono text-3xl font-bold text-zinc-50">
+            <CountUp to={88} />
+          </span>
           <span className="text-[10px] text-zinc-400">/ 100</span>
         </div>
       </div>
@@ -216,10 +283,14 @@ function SceneInterview() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.12, duration: 0.35 }}
             className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium ${
-              i === 0 ? "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30" : "bg-zinc-800 text-zinc-500"
+              i === 0
+                ? "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30"
+                : "bg-zinc-800 text-zinc-500"
             }`}
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${i === 0 ? "bg-cyan-400" : "bg-zinc-600"}`} />
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${i === 0 ? "bg-cyan-400" : "bg-zinc-600"}`}
+            />
             {s}
           </motion.div>
         ))}
@@ -259,7 +330,9 @@ function SceneCommand() {
             >
               <Icon className={`h-4 w-4 ${i === 0 ? "text-cyan-400" : "text-zinc-500"}`} />
               <span className="flex-1 text-xs text-zinc-200">{r.label}</span>
-              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">{r.tag}</span>
+              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">
+                {r.tag}
+              </span>
             </motion.div>
           );
         })}
@@ -280,7 +353,9 @@ function SceneOutro() {
         <img src="/logo-mark.svg" alt="" width={64} height={64} className="h-16 w-16" />
       </motion.div>
       <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
         className="flex items-center gap-1.5 text-cyan-400"
       >
         <Sparkles className="h-4 w-4" />
@@ -299,14 +374,55 @@ interface Scene {
 }
 
 const SCENES: Scene[] = [
-  { id: "welcome", title: "Welcome to SystemForge", text: "A hands-on simulator for system design interviews. Here's the entire flow in under a minute.", Illo: SceneWelcome },
-  { id: "build", title: "1 · Build the architecture", text: "Pick from 35 problems, then drag infrastructure components onto the canvas — load balancers, app servers, caches, databases, queues and more.", Illo: SceneBuild },
-  { id: "wire", title: "2 · Wire it together", text: "Connect components to model the request path. Click any edge to set its protocol (HTTP, gRPC, WebSocket…) and sync or async mode.", Illo: SceneWire },
-  { id: "simulate", title: "3 · Simulate real traffic", text: "Push up to 500K requests/sec through your design and watch QPS, utilization and bottlenecks light up across every node.", Illo: SceneSimulate },
-  { id: "score", title: "4 · Get scored like an interview", text: "Get rated across Scalability, Availability, Latency, Cost and Trade-offs — each with concrete, actionable feedback.", Illo: SceneScore },
-  { id: "interview", title: "5 · Practice the real thing", text: "Run a timed 6-phase mock interview — Requirements through Deep Dive — with a wall-clock timer and live, phase-by-phase guidance.", Illo: SceneInterview },
-  { id: "command", title: "Move at the speed of thought", text: "Press ⌘K anywhere to search problems, add components, and run any action instantly — no hunting through menus.", Illo: SceneCommand },
-  { id: "outro", title: "That's the whole loop", text: "Pick a problem and design your first architecture. Build, simulate, score, repeat.", Illo: SceneOutro, cta: true },
+  {
+    id: "welcome",
+    title: "Welcome to SystemForge",
+    text: "A hands-on simulator for system design interviews. Here's the entire flow in under a minute.",
+    Illo: SceneWelcome,
+  },
+  {
+    id: "build",
+    title: "1 · Build the architecture",
+    text: "Pick from 35 problems, then drag infrastructure components onto the canvas — load balancers, app servers, caches, databases, queues and more.",
+    Illo: SceneBuild,
+  },
+  {
+    id: "wire",
+    title: "2 · Wire it together",
+    text: "Connect components to model the request path. Click any edge to set its protocol (HTTP, gRPC, WebSocket…) and sync or async mode.",
+    Illo: SceneWire,
+  },
+  {
+    id: "simulate",
+    title: "3 · Simulate real traffic",
+    text: "Push up to 500K requests/sec through your design and watch QPS, utilization and bottlenecks light up across every node.",
+    Illo: SceneSimulate,
+  },
+  {
+    id: "score",
+    title: "4 · Get scored like an interview",
+    text: "Get rated across Scalability, Availability, Latency, Cost and Trade-offs — each with concrete, actionable feedback.",
+    Illo: SceneScore,
+  },
+  {
+    id: "interview",
+    title: "5 · Practice the real thing",
+    text: "Run a timed 6-phase mock interview — Requirements through Deep Dive — with a wall-clock timer and live, phase-by-phase guidance.",
+    Illo: SceneInterview,
+  },
+  {
+    id: "command",
+    title: "Move at the speed of thought",
+    text: "Press ⌘K anywhere to search problems, add components, and run any action instantly — no hunting through menus.",
+    Illo: SceneCommand,
+  },
+  {
+    id: "outro",
+    title: "That's the whole loop",
+    text: "Pick a problem and design your first architecture. Build, simulate, score, repeat.",
+    Illo: SceneOutro,
+    cta: true,
+  },
 ];
 
 const SCENE_MS = 5200;
@@ -325,7 +441,11 @@ export function Walkthrough({ open, onClose, onPickProblem }: WalkthroughProps) 
 
   // Reset when (re)opened
   useEffect(() => {
-    if (open) { setStep(0); setPlaying(true); setProgress(0); }
+    if (open) {
+      setStep(0);
+      setPlaying(true);
+      setProgress(0);
+    }
   }, [open]);
 
   // Auto-advance ticker
@@ -336,7 +456,10 @@ export function Walkthrough({ open, onClose, onPickProblem }: WalkthroughProps) 
         const next = p + TICK / SCENE_MS;
         if (next >= 1) {
           setStep((s) => {
-            if (s >= SCENES.length - 1) { setPlaying(false); return s; }
+            if (s >= SCENES.length - 1) {
+              setPlaying(false);
+              return s;
+            }
             return s + 1;
           });
           return 0;
@@ -351,10 +474,15 @@ export function Walkthrough({ open, onClose, onPickProblem }: WalkthroughProps) 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); onClose(); }
-      else if (e.key === "ArrowRight") goTo(step + 1);
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      } else if (e.key === "ArrowRight") goTo(step + 1);
       else if (e.key === "ArrowLeft") goTo(step - 1);
-      else if (e.key === " ") { e.preventDefault(); setPlaying((p) => !p); }
+      else if (e.key === " ") {
+        e.preventDefault();
+        setPlaying((p) => !p);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -375,7 +503,11 @@ export function Walkthrough({ open, onClose, onPickProblem }: WalkthroughProps) 
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-zinc-950/90 backdrop-blur-md"
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
       <motion.div
         role="dialog"
@@ -433,15 +565,21 @@ export function Walkthrough({ open, onClose, onPickProblem }: WalkthroughProps) 
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3, delay: 0.1 }}
             >
-              <h3 className="font-display text-lg font-bold tracking-tight text-zinc-50">{scene.title}</h3>
-              <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-zinc-400">{scene.text}</p>
+              <h3 className="font-display text-lg font-bold tracking-tight text-zinc-50">
+                {scene.title}
+              </h3>
+              <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-zinc-400">
+                {scene.text}
+              </p>
             </motion.div>
           </AnimatePresence>
         </div>
 
         {/* Controls */}
         <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-3">
-          <span className="font-mono text-[11px] text-zinc-500">{step + 1} / {SCENES.length}</span>
+          <span className="font-mono text-[11px] text-zinc-500">
+            {step + 1} / {SCENES.length}
+          </span>
 
           <div className="flex items-center gap-1">
             <button
@@ -454,7 +592,11 @@ export function Walkthrough({ open, onClose, onPickProblem }: WalkthroughProps) 
             </button>
             {atEnd ? (
               <button
-                onClick={() => { setStep(0); setProgress(0); setPlaying(true); }}
+                onClick={() => {
+                  setStep(0);
+                  setProgress(0);
+                  setPlaying(true);
+                }}
                 className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-300 hover:bg-zinc-800"
                 aria-label="Replay"
               >
@@ -481,14 +623,20 @@ export function Walkthrough({ open, onClose, onPickProblem }: WalkthroughProps) 
 
           {scene.cta && onPickProblem ? (
             <button
-              onClick={() => { onClose(); onPickProblem(); }}
+              onClick={() => {
+                onClose();
+                onPickProblem();
+              }}
               className="flex items-center gap-1.5 rounded-md bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cyan-400"
             >
               <Sparkles className="h-3.5 w-3.5" />
               Start building
             </button>
           ) : (
-            <button onClick={onClose} className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-300">
+            <button
+              onClick={onClose}
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-300"
+            >
               Skip
             </button>
           )}

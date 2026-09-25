@@ -108,43 +108,20 @@ export function CapacityCalculator() {
       <Separator className="bg-zinc-800" />
 
       {/* Results */}
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        Estimates
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Estimates</p>
 
       <div className="space-y-2">
-        <ResultRow
-          label="Total Requests / Day"
-          value={formatNumber(estimates.totalRequests)}
-        />
-        <ResultRow
-          label="Avg QPS"
-          value={formatNumber(estimates.qps)}
-          highlight
-        />
-        <ResultRow
-          label="Peak QPS (3× avg)"
-          value={formatNumber(estimates.peakQps)}
-          highlight
-        />
-        <ResultRow
-          label="Write QPS"
-          value={formatNumber(estimates.writeQPS)}
-        />
+        <ResultRow label="Total Requests / Day" value={formatNumber(estimates.totalRequests)} />
+        <ResultRow label="Avg QPS" value={formatNumber(estimates.qps)} highlight />
+        <ResultRow label="Peak QPS (3× avg)" value={formatNumber(estimates.peakQps)} highlight />
+        <ResultRow label="Write QPS" value={formatNumber(estimates.writeQPS)} />
       </div>
 
       <Separator className="bg-zinc-800" />
 
       <div className="space-y-2">
-        <ResultRow
-          label="Storage / Day"
-          value={formatBytes(estimates.storagePerDay)}
-        />
-        <ResultRow
-          label="Storage / Year"
-          value={formatBytes(estimates.storagePerYear)}
-          highlight
-        />
+        <ResultRow label="Storage / Day" value={formatBytes(estimates.storagePerDay)} />
+        <ResultRow label="Storage / Year" value={formatBytes(estimates.storagePerYear)} highlight />
         <ResultRow
           label="Peak Bandwidth"
           value={formatBandwidth(estimates.bandwidthBps)}
@@ -185,10 +162,10 @@ function InputField({ label, value, onChange, presets }: InputFieldProps) {
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <label htmlFor={inputId} className="text-xs text-zinc-400">{label}</label>
-        <span className="font-mono text-xs text-cyan-500">
-          {formatNumber(value)}
-        </span>
+        <label htmlFor={inputId} className="text-xs text-zinc-400">
+          {label}
+        </label>
+        <span className="font-mono text-xs text-cyan-500">{formatNumber(value)}</span>
       </div>
       <input
         id={inputId}
@@ -230,9 +207,7 @@ function ResultRow({ label, value, highlight }: ResultRowProps) {
     <div className="flex items-center justify-between rounded-md bg-zinc-800 px-2.5 py-1.5">
       <span className="text-xs text-zinc-400">{label}</span>
       <span
-        className={`font-mono text-xs font-medium ${
-          highlight ? "text-cyan-500" : "text-zinc-300"
-        }`}
+        className={`font-mono text-xs font-medium ${highlight ? "text-cyan-500" : "text-zinc-300"}`}
       >
         {value}
       </span>

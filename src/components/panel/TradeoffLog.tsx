@@ -148,14 +148,9 @@ export function TradeoffLog() {
 
       <div className="space-y-2">
         {entries.map((entry) => (
-          <div
-            key={entry.id}
-            className="group rounded-md border border-zinc-700 bg-zinc-800 p-2.5"
-          >
+          <div key={entry.id} className="group rounded-md border border-zinc-700 bg-zinc-800 p-2.5">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-xs font-medium text-zinc-200">
-                {entry.decision}
-              </p>
+              <p className="text-xs font-medium text-zinc-200">{entry.decision}</p>
               <button
                 onClick={() => removeEntry(entry.id)}
                 aria-label={`Delete trade-off: ${entry.decision}`}
@@ -165,9 +160,7 @@ export function TradeoffLog() {
               </button>
             </div>
             {entry.rationale && (
-              <p className="mt-1 text-xs leading-relaxed text-zinc-400">
-                {entry.rationale}
-              </p>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-400">{entry.rationale}</p>
             )}
             {entry.alternatives && (
               <p className="mt-1 text-xs leading-relaxed text-zinc-500">

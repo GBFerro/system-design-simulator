@@ -1,26 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
+import { getComponentById } from "@/data/components";
+import { useAppStore } from "@/store/appStore";
+import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { usePenStore } from "@/store/penStore";
 import {
-  ReactFlow,
-  Controls,
-  MiniMap,
   Background,
   BackgroundVariant,
+  Controls,
+  MiniMap,
+  ReactFlow,
   useReactFlow,
-  type Node,
   type Edge,
+  type Node,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { nodeTypes } from "./nodes/nodeTypes";
-import { edgeTypes } from "./edges/edgeTypes";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
-import { usePenStore } from "@/store/penStore";
-import { useAppStore } from "@/store/appStore";
-import { getComponentById } from "@/data/components";
-import { BookOpen, GraduationCap, Layers, Lock, MousePointer2, Sparkles, HelpCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+  BookOpen,
+  GraduationCap,
+  HelpCircle,
+  Layers,
+  Lock,
+  MousePointer2,
+  Sparkles,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
+import { CanvasTabBar } from "./CanvasTabBar";
+import { edgeTypes } from "./edges/edgeTypes";
+import { nodeTypes } from "./nodes/nodeTypes";
+import { PenOverlay } from "./PenOverlay";
+import { PenToolbar } from "./PenToolbar";
 
 // Orchestrated staggered reveal for the empty state — one deliberate page-load
 // moment rather than scattered micro-animations.
@@ -32,9 +43,6 @@ const emptyItem = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const } },
 };
-import { CanvasTabBar } from "./CanvasTabBar";
-import { PenOverlay } from "./PenOverlay";
-import { PenToolbar } from "./PenToolbar";
 
 interface DesignCanvasProps {
   onPickProblem?: () => void;
@@ -43,7 +51,12 @@ interface DesignCanvasProps {
   onShowGuide?: () => void;
 }
 
-export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview, onShowGuide }: DesignCanvasProps = {}) {
+export function DesignCanvas({
+  onPickProblem,
+  onLoadReference,
+  onStartInterview,
+  onShowGuide,
+}: DesignCanvasProps = {}) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
 
@@ -100,9 +113,7 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
       event.preventDefault();
       if (isReadOnly) return;
 
-      const componentId = event.dataTransfer.getData(
-        "application/systemsim-component"
-      );
+      const componentId = event.dataTransfer.getData("application/systemsim-component");
       if (!componentId) return;
 
       const component = getComponentById(componentId);
@@ -131,21 +142,21 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
 
       addNode(newNode);
     },
-    [screenToFlowPosition, addNode, isReadOnly]
+    [screenToFlowPosition, addNode, isReadOnly],
   );
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       setSelectedNode(node.id);
     },
-    [setSelectedNode]
+    [setSelectedNode],
   );
 
   const onEdgeClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
       setSelectedEdge(edge.id);
     },
-    [setSelectedEdge]
+    [setSelectedEdge],
   );
 
   const onSelectionChange = useCallback(
@@ -174,7 +185,7 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
       if (status === "healthy") return "#10b981";
       return "#52525b";
     },
-    []
+    [],
   );
 
   const isEmpty = nodes.length === 0;
@@ -277,7 +288,8 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
                 Build an architecture that scales
               </h1>
               <p className="mx-auto max-w-sm text-xs leading-relaxed text-zinc-400 md:text-sm">
-                Pick a problem, drop infrastructure components onto the canvas, and get scored the way an interviewer would evaluate you.
+                Pick a problem, drop infrastructure components onto the canvas, and get scored the
+                way an interviewer would evaluate you.
               </p>
             </motion.div>
 
@@ -314,9 +326,14 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
               />
             </motion.div>
 
-            <motion.div variants={emptyItem} className="hidden flex-wrap items-center justify-center gap-3 text-[11px] text-zinc-500 md:flex">
+            <motion.div
+              variants={emptyItem}
+              className="hidden flex-wrap items-center justify-center gap-3 text-[11px] text-zinc-500 md:flex"
+            >
               <span className="flex items-center gap-1.5">
-                <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
+                <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">
+                  ⌘K
+                </kbd>
                 command palette
               </span>
               <span className="text-zinc-700">·</span>
@@ -326,12 +343,16 @@ export function DesignCanvas({ onPickProblem, onLoadReference, onStartInterview,
               </span>
               <span className="text-zinc-700">·</span>
               <span className="flex items-center gap-1">
-                <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">⌘E</kbd>
+                <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">
+                  ⌘E
+                </kbd>
                 export
               </span>
               <span className="text-zinc-700">·</span>
               <span className="flex items-center gap-1">
-                <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">⌘↵</kbd>
+                <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px]">
+                  ⌘↵
+                </kbd>
                 simulate
               </span>
             </motion.div>
@@ -367,7 +388,9 @@ function QuickStartCard({
     >
       <span
         className={`flex h-6 w-6 items-center justify-center rounded-md ${
-          accent ? "bg-cyan-500/15 text-cyan-400" : "bg-zinc-800 text-zinc-400 group-hover:text-zinc-200"
+          accent
+            ? "bg-cyan-500/15 text-cyan-400"
+            : "bg-zinc-800 text-zinc-400 group-hover:text-zinc-200"
         }`}
       >
         {icon}

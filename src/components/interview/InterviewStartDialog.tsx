@@ -44,51 +44,47 @@ export function InterviewStartDialog({ open, onClose }: InterviewStartDialogProp
       panelClassName="max-w-md border-zinc-700 p-6 shadow-xl"
       ariaLabel="Practice interview mode"
     >
-        <h2 className="text-base font-semibold text-zinc-100">
-          Practice Interview Mode
-        </h2>
-        <p className="mt-1.5 text-xs text-zinc-400">
-          Simulate a {totalMinutes}-minute system design interview with guided phases.
-          A timer will track your progress through each phase.
-        </p>
+      <h2 className="text-base font-semibold text-zinc-100">Practice Interview Mode</h2>
+      <p className="mt-1.5 text-xs text-zinc-400">
+        Simulate a {totalMinutes}-minute system design interview with guided phases. A timer will
+        track your progress through each phase.
+      </p>
 
-        {/* Phase timeline */}
-        <div className="mt-4 space-y-2">
-          {phases.map((phase, i) => (
-            <div
-              key={phase.name}
-              className="flex items-center gap-3 rounded-md bg-zinc-800 px-3 py-2"
-            >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-zinc-300">
-                {PHASE_ICONS[phase.icon] ?? <span className="text-xs">{i + 1}</span>}
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-medium text-zinc-200">{phase.name}</p>
-                <p className="text-[10px] text-zinc-400">{phase.description}</p>
-              </div>
-              <span className="font-mono text-[10px] text-zinc-400">
-                {phase.targetMinutes} min
-              </span>
+      {/* Phase timeline */}
+      <div className="mt-4 space-y-2">
+        {phases.map((phase, i) => (
+          <div
+            key={phase.name}
+            className="flex items-center gap-3 rounded-md bg-zinc-800 px-3 py-2"
+          >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-zinc-300">
+              {PHASE_ICONS[phase.icon] ?? <span className="text-xs">{i + 1}</span>}
             </div>
-          ))}
-        </div>
+            <div className="flex-1">
+              <p className="text-xs font-medium text-zinc-200">{phase.name}</p>
+              <p className="text-[10px] text-zinc-400">{phase.description}</p>
+            </div>
+            <span className="font-mono text-[10px] text-zinc-400">{phase.targetMinutes} min</span>
+          </div>
+        ))}
+      </div>
 
-        {/* Actions */}
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
-          >
-            I&apos;ll practice freely
-          </button>
-          <button
-            onClick={handleStart}
-            data-autofocus
-            className="rounded-md bg-cyan-500 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-400"
-          >
-            Start Interview
-          </button>
-        </div>
+      {/* Actions */}
+      <div className="mt-5 flex items-center justify-end gap-2">
+        <button
+          onClick={onClose}
+          className="rounded-md px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+        >
+          I&apos;ll practice freely
+        </button>
+        <button
+          onClick={handleStart}
+          data-autofocus
+          className="rounded-md bg-cyan-500 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-400"
+        >
+          Start Interview
+        </button>
+      </div>
     </ModalShell>
   );
 }

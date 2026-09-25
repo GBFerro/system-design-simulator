@@ -2,9 +2,9 @@
   "name": "system-design-simulator",
   "version": "0.1.0",
   "private": true,
+  "description": "SystemForge — an open-source system design interview simulator: build architectures, simulate traffic, and get scored.",
   "license": "MIT",
   "author": "Vijay Gupta (@vijaygupta18)",
-  "description": "SystemForge — an open-source system design interview simulator: build architectures, simulate traffic, and get scored.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

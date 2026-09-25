@@ -3,14 +3,7 @@
 import { useInterviewStore } from "@/store/interviewStore";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
-import {
-  ClipboardList,
-  Calculator,
-  FileCode2,
-  Database,
-  Search,
-  ChevronRight,
-} from "lucide-react";
+import { ClipboardList, Calculator, FileCode2, Database, Search, ChevronRight } from "lucide-react";
 
 /** Panel content shown during interview phases 0-3 and 5 (not phase 4 = HLD). */
 export function InterviewPhasePanel() {
@@ -86,9 +79,7 @@ function PhaseIcon({ icon }: { icon: string }) {
 function GuideItem({ title, items }: { title: string; items: string[] }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-        {title}
-      </p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{title}</p>
       <div className="space-y-1">
         {items.map((item, i) => (
           <div key={i} className="flex items-start gap-2 rounded-md bg-zinc-800 px-2.5 py-2">
@@ -115,9 +106,7 @@ function RequirementsGuide({ problem }: GuideProps) {
           </p>
           <div className="rounded-md bg-zinc-800 px-2.5 py-2">
             <p className="text-xs font-medium text-zinc-200">{problem.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-zinc-400">
-              {problem.description}
-            </p>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-400">{problem.description}</p>
           </div>
         </div>
       )}
@@ -150,12 +139,24 @@ function EstimationGuide({ problem }: GuideProps) {
           <div className="space-y-1">
             {[
               { label: "Users", value: problem.requirements.users },
-              { label: "Reads/sec", value: new Intl.NumberFormat("en-US").format(problem.requirements.readsPerSec) },
-              { label: "Writes/sec", value: new Intl.NumberFormat("en-US").format(problem.requirements.writesPerSec) },
-              { label: "Storage", value: `${new Intl.NumberFormat("en-US").format(problem.requirements.storageGB)} GB` },
+              {
+                label: "Reads/sec",
+                value: new Intl.NumberFormat("en-US").format(problem.requirements.readsPerSec),
+              },
+              {
+                label: "Writes/sec",
+                value: new Intl.NumberFormat("en-US").format(problem.requirements.writesPerSec),
+              },
+              {
+                label: "Storage",
+                value: `${new Intl.NumberFormat("en-US").format(problem.requirements.storageGB)} GB`,
+              },
               { label: "Latency SLA", value: `< ${problem.requirements.latencyMs}ms` },
             ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between rounded-md bg-zinc-800 px-2.5 py-1.5">
+              <div
+                key={item.label}
+                className="flex items-center justify-between rounded-md bg-zinc-800 px-2.5 py-1.5"
+              >
                 <span className="text-xs text-zinc-400">{item.label}</span>
                 <span className="font-mono text-xs text-zinc-300">{item.value}</span>
               </div>
@@ -194,8 +195,8 @@ function APIDesignGuide({ problem: _problem }: GuideProps) {
       <div className="rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-2">
         <p className="text-[10px] font-semibold text-zinc-500">TIP</p>
         <p className="mt-0.5 text-xs text-zinc-400">
-          Use the text notes on the canvas to draft your API endpoints.
-          Click &quot;Add Note&quot; in the top bar.
+          Use the text notes on the canvas to draft your API endpoints. Click &quot;Add Note&quot;
+          in the top bar.
         </p>
       </div>
     </>
@@ -218,8 +219,8 @@ function DataModelGuide({ problem: _problem }: GuideProps) {
       <div className="rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-2">
         <p className="text-[10px] font-semibold text-zinc-500">TIP</p>
         <p className="mt-0.5 text-xs text-zinc-400">
-          Use text notes on the canvas to sketch your schema.
-          Focus on the access patterns, not just the structure.
+          Use text notes on the canvas to sketch your schema. Focus on the access patterns, not just
+          the structure.
         </p>
       </div>
     </>

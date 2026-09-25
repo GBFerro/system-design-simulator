@@ -27,8 +27,7 @@ export const PROBLEMS: Problem[] = [
     hints: [
       {
         title: "Start with the basics",
-        content:
-          "Consider DNS → Load Balancer → App Server → Database as your starting flow.",
+        content: "Consider DNS → Load Balancer → App Server → Database as your starting flow.",
       },
       {
         title: "301 vs 302 redirects",
@@ -106,18 +105,15 @@ export const PROBLEMS: Problem[] = [
     hints: [
       {
         title: "Fan-out strategy",
-        content:
-          "Consider fan-out-on-write for normal users and fan-out-on-read for celebrities.",
+        content: "Consider fan-out-on-write for normal users and fan-out-on-read for celebrities.",
       },
       {
         title: "Caching the timeline",
-        content:
-          "Pre-compute and cache each user's timeline in Redis. Update on new posts.",
+        content: "Pre-compute and cache each user's timeline in Redis. Update on new posts.",
       },
       {
         title: "Media handling",
-        content:
-          "Use object storage (S3) for media with a CDN for global delivery.",
+        content: "Use object storage (S3) for media with a CDN for global delivery.",
       },
       {
         title: "Snowflake IDs for time-ordering",
@@ -198,13 +194,11 @@ export const PROBLEMS: Problem[] = [
       },
       {
         title: "Message ordering",
-        content:
-          "Use a message queue with per-conversation partitioning to guarantee ordering.",
+        content: "Use a message queue with per-conversation partitioning to guarantee ordering.",
       },
       {
         title: "Presence system",
-        content:
-          "Use Redis with TTL keys for online/offline status. Heartbeat every 30 seconds.",
+        content: "Use Redis with TTL keys for online/offline status. Heartbeat every 30 seconds.",
       },
       {
         title: "Advanced: Connection management",
@@ -267,13 +261,11 @@ export const PROBLEMS: Problem[] = [
     hints: [
       {
         title: "Geo-spatial indexing",
-        content:
-          "Use geohashing or a spatial index to efficiently find nearby drivers.",
+        content: "Use geohashing or a spatial index to efficiently find nearby drivers.",
       },
       {
         title: "Location ingestion",
-        content:
-          "High-frequency location updates need a message queue to buffer writes.",
+        content: "High-frequency location updates need a message queue to buffer writes.",
       },
       {
         title: "Matching service",
@@ -355,8 +347,7 @@ export const PROBLEMS: Problem[] = [
       },
       {
         title: "Metadata vs video",
-        content:
-          "Separate video metadata (SQL/NoSQL) from video content (object storage + CDN).",
+        content: "Separate video metadata (SQL/NoSQL) from video content (object storage + CDN).",
       },
       {
         title: "Advanced: Tiered storage",
@@ -2606,9 +2597,7 @@ export function getProblemById(id: string): Problem | undefined {
 
   // Check custom problems
   if (id.startsWith("custom-")) {
-    const custom = useCustomProblemsStore
-      .getState()
-      .problems.find((p) => p.id === id);
+    const custom = useCustomProblemsStore.getState().problems.find((p) => p.id === id);
     if (custom) {
       // Return a Problem-compatible shape (no hints or reference solution)
       return {

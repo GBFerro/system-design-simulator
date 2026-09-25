@@ -70,9 +70,7 @@ export function SaveDialog({ open, onClose }: SaveDialogProps) {
         </button>
       </div>
 
-      <label className="mb-1.5 block text-xs text-zinc-400">
-        Design name
-      </label>
+      <label className="mb-1.5 block text-xs text-zinc-400">Design name</label>
       <input
         ref={inputRef}
         type="text"

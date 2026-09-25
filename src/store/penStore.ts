@@ -73,6 +73,6 @@ export const usePenStore = create<PenState>()(
         color: state.color,
         width: state.width,
       }),
-    }
-  )
+    },
+  ),
 );

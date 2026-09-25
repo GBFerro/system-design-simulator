@@ -105,7 +105,7 @@ export function PenOverlay() {
         eraseAt(pt.x, pt.y, eraserRadiusFlow);
       }
     },
-    [mode, screenToFlowPosition, eraseAt, eraserRadiusFlow]
+    [mode, screenToFlowPosition, eraseAt, eraserRadiusFlow],
   );
 
   const onPointerMove = useCallback(
@@ -115,11 +115,8 @@ export function PenOverlay() {
       // Use coalesced events so fast flicks don't lose intermediate samples.
       const native = e.nativeEvent;
       const raws =
-        typeof native.getCoalescedEvents === "function"
-          ? native.getCoalescedEvents()
-          : null;
-      const events =
-        raws && raws.length > 0 ? raws : [{ clientX: e.clientX, clientY: e.clientY }];
+        typeof native.getCoalescedEvents === "function" ? native.getCoalescedEvents() : null;
+      const events = raws && raws.length > 0 ? raws : [{ clientX: e.clientX, clientY: e.clientY }];
 
       if (mode === "pen") {
         const newPts: [number, number][] = events.map((ev) => {
@@ -134,7 +131,7 @@ export function PenOverlay() {
         }
       }
     },
-    [mode, screenToFlowPosition, eraseAt, eraserRadiusFlow]
+    [mode, screenToFlowPosition, eraseAt, eraserRadiusFlow],
   );
 
   const finishStroke = useCallback(() => {
@@ -163,12 +160,12 @@ export function PenOverlay() {
   // Memoized committed-stroke paths (only recompute when strokes change).
   const committedPaths = useMemo(
     () => strokes.map((s) => ({ id: s.id, d: strokeToPath(s.points, s.width), color: s.color })),
-    [strokes]
+    [strokes],
   );
 
   const livePath = useMemo(
     () => (livePoints.length > 0 ? livePathFromPoints(livePoints, width) : ""),
-    [livePoints, width]
+    [livePoints, width],
   );
 
   return (

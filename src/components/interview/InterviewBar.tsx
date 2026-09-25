@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Pause,
-  Play,
-  X,
-} from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock, Pause, Play, X } from "lucide-react";
 import { useInterviewStore } from "@/store/interviewStore";
 
 function formatTime(seconds: number): string {
@@ -78,9 +70,7 @@ export function InterviewBar() {
               {/* Connector line */}
               {i < phases.length - 1 && (
                 <div
-                  className={`h-px w-2 md:w-4 ${
-                    i < currentPhase ? "bg-zinc-500" : "bg-zinc-700"
-                  }`}
+                  className={`h-px w-2 md:w-4 ${i < currentPhase ? "bg-zinc-500" : "bg-zinc-700"}`}
                 />
               )}
             </div>
@@ -89,9 +79,7 @@ export function InterviewBar() {
 
         {/* Phase info */}
         <div className="min-w-0 text-right">
-          <p className="truncate text-xs font-medium text-zinc-200">
-            {phases[currentPhase].name}
-          </p>
+          <p className="truncate text-xs font-medium text-zinc-200">{phases[currentPhase].name}</p>
           <p className="hidden truncate text-[10px] text-zinc-400 sm:block">
             {phases[currentPhase].description}
           </p>
@@ -104,7 +92,9 @@ export function InterviewBar() {
           {/* Phase timer */}
           <div className="flex items-center gap-1.5">
             <Clock className="hidden h-3.5 w-3.5 text-zinc-500 sm:block" />
-            <span className={`whitespace-nowrap font-mono text-[10px] sm:text-xs ${phaseTimerColor}`}>
+            <span
+              className={`whitespace-nowrap font-mono text-[10px] sm:text-xs ${phaseTimerColor}`}
+            >
               Phase: {formatTime(phaseElapsed)} / {formatTime(targetSeconds)}
             </span>
           </div>
@@ -127,11 +117,7 @@ export function InterviewBar() {
             title={timerRunning ? "Pause timer" : "Resume timer"}
             aria-label={timerRunning ? "Pause timer" : "Resume timer"}
           >
-            {timerRunning ? (
-              <Pause className="h-3.5 w-3.5" />
-            ) : (
-              <Play className="h-3.5 w-3.5" />
-            )}
+            {timerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
           </button>
 
           {/* Prev / Next phase */}

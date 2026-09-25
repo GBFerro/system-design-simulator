@@ -36,7 +36,7 @@ function TextNodeInner({ data, selected, id }: NodeProps<TextNodeType>) {
   }, [editing]);
 
   // Placeholder is purely presentational — never committed into data.text
-  const displayText = editing ? text : (data.text || PLACEHOLDER);
+  const displayText = editing ? text : data.text || PLACEHOLDER;
   const isPlaceholder = !editing && !data.text;
 
   // Set when Escape reverts an edit so a trailing blur doesn't commit anyway

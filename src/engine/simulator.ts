@@ -19,7 +19,10 @@ function getStatus(utilization: number): NodeStatus {
 
 function computeLatency(baseLatency: number, utilization: number): number {
   if (utilization > LATENCY_SPIKE_THRESHOLD) {
-    return baseLatency * (1 + Math.max(0, utilization - LATENCY_SPIKE_THRESHOLD) * LATENCY_SPIKE_MULTIPLIER);
+    return (
+      baseLatency *
+      (1 + Math.max(0, utilization - LATENCY_SPIKE_THRESHOLD) * LATENCY_SPIKE_MULTIPLIER)
+    );
   }
   return baseLatency;
 }
@@ -38,7 +41,7 @@ function sanitizeReplicas(value: unknown): number {
 export function runSimulation(
   nodes: Node<ComponentNodeData>[],
   edges: Edge[],
-  requestsPerSec: number
+  requestsPerSec: number,
 ): SimulationResult {
   const warnings: string[] = [];
   const nodeMetrics = new Map<string, NodeMetrics>();
@@ -47,10 +50,7 @@ export function runSimulation(
   // Sanitized effective capacity per node (maxQPS * replicas)
   const capacity = new Map<string, number>();
   for (const node of nodes) {
-    capacity.set(
-      node.id,
-      sanitizeMaxQPS(node.data.maxQPS) * sanitizeReplicas(node.data.replicas)
-    );
+    capacity.set(node.id, sanitizeMaxQPS(node.data.maxQPS) * sanitizeReplicas(node.data.replicas));
   }
 
   // Build adjacency list and in-degree map.
@@ -90,9 +90,7 @@ export function runSimulation(
   // no (valid) edges at all, fall back to treating every root as an entry.
   const hasEdges = validEdgeCount > 0;
   const entryNodes = nodes.filter(
-    (n) =>
-      (inDegree.get(n.id) ?? 0) === 0 &&
-      (!hasEdges || (adjacency.get(n.id)?.length ?? 0) > 0)
+    (n) => (inDegree.get(n.id) ?? 0) === 0 && (!hasEdges || (adjacency.get(n.id)?.length ?? 0) > 0),
   );
 
   // Initialize incoming QPS for entry nodes
@@ -114,8 +112,7 @@ export function runSimulation(
     const effectiveQPS = capacity.get(nodeId) ?? 0;
     // A node with no usable capacity that still receives traffic is fully
     // saturated (it black-holes everything downstream) — not "healthy".
-    const utilization =
-      effectiveQPS <= 0 ? (incoming > 0 ? 2 : 0) : incoming / effectiveQPS;
+    const utilization = effectiveQPS <= 0 ? (incoming > 0 ? 2 : 0) : incoming / effectiveQPS;
     const latency = computeLatency(data.latencyMs, utilization);
     const status = getStatus(utilization);
     const isBottleneck = utilization > UTILIZATION_CRITICAL;
@@ -184,9 +181,7 @@ export function runSimulation(
   // DOWNSTREAM of one. Distinguish them by repeatedly peeling zero-out-degree
   // nodes within the unresolved subgraph: survivors are on (or feed back into)
   // a cycle, peeled nodes are merely downstream of it.
-  const unresolved = nodes.filter(
-    (n) => !processed.has(n.id) && (inDegree.get(n.id) ?? 0) > 0
-  );
+  const unresolved = nodes.filter((n) => !processed.has(n.id) && (inDegree.get(n.id) ?? 0) > 0);
 
   if (unresolved.length > 0) {
     const unresolvedSet = new Set(unresolved.map((n) => n.id));
@@ -224,12 +219,12 @@ export function runSimulation(
 
     if (cycleIds.length > 0) {
       warnings.push(
-        `Cycle detected involving node(s): ${cycleIds.join(", ")}. Processing with accumulated QPS.`
+        `Cycle detected involving node(s): ${cycleIds.join(", ")}. Processing with accumulated QPS.`,
       );
     }
     if (downstreamIds.length > 0) {
       warnings.push(
-        `Node(s) downstream of a cycle: ${downstreamIds.join(", ")}. Traffic propagated after resolving the cycle.`
+        `Node(s) downstream of a cycle: ${downstreamIds.join(", ")}. Traffic propagated after resolving the cycle.`,
       );
     }
 
@@ -314,7 +309,7 @@ export function runSimulation(
   const totalLatencyMs = computeLongestPathLatency(
     entryNodes.map((n) => n.id),
     syncAdjacency,
-    nodeMetrics
+    nodeMetrics,
   );
 
   // Throughput can never exceed offered load. With no entry point, nothing flows.
@@ -325,7 +320,7 @@ export function runSimulation(
   } else if (bottleneckNodes.length > 0) {
     throughput = Math.min(
       requestsPerSec,
-      ...bottleneckNodes.map((id) => deliveredQPS.get(id) ?? 0)
+      ...bottleneckNodes.map((id) => deliveredQPS.get(id) ?? 0),
     );
   } else {
     throughput = requestsPerSec;
@@ -349,7 +344,7 @@ export function runSimulation(
 function computeLongestPathLatency(
   entryIds: string[],
   syncAdjacency: Map<string, string[]>,
-  metrics: Map<string, NodeMetrics>
+  metrics: Map<string, NodeMetrics>,
 ): number {
   if (entryIds.length === 0) return 0;
 

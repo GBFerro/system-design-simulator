@@ -33,9 +33,7 @@ export function TradeoffCards() {
                 ) : (
                   <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />
                 )}
-                <span className="flex-1 text-xs font-medium text-zinc-300">
-                  {card.title}
-                </span>
+                <span className="flex-1 text-xs font-medium text-zinc-300">{card.title}</span>
               </button>
 
               {isOpen && (
@@ -55,7 +53,10 @@ export function TradeoffCards() {
                         </p>
                         <ul className="mt-0.5 space-y-0.5">
                           {card.optionA.pros.map((pro, i) => (
-                            <li key={i} className="break-words text-[11px] leading-tight text-zinc-400">
+                            <li
+                              key={i}
+                              className="break-words text-[11px] leading-tight text-zinc-400"
+                            >
                               + {pro}
                             </li>
                           ))}
@@ -67,7 +68,10 @@ export function TradeoffCards() {
                         </p>
                         <ul className="mt-0.5 space-y-0.5">
                           {card.optionA.cons.map((con, i) => (
-                            <li key={i} className="break-words text-[11px] leading-tight text-zinc-500">
+                            <li
+                              key={i}
+                              className="break-words text-[11px] leading-tight text-zinc-500"
+                            >
                               - {con}
                             </li>
                           ))}
@@ -86,7 +90,10 @@ export function TradeoffCards() {
                         </p>
                         <ul className="mt-0.5 space-y-0.5">
                           {card.optionB.pros.map((pro, i) => (
-                            <li key={i} className="break-words text-[11px] leading-tight text-zinc-400">
+                            <li
+                              key={i}
+                              className="break-words text-[11px] leading-tight text-zinc-400"
+                            >
                               + {pro}
                             </li>
                           ))}
@@ -98,7 +105,10 @@ export function TradeoffCards() {
                         </p>
                         <ul className="mt-0.5 space-y-0.5">
                           {card.optionB.cons.map((con, i) => (
-                            <li key={i} className="break-words text-[11px] leading-tight text-zinc-500">
+                            <li
+                              key={i}
+                              className="break-words text-[11px] leading-tight text-zinc-500"
+                            >
                               - {con}
                             </li>
                           ))}

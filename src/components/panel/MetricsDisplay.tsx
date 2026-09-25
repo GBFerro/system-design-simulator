@@ -33,7 +33,8 @@ export function MetricsDisplay() {
         <div>
           <p className="text-xs font-medium text-zinc-300">No simulation data</p>
           <p className="mt-1 max-w-[200px] text-xs text-zinc-500">
-            Configure load above and click <span className="text-cyan-500">Run Simulation</span> to see metrics
+            Configure load above and click <span className="text-cyan-500">Run Simulation</span> to
+            see metrics
           </p>
         </div>
       </div>
@@ -41,7 +42,7 @@ export function MetricsDisplay() {
   }
 
   const sortedMetrics = [...result.nodeMetrics.values()].sort(
-    (a, b) => b.utilization - a.utilization
+    (a, b) => b.utilization - a.utilization,
   );
 
   return (
@@ -68,7 +69,8 @@ export function MetricsDisplay() {
       {result.bottleneckNodes.length > 0 && (
         <div className="rounded-md border border-rose-500/20 bg-rose-950/30 px-2.5 py-2">
           <p className="text-xs font-medium text-rose-400">
-            {result.bottleneckNodes.length} Bottleneck{result.bottleneckNodes.length > 1 ? "s" : ""} Detected
+            {result.bottleneckNodes.length} Bottleneck{result.bottleneckNodes.length > 1 ? "s" : ""}{" "}
+            Detected
           </p>
         </div>
       )}
@@ -84,19 +86,17 @@ export function MetricsDisplay() {
         <div className="space-y-1.5">
           {sortedMetrics.map((m) => {
             const node = nodes.find((n) => n.id === m.nodeId);
-            const label = (node?.data as Record<string, unknown>)?.label as string ?? m.nodeId;
+            const label = ((node?.data as Record<string, unknown>)?.label as string) ?? m.nodeId;
             return (
-              <div
-                key={m.nodeId}
-                className="rounded-md bg-zinc-800 px-2.5 py-2"
-              >
+              <div key={m.nodeId} className="rounded-md bg-zinc-800 px-2.5 py-2">
                 <div className="mb-1 flex items-center gap-1.5">
                   <div className={`h-1.5 w-1.5 rounded-full ${STATUS_COLOR[m.status]}`} />
-                  <span className="text-xs font-medium text-zinc-300">
-                    {label}
-                  </span>
+                  <span className="text-xs font-medium text-zinc-300">{label}</span>
                   {m.isBottleneck && (
-                    <span className="ml-auto text-[11px] font-medium text-rose-400" style={{ animation: 'status-pulse 2s infinite' }}>
+                    <span
+                      className="ml-auto text-[11px] font-medium text-rose-400"
+                      style={{ animation: "status-pulse 2s infinite" }}
+                    >
                       BOTTLENECK
                     </span>
                   )}
@@ -114,16 +114,24 @@ export function MetricsDisplay() {
                       <div className="h-1 w-8 overflow-hidden rounded-full bg-zinc-700">
                         <div
                           className={`h-full rounded-full ${
-                            m.utilization > 0.8 ? "bg-rose-500" :
-                            m.utilization > 0.5 ? "bg-amber-500" : "bg-emerald-500"
+                            m.utilization > 0.8
+                              ? "bg-rose-500"
+                              : m.utilization > 0.5
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
                           }`}
                           style={{ width: `${Math.min(m.utilization * 100, 100)}%` }}
                         />
                       </div>
-                      <p className={`font-mono text-xs ${
-                        m.utilization > 0.8 ? "text-rose-400" :
-                        m.utilization > 0.5 ? "text-amber-400" : "text-emerald-400"
-                      }`}>
+                      <p
+                        className={`font-mono text-xs ${
+                          m.utilization > 0.8
+                            ? "text-rose-400"
+                            : m.utilization > 0.5
+                              ? "text-amber-400"
+                              : "text-emerald-400"
+                        }`}
+                      >
                         {(m.utilization * 100).toFixed(0)}%
                       </p>
                     </div>

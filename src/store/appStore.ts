@@ -63,10 +63,8 @@ export const useAppStore = create<AppState>()(
           applyThemeClass(theme);
           return { theme };
         }),
-      toggleLeftSidebar: () =>
-        set((s) => ({ leftSidebarOpen: !s.leftSidebarOpen })),
-      toggleRightPanel: () =>
-        set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
+      toggleLeftSidebar: () => set((s) => ({ leftSidebarOpen: !s.leftSidebarOpen })),
+      toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
       setLeftSidebarOpen: (open) => set({ leftSidebarOpen: open }),
       setActiveLeftTab: (tab) => set({ activeLeftTab: tab }),
       setActiveRightTab: (tab) => set({ activeRightTab: tab }),
@@ -101,6 +99,6 @@ export const useAppStore = create<AppState>()(
       onRehydrateStorage: () => (state) => {
         if (state?.theme) applyThemeClass(state.theme);
       },
-    }
-  )
+    },
+  ),
 );

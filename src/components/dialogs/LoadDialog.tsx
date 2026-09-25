@@ -2,11 +2,7 @@
 
 import { useRef, useState } from "react";
 import { X, Trash2, Download, Upload } from "lucide-react";
-import {
-  useSavedDesignsStore,
-  getProblemTitle,
-  type SavedDesign,
-} from "@/store/savedDesignsStore";
+import { useSavedDesignsStore, getProblemTitle, type SavedDesign } from "@/store/savedDesignsStore";
 import { ModalShell } from "./ModalShell";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -40,13 +36,8 @@ function DesignRow({
   return (
     <div className="group flex items-center gap-3 rounded-md border border-zinc-800 bg-zinc-800 px-3 py-2.5 transition-colors hover:border-zinc-700">
       {/* Click area to load */}
-      <button
-        onClick={onLoad}
-        className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
-      >
-        <span className="truncate text-sm font-medium text-zinc-200">
-          {design.name}
-        </span>
+      <button onClick={onLoad} className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+        <span className="truncate text-sm font-medium text-zinc-200">{design.name}</span>
         <span className="flex items-center gap-2 text-[11px] text-zinc-500">
           <span>{getProblemTitle(design.problemId)}</span>
           <span className="text-zinc-700">|</span>
@@ -140,9 +131,7 @@ export function LoadDialog({ open, onClose }: LoadDialogProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-          <h2 className="text-sm font-semibold text-zinc-100">
-            Load Design
-          </h2>
+          <h2 className="text-sm font-semibold text-zinc-100">Load Design</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={handleImport}

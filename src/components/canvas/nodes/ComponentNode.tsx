@@ -82,22 +82,26 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
       className={`
         group relative flex flex-col items-center gap-1 rounded-xl border bg-zinc-900 px-4 py-3
         shadow-[var(--shadow-e2)] transition-[border-color,box-shadow] duration-150
-        ${isBottleneck
-          ? "border-rose-500/60 ring-2 ring-rose-500/20"
-          : selected
-            ? "border-cyan-500/80 ring-2 ring-cyan-500/30"
-            : "border-zinc-700/70 hover:border-zinc-600"}
+        ${
+          isBottleneck
+            ? "border-rose-500/60 ring-2 ring-rose-500/20"
+            : selected
+              ? "border-cyan-500/80 ring-2 ring-cyan-500/30"
+              : "border-zinc-700/70 hover:border-zinc-600"
+        }
       `}
     >
       {/* Status indicator dot */}
       <div
         className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-zinc-900 ${statusDot}`}
-        style={{ animation: status !== 'idle' ? 'status-pulse 2s infinite' : 'none' }}
+        style={{ animation: status !== "idle" ? "status-pulse 2s infinite" : "none" }}
       />
 
       {/* Icon + Label row */}
       <div className="flex items-center gap-2">
-        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ${colors.chip} ${colors.icon} ${colors.ring}`}>
+        <div
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ${colors.chip} ${colors.icon} ${colors.ring}`}
+        >
           <Icon className="h-4 w-4" />
         </div>
         {editing ? (
@@ -128,7 +132,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
 
       {/* Stats */}
       <span className="font-mono text-[9px] text-zinc-400">
-        {nodeData.maxQPS === Infinity ? '\u221e' : ((nodeData.maxQPS ?? 0)/1000).toFixed(0) + 'k'} qps
+        {nodeData.maxQPS === Infinity ? "\u221e" : ((nodeData.maxQPS ?? 0) / 1000).toFixed(0) + "k"}{" "}
+        qps
       </span>
 
       {/* Replicas badge */}
@@ -144,16 +149,28 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
           <div className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-800">
             <motion.div
               className={`h-full rounded-full ${
-                utilization > 0.8 ? "bg-rose-500" : utilization > 0.5 ? "bg-amber-500" : "bg-emerald-500"
+                utilization > 0.8
+                  ? "bg-rose-500"
+                  : utilization > 0.5
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
               }`}
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(utilization * 100, 100)}%` }}
               transition={{ duration: 0.3 }}
             />
           </div>
-          <span className={`font-mono text-[8px] ${
-            utilization > 0.8 ? "text-rose-400" : utilization > 0.5 ? "text-amber-400" : "text-emerald-400"
-          }`}>{(utilization * 100).toFixed(0)}%</span>
+          <span
+            className={`font-mono text-[8px] ${
+              utilization > 0.8
+                ? "text-rose-400"
+                : utilization > 0.5
+                  ? "text-amber-400"
+                  : "text-emerald-400"
+            }`}
+          >
+            {(utilization * 100).toFixed(0)}%
+          </span>
         </div>
       )}
 
@@ -174,7 +191,7 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
 
 function areComponentNodePropsEqual(
   prev: NodeProps<ComponentNode>,
-  next: NodeProps<ComponentNode>
+  next: NodeProps<ComponentNode>,
 ): boolean {
   if (prev.selected !== next.selected) return false;
   const p = prev.data;

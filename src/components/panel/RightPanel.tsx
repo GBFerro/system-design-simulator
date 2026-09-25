@@ -6,7 +6,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Info, Trash2, Lightbulb, ChevronDown, ChevronRight, CheckSquare, BookOpen, Target, AlertTriangle, MessageCircle, Layers, Pencil } from "lucide-react";
+import {
+  Info,
+  Trash2,
+  Lightbulb,
+  ChevronDown,
+  ChevronRight,
+  CheckSquare,
+  BookOpen,
+  Target,
+  AlertTriangle,
+  MessageCircle,
+  Layers,
+  Pencil,
+} from "lucide-react";
 import { useCanvasStore, type ComponentNodeData, type CustomEdgeData } from "@/store/canvasStore";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
@@ -31,14 +44,43 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
   const setActiveRightTab = useAppStore((s) => s.setActiveRightTab);
 
   return (
-    <Tabs value={activeRightTab} onValueChange={(v) => setActiveRightTab(v as typeof activeRightTab)} className="flex flex-1 flex-col min-h-0">
+    <Tabs
+      value={activeRightTab}
+      onValueChange={(v) => setActiveRightTab(v as typeof activeRightTab)}
+      className="flex flex-1 flex-col min-h-0"
+    >
       <div className="mx-2 mt-2 shrink-0 overflow-x-auto">
         <TabsList className="h-8 w-max bg-zinc-800">
-          <TabsTrigger value="properties" className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">Props</TabsTrigger>
-          <TabsTrigger value="simulation" className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">Simulate</TabsTrigger>
-          <TabsTrigger value="score" className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">Score</TabsTrigger>
-          <TabsTrigger value="capacity" className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">Capacity</TabsTrigger>
-          <TabsTrigger value="tradeoffs" className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100">Trade-offs</TabsTrigger>
+          <TabsTrigger
+            value="properties"
+            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+          >
+            Props
+          </TabsTrigger>
+          <TabsTrigger
+            value="simulation"
+            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+          >
+            Simulate
+          </TabsTrigger>
+          <TabsTrigger
+            value="score"
+            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+          >
+            Score
+          </TabsTrigger>
+          <TabsTrigger
+            value="capacity"
+            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+          >
+            Capacity
+          </TabsTrigger>
+          <TabsTrigger
+            value="tradeoffs"
+            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+          >
+            Trade-offs
+          </TabsTrigger>
         </TabsList>
       </div>
 
@@ -131,7 +173,14 @@ function EdgePropertiesPanel() {
   if (!selectedEdge) return null;
 
   const data = (selectedEdge.data ?? {}) as CustomEdgeData;
-  const protocols: CustomEdgeData["protocol"][] = ["http", "grpc", "websocket", "pubsub", "tcp", "custom"];
+  const protocols: CustomEdgeData["protocol"][] = [
+    "http",
+    "grpc",
+    "websocket",
+    "pubsub",
+    "tcp",
+    "custom",
+  ];
 
   return (
     <div className="space-y-3">
@@ -157,12 +206,26 @@ function EdgePropertiesPanel() {
           <label className="mb-1 block text-xs text-zinc-400">Protocol</label>
           <select
             value={data.protocol ?? "http"}
-            onChange={(e) => updateEdgeData(selectedEdge.id, { protocol: e.target.value as CustomEdgeData["protocol"] })}
+            onChange={(e) =>
+              updateEdgeData(selectedEdge.id, {
+                protocol: e.target.value as CustomEdgeData["protocol"],
+              })
+            }
             className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/50"
           >
             {protocols.map((p) => (
               <option key={p} value={p}>
-                {p === "http" ? "HTTP" : p === "grpc" ? "gRPC" : p === "websocket" ? "WebSocket" : p === "pubsub" ? "pub/sub" : p === "tcp" ? "TCP" : "Custom"}
+                {p === "http"
+                  ? "HTTP"
+                  : p === "grpc"
+                    ? "gRPC"
+                    : p === "websocket"
+                      ? "WebSocket"
+                      : p === "pubsub"
+                        ? "pub/sub"
+                        : p === "tcp"
+                          ? "TCP"
+                          : "Custom"}
               </option>
             ))}
           </select>
@@ -194,7 +257,9 @@ function EdgePropertiesPanel() {
             </button>
           </div>
           <p className="mt-1 text-[11px] text-zinc-500">
-            {data.async ? "Dashed line — asynchronous (e.g. message queue)" : "Solid line — synchronous (e.g. HTTP call)"}
+            {data.async
+              ? "Dashed line — asynchronous (e.g. message queue)"
+              : "Solid line — synchronous (e.g. HTTP call)"}
           </p>
         </div>
 
@@ -222,7 +287,7 @@ function PropertiesTab() {
   const selectedProblemId = useAppStore((s) => s.selectedProblemId);
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) as
-    | (typeof nodes[number] & { data: ComponentNodeData })
+    | ((typeof nodes)[number] & { data: ComponentNodeData })
     | undefined;
   const problem = getProblemById(selectedProblemId);
 
@@ -236,9 +301,18 @@ function PropertiesTab() {
           </p>
           <div className="space-y-1.5">
             {[
-              { label: "Reads/sec", value: new Intl.NumberFormat("en-US").format(problem.requirements.readsPerSec) },
-              { label: "Writes/sec", value: new Intl.NumberFormat("en-US").format(problem.requirements.writesPerSec) },
-              { label: "Storage", value: `${new Intl.NumberFormat("en-US").format(problem.requirements.storageGB)} GB` },
+              {
+                label: "Reads/sec",
+                value: new Intl.NumberFormat("en-US").format(problem.requirements.readsPerSec),
+              },
+              {
+                label: "Writes/sec",
+                value: new Intl.NumberFormat("en-US").format(problem.requirements.writesPerSec),
+              },
+              {
+                label: "Storage",
+                value: `${new Intl.NumberFormat("en-US").format(problem.requirements.storageGB)} GB`,
+              },
               { label: "Latency SLA", value: `< ${problem.requirements.latencyMs}ms` },
               { label: "Users", value: problem.requirements.users },
             ].map((item) => (
@@ -280,9 +354,7 @@ function PropertiesTab() {
           </p>
           <div className="space-y-2">
             <div className="rounded-md bg-zinc-800 px-3 py-2">
-              <p className="text-xs font-medium text-zinc-200">
-                Text Note
-              </p>
+              <p className="text-xs font-medium text-zinc-200">Text Note</p>
               <p className="mt-0.5 text-xs text-zinc-500">
                 Double-click (or tap) on canvas to edit
               </p>
@@ -292,7 +364,7 @@ function PropertiesTab() {
               size="sm"
               onClick={() =>
                 window.dispatchEvent(
-                  new CustomEvent("textnode:edit", { detail: { id: selectedNode.id } })
+                  new CustomEvent("textnode:edit", { detail: { id: selectedNode.id } }),
                 )
               }
               className="w-full gap-1.5 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
@@ -315,75 +387,80 @@ function PropertiesTab() {
         (() => {
           const data = selectedNode.data as ComponentNodeData;
           return (
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            Component Properties
-          </p>
-
-          <div className="space-y-2">
-            <div className="rounded-md bg-zinc-800 px-3 py-2">
-              <p className="text-xs font-medium text-zinc-200">
-                {data.label as string}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Component Properties
               </p>
-              <p className="mt-0.5 text-xs text-zinc-500">
-                {data.category as string} · Max {(data.maxQPS as number) === Infinity ? "\u221e" : new Intl.NumberFormat("en-US").format(data.maxQPS as number)} QPS
-              </p>
-            </div>
 
-            {/* Replicas slider \u2014 shown for every component node */}
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs text-zinc-400">Replicas</label>
-                <span className="font-mono text-xs text-cyan-500">
-                  {data.replicas as number}
-                </span>
-              </div>
-              <Slider
-                aria-label="Replicas"
-                value={[data.replicas as number]}
-                onValueChange={(v) =>
-                  updateNodeData(selectedNode.id, { replicas: Array.isArray(v) ? v[0] : v })
-                }
-                min={1}
-                max={20}
-                step={1}
-                className=""
-              />
-              <p className="mt-1 text-[11px] text-zinc-400">
-                Effective capacity: {(data.maxQPS as number) === Infinity ? "\u221e" : new Intl.NumberFormat("en-US").format((data.maxQPS as number) * (data.replicas as number))} QPS
-              </p>
-            </div>
-
-            {/* Info */}
-            <div className="space-y-1">
-              {[
-                { label: "Base Latency", value: `${data.latencyMs}ms` },
-                { label: "Scalable", value: data.scalable ? "Yes" : "No" },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <span className="text-zinc-400">{item.label}</span>
-                  <span className="text-zinc-300">{item.value}</span>
+              <div className="space-y-2">
+                <div className="rounded-md bg-zinc-800 px-3 py-2">
+                  <p className="text-xs font-medium text-zinc-200">{data.label as string}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {data.category as string} · Max{" "}
+                    {(data.maxQPS as number) === Infinity
+                      ? "\u221e"
+                      : new Intl.NumberFormat("en-US").format(data.maxQPS as number)}{" "}
+                    QPS
+                  </p>
                 </div>
-              ))}
+
+                {/* Replicas slider \u2014 shown for every component node */}
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-xs text-zinc-400">Replicas</label>
+                    <span className="font-mono text-xs text-cyan-500">
+                      {data.replicas as number}
+                    </span>
+                  </div>
+                  <Slider
+                    aria-label="Replicas"
+                    value={[data.replicas as number]}
+                    onValueChange={(v) =>
+                      updateNodeData(selectedNode.id, { replicas: Array.isArray(v) ? v[0] : v })
+                    }
+                    min={1}
+                    max={20}
+                    step={1}
+                    className=""
+                  />
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    Effective capacity:{" "}
+                    {(data.maxQPS as number) === Infinity
+                      ? "\u221e"
+                      : new Intl.NumberFormat("en-US").format(
+                          (data.maxQPS as number) * (data.replicas as number),
+                        )}{" "}
+                    QPS
+                  </p>
+                </div>
+
+                {/* Info */}
+                <div className="space-y-1">
+                  {[
+                    { label: "Base Latency", value: `${data.latencyMs}ms` },
+                    { label: "Scalable", value: data.scalable ? "Yes" : "No" },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">{item.label}</span>
+                      <span className="text-zinc-300">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => deleteNode(selectedNode.id)}
+                  className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Remove Component
+                </Button>
+              </div>
+
+              <Separator className="bg-zinc-800" />
+              <LearnSection componentId={data.componentId as string} label={data.label as string} />
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => deleteNode(selectedNode.id)}
-              className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
-            >
-              <Trash2 className="h-3 w-3" />
-              Remove Component
-            </Button>
-          </div>
-
-          <Separator className="bg-zinc-800" />
-          <LearnSection componentId={data.componentId as string} label={data.label as string} />
-        </div>
           );
         })()
       ) : selectedEdgeId ? (
@@ -394,9 +471,7 @@ function PropertiesTab() {
             <Info className="h-4 w-4 text-zinc-500" />
           </div>
           <div>
-            <p className="text-xs font-medium text-zinc-400">
-              No component selected
-            </p>
+            <p className="text-xs font-medium text-zinc-400">No component selected</p>
             <p className="mt-1 text-xs text-zinc-500">
               Click a component or edge on the canvas to edit its properties.
             </p>
@@ -413,9 +488,7 @@ function ConstraintsSection({ constraints }: { constraints: string[] }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        Constraints
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Constraints</p>
       <div className="space-y-1.5">
         {shown.map((c, i) => (
           <div key={i} className="flex items-start gap-2">
@@ -463,23 +536,16 @@ function HintsSection({ hints }: { hints: { title: string; content: string }[] }
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        Hints
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Hints</p>
       <div className="space-y-1.5">
         {hints.map((hint, i) => (
-          <div
-            key={i}
-            className="rounded-md border border-zinc-700 bg-zinc-800 overflow-hidden"
-          >
+          <div key={i} className="rounded-md border border-zinc-700 bg-zinc-800 overflow-hidden">
             <button
               onClick={() => toggleHint(i)}
               className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
             >
               <Lightbulb className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
-              <span className="flex-1 text-xs font-medium text-zinc-300">
-                {hint.title}
-              </span>
+              <span className="flex-1 text-xs font-medium text-zinc-300">{hint.title}</span>
               {expandedHints.has(i) ? (
                 <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
               ) : (
@@ -488,9 +554,7 @@ function HintsSection({ hints }: { hints: { title: string; content: string }[] }
             </button>
             {expandedHints.has(i) && (
               <div className="border-t border-zinc-700 px-2.5 py-2">
-                <p className="text-xs leading-relaxed text-zinc-400">
-                  {hint.content}
-                </p>
+                <p className="text-xs leading-relaxed text-zinc-400">{hint.content}</p>
               </div>
             )}
           </div>
@@ -557,9 +621,7 @@ function LearnSection({ componentId, label }: { componentId: string; label: stri
         className="flex w-full items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/50 px-2.5 py-2 text-left transition-colors hover:bg-zinc-800"
       >
         <BookOpen className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
-        <span className="flex-1 text-xs font-medium text-zinc-300">
-          Learn about {label}
-        </span>
+        <span className="flex-1 text-xs font-medium text-zinc-300">Learn about {label}</span>
         {expanded ? (
           <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
         ) : (
@@ -576,7 +638,9 @@ function LearnSection({ componentId, label }: { componentId: string; label: stri
               <div
                 key={section.key}
                 className={`rounded-md border overflow-hidden transition-colors ${
-                  isOpen ? `${section.borderAccent} bg-zinc-800/80` : "border-zinc-700/50 bg-zinc-800/30"
+                  isOpen
+                    ? `${section.borderAccent} bg-zinc-800/80`
+                    : "border-zinc-700/50 bg-zinc-800/30"
                 }`}
               >
                 <button
@@ -584,9 +648,7 @@ function LearnSection({ componentId, label }: { componentId: string; label: stri
                   className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left"
                 >
                   <Icon className={`h-3 w-3 shrink-0 ${section.accent}`} />
-                  <span className="flex-1 text-xs font-medium text-zinc-300">
-                    {section.label}
-                  </span>
+                  <span className="flex-1 text-xs font-medium text-zinc-300">{section.label}</span>
                   {isOpen ? (
                     <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
                   ) : (
@@ -622,7 +684,9 @@ function LearnSection({ componentId, label }: { componentId: string; label: stri
                           ))
                         : section.items.map((item, i) => (
                             <div key={i} className="flex items-start gap-1.5">
-                              <span className={`mt-1 h-1 w-1 shrink-0 rounded-full ${section.accent.replace("text-", "bg-")}`} />
+                              <span
+                                className={`mt-1 h-1 w-1 shrink-0 rounded-full ${section.accent.replace("text-", "bg-")}`}
+                              />
                               <span className="text-[11px] leading-relaxed text-zinc-400">
                                 {item}
                               </span>

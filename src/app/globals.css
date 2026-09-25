@@ -23,7 +23,7 @@
    "dark surface + light text" components become "light surface + dark text"
    without touching any component. */
 @theme inline {
-  --color-zinc-50:  var(--z-50);
+  --color-zinc-50: var(--z-50);
   --color-zinc-100: var(--z-100);
   --color-zinc-200: var(--z-200);
   --color-zinc-300: var(--z-300);
@@ -92,26 +92,26 @@
    component render correctly on light without any component edits. */
 :root {
   /* inverted neutral ramp (text steps dark, surface steps light) */
-  --z-50:  oklch(0.30 0.010 240);
-  --z-100: oklch(0.27 0.012 240);  /* primary text */
+  --z-50: oklch(0.3 0.01 240);
+  --z-100: oklch(0.27 0.012 240); /* primary text */
   --z-200: oklch(0.32 0.012 240);
-  --z-300: oklch(0.40 0.013 240);  /* body emphasis */
-  --z-400: oklch(0.46 0.014 240);  /* body / labels */
-  --z-500: oklch(0.50 0.015 240);  /* muted — AA on white */
+  --z-300: oklch(0.4 0.013 240); /* body emphasis */
+  --z-400: oklch(0.46 0.014 240); /* body / labels */
+  --z-500: oklch(0.5 0.015 240); /* muted — AA on white */
   --z-600: oklch(0.56 0.015 240);
-  --z-700: oklch(0.85 0.007 240);  /* strong border / hover surface */
-  --z-800: oklch(0.90 0.006 240);  /* border / chip / input */
+  --z-700: oklch(0.85 0.007 240); /* strong border / hover surface */
+  --z-800: oklch(0.9 0.006 240); /* border / chip / input */
   --z-900: oklch(0.965 0.004 240); /* panels / nodes / cards (soft off-white) */
   --z-950: oklch(0.975 0.003 240); /* deepest well */
   --ac-300: oklch(0.72 0.13 200);
-  --ac-400: oklch(0.60 0.16 200);
-  --ac-500: oklch(0.52 0.16 200);  /* primary accent (button bg) — AA text on white */
+  --ac-400: oklch(0.6 0.16 200);
+  --ac-500: oklch(0.52 0.16 200); /* primary accent (button bg) — AA text on white */
   --ac-600: oklch(0.47 0.15 203);
-  --ac-700: oklch(0.43 0.13 205);  /* links / accent text on white */
+  --ac-700: oklch(0.43 0.13 205); /* links / accent text on white */
 
-  --background: oklch(0.935 0.006 240);   /* canvas / app floor (soft gray) */
+  --background: oklch(0.935 0.006 240); /* canvas / app floor (soft gray) */
   --foreground: oklch(0.25 0.012 240);
-  --card: oklch(0.965 0.004 240);         /* panels — soft off-white */
+  --card: oklch(0.965 0.004 240); /* panels — soft off-white */
   --card-foreground: oklch(0.25 0.012 240);
   --popover: oklch(0.975 0.003 240);
   --popover-foreground: oklch(0.25 0.012 240);
@@ -120,10 +120,10 @@
   --secondary: oklch(0.905 0.006 240);
   --secondary-foreground: oklch(0.25 0.012 240);
   --muted: oklch(0.905 0.006 240);
-  --muted-foreground: oklch(0.50 0.015 240);
+  --muted-foreground: oklch(0.5 0.015 240);
   --accent: oklch(0.905 0.006 240);
   --accent-foreground: oklch(0.25 0.012 240);
-  --destructive: oklch(0.58 0.20 25);
+  --destructive: oklch(0.58 0.2 25);
   --border: oklch(0.88 0.006 240);
   --input: oklch(0.87 0.007 240);
   --ring: oklch(0.57 0.16 200);
@@ -145,9 +145,9 @@
   /* canvas atmosphere (subtle on light — soft, no harsh white) */
   --canvas-atmos:
     radial-gradient(72% 46% at 50% -6%, oklch(0.57 0.16 200 / 0.05), transparent 72%),
-    radial-gradient(135% 130% at 50% 42%, transparent 64%, oklch(0.50 0.02 240 / 0.07) 100%);
+    radial-gradient(135% 130% at 50% 42%, transparent 64%, oklch(0.5 0.02 240 / 0.07) 100%);
   /* theme-specific canvas colors consumed in JS (grid, edges, minimap) */
-  --grid-dot: rgba(70, 85, 115, 0.20);
+  --grid-dot: rgba(70, 85, 115, 0.2);
   --grid-line: rgba(70, 85, 115, 0.05);
   --edge-idle: rgba(90, 105, 130, 0.45);
   --minimap-mask: rgba(228, 232, 240, 0.6);
@@ -157,9 +157,9 @@
    Cool near-black (hue 240). Canvas floor sits BELOW panels → elevation via
    luminance, not shadows (the Linear move). */
 .dark {
-  --z-50:  oklch(0.98 0.004 240);
+  --z-50: oklch(0.98 0.004 240);
   --z-100: oklch(0.95 0.006 240);
-  --z-200: oklch(0.90 0.008 240);
+  --z-200: oklch(0.9 0.008 240);
   --z-300: oklch(0.82 0.011 240);
   --z-400: oklch(0.72 0.014 240);
   --z-500: oklch(0.685 0.016 240);
@@ -174,11 +174,11 @@
   --ac-600: oklch(0.66 0.14 200);
   --ac-700: oklch(0.57 0.12 203);
 
-  --background: oklch(0.145 0.012 240);     /* canvas / app floor — deepest */
+  --background: oklch(0.145 0.012 240); /* canvas / app floor — deepest */
   --foreground: oklch(0.96 0.008 240);
-  --card: oklch(0.225 0.016 240);           /* panels / nodes / cards */
+  --card: oklch(0.225 0.016 240); /* panels / nodes / cards */
   --card-foreground: oklch(0.96 0.008 240);
-  --popover: oklch(0.255 0.017 240);        /* floating — lightest surface */
+  --popover: oklch(0.255 0.017 240); /* floating — lightest surface */
   --popover-foreground: oklch(0.96 0.008 240);
   --primary: oklch(0.95 0.008 240);
   --primary-foreground: oklch(0.18 0.013 240);
@@ -188,12 +188,12 @@
   --muted-foreground: oklch(0.72 0.014 240);
   --accent: oklch(0.27 0.015 240);
   --accent-foreground: oklch(0.95 0.008 240);
-  --destructive: oklch(0.62 0.20 25);
+  --destructive: oklch(0.62 0.2 25);
   --border: oklch(0.27 0.015 240);
-  --input: oklch(0.30 0.015 240);
+  --input: oklch(0.3 0.015 240);
   --ring: oklch(0.74 0.14 197);
   --chart-1: oklch(0.74 0.14 197);
-  --chart-2: oklch(0.70 0.13 150);
+  --chart-2: oklch(0.7 0.13 150);
   --chart-3: oklch(0.74 0.14 85);
   --chart-4: oklch(0.62 0.16 280);
   --chart-5: oklch(0.64 0.18 20);
@@ -209,7 +209,7 @@
   --canvas-atmos:
     radial-gradient(72% 46% at 50% -6%, oklch(0.74 0.14 197 / 0.09), transparent 72%),
     radial-gradient(60% 55% at 100% 108%, oklch(0.55 0.09 250 / 0.06), transparent 72%),
-    radial-gradient(135% 130% at 50% 42%, transparent 60%, oklch(0.10 0.01 240 / 0.50) 100%);
+    radial-gradient(135% 130% at 50% 42%, transparent 60%, oklch(0.1 0.01 240 / 0.5) 100%);
   --grid-dot: rgba(155, 172, 205, 0.24);
   --grid-line: rgba(150, 165, 195, 0.05);
   --edge-idle: rgba(150, 165, 195, 0.32);
@@ -232,43 +232,63 @@
   }
   /* Tabular, slashed-zero figures for all metrics/timers/QPS so numbers don't
      jitter as they change and align in columns. */
-  .font-mono, [class*="tabular"] {
+  .font-mono,
+  [class*="tabular"] {
     font-variant-numeric: tabular-nums slashed-zero;
   }
   /* Lucide ships a 2px stroke that reads heavy at small UI sizes — a slightly
      lighter, uniform stroke is the "tuned icon set" craft signal. */
-  svg.lucide { stroke-width: 1.75; }
+  svg.lucide {
+    stroke-width: 1.75;
+  }
 }
 
 /* ── Elevation scale ───────────────────────────────────────────────────────
    One consistent shadow ramp for the whole app (cards → panels → sheets →
    popovers). Tuned for a dark UI: low-spread, slightly cool, never milky. */
 @theme inline {
-  --shadow-e1: 0 1px 2px 0 oklch(0 0 0 / 0.30);
-  --shadow-e2: 0 2px 8px -2px oklch(0 0 0 / 0.40), 0 1px 2px 0 oklch(0 0 0 / 0.30);
-  --shadow-e3: 0 8px 24px -6px oklch(0 0 0 / 0.50), 0 2px 6px -2px oklch(0 0 0 / 0.35);
-  --shadow-e4: 0 16px 48px -12px oklch(0 0 0 / 0.60), 0 4px 12px -4px oklch(0 0 0 / 0.40);
+  --shadow-e1: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-e2: 0 2px 8px -2px oklch(0 0 0 / 0.4), 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-e3: 0 8px 24px -6px oklch(0 0 0 / 0.5), 0 2px 6px -2px oklch(0 0 0 / 0.35);
+  --shadow-e4: 0 16px 48px -12px oklch(0 0 0 / 0.6), 0 4px 12px -4px oklch(0 0 0 / 0.4);
 }
 
 /* Full viewport height with dvh fallback so mobile browser chrome doesn't shift layout */
-html, body { height: 100%; }
+html,
+body {
+  height: 100%;
+}
 @supports (height: 100dvh) {
-  html, body { height: 100dvh; }
+  html,
+  body {
+    height: 100dvh;
+  }
 }
 
 /* iOS safe areas */
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
-.safe-top    { padding-top:    env(safe-area-inset-top, 0px); }
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
 
 /* Kill double-tap-zoom delay on interactive controls */
-button, a, [role="button"], input, textarea, select { touch-action: manipulation; }
+button,
+a,
+[role="button"],
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}
 
 /* Sheet drag handle */
 .sheet-handle {
   width: 40px;
   height: 4px;
   border-radius: 9999px;
-  background: oklch(0.40 0.016 240);
+  background: oklch(0.4 0.016 240);
   margin-inline: auto;
 }
 
@@ -291,7 +311,10 @@ button, a, [role="button"], input, textarea, select { touch-action: manipulation
 }
 
 /* Data/metric helpers — big bold value, small dimmed uppercase label. */
-.metric-value { font-variant-numeric: tabular-nums slashed-zero; letter-spacing: -0.01em; }
+.metric-value {
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: -0.01em;
+}
 .metric-label {
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -299,39 +322,81 @@ button, a, [role="button"], input, textarea, select { touch-action: manipulation
   color: var(--color-zinc-500);
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(0.36 0.016 240); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: oklch(0.46 0.016 240); background-clip: padding-box; }
-* { scrollbar-width: thin; scrollbar-color: oklch(0.36 0.016 240) transparent; }
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.36 0.016 240);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.46 0.016 240);
+  background-clip: padding-box;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.36 0.016 240) transparent;
+}
 
 /* Premium easing curve (easeOutExpo) used across UI motion. */
-:root { --ease-out: cubic-bezier(0.16, 1, 0.3, 1); }
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
 
 /* Refined cyan focus ring on a dark UI */
-*:focus-visible { outline: 2px solid oklch(0.74 0.14 197); outline-offset: 2px; border-radius: 4px; }
+*:focus-visible {
+  outline: 2px solid oklch(0.74 0.14 197);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* Text selection picks up the refined accent */
-::selection { background: oklch(0.72 0.115 200 / 0.28); }
+::selection {
+  background: oklch(0.72 0.115 200 / 0.28);
+}
 
 /* Smooth, consistent micro-interactions on interactive controls (sub-200ms, ease-out) */
-button:not(.react-flow__controls-button), a, [role="button"], [role="tab"], .react-flow__edge {
-  transition: background-color 0.16s var(--ease-out), border-color 0.16s var(--ease-out),
-    color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out), opacity 0.16s var(--ease-out),
+button:not(.react-flow__controls-button),
+a,
+[role="button"],
+[role="tab"],
+.react-flow__edge {
+  transition:
+    background-color 0.16s var(--ease-out),
+    border-color 0.16s var(--ease-out),
+    color 0.16s var(--ease-out),
+    box-shadow 0.16s var(--ease-out),
+    opacity 0.16s var(--ease-out),
     scale 0.12s var(--ease-out);
 }
-button:not([disabled]):active { scale: 0.97; }
+button:not([disabled]):active {
+  scale: 0.97;
+}
 
 /* Keep node interaction GPU-cheap: no filter/transition on the node wrapper
    (those repaint during drag). Hover feedback lives on the node's own border. */
-.react-flow__handle { transition: background-color 0.15s var(--ease-out), border-color 0.15s var(--ease-out); }
+.react-flow__handle {
+  transition:
+    background-color 0.15s var(--ease-out),
+    border-color 0.15s var(--ease-out);
+}
 /* Use the standalone `scale` property so React Flow's own translate transform
    (which centers the handle on the node edge) is preserved — overriding
    `transform` here makes the handle jump on hover. */
-.react-flow__handle:hover { scale: 1.2; }
+.react-flow__handle:hover {
+  scale: 1.2;
+}
 
 /* Keep React Flow Controls clickable above the pen overlay (overlay z-index: 5) */
-.react-flow .react-flow__controls { z-index: 6; }
+.react-flow .react-flow__controls {
+  z-index: 6;
+}
 
 /* Touch devices: bigger connection handles + a generous invisible hit area */
 @media (pointer: coarse) {
@@ -347,13 +412,30 @@ button:not([disabled]):active { scale: 0.97; }
     border-radius: 9999px;
   }
 }
-@keyframes status-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Respect users who prefer reduced motion (a11y) — collapse all animation
    to near-instant while keeping final states intact. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
