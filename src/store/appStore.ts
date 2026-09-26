@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
+import { passThroughMigration, STORE_VERSION } from "./persistVersion";
 
 export type ToastType = "success" | "error" | "info";
 export type Theme = "dark" | "light";
@@ -88,9 +89,11 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "systemsim-app",
-      version: 1,
+      version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),
+      // Shape unchanged in v2.
+      migrate: passThroughMigration,
       partialize: (state) => ({
         selectedProblemId: state.selectedProblemId,
         theme: state.theme,

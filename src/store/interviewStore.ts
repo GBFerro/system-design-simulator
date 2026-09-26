@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
+import { passThroughMigration, STORE_VERSION } from "./persistVersion";
 
 export interface Phase {
   name: string;
@@ -182,11 +183,11 @@ export const useInterviewStore = create<InterviewState>()(
     }),
     {
       name: "systemsim-interview",
-      version: 1,
+      version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      migrate: (state) => state as any,
+      // Shape unchanged in v2.
+      migrate: passThroughMigration,
       partialize: (state) => ({
         mode: state.mode,
         currentPhase: state.currentPhase,

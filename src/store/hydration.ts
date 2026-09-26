@@ -12,7 +12,7 @@ import { useInterviewStore } from "./interviewStore";
  * All persisted stores use `skipHydration: true` so that the server render
  * and the first client render agree (no hydration mismatch). Call
  * `rehydrateAllStores()` once after mount (e.g. in AppShell's useEffect)
- * to load the persisted state from localStorage.
+ * to load the persisted state (localStorage; saved designs from IndexedDB).
  */
 
 let hasHydrated = false;
@@ -31,12 +31,16 @@ function subscribe(listener: () => void): () => void {
 
 export function rehydrateAllStores(): Promise<void> {
   const results: (void | Promise<void>)[] = [
+    // Custom components first: the v1 → v2 migration of the canvas and saved
+    // designs needs them to tell a custom component from an unknown type.
+    // localStorage stores hydrate synchronously, in this order.
+    useCustomComponentsStore.persist.rehydrate(),
     useAppStore.persist.rehydrate(),
     useCanvasStore.persist.rehydrate(),
     usePenStore.persist.rehydrate(),
+    // Async (IndexedDB); resolves once designs are loaded or migrated.
     useSavedDesignsStore.persist.rehydrate(),
     useCustomProblemsStore.persist.rehydrate(),
-    useCustomComponentsStore.persist.rehydrate(),
     useTradeoffStore.persist.rehydrate(),
     useInterviewStore.persist.rehydrate(),
   ];
