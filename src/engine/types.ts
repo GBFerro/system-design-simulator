@@ -1,0 +1,146 @@
+/**
+ * Engine contract (Spec 04, "Contrato do motor").
+ *
+ * Phase 1 implements `load` + `analyze` (instant steady state). The tick loop
+ * (`play`/`pause`/`reset`/`setSpeed`/`setTraffic`/`onTick`) is Phase 2 of this
+ * spec; `inject`/`heal` belong to Spec 08 (chaos). They are part of the
+ * contract already so consumers can code against it.
+ */
+import type { RoutingKind } from "@/domain/components/types";
+import type { SimGraph } from "@/domain/graph/compile";
+import type { NodeStatus } from "@/types/simulation";
+
+export type { SimGraph, SimNode, SimEdge } from "@/domain/graph/compile";
+
+export interface SimConfig {
+  /** PRNG seed (mulberry32). Same graph + seed → identical result. Default 42. */
+  seed?: number;
+  /** Synthetic requests sampled for end-to-end percentiles. Default 2000. */
+  samples?: number;
+  /** How long overload is observed: the backlog grows for this long. Default 10 s. */
+  horizonSec?: number;
+  /**
+   * Fraction of requests that are reads (drives `reads`/`writes` edge rules).
+   * Default: the entry node's `readRatio` param, else 0.9.
+   */
+  readRatio?: number;
+  /** Cap on fixed-point iterations for retry amplification. Default 200. */
+  maxIterations?: number;
+}
+
+export interface NodeSteadyState {
+  nodeId: string;
+  componentId: string;
+  routing: RoutingKind;
+  /** Arrivals (including retries), req/s. */
+  offeredRps: number;
+  /** Successfully processed, req/s. Always ≤ offeredRps. */
+  servedRps: number;
+  /** Dropped, rejected (429) or lost to overload, req/s. */
+  droppedRps: number;
+  /** droppedRps / offeredRps. */
+  errorRate: number;
+  /** instances × capacityPerInstance (rate limiter: min with the limit). */
+  capacityRps: number;
+  /** offered / capacity; may exceed 1 under overload. */
+  utilization: number;
+  /** Mean hop latency: service time + mean queue wait. */
+  meanLatencyMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+  /** Mean time waiting in the queue. */
+  queueWaitMs: number;
+  /** Requests waiting (queue/stream: message backlog = consumer lag). */
+  queueDepth: number;
+  /** Availability of the node's instances in parallel: 1 − (1 − a)^instances. */
+  availability: number;
+  status: NodeStatus;
+  isBottleneck: boolean;
+}
+
+export interface EdgeSteadyState {
+  edgeId: string;
+  source: string;
+  target: string;
+  /** Load carried, retries included, req/s. */
+  rps: number;
+  /** rps / load before retries (≥ 1). */
+  retryAmplification: number;
+  /** Fraction of calls that fail (drop, timeout, packet loss, or downstream failure). */
+  failureRate: number;
+  async: boolean;
+  /** Closes a cycle: carries no load. */
+  back: boolean;
+}
+
+export interface LatencySummary {
+  meanMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+}
+
+export interface SteadyState {
+  /** Requested load, req/s. */
+  requestedRps: number;
+  /** Load that actually entered the system (0 without an entry point), req/s. */
+  offeredRps: number;
+  /** Successful end-to-end requests, req/s. Always ≤ offeredRps. */
+  throughputRps: number;
+  /** 1 − throughput / offered. */
+  errorRate: number;
+  /** Composed availability of the user-facing path (series × parallel). */
+  availability: number;
+  /** End-to-end, successful user requests, sync path only (async edges excluded). */
+  latency: LatencySummary;
+  nodes: NodeSteadyState[];
+  edges: EdgeSteadyState[];
+  entryIds: string[];
+  bottleneckIds: string[];
+  warnings: string[];
+  seed: number;
+  /** Fixed-point iterations used to settle retry amplification. */
+  iterations: number;
+}
+
+/* ---------- Phase 2 / Spec 06–08 placeholders ---------- */
+
+/** Load pattern over time — defined by Spec 06 (traffic controls). */
+export interface TrafficPattern {
+  kind: string;
+  [key: string]: unknown;
+}
+
+/** Fault description — defined by Spec 08 (chaos engineering). */
+export interface FaultSpec {
+  kind: string;
+  targetId?: string;
+  [key: string]: unknown;
+}
+
+export type FaultId = string;
+
+/** One tick of the time-stepped loop — Phase 2, consumed by Spec 07. */
+export interface TickSnapshot {
+  t: number;
+  steady: SteadyState;
+}
+
+export type Unsubscribe = () => void;
+
+export interface Engine {
+  /** Validates and compiles params + rules. */
+  load(graph: SimGraph, config?: SimConfig): void;
+  play(): void;
+  pause(): void;
+  reset(): void;
+  setSpeed(x: 1 | 5 | 20): void;
+  /** Changes live. */
+  setTraffic(p: TrafficPattern): void;
+  inject(fault: FaultSpec): FaultId;
+  heal(id: FaultId): void;
+  /** Instant analytic mode: steady state at `rps`. */
+  analyze(rps: number): SteadyState;
+  onTick(cb: (s: TickSnapshot) => void): Unsubscribe;
+}
