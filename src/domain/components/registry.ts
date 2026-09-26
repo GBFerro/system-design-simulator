@@ -1,5 +1,7 @@
 import { getComponentById } from "@/data/components";
 import type { SystemComponent } from "@/types/component";
+import { coreParams, finitePositive, MAX_INSTANCES, PARAM, routingParams } from "./params";
+import { CATALOG_SCHEMAS } from "./schemas";
 import {
   CORE_PARAM,
   type ComponentSchema,
@@ -19,29 +21,8 @@ import {
 
 /* ---------- well-known param keys read by the engine ---------- */
 
-export const PARAM = {
-  ...CORE_PARAM,
-  /** Cache/CDN: fraction of requests served without calling `on_miss` edges. 0–1. */
-  hitRate: "hitRate",
-  /** Service: per-request timeout. */
-  timeoutMs: "timeoutMs",
-  /** Service: max client retries on failure/timeout. */
-  maxRetries: "maxRetries",
-  /** Anything with a queue in front: backlog above this is dropped. */
-  maxQueue: "maxQueue",
-  /** Queue/stream: parallel consumers draining the backlog. */
-  consumers: "consumers",
-  /** Rate limiter: requests per second allowed through. */
-  limitRps: "limitRps",
-  /** Rate limiter: what happens to the excess. */
-  overLimitAction: "overLimitAction",
-  /** Load balancer: split algorithm. */
-  lbAlgorithm: "lbAlgorithm",
-  /** Per-instance availability used for composed availability. 0–1. */
-  availability: "availability",
-  /** Traffic source: fraction of requests that are reads. 0–1. */
-  readRatio: "readRatio",
-} as const;
+// Defined in `params.ts` (shared with `schemas/` without an import cycle).
+export { PARAM, MAX_INSTANCES };
 
 /* ---------- routing kind per component id ---------- */
 
@@ -62,183 +43,18 @@ const ROUTING: Record<string, RoutingKind> = {
   "task-scheduler": "service",
   "stream-processor": "service",
   custom: "service",
+  // Spec 03 (CMP-02)
+  client: "service",
+  "worker-pool": "service",
+  dlq: "queue",
+  // waf, read-replica, autoscaler: "fixed" (default)
 };
 
 export function routingFor(componentId: string): RoutingKind {
   return ROUTING[componentId] ?? "fixed";
 }
 
-/* ---------- generic schema builders ---------- */
-
-function finitePositive(v: number, fallback: number): number {
-  return Number.isFinite(v) && v > 0 ? v : fallback;
-}
-
-/** Capacity/latency/instances: the three v1 numbers, now as params. */
-function coreParams(component: Pick<SystemComponent, "maxQPS" | "latencyMs">): ParamSpec[] {
-  return [
-    {
-      key: PARAM.instances,
-      label: "Instances",
-      kind: "number",
-      default: 1,
-      min: 1,
-      max: 100,
-      step: 1,
-      group: "capacity",
-      help: "Identical instances behind this node (replicas).",
-    },
-    {
-      key: PARAM.capacityPerInstance,
-      label: "Capacity per instance",
-      kind: "number",
-      default: finitePositive(component.maxQPS, 1000),
-      min: 1,
-      step: 100,
-      unit: "rps",
-      group: "capacity",
-      help: "Requests per second one instance sustains before queueing.",
-    },
-    {
-      key: PARAM.serviceTimeMs,
-      label: "Service time",
-      kind: "duration",
-      default: finitePositive(component.latencyMs, 10),
-      min: 0.1,
-      step: 1,
-      unit: "ms",
-      group: "latency",
-      help: "Mean time one instance spends on a request (no queueing).",
-    },
-    {
-      key: PARAM.availability,
-      label: "Availability",
-      kind: "percent",
-      default: 0.999,
-      min: 0.9,
-      max: 1,
-      step: 0.0001,
-      group: "resilience",
-      help: "Availability of a single instance.",
-    },
-  ];
-}
-
-function routingParams(routing: RoutingKind): ParamSpec[] {
-  switch (routing) {
-    case "cache":
-      return [
-        {
-          key: PARAM.hitRate,
-          label: "Hit rate",
-          kind: "percent",
-          default: 0.9,
-          min: 0,
-          max: 1,
-          step: 0.01,
-          group: "capacity",
-          help: "Fraction served here; the rest goes down on_miss edges.",
-        },
-      ];
-    case "service":
-      return [
-        {
-          key: PARAM.timeoutMs,
-          label: "Timeout",
-          kind: "duration",
-          default: 1000,
-          min: 1,
-          step: 50,
-          unit: "ms",
-          group: "resilience",
-        },
-        {
-          key: PARAM.maxRetries,
-          label: "Max retries",
-          kind: "number",
-          default: 0,
-          min: 0,
-          max: 5,
-          step: 1,
-          group: "resilience",
-        },
-        {
-          key: PARAM.maxQueue,
-          label: "Max queue",
-          kind: "number",
-          default: 1000,
-          min: 0,
-          step: 100,
-          group: "advanced",
-          help: "Requests waiting above this are dropped.",
-        },
-      ];
-    case "queue":
-      return [
-        {
-          key: PARAM.consumers,
-          label: "Consumers",
-          kind: "number",
-          default: 4,
-          min: 1,
-          max: 1000,
-          step: 1,
-          group: "capacity",
-        },
-        {
-          key: PARAM.maxQueue,
-          label: "Max depth",
-          kind: "number",
-          default: 1_000_000,
-          min: 0,
-          step: 1000,
-          group: "capacity",
-        },
-      ];
-    case "rate-limiter":
-      return [
-        {
-          key: PARAM.limitRps,
-          label: "Limit",
-          kind: "number",
-          default: 10_000,
-          min: 1,
-          step: 100,
-          unit: "rps",
-          group: "capacity",
-        },
-        {
-          key: PARAM.overLimitAction,
-          label: "Over limit",
-          kind: "enum",
-          default: "reject",
-          options: [
-            { value: "reject", label: "Reject (429)" },
-            { value: "queue", label: "Queue" },
-          ],
-          group: "resilience",
-        },
-      ];
-    case "lb":
-      return [
-        {
-          key: PARAM.lbAlgorithm,
-          label: "Algorithm",
-          kind: "enum",
-          default: "round-robin",
-          options: [
-            { value: "round-robin", label: "Round robin" },
-            { value: "least-connections", label: "Least connections" },
-            { value: "weighted", label: "Weighted" },
-            { value: "hash", label: "Hash" },
-          ],
-          group: "capacity",
-        },
-      ];
-    default:
-      return [];
-  }
-}
+/* ---------- generic schema ---------- */
 
 /** Generic schema for any catalog entry: core params + routing-specific ones. */
 export function genericSchema(component: SystemComponent): ComponentSchema {
@@ -261,6 +77,8 @@ const SCHEMAS: Record<string, ComponentSchema> = {};
 export function registerSchema(schema: ComponentSchema): void {
   SCHEMAS[schema.id] = schema;
 }
+
+for (const schema of CATALOG_SCHEMAS) registerSchema(schema);
 
 const FALLBACK_COMPONENT: SystemComponent = {
   id: "custom",
@@ -319,6 +137,10 @@ export function sanitizeParams(componentId: string, raw: unknown): Params {
   return params;
 }
 
+export function getParamSpec(componentId: string, key: string): ParamSpec | undefined {
+  return getSchema(componentId).params.find((p) => p.key === key);
+}
+
 /* ---------- typed readers (used by UI, scoring and engine) ---------- */
 
 /** Minimal shape of a component node's data that the readers need. */
@@ -366,4 +188,22 @@ export function capacityPerInstanceOf(data: ParamsCarrier): number {
 
 export function serviceTimeMsOf(data: ParamsCarrier): number {
   return finitePositive(numParam(data, PARAM.serviceTimeMs, 10), 10);
+}
+
+/**
+ * Every schema param of a node, validated: what the Props form shows and
+ * what an edit is merged into. Missing core keys fall back to the v1
+ * top-level fields (see `LEGACY_FIELD`) before the schema default.
+ */
+export function resolvedParams(data: ParamsCarrier): Params {
+  const componentId = typeof data.componentId === "string" ? data.componentId : "custom";
+  const raw = rawParams(data);
+  const params = sanitizeParams(componentId, raw);
+  for (const spec of getSchema(componentId).params) {
+    const legacyKey = LEGACY_FIELD[spec.key];
+    if (!legacyKey || isValidParam(spec, raw[spec.key])) continue;
+    const legacy = data[legacyKey];
+    if (isValidParam(spec, legacy)) params[spec.key] = legacy;
+  }
+  return params;
 }

@@ -4,6 +4,18 @@ import { useCustomComponentsStore } from "@/store/customComponentsStore";
 export const SYSTEM_COMPONENTS: SystemComponent[] = [
   // Networking
   {
+    id: "client",
+    label: "Client",
+    category: "networking",
+    icon: "MonitorSmartphone",
+    maxQPS: 1000000,
+    latencyMs: 1,
+    scalable: true,
+    stateful: false,
+    description:
+      "Explicit traffic source — the browsers, mobile apps, devices or partner systems that send requests. Set the base load, the load pattern and the read/write mix here; reads and writes edges split traffic by that mix. Designs without a Client still work: nodes with no incoming edges act as entry points.",
+  },
+  {
     id: "dns",
     label: "DNS",
     category: "networking",
@@ -63,6 +75,18 @@ export const SYSTEM_COMPONENTS: SystemComponent[] = [
     description:
       "Throttles requests per client, IP, or API key to protect downstream services from abuse, DDoS attacks, and traffic spikes. Typically implemented using token bucket or sliding window algorithms backed by Redis. Often built into API gateways like Kong, enforced at the edge via AWS WAF, or implemented as a standalone service.",
   },
+  {
+    id: "waf",
+    label: "WAF",
+    category: "networking",
+    icon: "ShieldBan",
+    maxQPS: 100000,
+    latencyMs: 2,
+    scalable: true,
+    stateful: false,
+    description:
+      "Web Application Firewall — inspects HTTP requests and blocks common attacks such as SQL injection, cross-site scripting and malicious bots before they reach your servers, using managed rule sets (e.g., the OWASP Core Rule Set) plus custom and rate-based rules. AWS WAF, Cloudflare WAF, Azure Web Application Firewall and Google Cloud Armor are common choices. Every request pays a small, fixed inspection latency.",
+  },
   // Compute
   {
     id: "app-server",
@@ -88,6 +112,18 @@ export const SYSTEM_COMPONENTS: SystemComponent[] = [
     description:
       "Dedicated authentication and authorization service that handles user login, token issuance (JWT/OAuth2), session management, and permission checks. Centralizing auth prevents security logic from being scattered across microservices. Examples include AWS Cognito, Auth0, Firebase Auth, and Google Cloud Identity Platform.",
   },
+  {
+    id: "worker-pool",
+    label: "Worker Pool",
+    category: "compute",
+    icon: "Cpu",
+    maxQPS: 100,
+    latencyMs: 100,
+    scalable: true,
+    stateful: false,
+    description:
+      "Pool of background workers that pull jobs from a queue and process them asynchronously — transcoding, thumbnails, emails, reports, feed fan-out. Throughput is workers × per-worker rate; whenever producers outpace it, the queue backlog (lag) grows. Celery, Sidekiq, Resque, AWS Lambda consuming SQS, and Kubernetes deployments consuming Kafka are common implementations.",
+  },
   // Storage
   {
     id: "sql-db",
@@ -100,6 +136,18 @@ export const SYSTEM_COMPONENTS: SystemComponent[] = [
     stateful: true,
     description:
       "Relational database providing ACID transactions, strong consistency, and structured schemas with SQL queries. Best for data with complex relationships, joins, and strict integrity requirements (e.g., financial transactions, user accounts). Examples include Amazon RDS (PostgreSQL/MySQL), Google Cloud SQL, and Amazon Aurora.",
+  },
+  {
+    id: "read-replica",
+    label: "Read Replica",
+    category: "storage",
+    icon: "DatabaseBackup",
+    maxQPS: 10000,
+    latencyMs: 8,
+    scalable: true,
+    stateful: true,
+    description:
+      "Read-only copy of a SQL primary, kept in sync by (usually asynchronous) replication. Route reads to replicas to scale reads horizontally while all writes still go to the primary; replica reads can be slightly stale (replication lag), and a replica can be promoted on failover. Amazon RDS/Aurora read replicas, Cloud SQL read replicas and PostgreSQL streaming replication are typical.",
   },
   {
     id: "nosql-db",
@@ -162,6 +210,18 @@ export const SYSTEM_COMPONENTS: SystemComponent[] = [
     description:
       "Asynchronous message broker that decouples producers from consumers, enabling reliable background processing, event-driven architectures, and traffic spike buffering. Critical for any workflow where synchronous processing would create bottlenecks or coupling. Apache Kafka, Amazon SQS/SNS, Google Cloud Pub/Sub, and RabbitMQ are widely adopted.",
   },
+  {
+    id: "dlq",
+    label: "Dead-Letter Queue",
+    category: "messaging",
+    icon: "MailWarning",
+    maxQPS: 10000,
+    latencyMs: 5,
+    scalable: true,
+    stateful: true,
+    description:
+      "Dead-Letter Queue — holds messages that still fail after the maximum number of delivery attempts (poison messages), so they stop being retried forever in the main queue. Engineers inspect them, fix the bug and redrive them to the source queue. Amazon SQS redrive policies (maxReceiveCount), RabbitMQ dead-letter exchanges and Kafka DLQ topics are standard implementations.",
+  },
   // Infrastructure
   {
     id: "service-mesh",
@@ -186,6 +246,18 @@ export const SYSTEM_COMPONENTS: SystemComponent[] = [
     stateful: true,
     description:
       "Observability stack for metrics collection, centralized logging, distributed tracing, and alerting. Every production system needs monitoring to detect outages, track SLOs, and debug performance issues. Prometheus + Grafana, AWS CloudWatch, Google Cloud Monitoring, Datadog, and the ELK stack are standard tools.",
+  },
+  {
+    id: "autoscaler",
+    label: "Autoscaler",
+    category: "infrastructure",
+    icon: "Scaling",
+    maxQPS: 10000,
+    latencyMs: 1,
+    scalable: true,
+    stateful: false,
+    description:
+      "Adjusts the instance count of the services it controls from a metric such as CPU utilization, request rate or queue depth — adding capacity under load and removing it when idle to save cost. New instances take time to boot and warm up, so autoscaling absorbs gradual growth but not instant spikes. AWS EC2 Auto Scaling, the Kubernetes Horizontal Pod Autoscaler and Google Cloud managed instance groups are common implementations.",
   },
   // Real-time
   {
