@@ -7,7 +7,7 @@ import {
   UTILIZATION_CRITICAL,
   LATENCY_SPIKE_THRESHOLD,
   LATENCY_SPIKE_MULTIPLIER,
-} from "./constants";
+} from "../constants";
 
 /** Component IDs that split (load-balance) traffic across children. */
 const LOAD_BALANCING_COMPONENTS = new Set(["load-balancer", "api-gateway"]);

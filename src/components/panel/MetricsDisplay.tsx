@@ -57,14 +57,56 @@ export function MetricsDisplay() {
           </p>
         </div>
         <div className="rounded-lg bg-zinc-800/70 px-3 py-2.5">
-          <p className="metric-label text-[10px]">Total Latency</p>
+          <p className="metric-label text-[10px]">
+            {result.latencyP50Ms !== undefined ? "Latency p50" : "Total Latency"}
+          </p>
           <p className="metric-value mt-1 font-mono text-2xl font-semibold leading-none text-zinc-50">
             {result.totalLatencyMs.toFixed(0)}
             <span className="ml-1 align-baseline text-xs font-normal text-zinc-500">ms</span>
           </p>
-          <p className="mt-1 text-[10px] text-zinc-500">longest path</p>
+          <p className="mt-1 text-[10px] text-zinc-400">
+            {result.latencyP95Ms !== undefined && result.latencyP99Ms !== undefined
+              ? `p95 ${result.latencyP95Ms.toFixed(0)} · p99 ${result.latencyP99Ms.toFixed(0)} ms`
+              : "longest path"}
+          </p>
         </div>
       </div>
+
+      {result.errorRate !== undefined && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg bg-zinc-800/70 px-3 py-2">
+            <p className="metric-label text-[10px]">Error rate</p>
+            <p
+              className={`mt-1 font-mono text-sm tabular-nums ${
+                result.errorRate > 0.01 ? "text-rose-400" : "text-zinc-100"
+              }`}
+            >
+              {(result.errorRate * 100).toFixed(
+                result.errorRate > 0 && result.errorRate < 0.001 ? 3 : 1,
+              )}
+              %
+            </p>
+          </div>
+          {result.availability !== undefined && (
+            <div className="rounded-lg bg-zinc-800/70 px-3 py-2">
+              <p className="metric-label text-[10px]">Availability</p>
+              <p className="mt-1 font-mono text-sm tabular-nums text-zinc-100">
+                {(result.availability * 100).toFixed(3)}%
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {result.warnings.length > 0 && (
+        <ul className="space-y-1 rounded-md border border-amber-500/20 bg-amber-950/20 px-2.5 py-2">
+          {result.warnings.map((w) => (
+            <li key={w} className="text-[11px] leading-snug text-amber-300">
+              {w}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {result.bottleneckNodes.length > 0 && (
         <div className="rounded-md border border-rose-500/20 bg-rose-950/30 px-2.5 py-2">

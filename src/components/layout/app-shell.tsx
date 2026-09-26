@@ -11,7 +11,6 @@ import { DesignCanvas } from "@/components/canvas/DesignCanvas";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useSimulationStore } from "@/store/simulationStore";
-import { runSimulation } from "@/engine/simulator";
 import { scoreDesign } from "@/scoring/scorer";
 import { PROBLEMS } from "@/data/problems";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
@@ -125,34 +124,42 @@ export function AppShell() {
   const handleLoad = useCallback(() => setLoadDialogOpen(true), []);
   const handleSimulate = useCallback(() => {
     const { nodes, edges } = useCanvasStore.getState();
-    const { config } = useSimulationStore.getState();
+    const { config, isRunning } = useSimulationStore.getState();
+    if (isRunning) return;
 
-    const componentNodes = nodes.filter((n) => n.type !== "text") as Node<ComponentNodeData>[];
-
-    if (componentNodes.length === 0) {
+    if (!nodes.some((n) => n.type !== "text")) {
       useAppStore.getState().showToast("No components to simulate", "info");
       return;
     }
 
     useSimulationStore.getState().setRunning(true);
 
-    setTimeout(() => {
-      const result = runSimulation(componentNodes, edges, config.requestsPerSec);
-
-      const updates = new Map<string, Record<string, unknown>>();
-      for (const [nodeId, metrics] of result.nodeMetrics) {
-        updates.set(nodeId, {
-          utilization: metrics.utilization,
-          status: metrics.status,
-          isBottleneck: metrics.isBottleneck,
+    // The engine (and its worker) load on first use: not in the initial bundle.
+    void (async () => {
+      try {
+        const { simulateCanvas } = await import("@/engine/client");
+        const { result } = await simulateCanvas(nodes, edges, config.requestsPerSec, {
+          horizonSec: config.durationSec,
         });
-      }
-      useCanvasStore.getState().updateAllNodeData(updates);
 
-      useSimulationStore.getState().setResult(result);
-      useSimulationStore.getState().setRunning(false);
-      useAppStore.getState().showToast("Simulation complete!", "success");
-    }, 100);
+        const updates = new Map<string, Record<string, unknown>>();
+        for (const [nodeId, metrics] of result.nodeMetrics) {
+          updates.set(nodeId, {
+            utilization: metrics.utilization,
+            status: metrics.status,
+            isBottleneck: metrics.isBottleneck,
+          });
+        }
+        useCanvasStore.getState().updateAllNodeData(updates);
+        useSimulationStore.getState().setResult(result);
+        useAppStore.getState().showToast("Simulation complete!", "success");
+      } catch (err) {
+        console.error("Simulation failed", err);
+        useAppStore.getState().showToast("Simulation failed — see console for details", "error");
+      } finally {
+        useSimulationStore.getState().setRunning(false);
+      }
+    })();
   }, []);
 
   const handleScore = useCallback(() => {
