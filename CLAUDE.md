@@ -41,8 +41,12 @@ src/
     interview/    InterviewBar, phase panel, start dialog
     dialogs/      ModalShell (shared modal: focus trap/Escape/scroll) + Save/Load/Confirm/Support/Create*
     ui/           shadcn-style primitives, Toast
-  data/           components.ts (36 specs), problems.ts (35), conceptLibrary.ts,
+  data/           components.ts (42 specs), problems.ts (35), conceptLibrary.ts,
                   interviewData.ts, tradeoffCards.ts (21), learningPath.ts
+  domain/
+    components/   types.ts (ParamSpec/ComponentSchema/EdgeRule), params.ts (PARAM keys + spec builders),
+                  schemas/<type>.ts (per-type schemas), registry.ts (getSchema/defaultParams/sanitizeParams/readers)
+    graph/        edgeRules.ts (connect defaults, sanitize, rule form specs)
   engine/         simulator.ts (traffic sim), constants.ts
   scoring/        scorer.ts + rules/ (scalability, availability, latency, cost, tradeoffs — 20 pts each)
   store/          zustand stores (see below)
@@ -68,6 +72,8 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 
 ## Data conventions
 
+- **Params & edge rules (Spec 03).** Every component type has a `ComponentSchema` (`getSchema(id)`; ids without a hand-written schema in `domain/components/schemas/` get the generic fixed-capacity one). Node values live in `data.params`, always validated by the schema (`sanitizeParams`/`resolvedParams`: unknown keys dropped, invalid → default). Every schema keeps the core keys `instances`/`capacityPerInstance`/`serviceTimeMs` (defaults = the catalog's `maxQPS`/`latencyMs`) and the engine-facing `PARAM` keys; never rename a `PARAM` key. The Props form is generated from the schema by `components/panel/ParamsForm.tsx` — no per-type forms. Param and rule edits go through `updateNodeParams`/`updateEdgeRule` (one undo step, no-op on read-only tabs). Every edge carries `data.rule` (`EdgeRule`); new edges get `connectEdgeRule` (Cache/CDN → `on_miss`, Service → Read Replica `reads` and → its SQL DB `writes`, Queue → DLQ `fraction`, Autoscaler → control link with `callsPerRequest: 0`).
+- A new catalog component needs: an entry in `components.ts`, its icon in `lib/icons.ts`, a Concept Library entry (except `custom`), a schema (or the generic one) and, if it routes traffic specially, an entry in the registry's `ROUTING` map. `tests/unit/catalog.test.ts` checks all of this.
 - Component `id`s referenced in `problems.ts` reference solutions, `conceptLibrary.ts`, and `learningPath.ts` must exist in `components.ts`. A single reference solution must NOT reuse the same `componentId` twice (the loader wires edges by componentId).
 - `learningPath.ts` prerequisites must be concepts taught by a strictly **earlier** problem in path order.
 - All 35 problems must have entries in `interviewData.ts` and a learning-path tier.
