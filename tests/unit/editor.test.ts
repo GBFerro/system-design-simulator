@@ -128,7 +128,7 @@ describe("canvas store editing", () => {
     s().changeReplicas("a", -1);
     expect(s().history).toHaveLength(0);
     s().changeReplicas("a", 1);
-    expect(s().nodes[0].data.replicas).toBe(2);
+    expect((s().nodes[0].data.params as Record<string, unknown>).instances).toBe(2);
   });
 
   it("selectAll / selectOnly / clearSelection drive node.selected and edge.selected", () => {

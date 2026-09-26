@@ -23,6 +23,12 @@ import {
   CopyPlus,
 } from "lucide-react";
 import { useCanvasStore, type ComponentNodeData, type CustomEdgeData } from "@/store/canvasStore";
+import {
+  capacityPerInstanceOf,
+  instancesOf,
+  PARAM,
+  serviceTimeMsOf,
+} from "@/domain/components/registry";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
 import { getConceptByComponentId } from "@/data/conceptLibrary";
@@ -451,6 +457,8 @@ function PropertiesTab() {
       ) : selectedNode ? (
         (() => {
           const data = selectedNode.data as ComponentNodeData;
+          const instances = instancesOf(data);
+          const capacity = capacityPerInstanceOf(data);
           return (
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -484,10 +492,7 @@ function PropertiesTab() {
                 <div className="rounded-md bg-zinc-800 px-3 py-2">
                   <p className="text-xs text-zinc-500">
                     {data.category as string} · Max{" "}
-                    {(data.maxQPS as number) === Infinity
-                      ? "\u221e"
-                      : new Intl.NumberFormat("en-US").format(data.maxQPS as number)}{" "}
-                    QPS
+                    {new Intl.NumberFormat("en-US").format(capacity)} QPS
                   </p>
                 </div>
 
@@ -495,15 +500,15 @@ function PropertiesTab() {
                 <div>
                   <div className="mb-1.5 flex items-center justify-between">
                     <label className="text-xs text-zinc-400">Replicas</label>
-                    <span className="font-mono text-xs text-cyan-500">
-                      {data.replicas as number}
-                    </span>
+                    <span className="font-mono text-xs text-cyan-500">{instances}</span>
                   </div>
                   <Slider
                     aria-label="Replicas"
-                    value={[data.replicas as number]}
+                    value={[instances]}
                     onValueChange={(v) =>
-                      updateNodeData(selectedNode.id, { replicas: Array.isArray(v) ? v[0] : v })
+                      updateNodeData(selectedNode.id, {
+                        params: { ...data.params, [PARAM.instances]: Array.isArray(v) ? v[0] : v },
+                      })
                     }
                     min={1}
                     max={20}
@@ -512,19 +517,14 @@ function PropertiesTab() {
                   />
                   <p className="mt-1 text-[11px] text-zinc-400">
                     Effective capacity:{" "}
-                    {(data.maxQPS as number) === Infinity
-                      ? "\u221e"
-                      : new Intl.NumberFormat("en-US").format(
-                          (data.maxQPS as number) * (data.replicas as number),
-                        )}{" "}
-                    QPS
+                    {new Intl.NumberFormat("en-US").format(capacity * instances)} QPS
                   </p>
                 </div>
 
                 {/* Info */}
                 <div className="space-y-1">
                   {[
-                    { label: "Base Latency", value: `${data.latencyMs}ms` },
+                    { label: "Base Latency", value: `${serviceTimeMsOf(data)}ms` },
                     { label: "Scalable", value: data.scalable ? "Yes" : "No" },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between text-xs">

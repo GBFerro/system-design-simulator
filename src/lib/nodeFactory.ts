@@ -1,6 +1,7 @@
 import type { Node, XYPosition } from "@xyflow/react";
 import type { SystemComponent } from "@/types/component";
 import type { ComponentNodeData } from "@/store/canvasStore";
+import { defaultParams } from "@/domain/components/registry";
 
 /** crypto.randomUUID is unavailable on non-secure (http) origins, e.g. a phone on the LAN. */
 export function randomId(): string {
@@ -27,10 +28,8 @@ export function createComponentNode(
       label: component.label,
       icon: component.icon,
       category: component.category,
-      replicas: 1,
-      maxQPS: component.maxQPS,
-      latencyMs: component.latencyMs,
       scalable: component.scalable,
+      params: defaultParams(component.id),
     },
   };
 }

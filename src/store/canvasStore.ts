@@ -15,16 +15,18 @@ import { useSimulationStore } from "./simulationStore";
 import { safeLocalStorage } from "./safeStorage";
 import { randomId } from "@/lib/nodeFactory";
 import { findFreePosition, freePositionNear, nodeRect } from "@/lib/placement";
+import { instancesOf, PARAM } from "@/domain/components/registry";
+import type { EdgeRule, Params } from "@/domain/components/types";
+import { defaultEdgeRule } from "@/domain/graph/edgeRules";
 
 export interface ComponentNodeData {
   componentId: string;
   label: string;
   icon: string;
   category: string;
-  replicas: number;
-  maxQPS: number;
-  latencyMs: number;
   scalable: boolean;
+  /** Validated against the type's `ComponentSchema` (Spec 03). */
+  params: Params;
   utilization?: number;
   status?: string;
   isBottleneck?: boolean;
@@ -42,6 +44,8 @@ export interface CustomEdgeData {
   label?: string;
   protocol?: "http" | "grpc" | "websocket" | "pubsub" | "tcp" | "custom";
   async?: boolean;
+  /** Call rule (Spec 03). Edges saved before v2 get one on migration. */
+  rule?: EdgeRule;
   [key: string]: unknown;
 }
 
@@ -416,18 +420,27 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       onConnect: (connection) => {
-        set((state) => ({
-          history: pushedHistory(state),
-          future: [],
-          edges: addEdge(
-            {
-              ...connection,
-              type: "animated",
-              data: { label: "", protocol: "http", async: false } satisfies CustomEdgeData,
-            },
-            state.edges,
-          ),
-        }));
+        set((state) => {
+          const componentIdOf = (id: string) => {
+            const data = state.nodes.find((n) => n.id === id)?.data;
+            return typeof data?.componentId === "string" ? data.componentId : undefined;
+          };
+          const data: CustomEdgeData = {
+            label: "",
+            protocol: "http",
+            async: false,
+            rule: defaultEdgeRule(
+              componentIdOf(connection.source),
+              componentIdOf(connection.target),
+              "http",
+            ),
+          };
+          return {
+            history: pushedHistory(state),
+            future: [],
+            edges: addEdge({ ...connection, type: "animated", data }, state.edges),
+          };
+        });
       },
       addNode: (node) => {
         set((state) => ({
@@ -508,14 +521,20 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           const node = state.nodes.find((n) => n.id === nodeId);
           if (!node || node.type !== "component" || isActiveTabReadOnly(state)) return state;
-          const current = Number((node.data as ComponentNodeData).replicas) || 1;
-          const replicas = Math.min(20, Math.max(1, current + delta));
-          if (replicas === current) return state;
+          const data = node.data as ComponentNodeData;
+          const current = instancesOf(data);
+          const instances = Math.min(20, Math.max(1, current + delta));
+          if (instances === current) return state;
           return {
             history: pushedHistory(state),
             future: [],
             nodes: state.nodes.map((n) =>
-              n.id === nodeId ? { ...n, data: { ...n.data, replicas } } : n,
+              n.id === nodeId
+                ? {
+                    ...n,
+                    data: { ...n.data, params: { ...data.params, [PARAM.instances]: instances } },
+                  }
+                : n,
             ),
           };
         });

@@ -9,6 +9,7 @@ import { Server } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import { NodeActionsToolbar } from "./NodeActionsToolbar";
+import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
 
@@ -37,7 +38,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   const status = (nodeData.status as string) ?? "idle";
   const statusDot = STATUS_DOT[status] ?? STATUS_DOT.idle;
   const isBottleneck = nodeData.isBottleneck ?? false;
-  const replicas = nodeData.replicas ?? 1;
+  const replicas = instancesOf(nodeData);
+  const capacity = capacityPerInstanceOf(nodeData);
   const utilization = nodeData.utilization ?? 0;
 
   const isCustom = nodeData.componentId === "custom";
@@ -135,8 +137,7 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
 
       {/* Stats */}
       <span className="font-mono text-[9px] text-zinc-400">
-        {nodeData.maxQPS === Infinity ? "\u221e" : ((nodeData.maxQPS ?? 0) / 1000).toFixed(0) + "k"}{" "}
-        qps
+        {(capacity / 1000).toFixed(0)}k qps
       </span>
 
       {/* Replicas badge */}
@@ -203,10 +204,8 @@ function areComponentNodePropsEqual(
     p.componentId === n.componentId &&
     p.label === n.label &&
     p.status === n.status &&
-    p.replicas === n.replicas &&
+    p.params === n.params &&
     p.utilization === n.utilization &&
-    p.maxQPS === n.maxQPS &&
-    p.latencyMs === n.latencyMs &&
     p.category === n.category &&
     p.icon === n.icon &&
     p.isBottleneck === n.isBottleneck

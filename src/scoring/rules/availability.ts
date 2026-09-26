@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
+import { instancesOf } from "@/domain/components/registry";
 import type { CategoryScore, ScoringGraph } from "@/types/scoring";
 
 /** Stores whose replicas constitute real data redundancy (a cache is not durable). */
@@ -28,7 +29,7 @@ export function scoreAvailability(
   const placedIds = new Set(nodes.map((n) => n.data.componentId));
 
   // Check no single point of failure (3 pts)
-  const scalableNodes = nodes.filter((n) => n.data.scalable || (n.data.replicas || 1) > 1);
+  const scalableNodes = nodes.filter((n) => n.data.scalable || instancesOf(n.data) > 1);
   const noSpof = scalableNodes.length >= Math.ceil(nodes.length * 0.7);
   if (noSpof) {
     score += 3;
@@ -44,7 +45,7 @@ export function scoreAvailability(
   // Check DB redundancy (3 pts) — only durable stores count; a replicated
   // cache doesn't protect your data if the database goes down.
   const isReplicatedDurableStore = (n: Node<ComponentNodeData>) =>
-    DURABLE_STORES.has(n.data.componentId) && (n.data.replicas || 1) > 1;
+    DURABLE_STORES.has(n.data.componentId) && instancesOf(n.data) > 1;
   const hasReplicatedStorage = connectedNodes.some(isReplicatedDurableStore);
   const placedReplicatedStorage = nodes.some(isReplicatedDurableStore);
   if (hasReplicatedStorage) {

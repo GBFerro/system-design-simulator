@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
+import { serviceTimeMsOf } from "@/domain/components/registry";
 import type { NodeMetrics, NodeStatus, SimulationResult } from "@/types/simulation";
 import {
   UTILIZATION_WARNING,
@@ -50,7 +51,11 @@ export function runSimulation(
   // Sanitized effective capacity per node (maxQPS * replicas)
   const capacity = new Map<string, number>();
   for (const node of nodes) {
-    capacity.set(node.id, sanitizeMaxQPS(node.data.maxQPS) * sanitizeReplicas(node.data.replicas));
+    const params = node.data.params ?? {};
+    capacity.set(
+      node.id,
+      sanitizeMaxQPS(params.capacityPerInstance) * sanitizeReplicas(params.instances),
+    );
   }
 
   // Build adjacency list and in-degree map.
@@ -113,7 +118,7 @@ export function runSimulation(
     // A node with no usable capacity that still receives traffic is fully
     // saturated (it black-holes everything downstream) — not "healthy".
     const utilization = effectiveQPS <= 0 ? (incoming > 0 ? 2 : 0) : incoming / effectiveQPS;
-    const latency = computeLatency(data.latencyMs, utilization);
+    const latency = computeLatency(serviceTimeMsOf(data), utilization);
     const status = getStatus(utilization);
     const isBottleneck = utilization > UTILIZATION_CRITICAL;
 
@@ -297,7 +302,7 @@ export function runSimulation(
         incomingQPS: 0,
         effectiveQPS: capacity.get(node.id) ?? 0,
         utilization: 0,
-        latencyMs: node.data.latencyMs, // base latency, not 0
+        latencyMs: serviceTimeMsOf(node.data), // base latency, not 0
         status: "idle",
         isBottleneck: false,
       });

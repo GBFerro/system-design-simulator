@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { instancesOf } from "@/domain/components/registry";
 import { useReactFlow } from "@xyflow/react";
 import {
   ClipboardPaste,
@@ -169,7 +170,7 @@ function useMenuEntries(
   const many = selectedCount > 1;
   const suffix = many ? ` ${selectedCount} items` : "";
   const isComponent = node.type === "component";
-  const replicas = isComponent ? Number((node.data as ComponentNodeData).replicas) || 1 : 0;
+  const replicas = isComponent ? instancesOf(node.data as ComponentNodeData) : 0;
 
   if (readOnly) {
     return [
