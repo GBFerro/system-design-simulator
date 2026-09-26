@@ -2,12 +2,12 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 3 (ADV-03) e Fase 5 (ADV-01/02) · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | ADV-03 (P0), ADV-01 e ADV-02 (P1) |
-| Depende de | `scoring/` (`ScoringGraph`), [Spec 04](04-motor-de-simulacao.md) (`analyze()`), [Spec 10](10-custo.md) (right-size) |
-| Relacionada | [Spec 08](08-chaos-engineering.md) (CHS-06 usa os mesmos quick fixes) |
-| Arquivos principais | novo `advisor/` (rules, fixes), `components/panel/AdvisorPanel`, `store/canvasStore.ts` |
+| Campo               | Valor                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Requisitos          | ADV-03 (P0), ADV-01 e ADV-02 (P1)                                                                                   |
+| Depende de          | `scoring/` (`ScoringGraph`), [Spec 04](04-motor-de-simulacao.md) (`analyze()`), [Spec 10](10-custo.md) (right-size) |
+| Relacionada         | [Spec 08](08-chaos-engineering.md) (CHS-06 usa os mesmos quick fixes)                                               |
+| Arquivos principais | novo `advisor/` (rules, fixes), `components/panel/AdvisorPanel`, `store/canvasStore.ts`                             |
 
 ## Objetivo
 
@@ -25,18 +25,18 @@ Transformar o feedback do score em findings acionáveis: cada problema encontrad
 
 ```ts
 interface Finding {
-  id: string;                  // estável por regra + alvo, para deduplicar
+  id: string; // estável por regra + alvo, para deduplicar
   severity: "critical" | "warning" | "info";
   title: string;
-  detail: string;              // por que importa, com números da última execução quando houver
-  targetIds: string[];         // nós/arestas para destacar e focar
+  detail: string; // por que importa, com números da última execução quando houver
+  targetIds: string[]; // nós/arestas para destacar e focar
   source: "structure" | "scoring" | "metrics" | "chaos";
   fix?: QuickFix;
 }
 
 interface QuickFix {
-  label: string;               // "Adicionar LB na frente de App (3 instâncias)"
-  preview(graph: CanvasGraph): GraphDiff;  // puro
+  label: string; // "Adicionar LB na frente de App (3 instâncias)"
+  preview(graph: CanvasGraph): GraphDiff; // puro
 }
 ```
 
@@ -44,11 +44,11 @@ interface QuickFix {
 
 Calculados sobre o `ScoringGraph` que o `scorer.ts` já monta, sem depender do motor:
 
-| Hint | Severidade | Regra |
-| --- | --- | --- |
-| Sem entry point | Crítico | Nenhum nó com in-degree 0 e saída (ou nenhum `client`) |
-| Nó desconectado | Aviso | Nó de componente fora do conjunto alcançável a partir dos entry points |
-| SPOF | Aviso | Nó alcançável no caminho síncrono com `instances = 1` e sem réplica/LB em paralelo |
+| Hint            | Severidade | Regra                                                                              |
+| --------------- | ---------- | ---------------------------------------------------------------------------------- |
+| Sem entry point | Crítico    | Nenhum nó com in-degree 0 e saída (ou nenhum `client`)                             |
+| Nó desconectado | Aviso      | Nó de componente fora do conjunto alcançável a partir dos entry points             |
+| SPOF            | Aviso      | Nó alcançável no caminho síncrono com `instances = 1` e sem réplica/LB em paralelo |
 
 Aparecem como lista no painel e como marcador discreto no nó afetado. Clicar foca o nó.
 

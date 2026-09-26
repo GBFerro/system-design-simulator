@@ -2,12 +2,12 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 3 (CHS-01, 02, 04) e Fase 5 (CHS-03, 05, 06) · Tamanho M · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | CHS-01, CHS-02, CHS-04 (P0), CHS-03, CHS-05, CHS-06 (P1) |
-| Depende de | [Spec 04](04-motor-de-simulacao.md) (`inject`/`heal`), [Spec 07](07-metricas-e-observabilidade.md) (timeline, badges) |
-| Consumida por | 09 (failure drill), 11 (burn rate), 12 (dica de mitigação) |
-| Arquivos principais | novo `engine/faults/` (catalog, compile), `store/chaosStore.ts`, `components/panel/ChaosPanel` |
+| Campo               | Valor                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Requisitos          | CHS-01, CHS-02, CHS-04 (P0), CHS-03, CHS-05, CHS-06 (P1)                                                              |
+| Depende de          | [Spec 04](04-motor-de-simulacao.md) (`inject`/`heal`), [Spec 07](07-metricas-e-observabilidade.md) (timeline, badges) |
+| Consumida por       | 09 (failure drill), 11 (burn rate), 12 (dica de mitigação)                                                            |
+| Arquivos principais | novo `engine/faults/` (catalog, compile), `store/chaosStore.ts`, `components/panel/ChaosPanel`                        |
 
 ## Objetivo
 
@@ -28,29 +28,39 @@ Deixar o usuário quebrar o sistema ao vivo e ver o efeito: cada fault muda as m
 
 Como no ArchSim, cada fault vira um conjunto de modificadores com início, fim e alvo, aplicados no passo 1 ou 3 do tick ([Spec 04](04-motor-de-simulacao.md)). Não há código especial por fault.
 
-| Modificador | Exemplos de fault |
-| --- | --- |
-| `capacityMultiplier` | Kill de instância (1 − 1/c), CPU saturada, thread pool esgotado |
-| `latencyAddMs` / `latencyMultiplier` | Nó lento, latência na aresta, disco lento |
-| `errorRate` | Deadlock, TLS expirado, packet loss |
-| `severEdge` | Particionamento de rede, porta bloqueada |
-| `trafficMultiplier` | Spike ×N, DDoS |
-| `hitRateOverride` | Flush de cache / stampede |
-| `nodeDown` | Falha do primary, falha de AZ (todos os nós do grupo) |
+| Modificador                          | Exemplos de fault                                               |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `capacityMultiplier`                 | Kill de instância (1 − 1/c), CPU saturada, thread pool esgotado |
+| `latencyAddMs` / `latencyMultiplier` | Nó lento, latência na aresta, disco lento                       |
+| `errorRate`                          | Deadlock, TLS expirado, packet loss                             |
+| `severEdge`                          | Particionamento de rede, porta bloqueada                        |
+| `trafficMultiplier`                  | Spike ×N, DDoS                                                  |
+| `hitRateOverride`                    | Flush de cache / stampede                                       |
+| `nodeDown`                           | Falha do primary, falha de AZ (todos os nós do grupo)           |
 
 ```ts
 interface FaultSpec {
-  type: FaultType;              // id do catálogo
+  type: FaultType; // id do catálogo
   target: { kind: "node" | "edge" | "group" | "global"; id?: string };
-  intensity: number;            // semântica por tipo (ex.: instâncias mortas, ms extra, multiplicador)
-  durationSec?: number;         // ausente = até heal manual
+  intensity: number; // semântica por tipo (ex.: instâncias mortas, ms extra, multiplicador)
+  durationSec?: number; // ausente = até heal manual
   autoHeal?: boolean;
 }
 
 interface CompiledModifier {
-  kind: "capacityMultiplier" | "latencyAddMs" | "latencyMultiplier" | "errorRate"
-      | "severEdge" | "trafficMultiplier" | "hitRateOverride" | "nodeDown";
-  targetIds: string[]; value: number; startT: number; endT?: number;
+  kind:
+    | "capacityMultiplier"
+    | "latencyAddMs"
+    | "latencyMultiplier"
+    | "errorRate"
+    | "severEdge"
+    | "trafficMultiplier"
+    | "hitRateOverride"
+    | "nodeDown";
+  targetIds: string[];
+  value: number;
+  startT: number;
+  endT?: number;
 }
 ```
 
@@ -58,18 +68,18 @@ interface CompiledModifier {
 
 ### Mapeamento dos faults do MVP
 
-| Fault | Modificadores |
-| --- | --- |
-| Kill de instância | `capacityMultiplier = 1 − k/c`; com LB na frente, o tráfego continua indo para a instância morta até o intervalo do health check passar |
-| Kill de nó | `nodeDown` |
-| Nó lento (grey failure) | `latencyMultiplier` (sem erro, o health check não pega) |
-| Spike de tráfego | `trafficMultiplier` global ou numa fonte |
-| Latência na aresta | `latencyAddMs` na aresta |
-| Perda de pacote | `errorRate` na aresta (vira retry se o nó tiver retries) |
-| Particionamento | `severEdge` |
-| Flush de cache | `hitRateOverride = 0` no início, depois recuperação h(t) da [Spec 04](04-motor-de-simulacao.md) |
-| Falha do primary do DB | `nodeDown` no primary; writes falham até o failover (param do schema) |
-| Consumer parado | `capacityMultiplier = 0` no worker/consumer; a fila acumula lag |
+| Fault                   | Modificadores                                                                                                                           |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Kill de instância       | `capacityMultiplier = 1 − k/c`; com LB na frente, o tráfego continua indo para a instância morta até o intervalo do health check passar |
+| Kill de nó              | `nodeDown`                                                                                                                              |
+| Nó lento (grey failure) | `latencyMultiplier` (sem erro, o health check não pega)                                                                                 |
+| Spike de tráfego        | `trafficMultiplier` global ou numa fonte                                                                                                |
+| Latência na aresta      | `latencyAddMs` na aresta                                                                                                                |
+| Perda de pacote         | `errorRate` na aresta (vira retry se o nó tiver retries)                                                                                |
+| Particionamento         | `severEdge`                                                                                                                             |
+| Flush de cache          | `hitRateOverride = 0` no início, depois recuperação h(t) da [Spec 04](04-motor-de-simulacao.md)                                         |
+| Falha do primary do DB  | `nodeDown` no primary; writes falham até o failover (param do schema)                                                                   |
+| Consumer parado         | `capacityMultiplier = 0` no worker/consumer; a fila acumula lag                                                                         |
 
 ### `chaosStore`
 

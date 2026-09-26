@@ -13,7 +13,8 @@ SystemForge — an open-source system-design interview simulator. Drag infrastru
 ```bash
 npm run dev      # dev server (http://localhost:3000)
 npm run build    # production build — also runs tsc; must pass before pushing
-npm run lint     # eslint
+npm run lint     # oxlint (config: .oxlintrc.json)
+npm run format   # oxfmt (config: .oxfmtrc.json); CI runs format:check
 npx tsc --noEmit # type-check only
 ```
 

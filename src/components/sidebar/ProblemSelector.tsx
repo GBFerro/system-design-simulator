@@ -76,9 +76,7 @@ export function ProblemSelector({ onCreateProblem }: ProblemSelectorProps) {
             <div className="flex items-center justify-between gap-1">
               <span
                 className={`flex-1 truncate text-xs font-medium ${
-                  problem.id === selectedProblemId
-                    ? "text-cyan-500"
-                    : "text-zinc-300"
+                  problem.id === selectedProblemId ? "text-cyan-500" : "text-zinc-300"
                 }`}
               >
                 {problem.title}
@@ -93,7 +91,7 @@ export function ProblemSelector({ onCreateProblem }: ProblemSelectorProps) {
                 <Badge
                   variant="outline"
                   className={`h-4 shrink-0 px-1.5 text-[11px] font-medium ${getDifficultyColor(
-                    problem.difficulty
+                    problem.difficulty,
                   )}`}
                 >
                   {problem.difficulty}
@@ -111,7 +109,8 @@ export function ProblemSelector({ onCreateProblem }: ProblemSelectorProps) {
             <div className="flex flex-wrap gap-1">
               {problem.tags.map((tag, i) => (
                 <span key={tag} className="text-[11px] text-zinc-400">
-                  {tag}{i < problem.tags.length - 1 ? " ·" : ""}
+                  {tag}
+                  {i < problem.tags.length - 1 ? " ·" : ""}
                 </span>
               ))}
             </div>
@@ -119,9 +118,7 @@ export function ProblemSelector({ onCreateProblem }: ProblemSelectorProps) {
         ))}
 
         {/* Separator if there are custom problems */}
-        {customProblems.length > 0 && (
-          <div className="!my-2 h-px bg-zinc-800" />
-        )}
+        {customProblems.length > 0 && <div className="!my-2 h-px bg-zinc-800" />}
 
         {/* Predefined problems */}
         {PROBLEMS.map((problem) => (
@@ -138,9 +135,7 @@ export function ProblemSelector({ onCreateProblem }: ProblemSelectorProps) {
             <div className="flex items-center justify-between">
               <span
                 className={`text-xs font-medium ${
-                  problem.id === selectedProblemId
-                    ? "text-cyan-500"
-                    : "text-zinc-300"
+                  problem.id === selectedProblemId ? "text-cyan-500" : "text-zinc-300"
                 }`}
               >
                 {problem.title}
@@ -148,7 +143,7 @@ export function ProblemSelector({ onCreateProblem }: ProblemSelectorProps) {
               <Badge
                 variant="outline"
                 className={`h-4 px-1.5 text-[11px] font-medium ${getDifficultyColor(
-                  problem.difficulty
+                  problem.difficulty,
                 )}`}
               >
                 {problem.difficulty}
@@ -157,7 +152,8 @@ export function ProblemSelector({ onCreateProblem }: ProblemSelectorProps) {
             <div className="flex flex-wrap gap-1">
               {problem.tags.map((tag, i) => (
                 <span key={tag} className="text-[11px] text-zinc-400">
-                  {tag}{i < problem.tags.length - 1 ? " ·" : ""}
+                  {tag}
+                  {i < problem.tags.length - 1 ? " ·" : ""}
                 </span>
               ))}
             </div>

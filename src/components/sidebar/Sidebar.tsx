@@ -27,7 +27,11 @@ function SidebarTabs({
   const activeLeftTab = useAppStore((s) => s.activeLeftTab);
   const setActiveLeftTab = useAppStore((s) => s.setActiveLeftTab);
   return (
-    <Tabs value={activeLeftTab} onValueChange={(v) => setActiveLeftTab(v as typeof activeLeftTab)} className="flex flex-1 flex-col min-h-0">
+    <Tabs
+      value={activeLeftTab}
+      onValueChange={(v) => setActiveLeftTab(v as typeof activeLeftTab)}
+      className="flex flex-1 flex-col min-h-0"
+    >
       <TabsList className="mx-2 mt-2 h-9 w-auto shrink-0 bg-zinc-800">
         <TabsTrigger
           value="components"

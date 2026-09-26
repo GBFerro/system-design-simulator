@@ -37,7 +37,7 @@ export interface TextNodeData {
 
 export interface CustomEdgeData {
   label?: string;
-  protocol?: 'http' | 'grpc' | 'websocket' | 'pubsub' | 'tcp' | 'custom';
+  protocol?: "http" | "grpc" | "websocket" | "pubsub" | "tcp" | "custom";
   async?: boolean;
   [key: string]: unknown;
 }
@@ -59,9 +59,7 @@ const MAX_HISTORY = 50;
 
 /** Cheap deep snapshot of just the structural canvas state. */
 function snapshot(state: { nodes: Node[]; edges: Edge[] }): HistoryEntry {
-  return JSON.parse(
-    JSON.stringify({ nodes: state.nodes, edges: state.edges })
-  ) as HistoryEntry;
+  return JSON.parse(JSON.stringify({ nodes: state.nodes, edges: state.edges })) as HistoryEntry;
 }
 
 /**
@@ -127,9 +125,7 @@ interface CanvasState {
   setSelectedEdge: (id: string | null) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
-  updateAllNodeData: (
-    updates: Map<string, Partial<ComponentNodeData>>
-  ) => void;
+  updateAllNodeData: (updates: Map<string, Partial<ComponentNodeData>>) => void;
   clearCanvas: () => void;
   deleteNode: (nodeId: string) => void;
   deleteEdge: (edgeId: string) => void;
@@ -156,7 +152,7 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           // Save current tab state before switching
           const updatedTabs = state.tabs.map((t) =>
-            t.id === state.activeTabId ? { ...t, nodes: state.nodes, edges: state.edges } : t
+            t.id === state.activeTabId ? { ...t, nodes: state.nodes, edges: state.edges } : t,
           );
           // Check if tab already exists (reuse it)
           const existing = updatedTabs.find((t) => t.id === tab.id);
@@ -195,7 +191,7 @@ export const useCanvasStore = create<CanvasState>()(
           if (!target || tabId === state.activeTabId) return state;
           // Save current tab state
           const updatedTabs = state.tabs.map((t) =>
-            t.id === state.activeTabId ? { ...t, nodes: state.nodes, edges: state.edges } : t
+            t.id === state.activeTabId ? { ...t, nodes: state.nodes, edges: state.edges } : t,
           );
           return {
             tabs: updatedTabs,
@@ -282,12 +278,8 @@ export const useCanvasStore = create<CanvasState>()(
 
       onNodesChange: (changes) => {
         set((state) => {
-          const dragStart = changes.some(
-            (c) => c.type === "position" && c.dragging === true
-          );
-          const dragEnd = changes.some(
-            (c) => c.type === "position" && c.dragging === false
-          );
+          const dragStart = changes.some((c) => c.type === "position" && c.dragging === true);
+          const dragEnd = changes.some((c) => c.type === "position" && c.dragging === false);
           const hasRemove = changes.some((c) => c.type === "remove");
 
           let history = state.history;
@@ -312,9 +304,7 @@ export const useCanvasStore = create<CanvasState>()(
           const hasRemove = changes.some((c) => c.type === "remove");
           return {
             edges: applyEdgeChanges(changes, state.edges),
-            ...(hasRemove
-              ? { history: pushedHistory(state), future: [] }
-              : null),
+            ...(hasRemove ? { history: pushedHistory(state), future: [] } : null),
           };
         });
       },
@@ -323,8 +313,12 @@ export const useCanvasStore = create<CanvasState>()(
           history: pushedHistory(state),
           future: [],
           edges: addEdge(
-            { ...connection, type: "animated", data: { label: '', protocol: 'http', async: false } satisfies CustomEdgeData },
-            state.edges
+            {
+              ...connection,
+              type: "animated",
+              data: { label: "", protocol: "http", async: false } satisfies CustomEdgeData,
+            },
+            state.edges,
           ),
         }));
       },
@@ -344,14 +338,14 @@ export const useCanvasStore = create<CanvasState>()(
       updateNodeData: (nodeId, data) => {
         set((state) => ({
           nodes: state.nodes.map((n) =>
-            n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
+            n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n,
           ),
         }));
       },
       updateEdgeData: (edgeId, data) => {
         set((state) => ({
           edges: state.edges.map((e) =>
-            e.id === edgeId ? { ...e, data: { ...e.data, ...data } } : e
+            e.id === edgeId ? { ...e, data: { ...e.data, ...data } } : e,
           ),
         }));
       },
@@ -379,15 +373,10 @@ export const useCanvasStore = create<CanvasState>()(
           history: pushedHistory(state),
           future: [],
           nodes: state.nodes.filter((n) => n.id !== nodeId),
-          edges: state.edges.filter(
-            (e) => e.source !== nodeId && e.target !== nodeId
-          ),
-          selectedNodeId:
-            state.selectedNodeId === nodeId ? null : state.selectedNodeId,
+          edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+          selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
           selectedEdgeId: state.edges.some(
-            (e) =>
-              e.id === state.selectedEdgeId &&
-              (e.source === nodeId || e.target === nodeId)
+            (e) => e.id === state.selectedEdgeId && (e.source === nodeId || e.target === nodeId),
           )
             ? null
             : state.selectedEdgeId,
@@ -403,7 +392,7 @@ export const useCanvasStore = create<CanvasState>()(
             future: [],
             nodes: state.nodes.filter((n) => !nodeIds.has(n.id)),
             edges: state.edges.filter(
-              (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)
+              (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
             ),
             selectedNodeId: null,
             selectedEdgeId: null,
@@ -414,8 +403,7 @@ export const useCanvasStore = create<CanvasState>()(
           history: pushedHistory(state),
           future: [],
           edges: state.edges.filter((e) => e.id !== edgeId),
-          selectedEdgeId:
-            state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
+          selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
         }));
       },
     }),
@@ -435,7 +423,7 @@ export const useCanvasStore = create<CanvasState>()(
         tabs: state.tabs.map((t) =>
           t.id === state.activeTabId
             ? { ...t, nodes: [], edges: [] }
-            : { ...t, nodes: stripRuntimeFields(t.nodes) }
+            : { ...t, nodes: stripRuntimeFields(t.nodes) },
         ),
         activeTabId: state.activeTabId,
       }),
@@ -447,9 +435,7 @@ export const useCanvasStore = create<CanvasState>()(
         // Refill the active tab's snapshot from the live nodes/edges.
         if (merged.tabs && merged.tabs.length > 0) {
           merged.tabs = merged.tabs.map((t) =>
-            t.id === merged.activeTabId
-              ? { ...t, nodes: merged.nodes, edges: merged.edges }
-              : t
+            t.id === merged.activeTabId ? { ...t, nodes: merged.nodes, edges: merged.edges } : t,
           );
         } else {
           merged.tabs = [
@@ -464,6 +450,6 @@ export const useCanvasStore = create<CanvasState>()(
         }
         return merged;
       },
-    }
-  )
+    },
+  ),
 );

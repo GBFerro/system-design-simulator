@@ -78,10 +78,7 @@ interface InterviewState {
   toggleTimer: () => void;
 }
 
-function elapsedMsOf(s: {
-  startedAt: number | null;
-  accumulatedMs: number;
-}): number {
+function elapsedMsOf(s: { startedAt: number | null; accumulatedMs: number }): number {
   return s.accumulatedMs + (s.startedAt !== null ? Date.now() - s.startedAt : 0);
 }
 
@@ -205,6 +202,6 @@ export const useInterviewStore = create<InterviewState>()(
         // closed while the timer was running).
         state?.tickTimer();
       },
-    }
-  )
+    },
+  ),
 );

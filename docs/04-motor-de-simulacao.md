@@ -2,13 +2,13 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 1 (`analyze()`, worker) e Fase 2 (loop de tick) · Tamanho G · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Escopo | Modelo de filas, roteamento, loop de tick, `analyze()`, contrato do motor, worker, determinismo |
-| Depende de | [Spec 03](03-catalogo-de-componentes.md) (params e regras de aresta) |
-| Consumida por | 06 (tráfego), 07 (métricas), 08 (chaos), 09 (scoring medido), 10 (custo), 11 (SLO), 12 (advisor) |
+| Campo               | Valor                                                                                                                                    |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Escopo              | Modelo de filas, roteamento, loop de tick, `analyze()`, contrato do motor, worker, determinismo                                          |
+| Depende de          | [Spec 03](03-catalogo-de-componentes.md) (params e regras de aresta)                                                                     |
+| Consumida por       | 06 (tráfego), 07 (métricas), 08 (chaos), 09 (scoring medido), 10 (custo), 11 (SLO), 12 (advisor)                                         |
 | Arquivos principais | novo `engine/core/`, `engine/analyze.ts`, `engine/worker.ts`, `domain/graph/compile.ts`; `engine/simulator.ts` vai para `engine/legacy/` |
-| Dependências novas | `comlink`, `vitest` (dev) |
+| Dependências novas  | `comlink`, `vitest` (dev)                                                                                                                |
 
 ## Objetivo
 
@@ -51,14 +51,14 @@ Motor de fluxo discretizado no tempo, num Web Worker. A cada tick de 50 ms de te
 
 ## Roteamento por tipo de nó
 
-| Nó | Como o fluxo de entrada λ sai |
-| --- | --- |
-| Load Balancer | Divide entre alvos saudáveis: round robin → igual; weighted → por peso; least connections → proporcional à capacidade livre |
-| Service / App | Cada aresta pela regra: `always` → λ × `callsPerRequest`; `reads`/`writes` → λ × mix; `fraction` p → λ × p |
-| Cache / CDN | Arestas `on_miss` recebem λ × (1 − h) |
-| Queue / Stream | Desacopla: a saída é min(backlog, consumers × taxa) e o backlog vira lag |
-| Rate Limiter | A saída é min(λ, limite); o excedente vira 429 (erro) ou fila |
-| Circuit Breaker | Fechado repassa tudo; aberto devolve erro rápido com latência ≈ 0; half-open deixa passar os probes |
+| Nó              | Como o fluxo de entrada λ sai                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Load Balancer   | Divide entre alvos saudáveis: round robin → igual; weighted → por peso; least connections → proporcional à capacidade livre |
+| Service / App   | Cada aresta pela regra: `always` → λ × `callsPerRequest`; `reads`/`writes` → λ × mix; `fraction` p → λ × p                  |
+| Cache / CDN     | Arestas `on_miss` recebem λ × (1 − h)                                                                                       |
+| Queue / Stream  | Desacopla: a saída é min(backlog, consumers × taxa) e o backlog vira lag                                                    |
+| Rate Limiter    | A saída é min(λ, limite); o excedente vira 429 (erro) ou fila                                                               |
+| Circuit Breaker | Fechado repassa tudo; aberto devolve erro rápido com latência ≈ 0; half-open deixa passar os probes                         |
 
 ## Fórmulas
 
@@ -111,11 +111,14 @@ A_{serie} = \prod_i A_i, \qquad A_{paralelo} = 1 - \prod_j (1 - A_j)
 ```ts
 interface Engine {
   load(graph: SimGraph, config: SimConfig): void; // valida e compila params + regras
-  play(): void; pause(): void; reset(): void;
+  play(): void;
+  pause(): void;
+  reset(): void;
   setSpeed(x: 1 | 5 | 20): void;
-  setTraffic(p: TrafficPattern): void;             // muda ao vivo
-  inject(fault: FaultSpec): FaultId; heal(id: FaultId): void;
-  analyze(rps: number): SteadyState;              // modo analítico instantâneo
+  setTraffic(p: TrafficPattern): void; // muda ao vivo
+  inject(fault: FaultSpec): FaultId;
+  heal(id: FaultId): void;
+  analyze(rps: number): SteadyState; // modo analítico instantâneo
   onTick(cb: (s: TickSnapshot) => void): Unsubscribe;
 }
 ```

@@ -10,20 +10,20 @@ export interface CustomComponent extends SystemComponent {
 
 interface CustomComponentsState {
   components: CustomComponent[];
-  addComponent: (
-    component: Omit<SystemComponent, "id"> & { id?: string },
-  ) => string;
+  addComponent: (component: Omit<SystemComponent, "id"> & { id?: string }) => string;
   updateComponent: (id: string, updates: Partial<SystemComponent>) => void;
   deleteComponent: (id: string) => void;
   getComponent: (id: string) => CustomComponent | undefined;
 }
 
 function slugify(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 32) || "component";
+  return (
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 32) || "component"
+  );
 }
 
 export const useCustomComponentsStore = create<CustomComponentsState>()(
@@ -51,9 +51,7 @@ export const useCustomComponentsStore = create<CustomComponentsState>()(
 
       updateComponent: (id, updates) => {
         set((s) => ({
-          components: s.components.map((c) =>
-            c.id === id ? { ...c, ...updates } : c,
-          ),
+          components: s.components.map((c) => (c.id === id ? { ...c, ...updates } : c)),
         }));
       },
 

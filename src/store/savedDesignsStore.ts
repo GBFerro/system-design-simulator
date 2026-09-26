@@ -67,7 +67,7 @@ interface SavedDesignsState {
 }
 
 export function serializeNodes(
-  nodes: ReturnType<typeof useCanvasStore.getState>["nodes"]
+  nodes: ReturnType<typeof useCanvasStore.getState>["nodes"],
 ): SerializedNode[] {
   return nodes.map((n) => {
     const base = {
@@ -103,7 +103,7 @@ export function serializeNodes(
 }
 
 export function serializeEdges(
-  edges: ReturnType<typeof useCanvasStore.getState>["edges"]
+  edges: ReturnType<typeof useCanvasStore.getState>["edges"],
 ): SerializedEdge[] {
   return edges.map((e) => ({
     id: e.id,
@@ -155,10 +155,10 @@ function normalizeImportedDesign(parsed: unknown):
     return { ok: false, error: "File is not a design object" };
   }
   if (!Array.isArray(parsed.nodes)) {
-    return { ok: false, error: "Missing or invalid \"nodes\" array" };
+    return { ok: false, error: 'Missing or invalid "nodes" array' };
   }
   if (!Array.isArray(parsed.edges)) {
-    return { ok: false, error: "Missing or invalid \"edges\" array" };
+    return { ok: false, error: 'Missing or invalid "edges" array' };
   }
 
   const nodes: SerializedNode[] = [];
@@ -199,9 +199,7 @@ function normalizeImportedDesign(parsed: unknown):
         data: {
           text: str(d.text, ""),
           fontSize:
-            fontSize === "sm" || fontSize === "base" || fontSize === "lg"
-              ? fontSize
-              : undefined,
+            fontSize === "sm" || fontSize === "base" || fontSize === "lg" ? fontSize : undefined,
         },
       });
     } else {
@@ -270,7 +268,7 @@ function normalizeImportedDesign(parsed: unknown):
               typeof p[0] === "number" &&
               typeof p[1] === "number" &&
               Number.isFinite(p[0]) &&
-              Number.isFinite(p[1])
+              Number.isFinite(p[1]),
           )
         );
       })
@@ -382,9 +380,7 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
       renameDesign: (id: string, name: string) => {
         set((s) => ({
           designs: s.designs.map((d) =>
-            d.id === id
-              ? { ...d, name, updatedAt: new Date().toISOString() }
-              : d
+            d.id === id ? { ...d, name, updatedAt: new Date().toISOString() } : d,
           ),
         }));
       },
@@ -406,9 +402,7 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
 
         const result = normalizeImportedDesign(parsed);
         if (!result.ok) {
-          useAppStore
-            .getState()
-            .showToast(`Invalid design file: ${result.error}`, "error");
+          useAppStore.getState().showToast(`Invalid design file: ${result.error}`, "error");
           return result;
         }
 
@@ -437,8 +431,8 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
       storage: createJSONStorage(() => safeLocalStorage),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       migrate: (state) => state as any,
-    }
-  )
+    },
+  ),
 );
 
 /** Helper: get problem title by id (built-in or custom problems). */
@@ -446,8 +440,6 @@ export function getProblemTitle(problemId: string | null): string {
   if (!problemId) return "No problem";
   const builtin = PROBLEMS.find((p) => p.id === problemId)?.title;
   if (builtin) return builtin;
-  const custom = useCustomProblemsStore
-    .getState()
-    .problems.find((p) => p.id === problemId)?.title;
+  const custom = useCustomProblemsStore.getState().problems.find((p) => p.id === problemId)?.title;
   return custom ?? problemId;
 }

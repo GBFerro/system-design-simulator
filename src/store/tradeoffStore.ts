@@ -33,8 +33,7 @@ export const useTradeoffStore = create<TradeoffState>()(
             ...s.entries,
           ],
         })),
-      removeEntry: (id) =>
-        set((s) => ({ entries: s.entries.filter((e) => e.id !== id) })),
+      removeEntry: (id) => set((s) => ({ entries: s.entries.filter((e) => e.id !== id) })),
       clearEntries: () => set({ entries: [] }),
     }),
     {
@@ -44,6 +43,6 @@ export const useTradeoffStore = create<TradeoffState>()(
       storage: createJSONStorage(() => safeLocalStorage),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       migrate: (state) => state as any,
-    }
-  )
+    },
+  ),
 );

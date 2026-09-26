@@ -2,12 +2,12 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 4 · Tamanho M · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Escopo | Fases com resposta checável, failure drill, rubrica medida, score de processo, relatório final |
-| Depende de | [Spec 04](04-motor-de-simulacao.md) (`analyze()`, tick), [Spec 08](08-chaos-engineering.md) (faults e game days) |
-| Relacionada | [Spec 10](10-custo.md) e [Spec 11](11-slo-e-error-budget.md) completam as regras de cost/latency/availability na Fase 5 |
-| Arquivos principais | `components/interview/`, `store/interviewStore.ts`, `data/interviewData.ts`, `scoring/` |
+| Campo               | Valor                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Escopo              | Fases com resposta checável, failure drill, rubrica medida, score de processo, relatório final                          |
+| Depende de          | [Spec 04](04-motor-de-simulacao.md) (`analyze()`, tick), [Spec 08](08-chaos-engineering.md) (faults e game days)        |
+| Relacionada         | [Spec 10](10-custo.md) e [Spec 11](11-slo-e-error-budget.md) completam as regras de cost/latency/availability na Fase 5 |
+| Arquivos principais | `components/interview/`, `store/interviewStore.ts`, `data/interviewData.ts`, `scoring/`                                 |
 
 ## Objetivo
 
@@ -17,14 +17,14 @@ O timer continua baseado em timestamp (`startedAt`/`accumulatedMs`), como exige 
 
 ## Fluxo
 
-| Fase | Tempo alvo | O que o candidato faz | O que o sistema checa |
-| --- | --- | --- | --- |
-| 1. Requirements | 5 min | Marca e escreve os requisitos funcionais e não funcionais | Cobertura dos requisitos `critical` e `important` de referência |
-| 2. Estimation | 5 min | Preenche DAU, RPS de read/write, pico, storage e banda na calculadora | Cada número contra a referência, com tolerância de ±2× |
-| 3. API Design | 5 min | Lista endpoints (método, path, request, response) | Endpoints essenciais presentes e verbos corretos |
-| 4. Data Model | 2 min | Define entidades, tipo de store e partition key | Store adequado por entidade e partition key definida onde a referência exige |
-| 5. High-Level Design | 15 min | Monta o grafo e roda a simulação na carga estimada | Aguenta o pico da fase 2 com ρ < 0,8, p99 dentro do SLA, sem SPOF |
-| 6. Deep Dive / Failure drill | 10 min | Responde a 2–3 faults injetados e mitiga editando o grafo ao vivo | Tempo até recuperar o SLO, error budget consumido e se a mitigação resolveu |
+| Fase                         | Tempo alvo | O que o candidato faz                                                 | O que o sistema checa                                                        |
+| ---------------------------- | ---------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1. Requirements              | 5 min      | Marca e escreve os requisitos funcionais e não funcionais             | Cobertura dos requisitos `critical` e `important` de referência              |
+| 2. Estimation                | 5 min      | Preenche DAU, RPS de read/write, pico, storage e banda na calculadora | Cada número contra a referência, com tolerância de ±2×                       |
+| 3. API Design                | 5 min      | Lista endpoints (método, path, request, response)                     | Endpoints essenciais presentes e verbos corretos                             |
+| 4. Data Model                | 2 min      | Define entidades, tipo de store e partition key                       | Store adequado por entidade e partition key definida onde a referência exige |
+| 5. High-Level Design         | 15 min     | Monta o grafo e roda a simulação na carga estimada                    | Aguenta o pico da fase 2 com ρ < 0,8, p99 dentro do SLA, sem SPOF            |
+| 6. Deep Dive / Failure drill | 10 min     | Responde a 2–3 faults injetados e mitiga editando o grafo ao vivo     | Tempo até recuperar o SLO, error budget consumido e se a mitigação resolveu  |
 
 **Checagem de texto livre (fases 1, 3 e 4):** o candidato marca itens de uma lista derivada da referência ou escreve texto livre. Na v2 o score conta só os itens marcados/estruturados; texto livre é guardado para o relatório, sem correção automática.
 
@@ -45,13 +45,13 @@ O timer continua baseado em timestamp (`startedAt`/`accumulatedMs`), como exige 
 
 O total continua 100 (5 × 20), para não quebrar o histórico nem a invariante "cada regra soma exatamente 20". A diferença é que as regras passam a usar métricas medidas em vez de presença de componentes.
 
-| Dimensão | Pontos | Como é medido na v2 |
-| --- | --- | --- |
-| Scalability | 20 | Aguenta 1× e 2× o pico (8 + 8) e escala horizontalmente nos tiers stateless (4) |
-| Availability | 20 | Sem SPOF alcançável (6), disponibilidade medida no drill ≥ SLO (10), degradação graciosa com circuit breaker ou fallback (4) |
-| Latency | 20 | p99 medido no pico ≤ SLA (12), p50 (4), caminho síncrono sem hops desnecessários (4) |
-| Cost | 20 | $/mês ≤ orçamento do problema (12), sem over-provisioning com utilização < 15% (8) |
-| Trade-offs | 20 | Decisões-chave do problema registradas no trade-off log com justificativa (mantido) |
+| Dimensão     | Pontos | Como é medido na v2                                                                                                          |
+| ------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Scalability  | 20     | Aguenta 1× e 2× o pico (8 + 8) e escala horizontalmente nos tiers stateless (4)                                              |
+| Availability | 20     | Sem SPOF alcançável (6), disponibilidade medida no drill ≥ SLO (10), degradação graciosa com circuit breaker ou fallback (4) |
+| Latency      | 20     | p99 medido no pico ≤ SLA (12), p50 (4), caminho síncrono sem hops desnecessários (4)                                         |
+| Cost         | 20     | $/mês ≤ orçamento do problema (12), sem over-provisioning com utilização < 15% (8)                                           |
+| Trade-offs   | 20     | Decisões-chave do problema registradas no trade-off log com justificativa (mantido)                                          |
 
 - As regras continuam recebendo o `ScoringGraph` compartilhado, agora junto com o `SteadyState` do `analyze()` e, quando houver, o resultado do drill
 - Presença continua exigindo alcançabilidade a partir do entry point

@@ -31,8 +31,7 @@ export const useSimulationStore = create<SimulationState>((set) => ({
   showScore: false,
 
   setRunning: (running) => set({ isRunning: running }),
-  setConfig: (config) =>
-    set((s) => ({ config: { ...s.config, ...config } })),
+  setConfig: (config) => set((s) => ({ config: { ...s.config, ...config } })),
   setResult: (result) => set({ result }),
   setScoreResult: (result) => set({ scoreResult: result }),
   setShowScore: (show) => set({ showScore: show }),

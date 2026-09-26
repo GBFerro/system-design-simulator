@@ -77,7 +77,7 @@ export function ModalShell({
       }
       if (e.key === "Tab" && panel) {
         const focusables = Array.from(
-          panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+          panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
         ).filter((el) => el.offsetParent !== null || el === document.activeElement);
         if (focusables.length === 0) {
           e.preventDefault();
@@ -109,9 +109,7 @@ export function ModalShell({
   if (!open) return null;
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${wrapperClassName}`}
-    >
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${wrapperClassName}`}>
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}

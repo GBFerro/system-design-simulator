@@ -33,9 +33,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Bring up DNS caching layers: browser cache, OS cache, ISP resolver, authoritative server",
     ],
     commonPatterns: [
-      { name: "GeoDNS", description: "Route users to the nearest data center based on their geographic location" },
-      { name: "Weighted Routing", description: "Distribute traffic across endpoints by weight — useful for canary deployments" },
-      { name: "Failover DNS", description: "Health-checked primary/secondary records that automatically redirect on failure" },
+      {
+        name: "GeoDNS",
+        description: "Route users to the nearest data center based on their geographic location",
+      },
+      {
+        name: "Weighted Routing",
+        description:
+          "Distribute traffic across endpoints by weight — useful for canary deployments",
+      },
+      {
+        name: "Failover DNS",
+        description:
+          "Health-checked primary/secondary records that automatically redirect on failure",
+      },
     ],
     realWorldExamples: [
       "AWS Route 53 handles trillions of DNS queries per year with 100% SLA",
@@ -68,9 +79,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Bring up cache-control headers (max-age, s-maxage, stale-while-revalidate) to show depth",
     ],
     commonPatterns: [
-      { name: "Pull-based CDN", description: "Edge fetches from origin on cache miss, caches response for subsequent requests" },
-      { name: "Push-based CDN", description: "Origin proactively pushes content to edge nodes before users request it" },
-      { name: "Edge Compute", description: "Run logic at CDN edge (Cloudflare Workers, Lambda@Edge) for personalization without origin round-trips" },
+      {
+        name: "Pull-based CDN",
+        description:
+          "Edge fetches from origin on cache miss, caches response for subsequent requests",
+      },
+      {
+        name: "Push-based CDN",
+        description: "Origin proactively pushes content to edge nodes before users request it",
+      },
+      {
+        name: "Edge Compute",
+        description:
+          "Run logic at CDN edge (Cloudflare Workers, Lambda@Edge) for personalization without origin round-trips",
+      },
     ],
     realWorldExamples: [
       "Netflix uses its Open Connect CDN to serve 15% of global internet traffic from ISP-embedded servers",
@@ -102,9 +124,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention that a shared mid-tier cache raises hit ratio because all edges benefit from each other's fetches",
     ],
     commonPatterns: [
-      { name: "Mid-Tier Cache", description: "A centralized caching layer between edge PoPs and origin — edges fetch from the shield instead of the origin" },
-      { name: "Request Collapsing", description: "Concurrent cache misses for the same object merge into a single origin request; all waiters share the response" },
-      { name: "Shield Near Origin", description: "Place the shield in the region closest to the origin to minimize the final fetch leg and origin connection count" },
+      {
+        name: "Mid-Tier Cache",
+        description:
+          "A centralized caching layer between edge PoPs and origin — edges fetch from the shield instead of the origin",
+      },
+      {
+        name: "Request Collapsing",
+        description:
+          "Concurrent cache misses for the same object merge into a single origin request; all waiters share the response",
+      },
+      {
+        name: "Shield Near Origin",
+        description:
+          "Place the shield in the region closest to the origin to minimize the final fetch leg and origin connection count",
+      },
     ],
     realWorldExamples: [
       "Amazon CloudFront Origin Shield adds a centralized caching layer that improves cache hit ratio and reduces load on the origin",
@@ -137,9 +171,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss health checks (active vs passive) and graceful connection draining during deploys",
     ],
     commonPatterns: [
-      { name: "Round Robin", description: "Distribute requests sequentially across servers — simple but ignores server load" },
-      { name: "Least Connections", description: "Route to the server with fewest active connections — better for varying request durations" },
-      { name: "Consistent Hashing", description: "Hash request key to a server — ensures same key always hits the same server (good for caching)" },
+      {
+        name: "Round Robin",
+        description:
+          "Distribute requests sequentially across servers — simple but ignores server load",
+      },
+      {
+        name: "Least Connections",
+        description:
+          "Route to the server with fewest active connections — better for varying request durations",
+      },
+      {
+        name: "Consistent Hashing",
+        description:
+          "Hash request key to a server — ensures same key always hits the same server (good for caching)",
+      },
     ],
     realWorldExamples: [
       "AWS ALB handles millions of requests per second with content-based routing rules",
@@ -172,9 +218,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Explain how rate limiting at the gateway protects all downstream services uniformly",
     ],
     commonPatterns: [
-      { name: "Backend for Frontend (BFF)", description: "Dedicated gateway per client type (web, mobile, IoT) with tailored aggregation" },
-      { name: "Request Aggregation", description: "Gateway combines multiple microservice calls into a single client response" },
-      { name: "Edge Authentication", description: "Validate JWT/OAuth tokens at the gateway so downstream services trust the identity" },
+      {
+        name: "Backend for Frontend (BFF)",
+        description:
+          "Dedicated gateway per client type (web, mobile, IoT) with tailored aggregation",
+      },
+      {
+        name: "Request Aggregation",
+        description: "Gateway combines multiple microservice calls into a single client response",
+      },
+      {
+        name: "Edge Authentication",
+        description:
+          "Validate JWT/OAuth tokens at the gateway so downstream services trust the identity",
+      },
     ],
     realWorldExamples: [
       "Netflix Zuul gateway handles billions of API requests per day with dynamic routing filters",
@@ -206,9 +263,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss rate limiting headers (X-RateLimit-Remaining, Retry-After) for good API UX",
     ],
     commonPatterns: [
-      { name: "Token Bucket", description: "Tokens refill at a fixed rate; requests consume tokens. Allows controlled bursts." },
-      { name: "Sliding Window Log", description: "Track timestamps of each request in a window — precise but memory-intensive" },
-      { name: "Fixed Window Counter", description: "Count requests per fixed time window — simple but allows burst at window boundaries" },
+      {
+        name: "Token Bucket",
+        description:
+          "Tokens refill at a fixed rate; requests consume tokens. Allows controlled bursts.",
+      },
+      {
+        name: "Sliding Window Log",
+        description: "Track timestamps of each request in a window — precise but memory-intensive",
+      },
+      {
+        name: "Fixed Window Counter",
+        description:
+          "Count requests per fixed time window — simple but allows burst at window boundaries",
+      },
     ],
     realWorldExamples: [
       "GitHub API enforces 5,000 requests/hour per authenticated user",
@@ -241,9 +309,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss graceful shutdown and health check endpoints for zero-downtime deployments",
     ],
     commonPatterns: [
-      { name: "Stateless Horizontal Scaling", description: "Store all state externally (DB, cache) so any instance can handle any request" },
-      { name: "Circuit Breaker", description: "Stop calling a failing downstream service and return fallback — prevents cascade failures" },
-      { name: "Bulkhead Pattern", description: "Isolate resources per service dependency so one slow service does not exhaust all threads" },
+      {
+        name: "Stateless Horizontal Scaling",
+        description:
+          "Store all state externally (DB, cache) so any instance can handle any request",
+      },
+      {
+        name: "Circuit Breaker",
+        description:
+          "Stop calling a failing downstream service and return fallback — prevents cascade failures",
+      },
+      {
+        name: "Bulkhead Pattern",
+        description:
+          "Isolate resources per service dependency so one slow service does not exhaust all threads",
+      },
     ],
     realWorldExamples: [
       "Instagram runs thousands of stateless Django app servers behind L7 load balancers",
@@ -275,9 +355,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention API gateway integration — validate tokens at the edge to reduce load on the auth service",
     ],
     commonPatterns: [
-      { name: "OAuth 2.0 + OIDC", description: "Industry standard for delegated authorization and identity — supports multiple grant types" },
-      { name: "Token Refresh", description: "Short-lived access tokens + long-lived refresh tokens balance security and UX" },
-      { name: "Gateway-level Auth", description: "API gateway validates JWTs before forwarding — services trust the gateway's identity context" },
+      {
+        name: "OAuth 2.0 + OIDC",
+        description:
+          "Industry standard for delegated authorization and identity — supports multiple grant types",
+      },
+      {
+        name: "Token Refresh",
+        description:
+          "Short-lived access tokens + long-lived refresh tokens balance security and UX",
+      },
+      {
+        name: "Gateway-level Auth",
+        description:
+          "API gateway validates JWTs before forwarding — services trust the gateway's identity context",
+      },
     ],
     realWorldExamples: [
       "Google uses OAuth 2.0 for all third-party API access across its entire ecosystem",
@@ -310,9 +402,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention indexing strategy — B-tree vs hash indexes, covering indexes, and query plan analysis",
     ],
     commonPatterns: [
-      { name: "Primary-Replica", description: "Write to primary, read from replicas — scales reads but introduces replication lag" },
-      { name: "Sharding", description: "Partition data across multiple databases by a shard key — scales writes but complicates queries" },
-      { name: "CQRS", description: "Separate read and write models — optimize each independently with different storage strategies" },
+      {
+        name: "Primary-Replica",
+        description:
+          "Write to primary, read from replicas — scales reads but introduces replication lag",
+      },
+      {
+        name: "Sharding",
+        description:
+          "Partition data across multiple databases by a shard key — scales writes but complicates queries",
+      },
+      {
+        name: "CQRS",
+        description:
+          "Separate read and write models — optimize each independently with different storage strategies",
+      },
     ],
     realWorldExamples: [
       "Instagram uses PostgreSQL with extensive sharding to store billions of user records",
@@ -345,9 +449,19 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention when you would choose DynamoDB (key-value) vs MongoDB (document) vs Cassandra (wide-column)",
     ],
     commonPatterns: [
-      { name: "Single Table Design", description: "DynamoDB pattern: store multiple entity types in one table with composite keys" },
-      { name: "Wide-Column Model", description: "Cassandra pattern: denormalize and duplicate data for each query pattern" },
-      { name: "Document Store", description: "MongoDB pattern: embed related data in a single document to avoid joins" },
+      {
+        name: "Single Table Design",
+        description:
+          "DynamoDB pattern: store multiple entity types in one table with composite keys",
+      },
+      {
+        name: "Wide-Column Model",
+        description: "Cassandra pattern: denormalize and duplicate data for each query pattern",
+      },
+      {
+        name: "Document Store",
+        description: "MongoDB pattern: embed related data in a single document to avoid joins",
+      },
     ],
     realWorldExamples: [
       "Amazon uses DynamoDB internally for shopping cart, session management, and catalog at massive scale",
@@ -379,9 +493,18 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention Redis Cluster for horizontal scaling and HA",
     ],
     commonPatterns: [
-      { name: "Cache-Aside (Lazy Loading)", description: "App checks cache first, on miss reads from DB and populates cache" },
-      { name: "Write-Through", description: "Every write goes to cache AND DB — consistent but higher write latency" },
-      { name: "Write-Behind (Write-Back)", description: "Write to cache, async flush to DB — fast writes but data loss risk" },
+      {
+        name: "Cache-Aside (Lazy Loading)",
+        description: "App checks cache first, on miss reads from DB and populates cache",
+      },
+      {
+        name: "Write-Through",
+        description: "Every write goes to cache AND DB — consistent but higher write latency",
+      },
+      {
+        name: "Write-Behind (Write-Back)",
+        description: "Write to cache, async flush to DB — fast writes but data loss risk",
+      },
     ],
     realWorldExamples: [
       "Twitter uses Redis for timeline caching (fan-out-on-write)",
@@ -414,9 +537,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Bring up S3 + CDN pairing for serving static content globally at low latency",
     ],
     commonPatterns: [
-      { name: "Pre-signed URLs", description: "Generate time-limited URLs so clients upload/download directly to S3 without proxying" },
-      { name: "CDN + Origin", description: "S3 as CDN origin — CDN caches objects at edge, S3 stores the source of truth" },
-      { name: "Lifecycle Policies", description: "Automatically transition objects from Standard to Glacier for cost optimization" },
+      {
+        name: "Pre-signed URLs",
+        description:
+          "Generate time-limited URLs so clients upload/download directly to S3 without proxying",
+      },
+      {
+        name: "CDN + Origin",
+        description: "S3 as CDN origin — CDN caches objects at edge, S3 stores the source of truth",
+      },
+      {
+        name: "Lifecycle Policies",
+        description:
+          "Automatically transition objects from Standard to Glacier for cost optimization",
+      },
     ],
     realWorldExamples: [
       "Dropbox stores over 500 PB of user files on a custom object storage system (Magic Pocket)",
@@ -449,9 +583,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention EFS/Azure Files as the managed lift-and-shift path for legacy apps that hardcode file system access",
     ],
     commonPatterns: [
-      { name: "Shared Mount", description: "Many servers mount the same NFS/EFS volume — shared state for uploads, configs, or training data without app changes" },
-      { name: "Lift and Shift", description: "Migrate a file-system-dependent legacy app to the cloud by swapping local disk for a managed file service" },
-      { name: "Hot/Cold Tiering", description: "Keep active files on the file system and move cold files to object storage via lifecycle automation" },
+      {
+        name: "Shared Mount",
+        description:
+          "Many servers mount the same NFS/EFS volume — shared state for uploads, configs, or training data without app changes",
+      },
+      {
+        name: "Lift and Shift",
+        description:
+          "Migrate a file-system-dependent legacy app to the cloud by swapping local disk for a managed file service",
+      },
+      {
+        name: "Hot/Cold Tiering",
+        description:
+          "Keep active files on the file system and move cold files to object storage via lifecycle automation",
+      },
     ],
     realWorldExamples: [
       "AWS EFS is a standard backing store for multi-instance WordPress and CMS deployments that need shared uploads",
@@ -484,9 +630,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention Elasticsearch vs dedicated search (Algolia, Meilisearch) trade-offs for your use case",
     ],
     commonPatterns: [
-      { name: "Inverted Index", description: "Map each term to a list of documents containing it — the core data structure of search engines" },
-      { name: "CDC to Search", description: "Use change data capture to stream DB changes into the search index in near-real-time" },
-      { name: "Search-as-a-Service", description: "Use managed search (Algolia, Elastic Cloud) to avoid operational overhead of clusters" },
+      {
+        name: "Inverted Index",
+        description:
+          "Map each term to a list of documents containing it — the core data structure of search engines",
+      },
+      {
+        name: "CDC to Search",
+        description:
+          "Use change data capture to stream DB changes into the search index in near-real-time",
+      },
+      {
+        name: "Search-as-a-Service",
+        description:
+          "Use managed search (Algolia, Elastic Cloud) to avoid operational overhead of clusters",
+      },
     ],
     realWorldExamples: [
       "Wikipedia uses Elasticsearch (CirrusSearch) to power search across 60M+ articles in 300 languages",
@@ -519,9 +677,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss dead-letter queues for handling poison messages that repeatedly fail processing",
     ],
     commonPatterns: [
-      { name: "Pub/Sub", description: "Publisher sends events to a topic; multiple subscribers each receive a copy independently" },
-      { name: "Work Queue (Competing Consumers)", description: "Multiple consumers pull from the same queue — each message processed by exactly one consumer" },
-      { name: "Event Sourcing", description: "Store all state changes as an immutable log of events — enables replay and audit trails" },
+      {
+        name: "Pub/Sub",
+        description:
+          "Publisher sends events to a topic; multiple subscribers each receive a copy independently",
+      },
+      {
+        name: "Work Queue (Competing Consumers)",
+        description:
+          "Multiple consumers pull from the same queue — each message processed by exactly one consumer",
+      },
+      {
+        name: "Event Sourcing",
+        description:
+          "Store all state changes as an immutable log of events — enables replay and audit trails",
+      },
     ],
     realWorldExamples: [
       "LinkedIn built Apache Kafka to handle 7 trillion messages per day across its platform",
@@ -554,9 +724,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss when NOT to use a service mesh — shows you understand operational trade-offs",
     ],
     commonPatterns: [
-      { name: "Sidecar Proxy", description: "Each service pod has an Envoy proxy sidecar that intercepts all inbound/outbound traffic" },
-      { name: "Traffic Splitting", description: "Route a percentage of traffic to a canary version for safe progressive rollouts" },
-      { name: "Circuit Breaking", description: "Envoy automatically stops sending traffic to a failing service to prevent cascade failures" },
+      {
+        name: "Sidecar Proxy",
+        description:
+          "Each service pod has an Envoy proxy sidecar that intercepts all inbound/outbound traffic",
+      },
+      {
+        name: "Traffic Splitting",
+        description:
+          "Route a percentage of traffic to a canary version for safe progressive rollouts",
+      },
+      {
+        name: "Circuit Breaking",
+        description:
+          "Envoy automatically stops sending traffic to a failing service to prevent cascade failures",
+      },
     ],
     realWorldExamples: [
       "Lyft created Envoy proxy, now the data plane for most service meshes including Istio",
@@ -589,9 +771,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention that Netflix Hystrix popularized the pattern but is now in maintenance mode, with Resilience4j as its recommended successor",
     ],
     commonPatterns: [
-      { name: "State Machine", description: "Closed passes traffic and counts failures; open fails fast; half-open lets a few probe requests through to test recovery" },
-      { name: "Fallback Response", description: "On an open circuit, return cached data, a default value, or a degraded experience instead of an error" },
-      { name: "Outlier Detection", description: "Service mesh proxies (Envoy) eject failing hosts from the load-balancing pool — circuit breaking without code changes" },
+      {
+        name: "State Machine",
+        description:
+          "Closed passes traffic and counts failures; open fails fast; half-open lets a few probe requests through to test recovery",
+      },
+      {
+        name: "Fallback Response",
+        description:
+          "On an open circuit, return cached data, a default value, or a degraded experience instead of an error",
+      },
+      {
+        name: "Outlier Detection",
+        description:
+          "Service mesh proxies (Envoy) eject failing hosts from the load-balancing pool — circuit breaking without code changes",
+      },
     ],
     realWorldExamples: [
       "Netflix built Hystrix to isolate dependency failures across its microservices; it is now in maintenance mode, succeeded by Resilience4j",
@@ -624,9 +818,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "State that monitoring is non-negotiable for production systems — the real question is what level of investment fits the system's scale and criticality",
     ],
     commonPatterns: [
-      { name: "RED Method", description: "Monitor Rate (throughput), Errors (failures), Duration (latency) for every service" },
-      { name: "Distributed Tracing", description: "Propagate trace IDs across services to visualize the full request path and latency breakdown" },
-      { name: "Log Aggregation", description: "Centralize logs from all services (ELK, Loki) for searchable, correlated debugging" },
+      {
+        name: "RED Method",
+        description:
+          "Monitor Rate (throughput), Errors (failures), Duration (latency) for every service",
+      },
+      {
+        name: "Distributed Tracing",
+        description:
+          "Propagate trace IDs across services to visualize the full request path and latency breakdown",
+      },
+      {
+        name: "Log Aggregation",
+        description:
+          "Centralize logs from all services (ELK, Loki) for searchable, correlated debugging",
+      },
     ],
     realWorldExamples: [
       "Google SRE invented the four golden signals (latency, traffic, errors, saturation) for monitoring",
@@ -659,9 +865,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss fallback strategies: WebSocket -> SSE -> long polling for maximum compatibility",
     ],
     commonPatterns: [
-      { name: "Pub/Sub Backplane", description: "Redis Pub/Sub or Kafka sits behind WebSocket servers to broadcast messages across all instances" },
-      { name: "Connection Registry", description: "Map user IDs to WebSocket server IPs in Redis for targeted message delivery" },
-      { name: "Room/Channel Model", description: "Group connections into rooms/channels so messages broadcast only to relevant subscribers" },
+      {
+        name: "Pub/Sub Backplane",
+        description:
+          "Redis Pub/Sub or Kafka sits behind WebSocket servers to broadcast messages across all instances",
+      },
+      {
+        name: "Connection Registry",
+        description: "Map user IDs to WebSocket server IPs in Redis for targeted message delivery",
+      },
+      {
+        name: "Room/Channel Model",
+        description:
+          "Group connections into rooms/channels so messages broadcast only to relevant subscribers",
+      },
     ],
     realWorldExamples: [
       "Slack uses WebSockets for real-time message delivery to millions of concurrent users",
@@ -694,9 +911,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Bring up Temporal or AWS Step Functions for complex multi-step workflows with durable state",
     ],
     commonPatterns: [
-      { name: "Delayed Queue", description: "Message becomes visible after a delay — SQS delay queues or Redis ZADD with timestamp scoring" },
-      { name: "Leader Election", description: "Only one scheduler instance runs tasks to prevent duplicate execution — use distributed locks" },
-      { name: "Workflow Orchestration", description: "Multi-step task chains with compensation logic — Temporal, Cadence, or Step Functions" },
+      {
+        name: "Delayed Queue",
+        description:
+          "Message becomes visible after a delay — SQS delay queues or Redis ZADD with timestamp scoring",
+      },
+      {
+        name: "Leader Election",
+        description:
+          "Only one scheduler instance runs tasks to prevent duplicate execution — use distributed locks",
+      },
+      {
+        name: "Workflow Orchestration",
+        description:
+          "Multi-step task chains with compensation logic — Temporal, Cadence, or Step Functions",
+      },
     ],
     realWorldExamples: [
       "Airbnb uses Apache Airflow to orchestrate thousands of data pipeline DAGs daily",
@@ -729,9 +958,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention watermarks for handling late-arriving data — shows deep stream processing knowledge",
     ],
     commonPatterns: [
-      { name: "Windowed Aggregation", description: "Group events into time windows (1 min, 5 min) and compute aggregates like counts and averages" },
-      { name: "Stream-Table Join", description: "Enrich streaming events with data from a slowly-changing reference table" },
-      { name: "CDC Streaming", description: "Capture database changes as a stream for real-time replication and downstream processing" },
+      {
+        name: "Windowed Aggregation",
+        description:
+          "Group events into time windows (1 min, 5 min) and compute aggregates like counts and averages",
+      },
+      {
+        name: "Stream-Table Join",
+        description: "Enrich streaming events with data from a slowly-changing reference table",
+      },
+      {
+        name: "CDC Streaming",
+        description:
+          "Capture database changes as a stream for real-time replication and downstream processing",
+      },
     ],
     realWorldExamples: [
       "LinkedIn uses Apache Flink for real-time AI feature computation across millions of members",
@@ -764,9 +1004,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss user preferences and opt-out management — GDPR/CAN-SPAM compliance matters",
     ],
     commonPatterns: [
-      { name: "Fan-out per Channel", description: "Single notification event fans out to push, email, SMS handlers based on user preferences" },
-      { name: "Priority Queues", description: "Separate queues for critical (2FA), transactional (order confirmation), and marketing notifications" },
-      { name: "Batch + Digest", description: "Aggregate multiple low-priority notifications into a single daily/weekly digest email" },
+      {
+        name: "Fan-out per Channel",
+        description:
+          "Single notification event fans out to push, email, SMS handlers based on user preferences",
+      },
+      {
+        name: "Priority Queues",
+        description:
+          "Separate queues for critical (2FA), transactional (order confirmation), and marketing notifications",
+      },
+      {
+        name: "Batch + Digest",
+        description:
+          "Aggregate multiple low-priority notifications into a single daily/weekly digest email",
+      },
     ],
     realWorldExamples: [
       "Uber sends millions of trip notifications daily across push, SMS, and email channels",
@@ -799,9 +1051,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Mention Neo4j Cypher or Apache TinkerPop Gremlin as query languages depending on the graph DB",
     ],
     commonPatterns: [
-      { name: "Adjacency Traversal", description: "Walk the graph from a starting node to find connected entities within N hops" },
-      { name: "Collaborative Filtering", description: "Find similar users by traversing shared edges (likes, purchases) for recommendations" },
-      { name: "Subgraph Pattern Matching", description: "Find specific patterns in the graph (e.g., circular money transfers for fraud detection)" },
+      {
+        name: "Adjacency Traversal",
+        description: "Walk the graph from a starting node to find connected entities within N hops",
+      },
+      {
+        name: "Collaborative Filtering",
+        description:
+          "Find similar users by traversing shared edges (likes, purchases) for recommendations",
+      },
+      {
+        name: "Subgraph Pattern Matching",
+        description:
+          "Find specific patterns in the graph (e.g., circular money transfers for fraud detection)",
+      },
     ],
     realWorldExamples: [
       "LinkedIn uses a graph database for their connection graph powering 'People You May Know'",
@@ -834,9 +1097,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss the cardinality problem and why unbounded tag values are dangerous",
     ],
     commonPatterns: [
-      { name: "Downsampling Tiers", description: "Automatically reduce data resolution over time — raw for recent, aggregated for historical" },
-      { name: "Continuous Aggregation", description: "Pre-compute common queries (5-min avg, hourly max) as data arrives for fast dashboard queries" },
-      { name: "Retention Policies", description: "Auto-delete data older than a threshold to manage storage costs" },
+      {
+        name: "Downsampling Tiers",
+        description:
+          "Automatically reduce data resolution over time — raw for recent, aggregated for historical",
+      },
+      {
+        name: "Continuous Aggregation",
+        description:
+          "Pre-compute common queries (5-min avg, hourly max) as data arrives for fast dashboard queries",
+      },
+      {
+        name: "Retention Policies",
+        description: "Auto-delete data older than a threshold to manage storage costs",
+      },
     ],
     realWorldExamples: [
       "Prometheus TSDB powers monitoring at most Kubernetes-based organizations",
@@ -869,9 +1143,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss the modern data stack: ETL/ELT tools (dbt, Fivetran) loading into Snowflake/BigQuery",
     ],
     commonPatterns: [
-      { name: "Star Schema", description: "Central fact table surrounded by dimension tables — optimized for analytical joins" },
-      { name: "ELT Pipeline", description: "Load raw data into warehouse first, then transform with SQL (dbt) — modern approach" },
-      { name: "Materialized Views", description: "Pre-computed query results refreshed periodically for faster dashboard loading" },
+      {
+        name: "Star Schema",
+        description:
+          "Central fact table surrounded by dimension tables — optimized for analytical joins",
+      },
+      {
+        name: "ELT Pipeline",
+        description:
+          "Load raw data into warehouse first, then transform with SQL (dbt) — modern approach",
+      },
+      {
+        name: "Materialized Views",
+        description:
+          "Pre-computed query results refreshed periodically for faster dashboard loading",
+      },
     ],
     realWorldExamples: [
       "Spotify uses Google BigQuery for analytics across billions of daily streaming events",
@@ -904,9 +1190,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss health checks and how fast unhealthy instances are removed from the registry",
     ],
     commonPatterns: [
-      { name: "Client-side Discovery", description: "Clients query a registry (Consul, Eureka) and load-balance across returned instances" },
-      { name: "Server-side Discovery", description: "Clients hit a load balancer; the LB queries the registry and routes to healthy instances" },
-      { name: "DNS-based Discovery", description: "Services register DNS records; consumers resolve service names to IPs via DNS" },
+      {
+        name: "Client-side Discovery",
+        description:
+          "Clients query a registry (Consul, Eureka) and load-balance across returned instances",
+      },
+      {
+        name: "Server-side Discovery",
+        description:
+          "Clients hit a load balancer; the LB queries the registry and routes to healthy instances",
+      },
+      {
+        name: "DNS-based Discovery",
+        description:
+          "Services register DNS records; consumers resolve service names to IPs via DNS",
+      },
     ],
     realWorldExamples: [
       "Netflix built Eureka for client-side service discovery across hundreds of microservices",
@@ -939,9 +1237,19 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss TLS termination and why it reduces backend CPU usage significantly",
     ],
     commonPatterns: [
-      { name: "TLS Termination", description: "Decrypt HTTPS at the proxy layer and forward plain HTTP to backends — reduces backend CPU" },
-      { name: "Path-based Routing", description: "Route /api to app servers, /static to CDN origin, /ws to WebSocket servers" },
-      { name: "Response Caching", description: "Cache responses at the proxy for repeated requests — reduces origin load" },
+      {
+        name: "TLS Termination",
+        description:
+          "Decrypt HTTPS at the proxy layer and forward plain HTTP to backends — reduces backend CPU",
+      },
+      {
+        name: "Path-based Routing",
+        description: "Route /api to app servers, /static to CDN origin, /ws to WebSocket servers",
+      },
+      {
+        name: "Response Caching",
+        description: "Cache responses at the proxy for repeated requests — reduces origin load",
+      },
     ],
     realWorldExamples: [
       "Nginx serves as a reverse proxy for over 30% of all websites on the internet",
@@ -974,9 +1282,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Explain ZooKeeper ephemeral nodes as an alternative that auto-releases locks on session disconnect",
     ],
     commonPatterns: [
-      { name: "Redis SET NX + TTL", description: "Acquire lock with SET key value NX EX ttl — simple and widely used for short-duration locks" },
-      { name: "ZooKeeper Ephemeral Nodes", description: "Create ephemeral sequential nodes — lock holder has the lowest sequence number, auto-releases on disconnect" },
-      { name: "Fencing Token", description: "Each lock acquisition returns a monotonically increasing token; storage rejects writes with stale tokens" },
+      {
+        name: "Redis SET NX + TTL",
+        description:
+          "Acquire lock with SET key value NX EX ttl — simple and widely used for short-duration locks",
+      },
+      {
+        name: "ZooKeeper Ephemeral Nodes",
+        description:
+          "Create ephemeral sequential nodes — lock holder has the lowest sequence number, auto-releases on disconnect",
+      },
+      {
+        name: "Fencing Token",
+        description:
+          "Each lock acquisition returns a monotonically increasing token; storage rejects writes with stale tokens",
+      },
     ],
     realWorldExamples: [
       "Amazon uses distributed locks for inventory management to prevent overselling during flash sales",
@@ -1009,9 +1329,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Stress that it is for coordination metadata only — storing application data in ZooKeeper/etcd is a classic anti-pattern",
     ],
     commonPatterns: [
-      { name: "Leader Election", description: "Candidates create ephemeral sequential nodes; the lowest sequence wins; when its session drops, the next candidate takes over" },
-      { name: "Distributed Lock", description: "Consensus-backed locks tied to sessions or leases that auto-release when the holder disconnects" },
-      { name: "Watch/Notify", description: "Clients watch keys and are notified on change — drives config propagation and membership updates without polling" },
+      {
+        name: "Leader Election",
+        description:
+          "Candidates create ephemeral sequential nodes; the lowest sequence wins; when its session drops, the next candidate takes over",
+      },
+      {
+        name: "Distributed Lock",
+        description:
+          "Consensus-backed locks tied to sessions or leases that auto-release when the holder disconnects",
+      },
+      {
+        name: "Watch/Notify",
+        description:
+          "Clients watch keys and are notified on change — drives config propagation and membership updates without polling",
+      },
     ],
     realWorldExamples: [
       "Kubernetes stores all cluster state in etcd, making it the consensus backbone of every K8s cluster",
@@ -1043,9 +1375,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss clock skew mitigation — NTP sync, logical clocks, or waiting for clock catch-up",
     ],
     commonPatterns: [
-      { name: "Twitter Snowflake", description: "64-bit IDs: 41-bit timestamp + 10-bit worker + 12-bit sequence; 4096 IDs/ms per worker" },
-      { name: "ULID", description: "128-bit: 48-bit timestamp + 80-bit random; lexicographically sortable, URL-safe" },
-      { name: "Database Ticket Server", description: "Central DB with auto-increment (Flickr pattern); simple but SPOF without replication" },
+      {
+        name: "Twitter Snowflake",
+        description:
+          "64-bit IDs: 41-bit timestamp + 10-bit worker + 12-bit sequence; 4096 IDs/ms per worker",
+      },
+      {
+        name: "ULID",
+        description:
+          "128-bit: 48-bit timestamp + 80-bit random; lexicographically sortable, URL-safe",
+      },
+      {
+        name: "Database Ticket Server",
+        description:
+          "Central DB with auto-increment (Flickr pattern); simple but SPOF without replication",
+      },
     ],
     realWorldExamples: [
       "Twitter created Snowflake to generate ~10K unique IDs per second per process for tweet IDs",
@@ -1077,9 +1421,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss how YouTube counts views: sharded writes + periodic batch aggregation",
     ],
     commonPatterns: [
-      { name: "Redis Sharded Counter", description: "N Redis keys per logical counter; INCR random shard on write, MGET all shards on read" },
-      { name: "Database Counter Table", description: "N rows per counter; random row on write, SUM on read with caching" },
-      { name: "Approximate Counter", description: "Probabilistic counting (HyperLogLog) for unique counts; Count-Min Sketch for frequency" },
+      {
+        name: "Redis Sharded Counter",
+        description:
+          "N Redis keys per logical counter; INCR random shard on write, MGET all shards on read",
+      },
+      {
+        name: "Database Counter Table",
+        description: "N rows per counter; random row on write, SUM on read with caching",
+      },
+      {
+        name: "Approximate Counter",
+        description:
+          "Probabilistic counting (HyperLogLog) for unique counts; Count-Min Sketch for frequency",
+      },
     ],
     realWorldExamples: [
       "YouTube uses sharded counters for video view counts, aggregating periodically for display",
@@ -1111,9 +1466,19 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss dead letter topics for failed message processing",
     ],
     commonPatterns: [
-      { name: "Topic Fan-out", description: "Publish to a topic; all subscriptions receive a copy. AWS SNS -> multiple SQS queues" },
-      { name: "Event Bus", description: "Central pub/sub for all domain events; subscribers filter by event type" },
-      { name: "CDC Stream", description: "Database changes published as events; consumers build materialized views" },
+      {
+        name: "Topic Fan-out",
+        description:
+          "Publish to a topic; all subscriptions receive a copy. AWS SNS -> multiple SQS queues",
+      },
+      {
+        name: "Event Bus",
+        description: "Central pub/sub for all domain events; subscribers filter by event type",
+      },
+      {
+        name: "CDC Stream",
+        description: "Database changes published as events; consumers build materialized views",
+      },
     ],
     realWorldExamples: [
       "Google Cloud Pub/Sub handles trillions of messages per month across Google's infrastructure",
@@ -1146,9 +1511,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss hybrid search: combine vector similarity with keyword filters for better relevance",
     ],
     commonPatterns: [
-      { name: "Embedding + ANN", description: "Convert items to vectors via ML model; index in vector DB; query with cosine/dot-product similarity" },
-      { name: "Hybrid Search", description: "Combine dense vector similarity with sparse keyword matching (BM25) for best relevance" },
-      { name: "RAG Pipeline", description: "Chunk documents -> embed -> store in vector DB -> retrieve context for LLM prompt" },
+      {
+        name: "Embedding + ANN",
+        description:
+          "Convert items to vectors via ML model; index in vector DB; query with cosine/dot-product similarity",
+      },
+      {
+        name: "Hybrid Search",
+        description:
+          "Combine dense vector similarity with sparse keyword matching (BM25) for best relevance",
+      },
+      {
+        name: "RAG Pipeline",
+        description:
+          "Chunk documents -> embed -> store in vector DB -> retrieve context for LLM prompt",
+      },
     ],
     realWorldExamples: [
       "Spotify uses embeddings for podcast and music recommendations via approximate nearest-neighbor search",
@@ -1180,9 +1557,21 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss how to handle boundary issues: query neighboring cells to avoid missing nearby results",
     ],
     commonPatterns: [
-      { name: "Geohash Grid", description: "Encode lat/lng into a string prefix; nearby points share prefixes; query by prefix range" },
-      { name: "Quadtree", description: "Recursively subdivide space into 4 quadrants; leaf nodes contain points; adapts to data density" },
-      { name: "H3 Hexagonal Grid", description: "Uber's hierarchical hex grid; uniform-area cells; 16 resolution levels from continent to sub-meter" },
+      {
+        name: "Geohash Grid",
+        description:
+          "Encode lat/lng into a string prefix; nearby points share prefixes; query by prefix range",
+      },
+      {
+        name: "Quadtree",
+        description:
+          "Recursively subdivide space into 4 quadrants; leaf nodes contain points; adapts to data density",
+      },
+      {
+        name: "H3 Hexagonal Grid",
+        description:
+          "Uber's hierarchical hex grid; uniform-area cells; 16 resolution levels from continent to sub-meter",
+      },
     ],
     realWorldExamples: [
       "Uber uses H3 hexagonal indexing for surge pricing zones and driver-rider matching",
@@ -1214,9 +1603,20 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "Discuss config propagation latency — stale config can cause inconsistent behavior across nodes",
     ],
     commonPatterns: [
-      { name: "Feature Flag", description: "Boolean or multivariate flag checked at runtime; enables trunk-based development and dark launches" },
-      { name: "Percentage Rollout", description: "Hash user ID to determine if they're in the rollout percentage; deterministic per user" },
-      { name: "Config Hierarchy", description: "Default -> environment -> service -> instance overrides; most specific wins" },
+      {
+        name: "Feature Flag",
+        description:
+          "Boolean or multivariate flag checked at runtime; enables trunk-based development and dark launches",
+      },
+      {
+        name: "Percentage Rollout",
+        description:
+          "Hash user ID to determine if they're in the rollout percentage; deterministic per user",
+      },
+      {
+        name: "Config Hierarchy",
+        description: "Default -> environment -> service -> instance overrides; most specific wins",
+      },
     ],
     realWorldExamples: [
       "Netflix uses their internal config service to manage thousands of feature flags across 1000+ microservices",

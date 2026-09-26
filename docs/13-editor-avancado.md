@@ -2,13 +2,13 @@
 
 Parte da [v2](00-visao-geral.md) · Fase 6 · Status: rascunho
 
-| Campo | Valor |
-| --- | --- |
-| Requisitos | CAN-07 a CAN-10 (P1), CAN-11 (P2) |
-| Depende de | [Spec 02](02-editor-confiavel.md) (seleção única, menu de contexto, espiral) |
-| Relacionada | [Spec 08](08-chaos-engineering.md) (falha de AZ/região usa grupos) |
-| Arquivos principais | `components/canvas/`, `store/canvasStore.ts`, novo `lib/autoLayout.ts` |
-| Dependências novas | `elkjs` (sob demanda) |
+| Campo               | Valor                                                                        |
+| ------------------- | ---------------------------------------------------------------------------- |
+| Requisitos          | CAN-07 a CAN-10 (P1), CAN-11 (P2)                                            |
+| Depende de          | [Spec 02](02-editor-confiavel.md) (seleção única, menu de contexto, espiral) |
+| Relacionada         | [Spec 08](08-chaos-engineering.md) (falha de AZ/região usa grupos)           |
+| Arquivos principais | `components/canvas/`, `store/canvasStore.ts`, novo `lib/autoLayout.ts`       |
+| Dependências novas  | `elkjs` (sob demanda)                                                        |
 
 ## Objetivo
 

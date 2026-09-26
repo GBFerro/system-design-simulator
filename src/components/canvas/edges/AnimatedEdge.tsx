@@ -1,12 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import {
-  BaseEdge,
-  EdgeLabelRenderer,
-  getBezierPath,
-  type EdgeProps,
-} from "@xyflow/react";
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
 import { useSimulationStore } from "@/store/simulationStore";
 import { useAppStore } from "@/store/appStore";
 import type { CustomEdgeData } from "@/store/canvasStore";

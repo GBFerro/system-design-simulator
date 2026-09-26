@@ -55,6 +55,6 @@ export function useHasHydrated(): boolean {
   return useSyncExternalStore(
     subscribe,
     () => hasHydrated,
-    () => false
+    () => false,
   );
 }

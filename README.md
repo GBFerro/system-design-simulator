@@ -78,23 +78,23 @@ It runs entirely in your browser. No account, no backend, no data leaves your ma
 
 A complete toolbox for any architecture — **35 production-grade components** across five categories, each with verified throughput and latency specs, plus a custom block you can rename to anything.
 
-| Category | Components |
-|----------|-----------|
-| **Networking** | DNS · CDN · Load Balancer · API Gateway · Rate Limiter · Reverse Proxy · Origin Shield |
-| **Compute** | App Server · Auth Service · WebSocket Server · Task Scheduler · Stream Processor · Notification Service |
-| **Storage** | SQL · NoSQL · Cache/Redis · Object Storage · Search/ES · Graph DB · Time-Series DB · Data Warehouse · File Store · Vector DB · Geospatial Index |
-| **Messaging** | Message Queue · Pub/Sub |
+| Category           | Components                                                                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Networking**     | DNS · CDN · Load Balancer · API Gateway · Rate Limiter · Reverse Proxy · Origin Shield                                                                      |
+| **Compute**        | App Server · Auth Service · WebSocket Server · Task Scheduler · Stream Processor · Notification Service                                                     |
+| **Storage**        | SQL · NoSQL · Cache/Redis · Object Storage · Search/ES · Graph DB · Time-Series DB · Data Warehouse · File Store · Vector DB · Geospatial Index             |
+| **Messaging**      | Message Queue · Pub/Sub                                                                                                                                     |
 | **Infrastructure** | Service Mesh · Monitoring · Service Discovery · Distributed Lock · Circuit Breaker · Coordination Service · ID Generator · Sharded Counter · Config Service |
-| **Special** | Custom Component (double-click to rename) |
+| **Special**        | Custom Component (double-click to rename)                                                                                                                   |
 
 Every component ships with **benchmark-backed specs**, cross-checked against official docs:
 
-| Component | Max QPS | Latency | | Component | Max QPS | Latency |
-|---|---|---|---|---|---|---|
-| Load Balancer | 1,000,000 | 1 ms | | Kafka | 100,000 | 5 ms |
-| CDN | 500,000 | 15 ms | | Elasticsearch | 20,000 | 10 ms |
-| Cache / Redis | 100,000 | 1 ms | | Object Storage (S3) | 25,000 | 75 ms |
-| NoSQL (DynamoDB) | 50,000 | 3 ms | | SQL Database | 10,000 | 8 ms |
+| Component        | Max QPS   | Latency |     | Component           | Max QPS | Latency |
+| ---------------- | --------- | ------- | --- | ------------------- | ------- | ------- |
+| Load Balancer    | 1,000,000 | 1 ms    |     | Kafka               | 100,000 | 5 ms    |
+| CDN              | 500,000   | 15 ms   |     | Elasticsearch       | 20,000  | 10 ms   |
+| Cache / Redis    | 100,000   | 1 ms    |     | Object Storage (S3) | 25,000  | 75 ms   |
+| NoSQL (DynamoDB) | 50,000    | 3 ms    |     | SQL Database        | 10,000  | 8 ms    |
 
 ---
 
@@ -126,17 +126,17 @@ Push 1K–500K requests/sec through your design and watch it behave like a real 
 
 <br/>
 
-SystemForge scores the **wired request path**, not a parts bin. Drop a cache on the canvas but never connect it, and you get no credit — with feedback telling you exactly why. A pile of disconnected components scores *"Needs Work,"* just like it would in a real interview.
+SystemForge scores the **wired request path**, not a parts bin. Drop a cache on the canvas but never connect it, and you get no credit — with feedback telling you exactly why. A pile of disconnected components scores _"Needs Work,"_ just like it would in a real interview.
 
 Five categories, each capped at exactly **20 points**:
 
-| Category | What it checks |
-|----------|---------------|
-| **Scalability** | Load balancing, horizontal scaling, caching, async processing |
-| **Availability** | No SPOFs, replica redundancy, monitoring, overload protection |
-| **Latency** | CDN usage, cache-before-DB patterns, minimal hop count |
-| **Cost Efficiency** | Right-sized components, polyglot persistence, no waste |
-| **Trade-offs** | Read/write separation, defense in depth, architecture breadth |
+| Category            | What it checks                                                |
+| ------------------- | ------------------------------------------------------------- |
+| **Scalability**     | Load balancing, horizontal scaling, caching, async processing |
+| **Availability**    | No SPOFs, replica redundancy, monitoring, overload protection |
+| **Latency**         | CDN usage, cache-before-DB patterns, minimal hop count        |
+| **Cost Efficiency** | Right-sized components, polyglot persistence, no waste        |
+| **Trade-offs**      | Read/write separation, defense in depth, architecture breadth |
 
 **Verdicts:** Needs Work `<31` · Decent `<51` · Good `<71` · Excellent `<86` · Architect Level `86+`
 
@@ -152,14 +152,14 @@ Five categories, each capped at exactly **20 points**:
 
 Run a full, timed 45-minute mock with a wall-clock-accurate timer (it keeps counting even if you switch tabs) and a phase-by-phase guide:
 
-| # | Phase | Time | Focus |
-|---|-------|------|-------|
-| 1 | **Requirements** | 5 min | Clarify functional & non-functional requirements |
-| 2 | **Estimation** | 5 min | Back-of-the-envelope capacity math |
-| 3 | **API Design** | 5 min | Define core endpoints |
-| 4 | **Data Model** | 5 min | Entities, relationships, access patterns |
-| 5 | **High-Level Design** | 15 min | Build the architecture on the canvas |
-| 6 | **Deep Dive** | 10 min | Trade-offs and failure modes |
+| #   | Phase                 | Time   | Focus                                            |
+| --- | --------------------- | ------ | ------------------------------------------------ |
+| 1   | **Requirements**      | 5 min  | Clarify functional & non-functional requirements |
+| 2   | **Estimation**        | 5 min  | Back-of-the-envelope capacity math               |
+| 3   | **API Design**        | 5 min  | Define core endpoints                            |
+| 4   | **Data Model**        | 5 min  | Entities, relationships, access patterns         |
+| 5   | **High-Level Design** | 15 min | Build the architecture on the canvas             |
+| 6   | **Deep Dive**         | 10 min | Trade-offs and failure modes                     |
 
 A color-coded timer keeps you honest: green (on track) · yellow (over target) · red (significantly over).
 
@@ -167,7 +167,7 @@ A color-coded timer keeps you honest: green (on track) · yellow (over target) �
 
 ### Concept Library & Trade-off Cards
 
-**Concept Library** — select any component to get interview-ready notes: when to use it, when *not* to, key trade-offs, common patterns (cache-aside, write-through, …), what to say to impress an interviewer, and verified real-world examples from Netflix, Uber, Twitter, and more.
+**Concept Library** — select any component to get interview-ready notes: when to use it, when _not_ to, key trade-offs, common patterns (cache-aside, write-through, …), what to say to impress an interviewer, and verified real-world examples from Netflix, Uber, Twitter, and more.
 
 **Edge labels** — click any connection to set its protocol (HTTP · gRPC · WebSocket · pub/sub · TCP) and sync/async mode, rendered with distinct line styles and badges.
 
@@ -183,12 +183,12 @@ You can also log your **own** trade-off decisions with rationale as you design.
 
 A structured progression from your first easy problem to architect-level systems, with concept prerequisites shown per problem and completion tracking.
 
-| Tier | Sample Problems | Focus |
-|------|----------------|-------|
-| **Foundations** | URL Shortener, Rate Limiter, Parking Lot | Core building blocks |
-| **Intermediate** | Notification System, Autocomplete, Instagram, Reddit, Tinder | Combining systems |
-| **Advanced** | Twitter, Chat, Web Crawler, Dropbox, WhatsApp, Code Editor | Complex distributed systems |
-| **Expert** | Uber, YouTube, Payments, Netflix, Zoom, Google Maps, Kafka, Digital Wallet | Multi-concern architectures |
+| Tier             | Sample Problems                                                            | Focus                       |
+| ---------------- | -------------------------------------------------------------------------- | --------------------------- |
+| **Foundations**  | URL Shortener, Rate Limiter, Parking Lot                                   | Core building blocks        |
+| **Intermediate** | Notification System, Autocomplete, Instagram, Reddit, Tinder               | Combining systems           |
+| **Advanced**     | Twitter, Chat, Web Crawler, Dropbox, WhatsApp, Code Editor                 | Complex distributed systems |
+| **Expert**       | Uber, YouTube, Payments, Netflix, Zoom, Google Maps, Kafka, Digital Wallet | Multi-concern architectures |
 
 ---
 
@@ -213,43 +213,43 @@ Every problem includes scale requirements (QPS, storage, latency), constraints, 
 
 <br/>
 
-| # | Problem | Difficulty | Key Concepts |
-|---|---------|-----------|-------------|
-| 1 | URL Shortener | Easy | Hashing, caching, 100:1 read/write |
-| 2 | Rate Limiter | Easy | Token bucket, sliding window, Redis |
-| 3 | Parking Lot | Easy | IoT events, availability tracking |
-| 4 | Twitter / News Feed | Hard | Fan-out, timeline, hybrid approach |
-| 5 | Chat System | Hard | WebSocket, presence, message ordering |
-| 6 | Uber / Ride Sharing | Hard | Geohash, location streaming, matching |
-| 7 | YouTube / Video Streaming | Hard | CDN, transcoding, tiered storage |
-| 8 | Notification System | Medium | Priority queues, multi-channel delivery |
-| 9 | Typeahead / Autocomplete | Medium | Trie, prefix search, offline aggregation |
-| 10 | Web Crawler | Medium | URL frontier, politeness, dedup |
-| 11 | Distributed Cache | Medium | Consistent hashing, eviction, hot keys |
-| 12 | Payment System | Hard | Idempotency, saga pattern, double-entry ledger |
-| 13 | Ticket Booking | Hard | Virtual queue, seat locking, flash sales |
-| 14 | Google Docs | Hard | OT/CRDT, WebSocket, version history |
-| 15 | Dropbox / File Storage | Hard | Block chunking, delta sync, dedup |
-| 16 | Instagram | Medium | Media pipeline, feed gen, CDN strategy |
-| 17 | Spotify | Medium | Adaptive bitrate, pre-fetch, collab filtering |
-| 18 | Amazon / E-Commerce | Hard | Microservices, inventory, event sourcing |
-| 19 | Slack / Team Messaging | Hard | Channel model, search, connection gateway |
-| 20 | Metrics / Monitoring | Hard | Time-series ingestion, downsampling, alerting |
-| 21 | Netflix | Hard | Recommendation engine, adaptive streaming, DRM |
-| 22 | Tinder / Dating App | Medium | Geospatial matching, ELO scoring, Bloom filters |
-| 23 | Google Maps | Hard | Map tiles, Dijkstra/A*, real-time traffic |
-| 24 | Zoom | Hard | WebRTC/SFU, simulcast, screen sharing |
-| 25 | DoorDash / Food Delivery | Hard | Driver dispatch, ETA prediction, order tracking |
-| 26 | Reddit | Medium | Ranking algorithms, comment trees, moderation |
-| 27 | Airbnb | Hard | Search + booking, pricing, bilateral reviews |
-| 28 | WhatsApp | Hard | E2E encryption (Signal Protocol), offline delivery |
-| 29 | Google Search | Hard | Inverted index, PageRank, query parsing |
-| 30 | Yelp / Location Service | Medium | QuadTree/Geohash, proximity search, reviews |
-| 31 | TikTok | Hard | Recommendation (two-tower), video transcoding |
-| 32 | Distributed Message Queue | Hard | Partitioning, consumer groups, exactly-once |
-| 33 | Digital Wallet / UPI | Hard | P2P transfers, idempotency, compliance |
-| 34 | Online Code Editor | Medium | Sandboxed execution, LSP, real-time collab |
-| 35 | CI/CD Pipeline | Medium | Build DAGs, artifact storage, canary deploys |
+| #   | Problem                   | Difficulty | Key Concepts                                       |
+| --- | ------------------------- | ---------- | -------------------------------------------------- |
+| 1   | URL Shortener             | Easy       | Hashing, caching, 100:1 read/write                 |
+| 2   | Rate Limiter              | Easy       | Token bucket, sliding window, Redis                |
+| 3   | Parking Lot               | Easy       | IoT events, availability tracking                  |
+| 4   | Twitter / News Feed       | Hard       | Fan-out, timeline, hybrid approach                 |
+| 5   | Chat System               | Hard       | WebSocket, presence, message ordering              |
+| 6   | Uber / Ride Sharing       | Hard       | Geohash, location streaming, matching              |
+| 7   | YouTube / Video Streaming | Hard       | CDN, transcoding, tiered storage                   |
+| 8   | Notification System       | Medium     | Priority queues, multi-channel delivery            |
+| 9   | Typeahead / Autocomplete  | Medium     | Trie, prefix search, offline aggregation           |
+| 10  | Web Crawler               | Medium     | URL frontier, politeness, dedup                    |
+| 11  | Distributed Cache         | Medium     | Consistent hashing, eviction, hot keys             |
+| 12  | Payment System            | Hard       | Idempotency, saga pattern, double-entry ledger     |
+| 13  | Ticket Booking            | Hard       | Virtual queue, seat locking, flash sales           |
+| 14  | Google Docs               | Hard       | OT/CRDT, WebSocket, version history                |
+| 15  | Dropbox / File Storage    | Hard       | Block chunking, delta sync, dedup                  |
+| 16  | Instagram                 | Medium     | Media pipeline, feed gen, CDN strategy             |
+| 17  | Spotify                   | Medium     | Adaptive bitrate, pre-fetch, collab filtering      |
+| 18  | Amazon / E-Commerce       | Hard       | Microservices, inventory, event sourcing           |
+| 19  | Slack / Team Messaging    | Hard       | Channel model, search, connection gateway          |
+| 20  | Metrics / Monitoring      | Hard       | Time-series ingestion, downsampling, alerting      |
+| 21  | Netflix                   | Hard       | Recommendation engine, adaptive streaming, DRM     |
+| 22  | Tinder / Dating App       | Medium     | Geospatial matching, ELO scoring, Bloom filters    |
+| 23  | Google Maps               | Hard       | Map tiles, Dijkstra/A*, real-time traffic          |
+| 24  | Zoom                      | Hard       | WebRTC/SFU, simulcast, screen sharing              |
+| 25  | DoorDash / Food Delivery  | Hard       | Driver dispatch, ETA prediction, order tracking    |
+| 26  | Reddit                    | Medium     | Ranking algorithms, comment trees, moderation      |
+| 27  | Airbnb                    | Hard       | Search + booking, pricing, bilateral reviews       |
+| 28  | WhatsApp                  | Hard       | E2E encryption (Signal Protocol), offline delivery |
+| 29  | Google Search             | Hard       | Inverted index, PageRank, query parsing            |
+| 30  | Yelp / Location Service   | Medium     | QuadTree/Geohash, proximity search, reviews        |
+| 31  | TikTok                    | Hard       | Recommendation (two-tower), video transcoding      |
+| 32  | Distributed Message Queue | Hard       | Partitioning, consumer groups, exactly-once        |
+| 33  | Digital Wallet / UPI      | Hard       | P2P transfers, idempotency, compliance             |
+| 34  | Online Code Editor        | Medium     | Sandboxed execution, LSP, real-time collab         |
+| 35  | CI/CD Pipeline            | Medium     | Build DAGs, artifact storage, canary deploys       |
 
 </details>
 
@@ -270,29 +270,29 @@ Open **http://localhost:3000** — that's it. Everything runs client-side; your 
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action | | Shortcut | Action |
-|----------|--------|---|----------|--------|
-| `Ctrl/⌘ + Enter` | Run simulation | | `Ctrl/⌘ + S` | Save design |
-| `Ctrl/⌘ + Shift + S` | Score design | | `Ctrl/⌘ + O` | Load design |
-| `Ctrl/⌘ + Z` | Undo | | `Ctrl/⌘ + E` | Export as PNG |
-| `Ctrl/⌘ + Shift + Z` / `Ctrl + Y` | Redo | | `Delete` | Remove selected node/edge |
-| `Escape` | Deselect | | | |
+| Shortcut                          | Action         |     | Shortcut     | Action                    |
+| --------------------------------- | -------------- | --- | ------------ | ------------------------- |
+| `Ctrl/⌘ + Enter`                  | Run simulation |     | `Ctrl/⌘ + S` | Save design               |
+| `Ctrl/⌘ + Shift + S`              | Score design   |     | `Ctrl/⌘ + O` | Load design               |
+| `Ctrl/⌘ + Z`                      | Undo           |     | `Ctrl/⌘ + E` | Export as PNG             |
+| `Ctrl/⌘ + Shift + Z` / `Ctrl + Y` | Redo           |     | `Delete`     | Remove selected node/edge |
+| `Escape`                          | Deselect       |     |              |                           |
 
 ---
 
 ## 🛠 Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router, fully static) |
-| Language | React 19 + TypeScript |
-| Canvas | [@xyflow/react](https://reactflow.dev) (ReactFlow v12) |
-| State | Zustand v5, persisted to `localStorage` |
-| Styling | Tailwind CSS v4 + shadcn-style components on Base UI |
-| Animation | Framer Motion |
-| Freehand pen | perfect-freehand |
-| Icons | Lucide React |
-| Export | html-to-image (PNG / SVG / JSON) |
+| Layer        | Technology                                             |
+| ------------ | ------------------------------------------------------ |
+| Framework    | Next.js 16 (App Router, fully static)                  |
+| Language     | React 19 + TypeScript                                  |
+| Canvas       | [@xyflow/react](https://reactflow.dev) (ReactFlow v12) |
+| State        | Zustand v5, persisted to `localStorage`                |
+| Styling      | Tailwind CSS v4 + shadcn-style components on Base UI   |
+| Animation    | Framer Motion                                          |
+| Freehand pen | perfect-freehand                                       |
+| Icons        | Lucide React                                           |
+| Export       | html-to-image (PNG / SVG / JSON)                       |
 
 No backend, no database, no telemetry — the entire app ships as a static bundle.
 
@@ -335,11 +335,12 @@ Contributions are welcome — new problems, components, trade-off cards, bug fix
 ```bash
 npm ci            # Install exact locked dependencies
 npm run dev       # Start the dev server
-npm run lint      # Run ESLint
+npm run lint      # Run oxlint
+npm run format    # Format with oxfmt
 npm run build     # Production build (also type-checks)
 ```
 
-CI runs `npm run lint` and `npm run build` on every push and pull request, so run both locally before opening a PR. Bug reports and feature requests have [issue templates](.github/ISSUE_TEMPLATE) — filling them in makes triage much faster.
+CI runs `npm run lint`, `npm run format:check` and `npm run build` on every push and pull request, so run them locally before opening a PR. Bug reports and feature requests have [issue templates](.github/ISSUE_TEMPLATE) — filling them in makes triage much faster.
 
 **Good first contributions:** add a design problem to `src/data/problems.ts` (+ its `interviewData.ts` entry), author a trade-off card, or improve concept-library content. Every formula, figure, and real-world attribution should be technically correct — this content teaches people preparing for real interviews.
 

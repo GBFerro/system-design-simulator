@@ -125,7 +125,7 @@ function computeExportGeometry(): ExportGeometry {
     imageHeight,
     MIN_ZOOM,
     MAX_ZOOM,
-    PADDING
+    PADDING,
   );
 
   return { bounds, imageWidth, imageHeight, viewport, strokes };
@@ -195,9 +195,7 @@ export async function exportAsPng(problemName: string): Promise<void> {
     ctx.fill(path);
   }
 
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/png")
-  );
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("Failed to encode PNG");
   const url = URL.createObjectURL(blob);
   triggerDownload(url, filename);
@@ -227,7 +225,7 @@ export function exportAsJSON(
   nodes: Node[],
   edges: Edge[],
   problemName: string,
-  strokes: Stroke[] = []
+  strokes: Stroke[] = [],
 ): void {
   const filename = `${slugify(problemName)}-hld-${getTimestamp()}.json`;
   // Same envelope as savedDesignsStore.exportDesign so both import paths
@@ -242,7 +240,7 @@ export function exportAsJSON(
       strokes,
     },
     null,
-    2
+    2,
   );
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);

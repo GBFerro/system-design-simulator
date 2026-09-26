@@ -2,7 +2,14 @@
 
 import { ModalShell } from "./ModalShell";
 import {
-  X, BookOpen, Boxes, GraduationCap, Activity, Command, Sparkles, PlayCircle,
+  X,
+  BookOpen,
+  Boxes,
+  GraduationCap,
+  Activity,
+  Command,
+  Sparkles,
+  PlayCircle,
 } from "lucide-react";
 
 interface HowItWorksDialogProps {
@@ -44,23 +51,46 @@ const MODES = [
 const STEPS = [
   ["Pick a problem", "Choose from the top-bar dropdown (or start on a blank canvas)."],
   ["Build", "Drag components from the left sidebar — or press ⌘K and search for one."],
-  ["Wire it up", "Drag between node handles to connect; click an edge to set its protocol & sync/async mode."],
+  [
+    "Wire it up",
+    "Drag between node handles to connect; click an edge to set its protocol & sync/async mode.",
+  ],
   ["Simulate", "Press ⌘↵ to push 1K–500K req/s through your design and watch it behave."],
-  ["Score", "Press ⌘⇧S to get rated across Scalability, Availability, Latency, Cost & Trade-offs — with concrete fixes."],
-  ["Iterate & save", "Refine the design, then Save it or Export as PNG/JSON. Load Reference shows a model solution."],
+  [
+    "Score",
+    "Press ⌘⇧S to get rated across Scalability, Availability, Latency, Cost & Trade-offs — with concrete fixes.",
+  ],
+  [
+    "Iterate & save",
+    "Refine the design, then Save it or Export as PNG/JSON. Load Reference shows a model solution.",
+  ],
 ];
 
-export function HowItWorksDialog({ open, onClose, onPickProblem, onPlayWalkthrough }: HowItWorksDialogProps) {
+export function HowItWorksDialog({
+  open,
+  onClose,
+  onPickProblem,
+  onPlayWalkthrough,
+}: HowItWorksDialogProps) {
   return (
-    <ModalShell open={open} onClose={onClose} ariaLabel="How SystemForge works" panelClassName="max-w-2xl">
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      ariaLabel="How SystemForge works"
+      panelClassName="max-w-2xl"
+    >
       {/* Header */}
       <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-zinc-800 bg-zinc-900/95 px-5 py-4 backdrop-blur">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
           <div>
-            <h2 className="font-display text-base font-bold tracking-tight text-zinc-50">How SystemForge works</h2>
-            <p className="text-xs text-zinc-400">Build architectures, simulate traffic, and get scored like a real interview.</p>
+            <h2 className="font-display text-base font-bold tracking-tight text-zinc-50">
+              How SystemForge works
+            </h2>
+            <p className="text-xs text-zinc-400">
+              Build architectures, simulate traffic, and get scored like a real interview.
+            </p>
           </div>
         </div>
         <button
@@ -84,8 +114,12 @@ export function HowItWorksDialog({ open, onClose, onPickProblem, onPlayWalkthrou
               <PlayCircle className="h-5 w-5" />
             </span>
             <span className="flex-1">
-              <span className="block text-sm font-semibold text-zinc-50">Watch the 60-second walkthrough</span>
-              <span className="block text-xs text-zinc-400">An animated tour of the whole flow — build, simulate, score & interview.</span>
+              <span className="block text-sm font-semibold text-zinc-50">
+                Watch the 60-second walkthrough
+              </span>
+              <span className="block text-xs text-zinc-400">
+                An animated tour of the whole flow — build, simulate, score & interview.
+              </span>
             </span>
             <Sparkles className="h-4 w-4 shrink-0 text-cyan-400" />
           </button>
@@ -93,14 +127,18 @@ export function HowItWorksDialog({ open, onClose, onPickProblem, onPlayWalkthrou
 
         {/* Four modes */}
         <section>
-          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Four ways to use it</p>
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+            Four ways to use it
+          </p>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {MODES.map((m) => {
               const Icon = m.icon;
               return (
                 <div key={m.title} className="rounded-lg border border-zinc-800 bg-zinc-800/40 p-3">
                   <div className="mb-1.5 flex items-center gap-2">
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg ring-1 ${m.color}`}>
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-lg ring-1 ${m.color}`}
+                    >
                       <Icon className="h-4 w-4" />
                     </span>
                     <span className="text-sm font-semibold text-zinc-100">{m.title}</span>
@@ -114,7 +152,9 @@ export function HowItWorksDialog({ open, onClose, onPickProblem, onPlayWalkthrou
 
         {/* Core loop */}
         <section>
-          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">The core loop</p>
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+            The core loop
+          </p>
           <ol className="space-y-2">
             {STEPS.map(([title, body], i) => (
               <li key={title} className="flex gap-3">
@@ -136,8 +176,11 @@ export function HowItWorksDialog({ open, onClose, onPickProblem, onPlayWalkthrou
             <Command className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
             <p className="text-xs leading-relaxed text-zinc-400">
               <span className="font-semibold text-zinc-200">Power tip:</span> press{" "}
-              <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">⌘K</kbd>{" "}
-              anywhere to search problems, add components, and run actions. You can also create your own components & problems, and everything saves to your browser automatically.
+              <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300">
+                ⌘K
+              </kbd>{" "}
+              anywhere to search problems, add components, and run actions. You can also create your
+              own components & problems, and everything saves to your browser automatically.
             </p>
           </div>
         </section>
@@ -152,7 +195,10 @@ export function HowItWorksDialog({ open, onClose, onPickProblem, onPlayWalkthrou
           Maybe later
         </button>
         <button
-          onClick={() => { onClose(); onPickProblem?.(); }}
+          onClick={() => {
+            onClose();
+            onPickProblem?.();
+          }}
           className="flex items-center gap-1.5 rounded-md bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cyan-400"
         >
           <Sparkles className="h-3.5 w-3.5" />

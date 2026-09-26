@@ -4,8 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useReactFlow, type Node } from "@xyflow/react";
 import {
-  Search, Play, Trophy, Save, FolderOpen, GraduationCap, Download,
-  Trash2, Undo2, Redo2, Coffee, Box, Puzzle, CornerDownLeft, HelpCircle,
+  Search,
+  Play,
+  Trophy,
+  Save,
+  FolderOpen,
+  GraduationCap,
+  Download,
+  Trash2,
+  Undo2,
+  Redo2,
+  Coffee,
+  Box,
+  Puzzle,
+  CornerDownLeft,
+  HelpCircle,
 } from "lucide-react";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import type { SystemComponent } from "@/types/component";
@@ -123,17 +136,69 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
   const items = useMemo<CommandItem[]>(() => {
     const a = actions;
     const actionItems: CommandItem[] = [
-      { id: "act-guide", group: "Actions", label: "How SystemForge works", icon: HelpCircle, run: a.onShowGuide },
-      { id: "act-sim", group: "Actions", label: "Run simulation", hint: "⌘↵", icon: Play, run: a.onSimulate },
-      { id: "act-score", group: "Actions", label: "Score design", hint: "⌘⇧S", icon: Trophy, run: a.onScore },
-      { id: "act-ref", group: "Actions", label: "Load reference solution", icon: Download, run: a.onLoadReference },
-      { id: "act-interview", group: "Actions", label: "Start practice interview", icon: GraduationCap, run: a.onStartInterview },
-      { id: "act-save", group: "Actions", label: "Save design", hint: "⌘S", icon: Save, run: a.onSave },
-      { id: "act-load", group: "Actions", label: "Load design", hint: "⌘O", icon: FolderOpen, run: a.onLoad },
+      {
+        id: "act-guide",
+        group: "Actions",
+        label: "How SystemForge works",
+        icon: HelpCircle,
+        run: a.onShowGuide,
+      },
+      {
+        id: "act-sim",
+        group: "Actions",
+        label: "Run simulation",
+        hint: "⌘↵",
+        icon: Play,
+        run: a.onSimulate,
+      },
+      {
+        id: "act-score",
+        group: "Actions",
+        label: "Score design",
+        hint: "⌘⇧S",
+        icon: Trophy,
+        run: a.onScore,
+      },
+      {
+        id: "act-ref",
+        group: "Actions",
+        label: "Load reference solution",
+        icon: Download,
+        run: a.onLoadReference,
+      },
+      {
+        id: "act-interview",
+        group: "Actions",
+        label: "Start practice interview",
+        icon: GraduationCap,
+        run: a.onStartInterview,
+      },
+      {
+        id: "act-save",
+        group: "Actions",
+        label: "Save design",
+        hint: "⌘S",
+        icon: Save,
+        run: a.onSave,
+      },
+      {
+        id: "act-load",
+        group: "Actions",
+        label: "Load design",
+        hint: "⌘O",
+        icon: FolderOpen,
+        run: a.onLoad,
+      },
       { id: "act-undo", group: "Actions", label: "Undo", hint: "⌘Z", icon: Undo2, run: undo },
       { id: "act-redo", group: "Actions", label: "Redo", hint: "⌘⇧Z", icon: Redo2, run: redo },
       { id: "act-clear", group: "Actions", label: "Clear canvas", icon: Trash2, run: a.onClear },
-      { id: "act-support", group: "Actions", label: "Support the project", icon: Coffee, run: a.onOpenSupport },
+      {
+        id: "act-support",
+        group: "Actions",
+        label: "Support the project",
+        icon: Coffee,
+        run: a.onOpenSupport,
+      },
     ];
     const problemItems: CommandItem[] = [...PROBLEMS, ...customProblems].map((p) => ({
       id: `prob-${p.id}`,
@@ -156,7 +221,17 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
       run: () => addComponent(c),
     }));
     return [...actionItems, ...problemItems, ...componentItems];
-  }, [actions, customProblems, allComponents, undo, redo, setSelectedProblem, setActiveLeftTab, showToast, addComponent]);
+  }, [
+    actions,
+    customProblems,
+    allComponents,
+    undo,
+    redo,
+    setSelectedProblem,
+    setActiveLeftTab,
+    showToast,
+    addComponent,
+  ]);
 
   const q = query.trim();
   const grouped = q === "";
@@ -244,7 +319,10 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setActive(0); }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(0);
+            }}
             placeholder="Search problems, components, actions…"
             // Inline outline:none beats the global *:focus-visible ring — the modal
             // context already makes focus obvious, so the boxed ring looks wrong here.
@@ -252,12 +330,16 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
             className="h-12 w-full bg-transparent text-[15px] text-zinc-100 placeholder:text-zinc-500"
             aria-label="Search commands"
           />
-          <kbd className="hidden shrink-0 rounded border border-zinc-700/70 bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 sm:block">esc</kbd>
+          <kbd className="hidden shrink-0 rounded border border-zinc-700/70 bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 sm:block">
+            esc
+          </kbd>
         </div>
 
         <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
           {filtered.length === 0 ? (
-            <div className="px-3 py-8 text-center text-sm text-zinc-500">No matches for “{query}”</div>
+            <div className="px-3 py-8 text-center text-sm text-zinc-500">
+              No matches for “{query}”
+            </div>
           ) : (
             filtered.map((item, idx) => {
               const Icon = item.icon;
@@ -277,10 +359,14 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
                     onMouseEnter={() => setActive(idx)}
                     onClick={() => choose(item)}
                     className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left ${
-                      idx === active ? "bg-cyan-500/15 text-zinc-50" : "text-zinc-300 hover:bg-zinc-800"
+                      idx === active
+                        ? "bg-cyan-500/15 text-zinc-50"
+                        : "text-zinc-300 hover:bg-zinc-800"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 shrink-0 ${idx === active ? "text-cyan-400" : "text-zinc-500"}`} />
+                    <Icon
+                      className={`h-4 w-4 shrink-0 ${idx === active ? "text-cyan-400" : "text-zinc-500"}`}
+                    />
                     <span className="flex-1 truncate text-sm">{item.label}</span>
                     {!grouped && (
                       <span className="shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-zinc-500">
@@ -288,9 +374,13 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
                       </span>
                     )}
                     {item.hint && (
-                      <span className="shrink-0 font-mono text-[10px] text-zinc-500">{item.hint}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-zinc-500">
+                        {item.hint}
+                      </span>
                     )}
-                    {idx === active && <CornerDownLeft className="h-3 w-3 shrink-0 text-zinc-500" />}
+                    {idx === active && (
+                      <CornerDownLeft className="h-3 w-3 shrink-0 text-zinc-500" />
+                    )}
                   </button>
                 </div>
               );
