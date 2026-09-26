@@ -62,7 +62,7 @@ const STEPS = [
   ],
   [
     "Iterate & save",
-    "Refine the design, then Save it or Export as PNG/JSON. Load Reference shows a model solution.",
+    "Refine the design, then Save it or Export as PNG/SVG/JSON. Load Reference shows a model solution.",
   ],
 ];
 

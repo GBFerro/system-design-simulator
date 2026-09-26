@@ -11,7 +11,8 @@ import { getStroke } from "perfect-freehand";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useAppStore } from "@/store/appStore";
 import { usePenStore, type Stroke } from "@/store/penStore";
-import { serializeNodes, serializeEdges } from "@/store/savedDesignsStore";
+import { serializeEdges, serializeNodes } from "@/domain/persistence/serialize";
+import { stringifyEnvelope } from "@/domain/persistence/envelope";
 
 function getTimestamp(): string {
   const d = new Date();
@@ -202,15 +203,44 @@ export async function exportAsPng(problemName: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/** SVG `<g>` with the pen strokes, framed by the same viewport transform as the capture. */
+function strokesSvgGroup(geom: ExportGeometry): string {
+  const { x, y, zoom } = geom.viewport;
+  const paths = geom.strokes
+    .map((stroke) => {
+      const d = strokeToPath(stroke.points, stroke.width);
+      return d ? `<path d="${d}" fill="${escapeAttr(stroke.color)}"/>` : "";
+    })
+    .join("");
+  return `<g transform="translate(${x} ${y}) scale(${zoom})">${paths}</g>`;
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+const SVG_DATA_URL_PREFIX = "data:image/svg+xml;charset=utf-8,";
+
+/**
+ * Append the pen strokes to html-to-image's SVG. Its output is an `<svg>`
+ * wrapping a `<foreignObject>` with the cloned viewport; strokes live in a
+ * sibling overlay (not in the capture), so they go in as native SVG paths
+ * drawn after — i.e. on top of — the foreignObject.
+ */
+export function withStrokes(svgDataUrl: string, strokesGroup: string): string {
+  if (!svgDataUrl.startsWith(SVG_DATA_URL_PREFIX)) return svgDataUrl;
+  const svg = decodeURIComponent(svgDataUrl.slice(SVG_DATA_URL_PREFIX.length));
+  const end = svg.lastIndexOf("</svg>");
+  if (end < 0) return svgDataUrl;
+  const merged = svg.slice(0, end) + strokesGroup + svg.slice(end);
+  return SVG_DATA_URL_PREFIX + encodeURIComponent(merged);
+}
+
 export async function exportAsSvg(problemName: string): Promise<void> {
   const viewportEl = getViewportElement();
   const geom = computeExportGeometry();
   const filename = `${slugify(problemName)}-hld-${getTimestamp()}.svg`;
 
-  // NOTE: pen strokes are intentionally NOT included in the SVG export —
-  // compositing the freehand overlay into html-to-image's serialized SVG
-  // (a foreignObject wrapper) is not reliably correct. The PNG export
-  // includes them.
   const dataUrl = await toSvg(viewportEl, {
     backgroundColor: BG_COLOR,
     width: geom.imageWidth,
@@ -218,7 +248,10 @@ export async function exportAsSvg(problemName: string): Promise<void> {
     style: captureStyle(geom),
   });
 
-  triggerDownload(dataUrl, filename);
+  triggerDownload(
+    geom.strokes.length > 0 ? withStrokes(dataUrl, strokesSvgGroup(geom)) : dataUrl,
+    filename,
+  );
 }
 
 export function exportAsJSON(
@@ -228,20 +261,14 @@ export function exportAsJSON(
   strokes: Stroke[] = [],
 ): void {
   const filename = `${slugify(problemName)}-hld-${getTimestamp()}.json`;
-  // Same envelope as savedDesignsStore.exportDesign so both import paths
-  // (LoadDialog import + saved-design export) accept both files.
-  const payload = JSON.stringify(
-    {
-      schemaVersion: 1,
-      name: problemName,
-      problemId: useAppStore.getState().selectedProblemId ?? null,
-      nodes: serializeNodes(nodes),
-      edges: serializeEdges(edges),
-      strokes,
-    },
-    null,
-    2,
-  );
+  // Same v2 envelope as savedDesignsStore.exportDesign (Spec 05, PER-02).
+  const payload = stringifyEnvelope({
+    name: problemName,
+    problemId: useAppStore.getState().selectedProblemId ?? null,
+    nodes: serializeNodes(nodes),
+    edges: serializeEdges(edges),
+    strokes,
+  });
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   triggerDownload(url, filename);
