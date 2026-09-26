@@ -5,7 +5,7 @@ import { CopyPlus, Minus, Plus, Trash2 } from "lucide-react";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { usePenStore } from "@/store/penStore";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
-import { instancesOf } from "@/domain/components/registry";
+import { instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
 
 /**
  * Quick actions floating above a node while it is the only selected item.
@@ -67,7 +67,7 @@ export function NodeActionsToolbar({ nodeId }: { nodeId: string }) {
               className={btn}
               aria-label="Add replica"
               title="Add replica"
-              disabled={replicas >= 20}
+              disabled={replicas >= MAX_INSTANCES}
               onClick={() => changeReplicas(nodeId, 1)}
             >
               <Plus className={icon} />

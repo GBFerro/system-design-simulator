@@ -123,7 +123,7 @@ describe("canvas store editing", () => {
     expect(s().nodes[0].position).toEqual({ x: 0, y: 0 });
   });
 
-  it("changeReplicas clamps to 1..20", () => {
+  it("changeReplicas clamps at 1", () => {
     setCanvas([node("a", 0, 0)]);
     s().changeReplicas("a", -1);
     expect(s().history).toHaveLength(0);

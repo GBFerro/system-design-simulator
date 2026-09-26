@@ -15,9 +15,22 @@ import { useSimulationStore } from "./simulationStore";
 import { safeLocalStorage } from "./safeStorage";
 import { randomId } from "@/lib/nodeFactory";
 import { findFreePosition, freePositionNear, nodeRect } from "@/lib/placement";
-import { instancesOf, PARAM } from "@/domain/components/registry";
+import {
+  instancesOf,
+  MAX_INSTANCES,
+  PARAM,
+  resolvedParams,
+  sanitizeParams,
+} from "@/domain/components/registry";
 import type { EdgeRule, Params } from "@/domain/components/types";
-import { defaultEdgeRule } from "@/domain/graph/edgeRules";
+import {
+  applyEdgeRulePatch,
+  connectEdgeRule,
+  defaultEdgeAsync,
+  sanitizeEdgeRule,
+  splitReadsOnReplicaConnect,
+  type RuleGraph,
+} from "@/domain/graph/edgeRules";
 
 export interface ComponentNodeData {
   componentId: string;
@@ -190,6 +203,26 @@ function withClones(state: CanvasState, clones: Clipboard): Partial<CanvasState>
   };
 }
 
+function ruleGraph(state: { nodes: Node[]; edges: Edge[] }): RuleGraph<Edge> {
+  return {
+    componentIdOf: (id) => {
+      const data = state.nodes.find((n) => n.id === id)?.data;
+      return typeof data?.componentId === "string" ? data.componentId : undefined;
+    },
+    edges: state.edges,
+  };
+}
+
+/** An edge's current rule, normalized (edges saved before v2 get their connect default). */
+export function edgeRuleOf(state: { nodes: Node[]; edges: Edge[] }, edge: Edge): EdgeRule {
+  const data = (edge.data ?? {}) as CustomEdgeData;
+  const graph = ruleGraph(state);
+  return sanitizeEdgeRule(
+    data.rule,
+    connectEdgeRule(edge.source, edge.target, graph, data.protocol),
+  );
+}
+
 function resetSimulation(): void {
   // Metrics/score refer to nodes that just changed out from under them.
   useSimulationStore.getState().reset();
@@ -239,6 +272,10 @@ interface CanvasState {
   /** Move selected nodes by (dx, dy); consecutive nudges share one undo step. */
   nudgeSelection: (dx: number, dy: number) => void;
   changeReplicas: (nodeId: string, delta: number) => void;
+  /** Merge a params edit (validated by the node's schema) in one undo step. */
+  updateNodeParams: (nodeId: string, patch: Params) => void;
+  /** Merge an edge rule edit (normalized) in one undo step. */
+  updateEdgeRule: (edgeId: string, patch: Partial<EdgeRule>) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
   updateAllNodeData: (updates: Map<string, Partial<ComponentNodeData>>) => void;
@@ -421,24 +458,22 @@ export const useCanvasStore = create<CanvasState>()(
       },
       onConnect: (connection) => {
         set((state) => {
-          const componentIdOf = (id: string) => {
-            const data = state.nodes.find((n) => n.id === id)?.data;
-            return typeof data?.componentId === "string" ? data.componentId : undefined;
-          };
+          const graph = ruleGraph(state);
           const data: CustomEdgeData = {
             label: "",
             protocol: "http",
-            async: false,
-            rule: defaultEdgeRule(
-              componentIdOf(connection.source),
-              componentIdOf(connection.target),
-              "http",
+            async: defaultEdgeAsync(
+              graph.componentIdOf(connection.source),
+              graph.componentIdOf(connection.target),
             ),
+            rule: connectEdgeRule(connection.source, connection.target, graph, "http"),
           };
+          // Service → Read Replica: the service's `always` edges to SQL DBs become `writes`
+          const edges = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
           return {
             history: pushedHistory(state),
             future: [],
-            edges: addEdge({ ...connection, type: "animated", data }, state.edges),
+            edges: addEdge({ ...connection, type: "animated", data }, [...edges]),
           };
         });
       },
@@ -523,7 +558,7 @@ export const useCanvasStore = create<CanvasState>()(
           if (!node || node.type !== "component" || isActiveTabReadOnly(state)) return state;
           const data = node.data as ComponentNodeData;
           const current = instancesOf(data);
-          const instances = Math.min(20, Math.max(1, current + delta));
+          const instances = Math.min(MAX_INSTANCES, Math.max(1, current + delta));
           if (instances === current) return state;
           return {
             history: pushedHistory(state),
@@ -535,6 +570,46 @@ export const useCanvasStore = create<CanvasState>()(
                     data: { ...n.data, params: { ...data.params, [PARAM.instances]: instances } },
                   }
                 : n,
+            ),
+          };
+        });
+      },
+      updateNodeParams: (nodeId, patch) => {
+        set((state) => {
+          const node = state.nodes.find((n) => n.id === nodeId);
+          if (!node || node.type !== "component" || isActiveTabReadOnly(state)) return state;
+          const data = node.data as ComponentNodeData;
+          const current = resolvedParams(data);
+          const next = sanitizeParams(data.componentId, { ...current, ...patch });
+          if (Object.keys(next).every((k) => next[k] === current[k])) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            nodes: state.nodes.map((n) =>
+              n.id === nodeId ? { ...n, data: { ...n.data, params: next } } : n,
+            ),
+          };
+        });
+      },
+      updateEdgeRule: (edgeId, patch) => {
+        set((state) => {
+          const edge = state.edges.find((e) => e.id === edgeId);
+          if (!edge || isActiveTabReadOnly(state)) return state;
+          const data = (edge.data ?? {}) as CustomEdgeData;
+          const fallback = connectEdgeRule(
+            edge.source,
+            edge.target,
+            ruleGraph(state),
+            data.protocol,
+          );
+          const current = sanitizeEdgeRule(data.rule, fallback);
+          const next = applyEdgeRulePatch(current, patch, fallback);
+          if (JSON.stringify(next) === JSON.stringify(current)) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            edges: state.edges.map((e) =>
+              e.id === edgeId ? { ...e, data: { ...e.data, rule: next } } : e,
             ),
           };
         });

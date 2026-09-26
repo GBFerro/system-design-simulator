@@ -5,6 +5,7 @@ import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyf
 import { useSimulationStore } from "@/store/simulationStore";
 import { useAppStore } from "@/store/appStore";
 import type { CustomEdgeData } from "@/store/canvasStore";
+import { edgeRuleBadge } from "@/domain/graph/edgeRules";
 
 const protocolBadge: Record<string, { text: string; color: string } | null> = {
   http: null,
@@ -49,7 +50,8 @@ function AnimatedEdgeInner({
   });
 
   const badge = protocol ? protocolBadge[protocol] : null;
-  const showLabel = label || badge;
+  const ruleBadge = edgeRuleBadge(edgeData.rule);
+  const showLabel = label || badge || ruleBadge;
 
   return (
     <g>
@@ -93,6 +95,14 @@ function AnimatedEdgeInner({
             {label && (
               <span className="rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] text-zinc-400 leading-none">
                 {label}
+              </span>
+            )}
+            {ruleBadge && (
+              <span
+                data-edge-rule={edgeData.rule?.kind}
+                className="rounded border border-cyan-500/30 bg-cyan-500/10 px-1 py-0.5 text-[10px] font-medium leading-none text-cyan-300"
+              >
+                {ruleBadge}
               </span>
             )}
             {badge && (

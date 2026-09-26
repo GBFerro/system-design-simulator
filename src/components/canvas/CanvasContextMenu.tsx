@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { instancesOf } from "@/domain/components/registry";
+import { instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
+import type { EdgeRule, ParamSpec, ParamValue } from "@/domain/components/types";
+import { EDGE_RULE_KIND_OPTIONS, EDGE_RULE_SPECS, edgeRuleValues } from "@/domain/graph/edgeRules";
 import { useReactFlow } from "@xyflow/react";
 import {
   ClipboardPaste,
@@ -18,7 +20,13 @@ import {
   StickyNote,
   Trash2,
 } from "lucide-react";
-import { useCanvasStore, type ComponentNodeData, type CustomEdgeData } from "@/store/canvasStore";
+import {
+  edgeRuleOf,
+  useCanvasStore,
+  type ComponentNodeData,
+  type CustomEdgeData,
+} from "@/store/canvasStore";
+import { ParamField } from "@/components/panel/ParamsForm";
 import { useAppStore } from "@/store/appStore";
 import { createTextNode } from "@/lib/nodeFactory";
 import { MOD_KEY, openPropertiesPanel } from "./canvasEvents";
@@ -48,6 +56,8 @@ type MenuEntry =
       onSelect: () => void;
     }
   | { heading: string }
+  /** An inline input (edge rule numbers); commits on blur/Enter, doesn't close the menu. */
+  | { field: ParamSpec; value: ParamValue; onCommit: (value: ParamValue) => void }
   | "separator";
 
 const PROTOCOLS: { value: NonNullable<CustomEdgeData["protocol"]>; label: string }[] = [
@@ -60,6 +70,14 @@ const PROTOCOLS: { value: NonNullable<CustomEdgeData["protocol"]>; label: string
 ];
 
 const ICON = "h-3.5 w-3.5";
+
+/** Arrow-key targets: menu items plus the inline fields' controls. */
+const FOCUSABLE = [
+  "[role^=menuitem]:not([disabled])",
+  "[data-menu-field] input:not([disabled])",
+  "[data-menu-field] select:not([disabled])",
+  "[data-menu-field] button:not([disabled])",
+].join(", ");
 
 function useMenuEntries(
   target: ContextTarget,
@@ -121,6 +139,8 @@ function useMenuEntries(
     const edge = store.edges.find((e) => e.id === target.id);
     if (!edge) return [];
     const data = (edge.data ?? {}) as CustomEdgeData;
+    const rule = edgeRuleOf(store, edge);
+    const ruleValues = edgeRuleValues(rule);
     if (readOnly) {
       return [
         {
@@ -147,6 +167,20 @@ function useMenuEntries(
         label: p.label,
         checked: (data.protocol ?? "http") === p.value,
         onSelect: () => store.updateEdgeData(edge.id, { protocol: p.value }),
+      })),
+      { heading: "Call rule" },
+      ...EDGE_RULE_KIND_OPTIONS.map<MenuEntry>((o) => ({
+        label: o.label,
+        checked: rule.kind === o.value,
+        onSelect: () => store.updateEdgeRule(edge.id, { kind: o.value }),
+      })),
+      ...EDGE_RULE_SPECS.filter(
+        (spec) => spec.key !== "kind" && (!spec.visibleIf || spec.visibleIf(ruleValues)),
+      ).map<MenuEntry>((spec) => ({
+        field: spec,
+        value: ruleValues[spec.key],
+        onCommit: (value) =>
+          store.updateEdgeRule(edge.id, { [spec.key]: value } as Partial<EdgeRule>),
       })),
       "separator",
       {
@@ -221,7 +255,7 @@ function useMenuEntries(
           {
             label: `Add replica (${replicas})`,
             icon: <Plus className={ICON} />,
-            disabled: replicas >= 20,
+            disabled: replicas >= MAX_INSTANCES,
             onSelect: () => store.changeReplicas(node.id, 1),
           },
           {
@@ -295,13 +329,20 @@ export function CanvasContextMenu({
     });
   }, [menu.x, menu.y]);
 
+  // Blur a focused inline field first so its pending value commits before unmount
+  const closeMenu = useCallback(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && ref.current?.contains(active)) active.blur();
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     ref.current?.querySelector<HTMLButtonElement>("[role^=menuitem]:not([disabled])")?.focus();
     const close = (e: Event) => {
       if (e.target instanceof Node && ref.current?.contains(e.target)) return;
-      onClose();
+      closeMenu();
     };
-    const closeNow = () => onClose();
+    const closeNow = () => closeMenu();
     window.addEventListener("pointerdown", close, true);
     window.addEventListener("wheel", closeNow, { passive: true });
     window.addEventListener("resize", closeNow);
@@ -312,17 +353,15 @@ export function CanvasContextMenu({
       window.removeEventListener("resize", closeNow);
       window.removeEventListener("blur", closeNow);
     };
-  }, [onClose]);
+  }, [closeMenu]);
 
   if (entries.length === 0) return null;
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     // Keep canvas shortcuts (Delete, arrows, Escape) from also firing
     e.stopPropagation();
-    const items = Array.from(
-      ref.current?.querySelectorAll<HTMLButtonElement>("[role^=menuitem]:not([disabled])") ?? [],
-    );
-    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    const items = Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
+    const i = items.indexOf(document.activeElement as HTMLElement);
     if (e.key === "ArrowDown") {
       e.preventDefault();
       items[(i + 1) % items.length]?.focus();
@@ -337,7 +376,7 @@ export function CanvasContextMenu({
       items[items.length - 1]?.focus();
     } else if (e.key === "Escape" || e.key === "Tab") {
       e.preventDefault();
-      onClose();
+      closeMenu();
     }
   };
 
@@ -350,10 +389,21 @@ export function CanvasContextMenu({
       onKeyDown={onKeyDown}
       onContextMenu={(e) => e.preventDefault()}
       style={{ left: pos.left, top: pos.top }}
-      className="fixed z-[60] min-w-[200px] rounded-lg border border-zinc-700/80 bg-zinc-900/95 p-1 text-xs text-zinc-200 shadow-xl backdrop-blur"
+      className="fixed z-[60] max-h-[calc(100vh-16px)] min-w-[200px] overflow-y-auto rounded-lg border border-zinc-700/80 bg-zinc-900/95 p-1 text-xs text-zinc-200 shadow-xl backdrop-blur"
     >
       {entries.map((entry, i) => {
         if (entry === "separator") return <hr key={i} className="my-1 h-px border-0 bg-zinc-800" />;
+        if ("field" in entry) {
+          return (
+            <div key={i} role="none" data-menu-field className="w-64 px-2 py-1">
+              <ParamField
+                spec={entry.field}
+                value={entry.value}
+                onCommit={(_, value) => entry.onCommit(value)}
+              />
+            </div>
+          );
+        }
         if ("heading" in entry) {
           return (
             <div
