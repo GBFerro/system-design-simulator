@@ -123,16 +123,6 @@ describe("canvas store editing", () => {
     expect(s().nodes[0].position).toEqual({ x: 0, y: 0 });
   });
 
-  it("a nudge right after an undo starts a new undo step", () => {
-    setCanvas([node("a", 0, 0, true)]);
-    s().nudgeSelection(16, 0);
-    s().undo();
-    s().nudgeSelection(0, 16);
-    expect(s().history).toHaveLength(1);
-    s().undo();
-    expect(s().nodes[0].position).toEqual({ x: 0, y: 0 });
-  });
-
   it("changeReplicas clamps to 1..20", () => {
     setCanvas([node("a", 0, 0)]);
     s().changeReplicas("a", -1);
@@ -164,5 +154,15 @@ describe("canvas store editing", () => {
     expect(s().nodes).toHaveLength(1);
     expect(s().nodes[0].position).toEqual({ x: 0, y: 0 });
     expect(s().history).toHaveLength(0);
+  });
+
+  it("a nudge right after an undo starts a new undo step", () => {
+    setCanvas([node("a", 0, 0, true)]);
+    s().nudgeSelection(16, 0);
+    s().undo();
+    s().nudgeSelection(0, 16);
+    expect(s().history).toHaveLength(1);
+    s().undo();
+    expect(s().nodes[0].position).toEqual({ x: 0, y: 0 });
   });
 });
