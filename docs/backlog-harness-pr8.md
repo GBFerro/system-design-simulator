@@ -1,11 +1,10 @@
 # Backlog: guardrails e harness (PR #8, Spec 03)
 
-Origem: `/harness-review` do PR #8. Os itens abaixo tocam arquivos que os PRs #9 (motor) e #10 (persistência) reescrevem (`savedDesignsStore.ts`, `simulator.ts`, `CLAUDE.md`), então ficam para depois que a pilha entrar em `main`.
+Origem: `/harness-review` do PR #8. As frases do `CLAUDE.md` sobre o engine (`maxQPS`/`replicas`) e sobre o `SerializedEdge` (sem `rule`) estão desatualizadas nesta branch, mas os PRs #9 e #10 já reescrevem esses parágrafos, então não foram tocadas aqui. Os itens abaixo tocam arquivos que os PRs #9 (motor) e #10 (persistência) reescrevem (`savedDesignsStore.ts`, `simulator.ts`, `CLAUDE.md`), então ficam para depois que a pilha entrar em `main`.
 
 Já aplicado no PR:
 
 - `engine/simulator.ts` lia `node.data.params` direto, enquanto o scoring e a latência usam os leitores do registry. Um nó pré-v2 (com `maxQPS`/`replicas` e sem `params`) saía do motor com `effectiveQPS: 0`, utilização 2 e "critical". Agora o motor usa `resolvedParams`. Teste em `tests/unit/legacyNodes.test.ts`.
-- `CLAUDE.md`: a invariante do engine e a do `SerializedEdge` (agora com `rule`) refletem o código.
 - `docs/03-catalogo-de-componentes.md`: status e critérios de aceite entregues marcados.
 
 ## C1: `loadDesign` deixa dado no formato v1 entrar no canvas
