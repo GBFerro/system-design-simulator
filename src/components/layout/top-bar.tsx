@@ -35,6 +35,7 @@ import { PROBLEMS } from "@/data/problems";
 import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { useReactFlow } from "@xyflow/react";
 import { createTextNode } from "@/lib/nodeFactory";
+import { isTypingTarget } from "@/components/canvas/canvasEvents";
 import { visibleCanvasCenter } from "@/lib/placement";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
 import { exportAsPng, exportAsSvg, exportAsJSON } from "@/lib/exportCanvas";
@@ -134,9 +135,7 @@ export function TopBar({
   // Keyboard shortcut: Ctrl/Cmd+E → Export as PNG
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
-        return;
+      if (isTypingTarget(e.target)) return;
       if (e.key === "e" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
         e.preventDefault();
         handleExportPng();

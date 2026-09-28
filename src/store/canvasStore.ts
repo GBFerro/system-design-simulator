@@ -345,6 +345,7 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           const prev = state.history[state.history.length - 1];
           if (!prev) return state;
+          lastNudgeAt = 0; // the next nudge is a new step, not part of the undone one
           return {
             history: state.history.slice(0, -1),
             future: [...state.future, snapshot(state)].slice(-MAX_HISTORY),
@@ -359,6 +360,7 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           const next = state.future[state.future.length - 1];
           if (!next) return state;
+          lastNudgeAt = 0;
           return {
             future: state.future.slice(0, -1),
             history: [...state.history, snapshot(state)].slice(-MAX_HISTORY),

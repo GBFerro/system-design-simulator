@@ -33,7 +33,8 @@ Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @x
 src/
   app/            App Router entry, layout, globals.css (dark-only theme)
   components/
-    canvas/       DesignCanvas (ReactFlow host), nodes/ (Component, Text), edges/, PenOverlay/PenToolbar, CanvasTabBar
+    canvas/       DesignCanvas (ReactFlow host), nodes/ (Component, Text, NodeActionsToolbar), edges/, PenOverlay/PenToolbar, CanvasTabBar,
+                  CanvasContextMenu, PaletteDnd (@dnd-kit), useCanvasShortcuts, canvasEvents
     panel/        RightPanel + Props/Sim/Score/Capacity/Tradeoffs tabs
     sidebar/      Sidebar: ComponentPalette, ProblemSelector, LearningPath
     layout/       AppShell (orchestrator + keyboard shortcuts), TopBar, SupportFAB
@@ -45,7 +46,7 @@ src/
   engine/         simulator.ts (traffic sim), constants.ts
   scoring/        scorer.ts + rules/ (scalability, availability, latency, cost, tradeoffs — 20 pts each)
   store/          zustand stores (see below)
-  lib/            exportCanvas, loadReference, icons, utils
+  lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils
   types/          shared interfaces
 tests/
   unit/           vitest (pure logic: scoring today, engine later)
