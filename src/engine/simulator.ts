@@ -1,6 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import { serviceTimeMsOf } from "@/domain/components/registry";
+import { resolvedParams, serviceTimeMsOf } from "@/domain/components/registry";
 import type { NodeMetrics, NodeStatus, SimulationResult } from "@/types/simulation";
 import {
   UTILIZATION_WARNING,
@@ -51,7 +51,8 @@ export function runSimulation(
   // Sanitized effective capacity per node (maxQPS * replicas)
   const capacity = new Map<string, number>();
   for (const node of nodes) {
-    const params = node.data.params ?? {};
+    // resolvedParams also reads pre-v2 nodes (maxQPS/replicas, no params) like serviceTimeMsOf does
+    const params = resolvedParams(node.data);
     capacity.set(
       node.id,
       sanitizeMaxQPS(params.capacityPerInstance) * sanitizeReplicas(params.instances),

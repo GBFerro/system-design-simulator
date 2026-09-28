@@ -1,6 +1,6 @@
 # Spec 03: Catálogo de componentes e regras de aresta
 
-Parte da [v2](00-visao-geral.md) · Fase 1 (CMP-03/04 na Fase 6) · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Fase 1 (CMP-03/04 na Fase 6) · Status: CMP-01, CMP-02 e regras de aresta implementados
 
 | Campo               | Valor                                                                                               |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
@@ -124,12 +124,12 @@ O componente `custom` ganha um editor de schema simples: o usuário escolhe o `r
 
 ## Critérios de aceite
 
-- [ ] Todo id de `components.ts` tem schema com defaults válidos
-- [ ] O painel Props é gerado pelo schema; nenhum formulário por tipo escrito à mão
-- [ ] Os ids referenciados em `problems.ts`, `conceptLibrary.ts` e `learningPath.ts` continuam existindo
+- [x] Todo id de `components.ts` tem schema com defaults válidos
+- [x] O painel Props é gerado pelo schema; nenhum formulário por tipo escrito à mão
+- [x] Os ids referenciados em `problems.ts`, `conceptLibrary.ts` e `learningPath.ts` continuam existindo
 - [ ] Toda aresta tem `EdgeRule` depois da migração ([Spec 05](05-persistencia-e-compartilhamento.md))
-- [ ] Cache → DB criado pela UI nasce com `on_miss`
-- [ ] Os 6 componentes novos aparecem na paleta com entrada na Concept Library
+- [x] Cache → DB criado pela UI nasce com `on_miss`
+- [x] Os 6 componentes novos aparecem na paleta com entrada na Concept Library
 
 ## Testes
 
