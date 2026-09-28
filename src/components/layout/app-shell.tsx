@@ -11,6 +11,7 @@ import { DesignCanvas } from "@/components/canvas/DesignCanvas";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useSimulationStore } from "@/store/simulationStore";
+import { useRuntimeStore } from "@/store/runtimeStore";
 import { scoreDesign } from "@/scoring/scorer";
 import { PROBLEMS } from "@/data/problems";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
@@ -137,8 +138,11 @@ export function AppShell() {
     // The engine (and its worker) load on first use: not in the initial bundle.
     void (async () => {
       try {
-        const { simulateCanvas } = await import("@/engine/client");
-        const { result } = await simulateCanvas(nodes, edges, config.requestsPerSec, {
+        const [{ simulateCanvas }, { steadyStateToSnapshot }] = await Promise.all([
+          import("@/engine/client"),
+          import("@/engine/snapshot"),
+        ]);
+        const { steady, result } = await simulateCanvas(nodes, edges, config.requestsPerSec, {
           horizonSec: config.durationSec,
         });
 
@@ -152,6 +156,7 @@ export function AppShell() {
         }
         useCanvasStore.getState().updateAllNodeData(updates);
         useSimulationStore.getState().setResult(result);
+        useRuntimeStore.getState().pushSnapshot(steadyStateToSnapshot(steady));
         useAppStore.getState().showToast("Simulation complete!", "success");
       } catch (err) {
         console.error("Simulation failed", err);
