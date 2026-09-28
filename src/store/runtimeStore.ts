@@ -32,11 +32,20 @@ interface RuntimeState {
   history: RingBuffer<TickSnapshot>;
   /** Bumped on every push/clear so selectors over `history` can re-run. */
   historyVersion: number;
+  /**
+   * Live run clock (Spec 06), set by the sim controller with each tick frame:
+   * simulated seconds since reset, and since the current pattern was applied
+   * (the pattern preview's playhead). 0 after `clear`. The "Simulate" button
+   * does not move it.
+   */
+  simTimeSec: number;
+  patternTimeSec: number;
 
   pushSnapshot: (s: TickSnapshot) => void;
   setPlayback: (p: PlaybackStatus) => void;
   setSpeed: (x: SimSpeed) => void;
   setPattern: (p: TrafficPattern) => void;
+  setClock: (simTimeSec: number, patternTimeSec: number) => void;
   /** Drop all metrics (graph changed, reset, new tab). Keeps speed and pattern. */
   clear: () => void;
 }
@@ -48,6 +57,8 @@ export const useRuntimeStore = create<RuntimeState>((set, get) => ({
   latest: null,
   history: new RingBuffer<TickSnapshot>(HISTORY_TICKS),
   historyVersion: 0,
+  simTimeSec: 0,
+  patternTimeSec: 0,
 
   pushSnapshot: (s) => {
     get().history.push(s);
@@ -56,9 +67,16 @@ export const useRuntimeStore = create<RuntimeState>((set, get) => ({
   setPlayback: (playback) => set({ playback }),
   setSpeed: (speed) => set({ speed }),
   setPattern: (pattern) => set({ pattern }),
+  setClock: (simTimeSec, patternTimeSec) => set({ simTimeSec, patternTimeSec }),
   clear: () => {
     get().history.clear();
-    set((state) => ({ latest: null, playback: "idle", historyVersion: state.historyVersion + 1 }));
+    set((state) => ({
+      latest: null,
+      playback: "idle",
+      simTimeSec: 0,
+      patternTimeSec: 0,
+      historyVersion: state.historyVersion + 1,
+    }));
   },
 }));
 
