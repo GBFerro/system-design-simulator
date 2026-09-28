@@ -143,21 +143,16 @@ export function AppShell() {
           import("@/engine/client"),
           import("@/engine/snapshot"),
         ]);
-        const { steady, result } = await simulateCanvas(nodes, edges, config.requestsPerSec, {
-          horizonSec: config.durationSec,
-        });
+        const { steady, result, graph } = await simulateCanvas(
+          nodes,
+          edges,
+          config.requestsPerSec,
+          { horizonSec: config.durationSec },
+        );
 
-        const updates = new Map<string, Record<string, unknown>>();
-        for (const [nodeId, metrics] of result.nodeMetrics) {
-          updates.set(nodeId, {
-            utilization: metrics.utilization,
-            status: metrics.status,
-            isBottleneck: metrics.isBottleneck,
-          });
-        }
-        useCanvasStore.getState().updateAllNodeData(updates);
+        // Metrics live in runtimeStore (Spec 07), never in node.data.
         useSimulationStore.getState().setResult(result);
-        useRuntimeStore.getState().pushSnapshot(steadyStateToSnapshot(steady));
+        useRuntimeStore.getState().pushSnapshot(steadyStateToSnapshot(steady, 0, graph));
         useAppStore.getState().showToast("Simulation complete!", "success");
       } catch (err) {
         console.error("Simulation failed", err);

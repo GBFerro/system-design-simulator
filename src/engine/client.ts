@@ -86,17 +86,18 @@ export async function analyzeGraph(
 
 /**
  * Compile the canvas (ReactFlow nodes/edges, text nodes included) and analyze
- * it. Returns the raw steady state plus the legacy `SimulationResult` view.
+ * it. Returns the raw steady state, the legacy `SimulationResult` view and the
+ * compiled graph (its params feed the OBS-03 extras of the runtime snapshot).
  */
 export async function simulateCanvas(
   nodes: readonly unknown[],
   edges: readonly unknown[],
   rps: number,
   config?: SimConfig,
-): Promise<{ steady: SteadyState; result: SimulationResult }> {
+): Promise<{ steady: SteadyState; result: SimulationResult; graph: SimGraph }> {
   const graph = compileGraph(nodes, edges);
   const steady = await analyzeGraph(graph, rps, config);
-  return { steady, result: toSimulationResult(steady) };
+  return { steady, result: toSimulationResult(steady), graph };
 }
 
 /* ---------- live tick loop (Spec 04 Phase 2 / Spec 06) ---------- */
