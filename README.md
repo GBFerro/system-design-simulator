@@ -257,7 +257,7 @@ Every problem includes scale requirements (QPS, storage, latency), constraints, 
 
 ## 🚀 Quick Start
 
-> **Prerequisites:** Node.js 18.18+ and npm.
+> **Prerequisites:** Node.js 22.12+ and npm.
 
 ```bash
 git clone https://github.com/vijaygupta18/system-design-simulator.git

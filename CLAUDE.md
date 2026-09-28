@@ -47,6 +47,10 @@ src/
   store/          zustand stores (see below)
   lib/            exportCanvas, loadReference, icons, utils
   types/          shared interfaces
+tests/
+  unit/           vitest (pure logic: scoring today, engine later)
+  e2e/            playwright specs (smoke today, editor B1–B6 in spec 02)
+scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ```
 
 ## Key invariants — don't break these
