@@ -2,7 +2,8 @@
 
 import { memo } from "react";
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
-import { useSimulationStore } from "@/store/simulationStore";
+import { useEdgeRuntime } from "@/store/runtimeStore";
+import { EDGE_STATUS_COLOR, edgeStrokeWidth } from "@/lib/particles";
 import { useAppStore } from "@/store/appStore";
 import type { CustomEdgeData } from "@/store/canvasStore";
 import { edgeRuleBadge } from "@/domain/graph/edgeRules";
@@ -28,11 +29,10 @@ function AnimatedEdgeInner({
   markerEnd,
   data,
 }: EdgeProps) {
-  const isRunning = useSimulationStore((s) => s.isRunning);
-  const hasResult = useSimulationStore((s) => s.result !== null);
-  // Traffic keeps flowing once a simulation has run (not just during the brief
-  // compute window), so the canvas visibly "comes alive" after you Simulate.
-  const flowing = isRunning || hasResult;
+  // Per-edge runtime metrics (Spec 07): thickness ∝ load, color by status.
+  // Moving tokens are drawn by the single <FlowParticles> canvas, not here.
+  const runtime = useEdgeRuntime(id);
+  const flowing = runtime !== undefined && runtime.rps > 0;
   const isDark = useAppStore((s) => s.theme) === "dark";
   const idleStroke = isDark ? "rgba(150, 165, 195, 0.32)" : "rgba(90, 105, 130, 0.45)";
   const edgeData = (data ?? {}) as CustomEdgeData;
@@ -54,7 +54,10 @@ function AnimatedEdgeInner({
   const showLabel = label || badge || ruleBadge;
 
   return (
-    <g>
+    <g
+      data-edge-status={runtime?.status}
+      data-edge-rps={runtime ? Math.round(runtime.rps) : undefined}
+    >
       {/* Main edge */}
       <BaseEdge
         id={id}
@@ -62,25 +65,12 @@ function AnimatedEdgeInner({
         markerEnd={markerEnd}
         style={{
           ...style,
-          stroke: flowing ? "rgba(52, 211, 230, 0.55)" : idleStroke,
-          strokeWidth: flowing ? 1.75 : 1.5,
+          stroke: flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke,
+          strokeOpacity: flowing ? 0.6 : 1,
+          strokeWidth: edgeStrokeWidth(runtime?.rps),
           ...(isAsync ? { strokeDasharray: "6 4" } : {}),
         }}
       />
-      {/* Directional traffic — particles flow source → target along the path. */}
-      {flowing && (
-        <>
-          <circle r="2.4" fill="#3ad6e6" opacity="0.95">
-            <animateMotion dur="1.6s" repeatCount="indefinite" path={edgePath} />
-          </circle>
-          <circle r="2" fill="#3ad6e6" opacity="0.6">
-            <animateMotion dur="1.6s" repeatCount="indefinite" path={edgePath} begin="0.53s" />
-          </circle>
-          <circle r="1.6" fill="#3ad6e6" opacity="0.35">
-            <animateMotion dur="1.6s" repeatCount="indefinite" path={edgePath} begin="1.06s" />
-          </circle>
-        </>
-      )}
       {/* Label + protocol badge */}
       {showLabel && (
         <EdgeLabelRenderer>

@@ -20,7 +20,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
 import { edgeTypes } from "./edges/edgeTypes";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { useCanvasStore } from "@/store/canvasStore";
+import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
 import { useAppStore } from "@/store/appStore";
 import { visibleCanvasCenter } from "@/lib/placement";
@@ -47,6 +48,7 @@ const emptyItem = {
 };
 import { CanvasTabBar } from "./CanvasTabBar";
 import { PenOverlay } from "./PenOverlay";
+import { FlowParticles } from "./FlowParticles";
 import { PenToolbar } from "./PenToolbar";
 import { CANVAS_DROP_ATTR } from "./PaletteDnd";
 import { CanvasContextMenu, type ContextMenuState, type ContextTarget } from "./CanvasContextMenu";
@@ -202,16 +204,28 @@ export function DesignCanvas({
   );
   useEffect(() => cancelLongPress, [cancelLongPress]);
 
+  // Minimap colors follow runtime status. The selector returns a string, so
+  // the canvas re-renders only when some node's status changes, not per tick.
+  const statusSignature = useRuntimeStore((s) => {
+    const nodes = s.latest?.nodes;
+    if (!nodes) return "";
+    let sig = "";
+    for (const id in nodes) sig += `${id}:${nodes[id].status};`;
+    return sig;
+  });
   const miniMapNodeColor = useMemo(
-    () => (node: Node) => {
-      const data = node.data as ComponentNodeData;
-      const status = data.status as string;
-      if (status === "critical") return "#ef4444";
-      if (status === "warning") return "#f59e0b";
-      if (status === "healthy") return "#10b981";
-      return "#52525b";
-    },
-    [],
+    () =>
+      // `statusSignature` changes the function identity so the minimap repaints.
+      statusSignature === ""
+        ? () => "#52525b"
+        : (node: Node) => {
+            const status = getLatestSnapshot()?.nodes[node.id]?.status;
+            if (status === "critical" || status === "down") return "#ef4444";
+            if (status === "warn") return "#f59e0b";
+            if (status === "ok") return "#10b981";
+            return "#52525b";
+          },
+    [statusSignature],
   );
 
   const isEmpty = nodes.length === 0;
@@ -302,6 +316,7 @@ export function DesignCanvas({
             // Lifted above the corner Support FAB so the two don't overlap
             style={{ width: 140, height: 90, bottom: 72 }}
           />
+          <FlowParticles />
         </ReactFlow>
 
         <PenOverlay />
