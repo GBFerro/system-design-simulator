@@ -32,6 +32,7 @@ import { ShortcutsDialog } from "@/components/dialogs/ShortcutsDialog";
 import { PaletteDndProvider } from "@/components/canvas/PaletteDnd";
 import { OPEN_PROPERTIES_EVENT, isTypingTarget } from "@/components/canvas/canvasEvents";
 import { rehydrateAllStores } from "@/store/hydration";
+import { togglePlayback } from "@/components/traffic/simActions";
 
 export function AppShell() {
   const isMobile = useIsMobile();
@@ -250,6 +251,13 @@ export function AppShell() {
           e.preventDefault();
           redo();
         }
+      }
+
+      // Live traffic play/pause — P (Space is canvas pan)
+      if (key === "p" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        togglePlayback();
+        return;
       }
 
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

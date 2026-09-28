@@ -33,6 +33,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
     items: [
       [`${MOD_KEY}K`, "Command palette"],
       [`${MOD_KEY}↵`, "Simulate"],
+      ["P", "Play · pause live traffic"],
       [`${MOD_KEY}Shift+S`, "Score"],
       [`${MOD_KEY}S · ${MOD_KEY}O`, "Save · load"],
       ["?", "This list"],
