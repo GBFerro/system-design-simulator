@@ -28,7 +28,9 @@ Origem: `/harness-review` do PR #5 (Spec 01). Cada item ficou fora do PR por mex
 - nenhuma solução de referência repete o mesmo `componentId` (o loader liga arestas por `componentId`);
 - os pré-requisitos do `learningPath` vêm só de conceitos ensinados por problemas estritamente anteriores;
 - todos os problemas têm entrada em `interviewData.ts` e um tier no learning path;
-- contagens documentadas (30 componentes, 35 problemas, 21 trade-off cards) batem com os arrays.
+- contagens documentadas (componentes, problemas, trade-off cards) batem com os arrays. O `CLAUDE.md` dizia 30 componentes quando `components.ts` já tinha 36; o PR #6 corrigiu o número na mão.
+
+**Já coberto pelo PR #8 (Spec 03).** `tests/unit/catalog.test.ts` cruza os ids de `problems.ts` e `conceptLibrary.ts` com o catálogo, exige que cada referência use um `componentId` uma vez só e que o learning path cubra todos os problemas. Ao entrar o #8, este item se reduz a: pré-requisitos do learning path vindos só de problemas anteriores, entrada em `interviewData.ts` por problema e as contagens documentadas.
 
 **Custo.** Um arquivo de teste, sem dependência nova. Pode revelar dados quebrados que precisam de correção no mesmo PR, por isso ficou de fora do PR #5.
 
