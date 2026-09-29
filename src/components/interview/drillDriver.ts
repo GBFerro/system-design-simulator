@@ -11,8 +11,9 @@ import { compileGraph } from "@/domain/graph/compile";
 import type { TickSnapshot } from "@/engine/types";
 import {
   DRILL_ERROR_SLO,
-  DRILL_RECOVERY_SEC,
+  DRILL_WARMUP_SEC,
   evaluateDrillStep,
+  nextDrillAction,
   resolveDrillStep,
 } from "@/interview/drill";
 import { useCanvasStore } from "@/store/canvasStore";
@@ -27,8 +28,6 @@ import {
   setTrafficPattern,
 } from "@/components/traffic/simActions";
 
-/** Simulated seconds of fault-free warm-up before the first fault (the baseline). */
-export const DRILL_WARMUP_SEC = 15;
 /** Points kept per incident chart. */
 const INCIDENT_POINTS = 120;
 /** Seconds before the fault shown on the incident chart. */
@@ -108,29 +107,23 @@ async function tick(): Promise<void> {
   const i = d.current;
   const step = d.steps[i];
   const t = useRuntimeStore.getState().simTimeSec;
+  const fault = step.faultId
+    ? useChaosStore.getState().faults.find((f) => f.id === step.faultId)
+    : undefined;
+  const action = nextDrillAction(step, t, fault);
 
-  if (step.phase === "pending" && t >= step.at) {
+  if (action.kind === "inject") {
     busy = true;
     try {
       await injectStep(i, d.problemId);
     } finally {
       busy = false;
     }
-    return;
-  }
-
-  if (step.phase === "active") {
-    const rec = useChaosStore.getState().faults.find((f) => f.id === step.faultId);
-    if (!rec) {
-      stopDrill("The fault disappeared (the run was reset).");
-      return;
-    }
-    if (!rec.active) d.updateStep(i, { phase: "recovering", endT: rec.endT ?? t });
-    return;
-  }
-
-  if (step.phase === "recovering" && step.startT !== undefined && step.endT !== undefined) {
-    if (t < step.endT + DRILL_RECOVERY_SEC) return;
+  } else if (action.kind === "abort") {
+    stopDrill(action.reason);
+  } else if (action.kind === "healed") {
+    d.updateStep(i, { phase: "recovering", endT: action.endT });
+  } else if (action.kind === "evaluate" && step.startT !== undefined && step.endT !== undefined) {
     const history = useRuntimeStore.getState().history.toArray();
     const result = evaluateDrillStep(
       history,

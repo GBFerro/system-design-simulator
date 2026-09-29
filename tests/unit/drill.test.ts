@@ -5,6 +5,7 @@ import type { TickSnapshot } from "@/engine/types";
 import {
   DRILL_RECOVERY_SEC,
   evaluateDrillStep,
+  nextDrillAction,
   resolveDrillStep,
   type DrillSlo,
 } from "@/interview/drill";
@@ -205,5 +206,46 @@ describe("evaluateDrillStep", () => {
     expect(r.badSec).toBe(0);
     expect(r.budgetUsed).toBe(0);
     expect(r.mitigated).toBe(true);
+  });
+});
+
+describe("nextDrillAction (step state machine)", () => {
+  it("pending: waits for its time, then injects", () => {
+    expect(nextDrillAction({ phase: "pending", at: 15 }, 14.9, undefined)).toEqual({
+      kind: "wait",
+    });
+    expect(nextDrillAction({ phase: "pending", at: 15 }, 15, undefined)).toEqual({
+      kind: "inject",
+    });
+    // The next step's time is unknown until the previous one ends.
+    expect(nextDrillAction({ phase: "pending", at: Infinity }, 1e9, undefined).kind).toBe("wait");
+  });
+
+  it("active: waits while the fault is on, moves to recovery when it heals", () => {
+    const step = { phase: "active" as const, at: 15, endT: 75 };
+    expect(nextDrillAction(step, 40, { active: true, endT: 75 })).toEqual({ kind: "wait" });
+    expect(nextDrillAction(step, 75.05, { active: false, endT: 75 })).toEqual({
+      kind: "healed",
+      endT: 75,
+    });
+    // Healed by hand without a recorded end: now.
+    expect(nextDrillAction(step, 50, { active: false })).toEqual({ kind: "healed", endT: 50 });
+  });
+
+  it("active: aborts when the run lost the fault (reset)", () => {
+    expect(nextDrillAction({ phase: "active", at: 15 }, 20, undefined)).toMatchObject({
+      kind: "abort",
+    });
+  });
+
+  it("recovering: evaluates after the recovery window", () => {
+    const step = { phase: "recovering" as const, at: 15, endT: 75 };
+    expect(nextDrillAction(step, 75 + DRILL_RECOVERY_SEC - 0.1, undefined).kind).toBe("wait");
+    expect(nextDrillAction(step, 75 + DRILL_RECOVERY_SEC, undefined).kind).toBe("evaluate");
+  });
+
+  it("injecting, done and skipped steps wait (the driver moves on by itself)", () => {
+    for (const phase of ["injecting", "done", "skipped"] as const)
+      expect(nextDrillAction({ phase, at: 0, endT: 0 }, 1e6, undefined).kind).toBe("wait");
   });
 });

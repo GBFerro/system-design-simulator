@@ -16,6 +16,8 @@ import { edgeTargets, getFaultType, nodeTargets } from "@/engine/faults/catalog"
 import type { FaultSpec } from "@/engine/faults/types";
 import type { TickSnapshot } from "@/engine/types";
 
+/** Simulated seconds of fault-free warm-up before the first fault (the baseline). */
+export const DRILL_WARMUP_SEC = 15;
 /** The drill's SLO until Spec 11 defines real ones: p99 within the problem's SLA, ≤ 1% errors. */
 export const DRILL_ERROR_SLO = 0.01;
 /** Simulated seconds watched after a fault heals (recovery) before the next one. */
@@ -136,6 +138,62 @@ export function resolveDrillStep(
     answer,
     ...(note ? { note } : {}),
   };
+}
+
+/* ---------- step state machine ---------- */
+
+export type DrillStepPhase =
+  /** Waiting for its inject time. */
+  | "pending"
+  | "injecting"
+  /** Fault active. */
+  | "active"
+  /** Fault healed; watching the recovery. */
+  | "recovering"
+  | "done"
+  /** Nothing in the design to apply it to. */
+  | "skipped";
+
+/** What `nextDrillAction` needs to know about the current step. */
+export interface DrillStepView {
+  phase: DrillStepPhase;
+  /** Simulated time to inject at (Infinity until the previous step ends). */
+  at: number;
+  endT?: number;
+}
+
+export type DrillAction =
+  | { kind: "wait" }
+  | { kind: "inject" }
+  /** The fault healed at `endT`: start watching the recovery. */
+  | { kind: "healed"; endT: number }
+  /** Recovery window over: score the step and move on. */
+  | { kind: "evaluate" }
+  | { kind: "abort"; reason: string };
+
+/**
+ * The drill's next move at simulated time `t`, given the current step and
+ * the run's record of its fault (undefined when the chaos store has none).
+ * Pure: the driver only performs the action.
+ */
+export function nextDrillAction(
+  step: DrillStepView,
+  t: number,
+  fault: { active: boolean; endT?: number } | undefined,
+): DrillAction {
+  switch (step.phase) {
+    case "pending":
+      return t >= step.at ? { kind: "inject" } : { kind: "wait" };
+    case "active":
+      if (!fault) return { kind: "abort", reason: "The fault disappeared (the run was reset)." };
+      return fault.active ? { kind: "wait" } : { kind: "healed", endT: fault.endT ?? t };
+    case "recovering":
+      return step.endT !== undefined && t >= step.endT + DRILL_RECOVERY_SEC
+        ? { kind: "evaluate" }
+        : { kind: "wait" };
+    default:
+      return { kind: "wait" };
+  }
 }
 
 /* ---------- evaluation ---------- */

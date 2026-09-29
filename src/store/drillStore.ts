@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import type { DrillSlo, DrillStepResult, ResolvedDrillStep } from "@/interview/drill";
+import type {
+  DrillSlo,
+  DrillStepPhase,
+  DrillStepResult,
+  ResolvedDrillStep,
+} from "@/interview/drill";
 import type { FaultId } from "@/engine/faults/types";
 
 /**
@@ -9,17 +14,7 @@ import type { FaultId } from "@/engine/faults/types";
  */
 export type DrillStatus = "idle" | "running" | "done" | "aborted";
 
-export type DrillStepPhase =
-  /** Waiting for its inject time. */
-  | "pending"
-  | "injecting"
-  /** Fault active. */
-  | "active"
-  /** Fault healed; watching the recovery. */
-  | "recovering"
-  | "done"
-  /** Nothing in the design to apply it to. */
-  | "skipped";
+export type { DrillStepPhase };
 
 export interface IncidentPoint {
   t: number;

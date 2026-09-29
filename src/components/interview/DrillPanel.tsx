@@ -16,9 +16,8 @@ import type { Problem } from "@/types/problem";
 import { breaches } from "@/interview/drill";
 import { useDrillStore, type DrillStepState } from "@/store/drillStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
-import { SIM_SPEEDS } from "@/engine/traffic/types";
 import { formatMs, formatPercent, formatRps } from "@/components/traffic/format";
-import { setSimulationSpeed } from "@/components/traffic/simActions";
+import { SpeedToggle } from "@/components/traffic/SpeedToggle";
 import { TimeSeriesChart, type ChartMarker } from "@/components/panel/TimeSeriesChart";
 import { startDrill } from "./drillDriver";
 
@@ -116,7 +115,6 @@ function RestartButton({ problemId }: { problemId: string }) {
 function LiveStatus() {
   const global = useRuntimeStore((s) => s.latest?.global);
   const simTime = useRuntimeStore((s) => s.simTimeSec);
-  const speed = useRuntimeStore((s) => s.speed);
   const slo = useDrillStore((s) => s.slo);
   const broken = global && slo ? breaches({ global }, slo) : false;
   return (
@@ -141,22 +139,7 @@ function LiveStatus() {
         <span className="flex items-center gap-1 font-mono text-[11px] text-zinc-400">
           <Clock className="h-3 w-3" aria-hidden /> {simTime.toFixed(0)} s simulated
         </span>
-        <div role="group" aria-label="Drill speed" className="flex rounded-md bg-zinc-800 p-0.5">
-          {SIM_SPEEDS.map((x) => (
-            <button
-              key={x}
-              type="button"
-              onClick={() => setSimulationSpeed(x)}
-              aria-pressed={speed === x}
-              aria-label={`Speed ${x}×`}
-              className={`h-6 min-w-8 rounded px-1.5 font-mono text-[11px] ${
-                speed === x ? "bg-zinc-600 text-zinc-50" : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              {x}×
-            </button>
-          ))}
-        </div>
+        <SpeedToggle label="Drill speed" size="sm" />
       </div>
     </div>
   );
