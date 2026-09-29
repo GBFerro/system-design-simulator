@@ -332,12 +332,12 @@ describe("determinism and the engine contract", () => {
     expect(analyze(g1, 12_000, { seed: 7 })).toEqual(analyze(g2, 12_000, { seed: 7 }));
   });
 
-  it("Engine: load + analyze; the tick loop and faults are not in Phase 1", () => {
+  it("Engine: load + analyze; faults are not implemented until Spec 08", () => {
     const engine = createEngine();
     expect(() => engine.analyze(1)).toThrow();
     engine.load(compileGraph(nodes, edges), { seed: 3 });
     expect(engine.analyze(5000)).toEqual(analyze(compileGraph(nodes, edges), 5000, { seed: 3 }));
-    expect(() => engine.play()).toThrow(NotImplementedYetError);
+    expect(() => engine.inject({ kind: "kill" })).toThrow(NotImplementedYetError);
     expect(() => engine.inject({ kind: "kill" })).toThrow(/Spec 08/);
     expect(typeof engine.onTick(() => {})).toBe("function");
   });

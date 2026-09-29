@@ -1,6 +1,6 @@
 # Spec 06: Controles de tráfego
 
-Parte da [v2](00-visao-geral.md) · Fase 2 (TRF-01 a 03) e Fase 6 (TRF-04 a 06) · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Fase 2 (TRF-01 a 03) e Fase 6 (TRF-04 a 06) · Status: TRF-01 a 03 implementados
 
 | Campo               | Valor                                                                        |
 | ------------------- | ---------------------------------------------------------------------------- |
@@ -61,10 +61,10 @@ Uma trilha é uma lista `{ atSec, action }`, em que `action` é mudar o padrão 
 
 ## Critérios de aceite
 
-- [ ] Play/pause/reset e as três velocidades funcionam, com tempo simulado visível
-- [ ] Mudar o slider durante o play altera o RPS no tick seguinte
-- [ ] Os 5 padrões geram a curva esperada (preview e métricas batem)
-- [ ] Um spike ×5 por 30 s enche a fila e ela se recupera depois
+- [x] Play/pause/reset e as três velocidades funcionam, com tempo simulado visível
+- [x] Mudar o slider durante o play altera o RPS no tick seguinte
+- [x] Os 5 padrões geram a curva esperada (preview e métricas batem)
+- [x] Um spike ×5 por 30 s enche a fila e ela se recupera depois
 - [ ] (TRF-04) Com mix 99/1, o banco primary recebe ~1% das chamadas quando só writes vão para ele
 
 ## Testes

@@ -11,6 +11,7 @@ import { DesignCanvas } from "@/components/canvas/DesignCanvas";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useSimulationStore } from "@/store/simulationStore";
+import { useRuntimeStore } from "@/store/runtimeStore";
 import { scoreDesign } from "@/scoring/scorer";
 import { PROBLEMS } from "@/data/problems";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
@@ -31,6 +32,7 @@ import { ShortcutsDialog } from "@/components/dialogs/ShortcutsDialog";
 import { PaletteDndProvider } from "@/components/canvas/PaletteDnd";
 import { OPEN_PROPERTIES_EVENT, isTypingTarget } from "@/components/canvas/canvasEvents";
 import { rehydrateAllStores } from "@/store/hydration";
+import { togglePlayback } from "@/components/traffic/simActions";
 
 export function AppShell() {
   const isMobile = useIsMobile();
@@ -137,8 +139,11 @@ export function AppShell() {
     // The engine (and its worker) load on first use: not in the initial bundle.
     void (async () => {
       try {
-        const { simulateCanvas } = await import("@/engine/client");
-        const { result } = await simulateCanvas(nodes, edges, config.requestsPerSec, {
+        const [{ simulateCanvas }, { steadyStateToSnapshot }] = await Promise.all([
+          import("@/engine/client"),
+          import("@/engine/snapshot"),
+        ]);
+        const { steady, result } = await simulateCanvas(nodes, edges, config.requestsPerSec, {
           horizonSec: config.durationSec,
         });
 
@@ -152,6 +157,7 @@ export function AppShell() {
         }
         useCanvasStore.getState().updateAllNodeData(updates);
         useSimulationStore.getState().setResult(result);
+        useRuntimeStore.getState().pushSnapshot(steadyStateToSnapshot(steady));
         useAppStore.getState().showToast("Simulation complete!", "success");
       } catch (err) {
         console.error("Simulation failed", err);
@@ -245,6 +251,13 @@ export function AppShell() {
           e.preventDefault();
           redo();
         }
+      }
+
+      // Live traffic play/pause — P (Space is canvas pan)
+      if (key === "p" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        togglePlayback();
+        return;
       }
 
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

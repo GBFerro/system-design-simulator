@@ -12,6 +12,11 @@ interface SliderProps {
   step?: number;
   onValueChange?: (value: number[]) => void;
   disabled?: boolean;
+  id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+  /** Human-readable value for screen readers (e.g. "12,000 requests per second"). */
+  "aria-valuetext"?: string;
 }
 
 function Slider({
@@ -23,6 +28,10 @@ function Slider({
   step = 1,
   onValueChange,
   disabled = false,
+  id,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-valuetext": ariaValueText,
 }: SliderProps) {
   const currentValue = value?.[0] ?? defaultValue?.[0] ?? min;
   const percentage = ((currentValue - min) / (max - min)) * 100;
@@ -43,6 +52,10 @@ function Slider({
       {/* Native range input — fully visible, styled */}
       <input
         type="range"
+        id={id}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-valuetext={ariaValueText}
         min={min}
         max={max}
         step={step}

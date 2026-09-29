@@ -42,6 +42,7 @@ import { getConceptByComponentId } from "@/data/conceptLibrary";
 import { getComponentById } from "@/data/components";
 import { OPEN_PROPERTIES_EVENT, consumePendingFocus } from "@/components/canvas/canvasEvents";
 import { SimulationControls } from "./SimulationControls";
+import { TrafficControls } from "@/components/traffic/TrafficControls";
 import { MetricsDisplay } from "./MetricsDisplay";
 import { ScoreReport } from "./ScoreReport";
 import { CapacityCalculator } from "./CapacityCalculator";
@@ -112,6 +113,8 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
       <TabsContent value="simulation" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
           <div className="p-3 space-y-4">
+            <TrafficControls />
+            <Separator className="bg-zinc-800" />
             <SimulationControls onSimulate={onSimulate} />
             <Separator className="bg-zinc-800" />
             <MetricsDisplay />

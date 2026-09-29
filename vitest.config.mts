@@ -8,5 +8,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],
+    // The engine suites simulate every reference solution and hundreds of random
+    // graphs; on a shared CI runner that can pass the 5 s default.
+    testTimeout: 30_000,
   },
 });

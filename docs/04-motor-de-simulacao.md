@@ -1,6 +1,6 @@
 # Spec 04: Motor de simulação
 
-Parte da [v2](00-visao-geral.md) · Fase 1 (`analyze()`, worker) e Fase 2 (loop de tick) · Tamanho G · Status: Fase 1 implementada, Fase 2 pendente
+Parte da [v2](00-visao-geral.md) · Fase 1 (`analyze()`, worker) e Fase 2 (loop de tick) · Tamanho G · Status: Fases 1 e 2 implementadas
 
 | Campo               | Valor                                                                                                                                    |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -146,9 +146,9 @@ interface Engine {
 
 **Fase 2**
 
-- [ ] Um spike ×5 enche a fila e se recupera quando termina
-- [ ] Tick ≤ 5 ms com 50 nós e 80 arestas, a 20×
-- [ ] A mesma seed e o mesmo grafo dão o mesmo `TickSnapshot`, bit a bit
+- [x] Um spike ×5 enche a fila e se recupera quando termina
+- [x] Tick ≤ 5 ms com 50 nós e 80 arestas, a 20×
+- [x] A mesma seed e o mesmo grafo dão o mesmo `TickSnapshot`, bit a bit
 
 ## Testes (Vitest)
 

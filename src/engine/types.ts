@@ -9,6 +9,7 @@
 import type { RoutingKind } from "@/domain/components/types";
 import type { SimGraph } from "@/domain/graph/compile";
 import type { NodeStatus } from "@/types/simulation";
+import type { SimSpeed, TrafficPattern } from "./traffic/types";
 
 export type { SimGraph, SimNode, SimEdge } from "@/domain/graph/compile";
 
@@ -106,11 +107,7 @@ export interface SteadyState {
 
 /* ---------- Phase 2 / Spec 06–08 placeholders ---------- */
 
-/** Load pattern over time — defined by Spec 06 (traffic controls). */
-export interface TrafficPattern {
-  kind: string;
-  [key: string]: unknown;
-}
+export type { TrafficPattern, SimSpeed } from "./traffic/types";
 
 /** Fault description — defined by Spec 08 (chaos engineering). */
 export interface FaultSpec {
@@ -121,10 +118,78 @@ export interface FaultSpec {
 
 export type FaultId = string;
 
-/** One tick of the time-stepped loop — Phase 2, consumed by Spec 07. */
+/* ---------- runtime metrics (Spec 07) ---------- */
+
+/** Runtime status of a node. Shown by color AND icon (a11y NFR). */
+export type RuntimeNodeStatus = "ok" | "warn" | "critical" | "down";
+
+export type RuntimeEdgeStatus = "ok" | "slow" | "error";
+
+export type BreakerState = "closed" | "open" | "half-open";
+
+/** Per-node metrics of one tick (Spec 07, OBS-01/03). Latencies are the hop only, in ms. */
+export interface NodeRuntimeMetrics {
+  rpsIn: number;
+  rpsOut: number;
+  /** ρ; may exceed 1 under overload. */
+  utilization: number;
+  queueDepth: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  /** 0–1. */
+  errorRate: number;
+  /** Dropped/rejected, req/s. */
+  drops: number;
+  status: RuntimeNodeStatus;
+  /** OBS-03, by component type. */
+  extra?: {
+    hitRatio?: number;
+    queueLagSec?: number;
+    poolUsage?: number;
+    replicationLagMs?: number;
+    breakerState?: BreakerState;
+  };
+}
+
+export interface EdgeRuntimeMetrics {
+  rps: number;
+  status: RuntimeEdgeStatus;
+}
+
+/** End-to-end metrics of one tick (OBS-02). Latencies in ms. */
+export interface GlobalRuntimeMetrics {
+  throughput: number;
+  /** Successful requests within the SLO (Spec 11); = throughput until SLOs exist. */
+  goodput: number;
+  errorRate: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  availability: number;
+}
+
+/** One sampled request (OBS-06, Phase 5). */
+export interface Trace {
+  id: string;
+  ok: boolean;
+  totalMs: number;
+  hops: { nodeId: string; startMs: number; durationMs: number }[];
+}
+
+/**
+ * One tick of the time-stepped loop (Spec 04 Phase 2) or an `analyze()`
+ * steady state mapped to the same shape. Keyed by ReactFlow node/edge id.
+ */
 export interface TickSnapshot {
+  /** Simulated seconds since play (0 for an analyze() snapshot). */
   t: number;
-  steady: SteadyState;
+  /** Offered load at this tick, req/s. */
+  offeredRps: number;
+  nodes: Record<string, NodeRuntimeMetrics>;
+  edges: Record<string, EdgeRuntimeMetrics>;
+  global: GlobalRuntimeMetrics;
+  traces?: Trace[];
 }
 
 export type Unsubscribe = () => void;
@@ -135,7 +200,7 @@ export interface Engine {
   play(): void;
   pause(): void;
   reset(): void;
-  setSpeed(x: 1 | 5 | 20): void;
+  setSpeed(x: SimSpeed): void;
   /** Changes live. */
   setTraffic(p: TrafficPattern): void;
   inject(fault: FaultSpec): FaultId;

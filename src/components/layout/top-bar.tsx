@@ -40,6 +40,7 @@ import { visibleCanvasCenter } from "@/lib/placement";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
 import { exportAsPng, exportAsSvg, exportAsJSON } from "@/lib/exportCanvas";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
+import { PlaybackMini } from "@/components/traffic/PlaybackMini";
 
 interface TopBarProps {
   onSimulate: () => void;
@@ -524,6 +525,8 @@ export function TopBar({
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
+
+          <PlaybackMini />
 
           <Button
             size="sm"

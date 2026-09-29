@@ -21,7 +21,6 @@ import {
   DEFAULT_HORIZON_SEC,
   clamp01,
   hopPercentileMs,
-  probSojournExceeds,
   retryAmplification,
   station,
   type StationState,
@@ -30,20 +29,17 @@ import { DEFAULT_SEED, mulberry32 } from "./core/rng";
 import {
   DEFAULT_READ_RATIO,
   availabilityOf,
-  callsOf,
   consumerCapacity,
   forwardEdges,
-  hitRateOf,
   lbShares,
   maxQueueOf,
   maxRetriesOf,
   paramNumber,
   rateLimit,
   ruleFactor,
-  ruleProbability,
-  timeoutMsOf,
 } from "./core/routing";
-import { sampleLatency, type SampleEdge, type SampleNode } from "./core/sampler";
+import { sampleLatency } from "./core/sampler";
+import { sampleNodesFor, settle, type Topology } from "./core/settle";
 import type { EdgeSteadyState, NodeSteadyState, SimConfig, SteadyState } from "./types";
 import type { NodeStatus } from "@/types/simulation";
 
@@ -52,7 +48,7 @@ export const DEFAULT_MAX_ITERATIONS = 200;
 const MAX_SAMPLES = 20_000;
 const CONVERGENCE_TOLERANCE = 1e-10;
 
-interface ResolvedConfig {
+export interface ResolvedConfig {
   seed: number;
   samples: number;
   horizonSec: number;
@@ -60,7 +56,11 @@ interface ResolvedConfig {
   maxIterations: number;
 }
 
-function resolveConfig(graph: SimGraph, byId: Map<string, SimNode>, config?: SimConfig) {
+export function resolveConfig(
+  graph: SimGraph,
+  byId: Map<string, SimNode>,
+  config?: SimConfig,
+): ResolvedConfig {
   const c = config ?? {};
   const entryRatio = graph.entryIds
     .map((id) => byId.get(id))
@@ -217,61 +217,13 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
   };
 
   /* ---------- reverse pass: success, call failure, availability ---------- */
-  const settle = (pass: Pass) => {
-    const success = new Map<string, number>();
-    const failure = new Map<string, number>();
-    const avail = new Map<string, number>();
-    for (let i = order.length - 1; i >= 0; i--) {
-      const id = order[i];
-      const node = byId.get(id)!;
-      const flow = pass.flows.get(id)!;
-      const edges = out.get(id) ?? [];
-      const timeout = timeoutMsOf(node);
-      const retries = maxRetriesOf(node);
-      const nodeAvail = 1 - (1 - availabilityOf(node)) ** node.instances;
-
-      for (const e of edges) {
-        const target = pass.flows.get(e.target)!;
-        const timedOut = timeout === undefined ? 0 : probSojournExceeds(target.st, timeout);
-        const ok = (1 - e.rule.packetLoss) * (1 - timedOut) * (success.get(e.target) ?? 1);
-        failure.set(e.id, clamp01(1 - ok));
-      }
-
-      const servedFraction = flow.offered > 0 ? flow.served / flow.offered : 1;
-      const sync = node.routing === "queue" ? [] : edges.filter((e) => !e.async);
-      const callOk = (e: SimEdge) => 1 - (failure.get(e.id) ?? 0) ** (retries + 1);
-
-      let s = servedFraction;
-      let a = nodeAvail;
-      if (sync.length > 0 && node.routing === "lb") {
-        // Exactly one target per request; targets are redundant for availability.
-        let ok = 0;
-        let down = 1;
-        for (const e of edges) {
-          const share = pass.shares.get(e.id) ?? 0;
-          ok += share * (e.async ? 1 : callOk(e));
-          if (!e.async) down *= 1 - (avail.get(e.target) ?? 1);
-        }
-        s *= ok;
-        a *= 1 - down;
-      } else {
-        for (const e of sync) {
-          const q = ruleProbability(e.rule, node, cfg.readRatio);
-          const k = callsOf(e.rule);
-          s *= 1 - q + q * callOk(e) ** k;
-          a *= 1 - q + q * (avail.get(e.target) ?? 1);
-        }
-      }
-      success.set(id, clamp01(s));
-      avail.set(id, clamp01(a));
-    }
-    return { success, failure, avail };
-  };
+  const topo: Topology = { byId, order, entries, out, readRatio: cfg.readRatio };
+  const settleOf = (p: Pass) => settle(topo, p.flows, p.shares);
 
   /* ---------- fixed point for retry amplification ---------- */
   let failure = new Map<string, number>();
   let pass = propagate(failure);
-  let settled = settle(pass);
+  let settled = settleOf(pass);
   let iterations = 1;
   if (retrying) {
     for (; iterations < cfg.maxIterations; iterations++) {
@@ -284,7 +236,7 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
         scale = Math.max(scale, v);
       }
       pass = next;
-      settled = settle(pass);
+      settled = settleOf(pass);
       if (delta <= CONVERGENCE_TOLERANCE * scale) break;
     }
     if (iterations >= cfg.maxIterations) {
@@ -362,36 +314,7 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
   const successRate = clamp01(mean(settled.success));
   const throughputRps = Math.min(offeredRps, offeredRps * successRate);
 
-  const sampleNodes = new Map<string, SampleNode>();
-  for (const id of order) {
-    const node = byId.get(id)!;
-    const flow = pass.flows.get(id)!;
-    // LB: keep async targets so their share still counts (the user isn't kept waiting).
-    const sync: SampleEdge[] =
-      node.routing === "queue"
-        ? []
-        : (out.get(id) ?? [])
-            .filter((e) => node.routing === "lb" || !e.async)
-            .map((e) => ({
-              async: e.async,
-              target: e.target,
-              kind: e.rule.kind,
-              fraction: clamp01(e.rule.fraction ?? 1),
-              callsPerRequest: node.routing === "lb" ? 1 : callsOf(e.rule),
-              networkLatencyMs: e.rule.networkLatencyMs,
-              packetLoss: e.rule.packetLoss,
-              share: pass.shares.get(e.id) ?? 0,
-            }));
-    sampleNodes.set(id, {
-      station: flow.st,
-      dropProbability: flow.offered > 0 ? clamp01(flow.dropped / flow.offered) : 0,
-      kind: node.routing === "lb" ? "lb" : node.routing === "queue" ? "queue" : "rules",
-      timeoutMs: timeoutMsOf(node),
-      maxRetries: maxRetriesOf(node),
-      missProbability: 1 - hitRateOf(node),
-      edges: sync,
-    });
-  }
+  const sampleNodes = sampleNodesFor(topo, pass.flows, pass.shares);
   const sampled = sampleLatency(
     { nodes: sampleNodes, entries, readRatio: cfg.readRatio },
     cfg.samples,
