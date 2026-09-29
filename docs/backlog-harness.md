@@ -2,11 +2,11 @@
 
 Origem: `/harness-review` do PR #5 (Spec 01). Cada item ficou fora do PR por mexer em código de scoring ou dados, ou por precisar do seu próprio PR. Ordem sugerida: H1, H2, H3, H4.
 
-Todos os quatro foram resolvidos no PR `chore/harness-scoring-data`.
+Todos os quatro foram resolvidos no PR #17.
 
 ## H1: Orçamento de pontos verificado no código, não no comentário
 
-**Resolvido no PR `chore/harness-scoring-data`.** Cada regra de `src/scoring/rules/` exporta `BUDGET` (e `PARTIAL`, para o crédito parcial) e só pontua por ele; `CATEGORY_MAX_SCORE` (20) fica em `src/scoring/budget.ts`. O `scoring.test.ts` soma `Object.values(BUDGET)` em vez de ler o comentário, confere que cada parcial é menor que o seu orçamento e tem um design completo por regra que chega a exatamente 20, sem feedback. As notas das 35 referências e de 3.000 grafos aleatórios ficaram idênticas antes e depois. O `CLAUDE.md` (Scoring) aponta para o teste, a regra do `AGENTS.md` saiu (H4) e o item do PR template também.
+**Resolvido no PR #17.** Cada regra de `src/scoring/rules/` exporta `BUDGET` (e `PARTIAL`, para o crédito parcial) e só pontua por ele; `CATEGORY_MAX_SCORE` (20) fica em `src/scoring/budget.ts`. O `scoring.test.ts` soma `Object.values(BUDGET)` em vez de ler o comentário, confere que cada parcial é menor que o seu orçamento e tem um design completo por regra que chega a exatamente 20, sem feedback. As notas das 35 referências e de 3.000 grafos aleatórios ficaram idênticas antes e depois. O `CLAUDE.md` (Scoring) aponta para o teste, a regra do `AGENTS.md` saiu (H4) e o item do PR template também.
 
 **Problema.** `tests/unit/scoring.test.ts` valida "cada regra soma 20" com uma regex sobre o comentário `Point budget (max 20)` de cada arquivo em `src/scoring/rules/`. Se alguém trocar um `+3` por `+4` no código e não mexer no comentário, nenhum teste falha. Os demais testes só garantem `0 ≤ score ≤ 20` e `maxScore === 20`, então nada prova que o máximo alcançável seja 20.
 
@@ -24,7 +24,7 @@ Todos os quatro foram resolvidos no PR `chore/harness-scoring-data`.
 
 ## H2: Teste de integridade dos dados
 
-**Resolvido no PR `chore/harness-scoring-data`.** `tests/unit/data.test.ts` confere os pré-requisitos do learning path contra os conceitos ensinados por problemas estritamente anteriores, a entrada em `interviewData.ts` e o tier de cada problema, e o nó de entrada de cada referência (H3). Nenhum dado além do `web-crawler` estava quebrado. As contagens documentadas ficaram de fora: são cobertas pelo teste do mapa do `CLAUDE.md`, em outro PR.
+**Resolvido no PR #17.** `tests/unit/data.test.ts` confere os pré-requisitos do learning path contra os conceitos ensinados por problemas estritamente anteriores, a entrada em `interviewData.ts` e o tier de cada problema, e o nó de entrada de cada referência (H3). Nenhum dado além do `web-crawler` estava quebrado. As contagens documentadas ficaram de fora: são cobertas pelo teste do mapa do `CLAUDE.md`, em outro PR.
 
 **Problema.** As convenções de "Data conventions" do `CLAUDE.md` só existem como prosa. O teste de referências do PR #5 já achou um erro de dado que ninguém tinha visto (H3), o que indica que elas não estão sendo checadas.
 
@@ -42,7 +42,7 @@ Todos os quatro foram resolvidos no PR `chore/harness-scoring-data`.
 
 ## H3: Corrigir a referência do `web-crawler`
 
-**Resolvido no PR `chore/harness-scoring-data`.** Um Task Scheduler entra como nó de entrada e alimenta a URL frontier (`task-scheduler → message-queue`) com as URLs semente e os re-crawls que vencem, que é o papel dele num crawler (re-crawl adaptativo está nas restrições do problema). A dica "URL frontier design" menciona o scheduler. A referência passou de 14 para 70 pontos, o `KNOWN_UNREACHABLE_REFERENCES` saiu do teste e o `CLAUDE.md` (Data conventions) ganhou a regra do nó de entrada.
+**Resolvido no PR #17.** Um Task Scheduler entra como nó de entrada e alimenta a URL frontier (`task-scheduler → message-queue`) com as URLs semente e os re-crawls que vencem, que é o papel dele num crawler (re-crawl adaptativo está nas restrições do problema). A dica "URL frontier design" menciona o scheduler. A referência passou de 14 para 70 pontos, o `KNOWN_UNREACHABLE_REFERENCES` saiu do teste e o `CLAUDE.md` (Data conventions) ganhou a regra do nó de entrada.
 
 **Problema.** A referência é o ciclo puro `message-queue ↔ app-server`, sem nó de in-degree 0. Nada fica alcançável e ela tira 14/100 (0 em Scalability, Latency e Trade-offs). O teste a isola por nome em `KNOWN_UNREACHABLE_REFERENCES`.
 
@@ -57,7 +57,7 @@ Todos os quatro foram resolvidos no PR `chore/harness-scoring-data`.
 
 ## H4: Regras de scoring duplicadas entre `CLAUDE.md` e `AGENTS.md`
 
-**Resolvido no PR `chore/harness-scoring-data`.** As invariantes ficam só no `CLAUDE.md`. O `AGENTS.md` manteve o bloco do Next.js e virou uma lista curta de ponteiros: o `CLAUDE.md`, os testes que já cobrem invariantes (`scoring`, `catalog`, `data`, `persistence.versions`) e o PR template.
+**Resolvido no PR #17.** As invariantes ficam só no `CLAUDE.md`. O `AGENTS.md` manteve o bloco do Next.js e virou uma lista curta de ponteiros: o `CLAUDE.md`, os testes que já cobrem invariantes (`scoring`, `catalog`, `data`, `persistence.versions`) e o PR template.
 
 **Problema.** As mesmas invariantes aparecem nos dois arquivos, com redações diferentes, e tendem a divergir. O `AGENTS.md` já estava desatualizado no PR #5 (dizia "no unit tests").
 
