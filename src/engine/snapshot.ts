@@ -2,8 +2,12 @@
  * Map an `analyze()` steady state to the runtime snapshot shape (Spec 07), so
  * the "Simulate" button and the tick loop feed the same `runtimeStore`.
  */
+import { PARAM } from "@/domain/components/params";
 import type { NodeStatus } from "@/types/simulation";
 import type {
+  NodeSteadyState,
+  SimGraph,
+  SimNode,
   EdgeRuntimeMetrics,
   NodeRuntimeMetrics,
   RuntimeEdgeStatus,
@@ -26,9 +30,62 @@ export function runtimeStatusOf(status: NodeStatus): RuntimeNodeStatus {
   }
 }
 
-export function steadyStateToSnapshot(steady: SteadyState, t = 0): TickSnapshot {
+function num(node: SimNode | undefined, key: string): number | undefined {
+  const v = node?.params[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+/**
+ * OBS-03 metrics that depend on the component type. `sim` (the compiled node)
+ * supplies params; without it only what the steady state carries is reported.
+ */
+export function extrasOf(
+  n: NodeSteadyState,
+  sim: SimNode | undefined,
+): NodeRuntimeMetrics["extra"] | undefined {
+  const extra: NonNullable<NodeRuntimeMetrics["extra"]> = {};
+
+  // Queue / stream: consumer lag = backlog / drain rate (Little's law).
+  if (n.routing === "queue" && n.servedRps > 0) extra.queueLagSec = n.queueDepth / n.servedRps;
+
+  // Cache / CDN: the engine sends λ × (1 − hitRate) down `on_miss` edges.
+  const hitRate = num(sim, PARAM.hitRate);
+  if (n.routing === "cache" && hitRate !== undefined) extra.hitRatio = clamp01(hitRate);
+
+  // Connection pool (SQL): connections busy per instance = λ × service time
+  // (Little's law), over the pool size; an overloaded node exhausts it.
+  const pool = num(sim, PARAM.connectionPool);
+  if (pool !== undefined && pool > 0 && sim) {
+    const serviceSec = Math.max(0, n.meanLatencyMs - n.queueWaitMs) / 1000;
+    const busy = (n.servedRps * serviceSec) / Math.max(1, sim.instances);
+    extra.poolUsage = n.utilization >= 1 ? 1 : clamp01(busy / pool);
+  }
+
+  // Read replica: how far it trails the primary (a param in the steady state).
+  const lag = num(sim, PARAM.replicationLagMs);
+  if (lag !== undefined) extra.replicationLagMs = Math.max(0, lag);
+
+  // Circuit breaker: the steady state models it closed (open/half-open come
+  // with faults, Spec 08, from the tick loop).
+  if (n.routing === "breaker") extra.breakerState = "closed";
+
+  return Object.keys(extra).length > 0 ? extra : undefined;
+}
+
+/**
+ * `graph` is optional: pass the compiled graph the steady state came from to
+ * get the param-based OBS-03 extras (hit ratio, pool usage, replication lag).
+ */
+export function steadyStateToSnapshot(
+  steady: SteadyState,
+  t = 0,
+  graph?: Pick<SimGraph, "nodes">,
+): TickSnapshot {
   const nodes: Record<string, NodeRuntimeMetrics> = {};
   const statusById = new Map<string, RuntimeNodeStatus>();
+  const simById = new Map(graph?.nodes.map((n) => [n.id, n]));
   for (const n of steady.nodes) {
     const status = runtimeStatusOf(n.status);
     statusById.set(n.nodeId, status);
@@ -44,9 +101,8 @@ export function steadyStateToSnapshot(steady: SteadyState, t = 0): TickSnapshot 
       drops: n.droppedRps,
       status,
     };
-    if (n.routing === "queue" && n.servedRps > 0) {
-      metrics.extra = { queueLagSec: n.queueDepth / n.servedRps };
-    }
+    const extra = extrasOf(n, simById.get(n.nodeId));
+    if (extra) metrics.extra = extra;
     nodes[n.nodeId] = metrics;
   }
 

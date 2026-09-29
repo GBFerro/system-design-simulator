@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { create } from "zustand";
 import type {
   EdgeRuntimeMetrics,
@@ -7,6 +8,7 @@ import type {
 } from "@/engine/types";
 import { HISTORY_TICKS, type SimSpeed, type TrafficPattern } from "@/engine/traffic/types";
 import { RingBuffer } from "@/lib/ringBuffer";
+import { recentWindow, shareUnchanged } from "@/lib/runtimeMetrics";
 
 /**
  * Live simulation state (Spec 07, `runtimeStore`). NOT persisted.
@@ -60,7 +62,10 @@ export const useRuntimeStore = create<RuntimeState>((set, get) => ({
   simTimeSec: 0,
   patternTimeSec: 0,
 
-  pushSnapshot: (s) => {
+  pushSnapshot: (incoming) => {
+    // Structural sharing: unchanged node/edge/global metrics keep the previous
+    // object, so per-entity selectors don't re-render what didn't change.
+    const s = shareUnchanged(get().latest, incoming);
     get().history.push(s);
     set((state) => ({ latest: s, historyVersion: state.historyVersion + 1 }));
   },
@@ -94,7 +99,39 @@ export function useGlobalRuntime(): GlobalRuntimeMetrics | undefined {
   return useRuntimeStore((s) => s.latest?.global);
 }
 
+/** Just the node's status (a string, so re-renders only when the status changes). */
+export function useNodeStatus(nodeId: string): NodeRuntimeMetrics["status"] | undefined {
+  return useRuntimeStore((s) => s.latest?.nodes[nodeId]?.status);
+}
+
+/**
+ * The newest run of snapshots covering `windowSec` simulated seconds (see
+ * `recentWindow`), re-read whenever a snapshot is pushed. Re-renders at the
+ * snapshot rate: mount it only where needed (panel charts, an open sparkline).
+ */
+export function useRecentHistory(windowSec: number, maxPoints = 120): TickSnapshot[] {
+  const version = useRuntimeStore((s) => s.historyVersion);
+  const history = useRuntimeStore((s) => s.history);
+  return useMemo(
+    // `version` is the change signal for the mutable ring buffer.
+    () => (version < 0 ? [] : recentWindow(history.toArray(), windowSec, maxPoints)),
+    [history, version, windowSec, maxPoints],
+  );
+}
+
 /** Non-hook access for canvas layers (particles) that read on each animation frame. */
 export function getLatestSnapshot(): TickSnapshot | null {
   return useRuntimeStore.getState().latest;
+}
+
+/* ---------- test hook ---------- */
+
+// Playwright pushes synthetic snapshots through this handle. Installed in
+// development, or in any build when the page is opened with `?e2e`.
+if (
+  typeof window !== "undefined" &&
+  (process.env.NODE_ENV !== "production" || new URLSearchParams(window.location.search).has("e2e"))
+) {
+  (window as unknown as { __runtimeStore?: typeof useRuntimeStore }).__runtimeStore =
+    useRuntimeStore;
 }

@@ -2,13 +2,15 @@
 
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
-import { motion } from "framer-motion";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { Server } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import { NodeActionsToolbar } from "./NodeActionsToolbar";
+import { NodeMetricsBadge } from "./NodeMetricsBadge";
+import { RUNTIME_STATUS_META } from "./runtimeStatus";
+import { useNodeStatus } from "@/store/runtimeStore";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
@@ -24,23 +26,18 @@ const CATEGORY_COLORS: Record<string, { chip: string; icon: string; ring: string
   infrastructure: { chip: "bg-cyan-500/10", icon: "text-cyan-400", ring: "ring-cyan-500/25" },
 };
 
-const STATUS_DOT: Record<string, string> = {
-  healthy: "bg-emerald-500",
-  warning: "bg-amber-500",
-  critical: "bg-rose-500",
-  idle: "bg-zinc-600",
-};
-
 function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   const nodeData = data;
   const Icon = ICON_MAP[nodeData.icon] ?? Server;
   const colors = CATEGORY_COLORS[nodeData.category] ?? CATEGORY_COLORS.compute;
-  const status = (nodeData.status as string) ?? "idle";
-  const statusDot = STATUS_DOT[status] ?? STATUS_DOT.idle;
-  const isBottleneck = nodeData.isBottleneck ?? false;
+  // Runtime metrics come from runtimeStore (Spec 07), never from node.data.
+  // Only the status string is read here, so the node itself re-renders just
+  // when its status changes; the numbers live in <NodeMetricsBadge>.
+  const status = useNodeStatus(id);
+  const statusDot = status ? RUNTIME_STATUS_META[status].dot : "bg-zinc-600";
+  const isBottleneck = status === "critical" || status === "down";
   const replicas = instancesOf(nodeData);
   const capacity = capacityPerInstanceOf(nodeData);
-  const utilization = nodeData.utilization ?? 0;
 
   const isCustom = nodeData.componentId === "custom";
   const [editing, setEditing] = useState(false);
@@ -99,7 +96,7 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
       {/* Status indicator dot */}
       <div
         className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-zinc-900 ${statusDot}`}
-        style={{ animation: status !== "idle" ? "status-pulse 2s infinite" : "none" }}
+        style={{ animation: status ? "status-pulse 2s infinite" : "none" }}
       />
 
       {/* Icon + Label row */}
@@ -147,36 +144,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
         </span>
       )}
 
-      {/* Utilization bar (shown during simulation) */}
-      {utilization > 0 && (
-        <div className="mt-0.5 flex w-full items-center gap-1">
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-800">
-            <motion.div
-              className={`h-full rounded-full ${
-                utilization > 0.8
-                  ? "bg-rose-500"
-                  : utilization > 0.5
-                    ? "bg-amber-500"
-                    : "bg-emerald-500"
-              }`}
-              initial={{ width: 0 }}
-              animate={{ width: `${Math.min(utilization * 100, 100)}%` }}
-              transition={{ duration: 0.3 }}
-            />
-          </div>
-          <span
-            className={`font-mono text-[8px] ${
-              utilization > 0.8
-                ? "text-rose-400"
-                : utilization > 0.5
-                  ? "text-amber-400"
-                  : "text-emerald-400"
-            }`}
-          >
-            {(utilization * 100).toFixed(0)}%
-          </span>
-        </div>
-      )}
+      {/* Runtime metrics (OBS-01): RPS in, utilization, p99, status icon */}
+      <NodeMetricsBadge nodeId={id} showSparkline={isCoarse && !!selected} />
 
       {/* Handles — larger visual size on touch devices (44px hit area via CSS ::after) */}
       <Handle
@@ -203,12 +172,9 @@ function areComponentNodePropsEqual(
   return (
     p.componentId === n.componentId &&
     p.label === n.label &&
-    p.status === n.status &&
     p.params === n.params &&
-    p.utilization === n.utilization &&
     p.category === n.category &&
-    p.icon === n.icon &&
-    p.isBottleneck === n.isBottleneck
+    p.icon === n.icon
   );
 }
 

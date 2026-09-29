@@ -12,6 +12,7 @@ import {
   type XYPosition,
 } from "@xyflow/react";
 import { useSimulationStore } from "./simulationStore";
+import { useRuntimeStore } from "./runtimeStore";
 import { safeLocalStorage } from "./safeStorage";
 import { migrateCanvasState } from "./migrations";
 import { STORE_VERSION } from "./persistVersion";
@@ -42,9 +43,8 @@ export interface ComponentNodeData {
   scalable: boolean;
   /** Validated against the type's `ComponentSchema` (Spec 03). */
   params: Params;
-  utilization?: number;
-  status?: string;
-  isBottleneck?: boolean;
+  // Runtime metrics (utilization, status…) are NOT here: they live in
+  // `runtimeStore`, keyed by node id (Spec 07).
   // ReactFlow v12 requires an index signature on custom node data types
   [key: string]: unknown;
 }
@@ -97,18 +97,6 @@ function pushedHistory(state: {
   return [...state.history, snapshot(state)].slice(-MAX_HISTORY);
 }
 
-/** Strip simulation runtime fields so persisted nodes don't glow on reload. */
-function stripRuntimeFields(nodes: Node[]): Node[] {
-  return nodes.map((n) => {
-    if (n.type === "text") return n;
-    const data = { ...n.data };
-    delete data.utilization;
-    delete data.status;
-    delete data.isBottleneck;
-    return { ...n, data };
-  });
-}
-
 /** Consecutive arrow-key nudges within this window share one undo step. */
 const NUDGE_COALESCE_MS = 600;
 let lastNudgeAt = 0;
@@ -138,7 +126,7 @@ function selectionSubgraph(state: { nodes: Node[]; edges: Edge[] }): Clipboard {
   const nodes = state.nodes.filter((n) => n.selected);
   const ids = new Set(nodes.map((n) => n.id));
   const edges = state.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
-  return JSON.parse(JSON.stringify({ nodes: stripRuntimeFields(nodes), edges })) as Clipboard;
+  return JSON.parse(JSON.stringify({ nodes, edges })) as Clipboard;
 }
 
 function boundingBox(nodes: Node[]) {
@@ -228,6 +216,7 @@ export function edgeRuleOf(state: { nodes: Node[]; edges: Edge[] }, edge: Edge):
 function resetSimulation(): void {
   // Metrics/score refer to nodes that just changed out from under them.
   useSimulationStore.getState().reset();
+  useRuntimeStore.getState().clear();
 }
 
 interface CanvasState {
@@ -280,7 +269,6 @@ interface CanvasState {
   updateEdgeRule: (edgeId: string, patch: Partial<EdgeRule>) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
-  updateAllNodeData: (updates: Map<string, Partial<ComponentNodeData>>) => void;
   clearCanvas: () => void;
   /** The single delete path: selected nodes/edges (plus edges touching removed nodes) in one undo step. */
   deleteSelection: () => void;
@@ -630,14 +618,6 @@ export const useCanvasStore = create<CanvasState>()(
           ),
         }));
       },
-      updateAllNodeData: (updates) => {
-        set((state) => ({
-          nodes: state.nodes.map((n) => {
-            const update = updates.get(n.id);
-            return update ? { ...n, data: { ...n.data, ...update } } : n;
-          }),
-        }));
-      },
       clearCanvas: () => {
         set((state) => ({
           history: pushedHistory(state),
@@ -671,15 +651,13 @@ export const useCanvasStore = create<CanvasState>()(
       // v1 → v2: params + edge rules for the live graph and every tab.
       migrate: migrateCanvasState,
       partialize: (state) => ({
-        nodes: stripRuntimeFields(state.nodes),
+        nodes: state.nodes,
         edges: state.edges,
         // The active tab's content already lives in the top-level
         // nodes/edges — persist it emptied to avoid duplicating it, and
         // reconstruct it in `merge` on rehydrate.
         tabs: state.tabs.map((t) =>
-          t.id === state.activeTabId
-            ? { ...t, nodes: [], edges: [] }
-            : { ...t, nodes: stripRuntimeFields(t.nodes) },
+          t.id === state.activeTabId ? { ...t, nodes: [], edges: [] } : t,
         ),
         activeTabId: state.activeTabId,
       }),
