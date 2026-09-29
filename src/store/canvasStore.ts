@@ -9,9 +9,12 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  type XYPosition,
 } from "@xyflow/react";
 import { useSimulationStore } from "./simulationStore";
 import { safeLocalStorage } from "./safeStorage";
+import { randomId } from "@/lib/nodeFactory";
+import { findFreePosition, freePositionNear, nodeRect } from "@/lib/placement";
 
 export interface ComponentNodeData {
   componentId: string;
@@ -87,6 +90,102 @@ function stripRuntimeFields(nodes: Node[]): Node[] {
   });
 }
 
+/** Consecutive arrow-key nudges within this window share one undo step. */
+const NUDGE_COALESCE_MS = 600;
+let lastNudgeAt = 0;
+
+function nudgeHistory(state: {
+  nodes: Node[];
+  edges: Edge[];
+  history: HistoryEntry[];
+}): HistoryEntry[] {
+  const now = Date.now();
+  const coalesce = now - lastNudgeAt < NUDGE_COALESCE_MS;
+  lastNudgeAt = now;
+  return coalesce ? state.history : pushedHistory(state);
+}
+
+function isActiveTabReadOnly(state: { tabs: CanvasTab[]; activeTabId: string }): boolean {
+  return state.tabs.find((t) => t.id === state.activeTabId)?.readOnly === true;
+}
+
+interface Clipboard {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+/** Selected nodes plus every edge between two of them (deep copy). */
+function selectionSubgraph(state: { nodes: Node[]; edges: Edge[] }): Clipboard {
+  const nodes = state.nodes.filter((n) => n.selected);
+  const ids = new Set(nodes.map((n) => n.id));
+  const edges = state.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
+  return JSON.parse(JSON.stringify({ nodes: stripRuntimeFields(nodes), edges })) as Clipboard;
+}
+
+function boundingBox(nodes: Node[]) {
+  const rects = nodes.map(nodeRect);
+  const x = Math.min(...rects.map((r) => r.x));
+  const y = Math.min(...rects.map((r) => r.y));
+  return {
+    x,
+    y,
+    width: Math.max(...rects.map((r) => r.x + r.width)) - x,
+    height: Math.max(...rects.map((r) => r.y + r.height)) - y,
+  };
+}
+
+/**
+ * Clone a subgraph with fresh ids, placed so its bounding box starts at the
+ * first free spot (spiral search) near `targetTopLeft`. Clones come selected.
+ */
+function cloneSubgraph(clip: Clipboard, existing: Node[], targetTopLeft: XYPosition): Clipboard {
+  const box = boundingBox(clip.nodes);
+  const at = findFreePosition(
+    targetTopLeft,
+    { width: box.width, height: box.height },
+    existing.map(nodeRect),
+  );
+
+  const idMap = new Map<string, string>();
+  const nodes = clip.nodes.map((n) => {
+    const prefix =
+      n.type === "text" ? "text" : String((n.data as ComponentNodeData).componentId ?? "node");
+    const id = `${prefix}-${randomId()}`;
+    idMap.set(n.id, id);
+    return {
+      ...n,
+      id,
+      selected: true,
+      dragging: false,
+      position: { x: n.position.x - box.x + at.x, y: n.position.y - box.y + at.y },
+    };
+  });
+  const edges = clip.edges.map((e) => ({
+    ...e,
+    id: `e-${randomId()}`,
+    source: idMap.get(e.source)!,
+    target: idMap.get(e.target)!,
+    selected: true,
+  }));
+  return { nodes, edges };
+}
+
+/** Deselect everything, then append the (selected) clones in one undo step. */
+function withClones(state: CanvasState, clones: Clipboard): Partial<CanvasState> {
+  return {
+    history: pushedHistory(state),
+    future: [],
+    nodes: [
+      ...state.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+      ...clones.nodes,
+    ],
+    edges: [
+      ...state.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+      ...clones.edges,
+    ],
+  };
+}
+
 function resetSimulation(): void {
   // Metrics/score refer to nodes that just changed out from under them.
   useSimulationStore.getState().reset();
@@ -95,8 +194,8 @@ function resetSimulation(): void {
 interface CanvasState {
   nodes: Node[];
   edges: Edge[];
-  selectedNodeId: string | null;
-  selectedEdgeId: string | null;
+  /** In-app clipboard for copy/paste (not persisted). */
+  clipboard: Clipboard | null;
 
   // Tab system
   tabs: CanvasTab[];
@@ -121,14 +220,26 @@ interface CanvasState {
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
   addNode: (node: Node) => void;
-  setSelectedNode: (id: string | null) => void;
-  setSelectedEdge: (id: string | null) => void;
+  /** Add a node centered near `center`, spiraling out to avoid overlaps. */
+  placeNode: (node: Node, center: XYPosition) => void;
+
+  // Selection lives on node.selected / edge.selected (single source of truth)
+  selectOnly: (nodeIds: string[], edgeIds?: string[]) => void;
+  selectAll: () => void;
+  clearSelection: () => void;
+  /** Copy the selection to the in-app clipboard; returns how many nodes were copied. */
+  copySelection: () => number;
+  /** Paste the clipboard centered near `center` (flow coordinates). */
+  pasteClipboard: (center: XYPosition) => void;
+  duplicateSelection: () => void;
+  /** Move selected nodes by (dx, dy); consecutive nudges share one undo step. */
+  nudgeSelection: (dx: number, dy: number) => void;
+  changeReplicas: (nodeId: string, delta: number) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
   updateAllNodeData: (updates: Map<string, Partial<ComponentNodeData>>) => void;
   clearCanvas: () => void;
-  deleteNode: (nodeId: string) => void;
-  deleteEdge: (edgeId: string) => void;
+  /** The single delete path: selected nodes/edges (plus edges touching removed nodes) in one undo step. */
   deleteSelection: () => void;
 }
 
@@ -137,8 +248,7 @@ export const useCanvasStore = create<CanvasState>()(
     (set, get) => ({
       nodes: [],
       edges: [],
-      selectedNodeId: null,
-      selectedEdgeId: null,
+      clipboard: null,
 
       // Tab system — "my-design" is the default tab
       tabs: [{ id: "my-design", label: "My Design", nodes: [], edges: [] }],
@@ -162,8 +272,6 @@ export const useCanvasStore = create<CanvasState>()(
               activeTabId: tab.id,
               nodes: tab.nodes,
               edges: tab.edges,
-              selectedNodeId: null,
-              selectedEdgeId: null,
               history: [],
               future: [],
               isDragging: false,
@@ -174,8 +282,6 @@ export const useCanvasStore = create<CanvasState>()(
             activeTabId: tab.id,
             nodes: tab.nodes,
             edges: tab.edges,
-            selectedNodeId: null,
-            selectedEdgeId: null,
             history: [],
             future: [],
             isDragging: false,
@@ -198,8 +304,6 @@ export const useCanvasStore = create<CanvasState>()(
             activeTabId: tabId,
             nodes: target.nodes,
             edges: target.edges,
-            selectedNodeId: null,
-            selectedEdgeId: null,
             history: [],
             future: [],
             isDragging: false,
@@ -221,8 +325,6 @@ export const useCanvasStore = create<CanvasState>()(
               activeTabId: myDesign.id,
               nodes: myDesign.nodes,
               edges: myDesign.edges,
-              selectedNodeId: null,
-              selectedEdgeId: null,
               history: [],
               future: [],
               isDragging: false,
@@ -243,13 +345,12 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           const prev = state.history[state.history.length - 1];
           if (!prev) return state;
+          lastNudgeAt = 0; // the next nudge is a new step, not part of the undone one
           return {
             history: state.history.slice(0, -1),
             future: [...state.future, snapshot(state)].slice(-MAX_HISTORY),
             nodes: prev.nodes,
             edges: prev.edges,
-            selectedNodeId: null,
-            selectedEdgeId: null,
             isDragging: false,
           };
         });
@@ -259,13 +360,12 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           const next = state.future[state.future.length - 1];
           if (!next) return state;
+          lastNudgeAt = 0;
           return {
             future: state.future.slice(0, -1),
             history: [...state.history, snapshot(state)].slice(-MAX_HISTORY),
             nodes: next.nodes,
             edges: next.edges,
-            selectedNodeId: null,
-            selectedEdgeId: null,
             isDragging: false,
           };
         });
@@ -282,12 +382,19 @@ export const useCanvasStore = create<CanvasState>()(
           const dragEnd = changes.some((c) => c.type === "position" && c.dragging === false);
           const hasRemove = changes.some((c) => c.type === "remove");
 
+          // ReactFlow's own arrow-key move on a focused node emits
+          // `dragging: false` position changes outside of any drag.
+          const keyboardMove = !state.isDragging && !dragStart && dragEnd;
+
           let history = state.history;
           let future = state.future;
           // Push pre-change state once at drag start (NOT on every drag
           // tick) so undo restores the pre-drag positions; also on removal.
           if ((dragStart && !state.isDragging) || hasRemove) {
             history = pushedHistory(state);
+            future = [];
+          } else if (keyboardMove) {
+            history = nudgeHistory(state);
             future = [];
           }
 
@@ -329,11 +436,89 @@ export const useCanvasStore = create<CanvasState>()(
           nodes: [...state.nodes, node],
         }));
       },
-      setSelectedNode: (id) => {
-        set({ selectedNodeId: id, selectedEdgeId: null });
+      placeNode: (node, center) => {
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            nodes: [...state.nodes, { ...node, position: freePositionNear(center, state.nodes) }],
+          };
+        });
       },
-      setSelectedEdge: (id) => {
-        set({ selectedEdgeId: id, selectedNodeId: null });
+      selectOnly: (nodeIds, edgeIds = []) => {
+        const n = new Set(nodeIds);
+        const e = new Set(edgeIds);
+        set((state) => ({
+          nodes: state.nodes.map((node) =>
+            !!node.selected === n.has(node.id) ? node : { ...node, selected: n.has(node.id) },
+          ),
+          edges: state.edges.map((edge) =>
+            !!edge.selected === e.has(edge.id) ? edge : { ...edge, selected: e.has(edge.id) },
+          ),
+        }));
+      },
+      selectAll: () => {
+        set((state) => ({
+          nodes: state.nodes.map((n) => (n.selected ? n : { ...n, selected: true })),
+          edges: state.edges.map((e) => (e.selected ? e : { ...e, selected: true })),
+        }));
+      },
+      clearSelection: () => get().selectOnly([]),
+      copySelection: () => {
+        const clip = selectionSubgraph(get());
+        if (clip.nodes.length === 0) return 0;
+        set({ clipboard: clip });
+        return clip.nodes.length;
+      },
+      pasteClipboard: (center) => {
+        set((state) => {
+          const clip = state.clipboard;
+          if (!clip || clip.nodes.length === 0 || isActiveTabReadOnly(state)) return state;
+          const box = boundingBox(clip.nodes);
+          const target = { x: center.x - box.width / 2, y: center.y - box.height / 2 };
+          return withClones(state, cloneSubgraph(clip, state.nodes, target));
+        });
+      },
+      duplicateSelection: () => {
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          const clip = selectionSubgraph(state);
+          if (clip.nodes.length === 0) return state;
+          const box = boundingBox(clip.nodes);
+          return withClones(
+            state,
+            cloneSubgraph(clip, state.nodes, { x: box.x + 32, y: box.y + 32 }),
+          );
+        });
+      },
+      nudgeSelection: (dx, dy) => {
+        set((state) => {
+          if (isActiveTabReadOnly(state) || !state.nodes.some((n) => n.selected)) return state;
+          return {
+            history: nudgeHistory(state),
+            future: [],
+            nodes: state.nodes.map((n) =>
+              n.selected ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n,
+            ),
+          };
+        });
+      },
+      changeReplicas: (nodeId, delta) => {
+        set((state) => {
+          const node = state.nodes.find((n) => n.id === nodeId);
+          if (!node || node.type !== "component" || isActiveTabReadOnly(state)) return state;
+          const current = Number((node.data as ComponentNodeData).replicas) || 1;
+          const replicas = Math.min(20, Math.max(1, current + delta));
+          if (replicas === current) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            nodes: state.nodes.map((n) =>
+              n.id === nodeId ? { ...n, data: { ...n.data, replicas } } : n,
+            ),
+          };
+        });
       },
       updateNodeData: (nodeId, data) => {
         set((state) => ({
@@ -363,27 +548,12 @@ export const useCanvasStore = create<CanvasState>()(
           future: [],
           nodes: [],
           edges: [],
-          selectedNodeId: null,
-          selectedEdgeId: null,
         }));
         resetSimulation();
       },
-      deleteNode: (nodeId) => {
-        set((state) => ({
-          history: pushedHistory(state),
-          future: [],
-          nodes: state.nodes.filter((n) => n.id !== nodeId),
-          edges: state.edges.filter((e) => e.source !== nodeId && e.target !== nodeId),
-          selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
-          selectedEdgeId: state.edges.some(
-            (e) => e.id === state.selectedEdgeId && (e.source === nodeId || e.target === nodeId),
-          )
-            ? null
-            : state.selectedEdgeId,
-        }));
-      },
       deleteSelection: () =>
         set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
           const nodeIds = new Set(state.nodes.filter((n) => n.selected).map((n) => n.id));
           const edgeIds = new Set(state.edges.filter((e) => e.selected).map((e) => e.id));
           if (nodeIds.size === 0 && edgeIds.size === 0) return state;
@@ -394,18 +564,8 @@ export const useCanvasStore = create<CanvasState>()(
             edges: state.edges.filter(
               (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
             ),
-            selectedNodeId: null,
-            selectedEdgeId: null,
           };
         }),
-      deleteEdge: (edgeId) => {
-        set((state) => ({
-          history: pushedHistory(state),
-          future: [],
-          edges: state.edges.filter((e) => e.id !== edgeId),
-          selectedEdgeId: state.selectedEdgeId === edgeId ? null : state.selectedEdgeId,
-        }));
-      },
     }),
     {
       name: "systemsim-canvas",
