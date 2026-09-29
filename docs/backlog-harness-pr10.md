@@ -12,7 +12,7 @@ Já aplicado no PR:
 
 O item C2 de `docs/backlog-harness-pr8.md` estava esperando a migração. Depois do merge deste PR, os quatro caminhos de entrada (rehydrate do `canvasStore`, `loadDesign`, `importDesign` e `loadReferenceIntoTab`) entregam nós já com `params`. Falta só confirmar `loadReferenceIntoTab`, que usa `defaultParams` desde a Spec 03, e então remover `LEGACY_FIELD`, o teste `resolvedParams fills missing core keys from the v1 fields` e o campo `maxQPS`/`latencyMs`/`replicas` do `ParamsCarrier`. O `compileGraph` (PR #9) também lê esses campos e precisa do mesmo ajuste.
 
-**Resolvido no PR #PRNUM.** Mesmo item do C2 de `backlog-harness-pr8.md`, onde está a evidência de cada caminho de entrada. `registry.ts` e `compile.ts` não leem mais `maxQPS`/`latencyMs`/`replicas`; a migração continua convertendo.
+**Resolvido no PR #15.** Mesmo item do C2 de `backlog-harness-pr8.md`, onde está a evidência de cada caminho de entrada. `registry.ts` e `compile.ts` não leem mais `maxQPS`/`latencyMs`/`replicas`; a migração continua convertendo.
 
 ## P2: A ordem de hidratação só existe como comentário
 
@@ -22,7 +22,7 @@ O item C2 de `docs/backlog-harness-pr8.md` estava esperando a migração. Depois
 
 **Custo.** Um fixture e um teste; não muda código de produção.
 
-**Resolvido no PR #PRNUM.** Teste "a v1 custom component stays custom after rehydrateAllStores()" em `persistence.stores.test.ts`: `localStorage` v1 com um componente custom no `customComponentsStore`, no canvas (e na aba) e num design salvo; depois de `rehydrateAllStores()` o nó mantém o id custom e os `params` migrados, sem warning de tipo desconhecido. Conferido por mutação: hidratar o `customComponentsStore` por último faz o teste falhar (o nó vira `custom`).
+**Resolvido no PR #15.** Teste "a v1 custom component stays custom after rehydrateAllStores()" em `persistence.stores.test.ts`: `localStorage` v1 com um componente custom no `customComponentsStore`, no canvas (e na aba) e num design salvo; depois de `rehydrateAllStores()` o nó mantém o id custom e os `params` migrados, sem warning de tipo desconhecido. Conferido por mutação: hidratar o `customComponentsStore` por último faz o teste falhar (o nó vira `custom`).
 
 ## P3 e P4: resolvidos no PR #12
 
