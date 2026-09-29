@@ -1,6 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useCanvasStore } from "@/store/canvasStore";
+import { MUTATING_ACTIONS, READ_ONLY_EXEMPT_ACTIONS, useCanvasStore } from "@/store/canvasStore";
 import { DEFAULT_NODE_SIZE, findFreePosition, freePositionNear, nodeRect } from "@/lib/placement";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { SYSTEM_COMPONENTS } from "@/data/components";
@@ -27,6 +27,9 @@ function setCanvas(nodes: Node[], edges: Edge[] = [], readOnly = false) {
     activeTabId: "t",
   });
 }
+
+type Store = ReturnType<typeof useCanvasStore.getState>;
+type MutatingAction = (typeof MUTATING_ACTIONS)[number];
 
 const s = () => useCanvasStore.getState();
 const overlap = (a: Node, b: Node) => {
@@ -142,18 +145,65 @@ describe("canvas store editing", () => {
     expect(s().nodes.some((n) => n.selected)).toBe(false);
   });
 
+  // One call per mutating action, aimed at something that exists, so a
+  // missing gate would change the graph. Typed over MUTATING_ACTIONS: a new
+  // entry there needs arguments here.
+  const EDIT_CALLS: { [K in MutatingAction]: Parameters<Store[K]> } = {
+    onNodesChange: [
+      [
+        { type: "position", id: "a", position: { x: 50, y: 50 }, dragging: true },
+        { type: "remove", id: "b" },
+        { type: "add", item: node("x", 900, 0) },
+      ],
+    ],
+    onEdgesChange: [[{ type: "remove", id: "a->b" }]],
+    onConnect: [{ source: "b", target: "a", sourceHandle: null, targetHandle: null }],
+    addNode: [node("x", 900, 0)],
+    placeNode: [node("x", 0, 0), { x: 0, y: 0 }],
+    pasteClipboard: [{ x: 0, y: 0 }],
+    duplicateSelection: [],
+    nudgeSelection: [16, 0],
+    changeReplicas: ["a", 1],
+    updateNodeParams: ["a", { instances: 5 }],
+    updateEdgeRule: ["a->b", { kind: "reads" }],
+    updateNodeData: ["a", { label: "Renamed" }],
+    updateEdgeData: ["a->b", { label: "renamed" }],
+    clearCanvas: [],
+    deleteSelection: [],
+  };
+
   it("read-only tabs reject every edit", () => {
-    setCanvas([node("a", 0, 0, true)], [], true);
+    setCanvas([node("a", 0, 0, true), node("b", 300, 0)], [edge("a", "b", true)], true);
     expect(s().copySelection()).toBe(1); // copying out of a reference is allowed
-    s().deleteSelection();
-    s().duplicateSelection();
-    s().pasteClipboard({ x: 0, y: 0 });
-    s().nudgeSelection(16, 0);
-    s().changeReplicas("a", 1);
-    s().placeNode(node("x", 0, 0), { x: 0, y: 0 });
-    expect(s().nodes).toHaveLength(1);
-    expect(s().nodes[0].position).toEqual({ x: 0, y: 0 });
+    const before = s();
+    for (const action of MUTATING_ACTIONS) {
+      (s()[action] as (...args: unknown[]) => void)(...EDIT_CALLS[action]);
+      expect(s().nodes, action).toBe(before.nodes);
+      expect(s().edges, action).toBe(before.edges);
+      expect(s().history, action).toHaveLength(0);
+    }
+  });
+
+  it("read-only tabs still select and measure nodes and edges", () => {
+    setCanvas([node("a", 0, 0), node("b", 300, 0)], [edge("a", "b")], true);
+    s().onNodesChange([
+      { type: "select", id: "a", selected: true },
+      { type: "dimensions", id: "b", dimensions: { width: 200, height: 80 } },
+    ]);
+    s().onEdgesChange([{ type: "select", id: "a->b", selected: true }]);
+    expect(s().nodes[0].selected).toBe(true);
+    expect(s().nodes[1].measured).toEqual({ width: 200, height: 80 });
+    expect(s().edges[0].selected).toBe(true);
     expect(s().history).toHaveLength(0);
+  });
+
+  it("every store action is either gated on read-only tabs or explicitly exempt", () => {
+    const actions = Object.keys(s()).filter((k) => typeof s()[k as keyof Store] === "function");
+    const mutating = new Set<string>(MUTATING_ACTIONS);
+    const exempt = new Set<string>(READ_ONLY_EXEMPT_ACTIONS);
+    for (const action of actions)
+      expect(mutating.has(action) !== exempt.has(action), `classify "${action}"`).toBe(true);
+    expect([...mutating, ...exempt].sort()).toEqual([...actions].sort());
   });
 
   it("a nudge right after an undo starts a new undo step", () => {
