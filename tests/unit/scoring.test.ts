@@ -236,18 +236,12 @@ describe("scoring rules", () => {
       expect(result.maxScore, label).toBe(CATEGORY_MAX_SCORE);
       expect(Number.isFinite(result.score), label).toBe(true);
       expect(result.score, label).toBeGreaterThanOrEqual(0);
-      expect(result.score, label).toBeLessThanOrEqual(20);
+      expect(result.score, label).toBeLessThanOrEqual(CATEGORY_MAX_SCORE);
     }
   });
 
-  // Known issue: the web-crawler reference is a pure cycle (message-queue <->
-  // app-server) with no in-degree-0 node, so nothing is reachable and it
-  // scores 0 in three categories. Remove from this set once the data is fixed.
-  const KNOWN_UNREACHABLE_REFERENCES = new Set(["web-crawler"]);
-
   it("every reference solution scores in every category", () => {
     for (const p of PROBLEMS) {
-      if (KNOWN_UNREACHABLE_REFERENCES.has(p.id)) continue;
       const { nodes, edges } = buildReferenceGraph(p);
       const result = scoreDesign(nodes, edges);
       expect(result.categories).toHaveLength(5);
