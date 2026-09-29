@@ -1,14 +1,14 @@
 /**
  * Engine contract (Spec 04, "Contrato do motor").
  *
- * Phase 1 implements `load` + `analyze` (instant steady state). The tick loop
- * (`play`/`pause`/`reset`/`setSpeed`/`setTraffic`/`onTick`) is Phase 2 of this
- * spec; `inject`/`heal` belong to Spec 08 (chaos). They are part of the
- * contract already so consumers can code against it.
+ * Phase 1 implements `load` + `analyze` (instant steady state), Phase 2 the
+ * tick loop (`play`/`pause`/`reset`/`setSpeed`/`setTraffic`/`onTick`), and
+ * Spec 08 (chaos) `inject`/`heal`.
  */
 import type { RoutingKind } from "@/domain/components/types";
 import type { SimGraph } from "@/domain/graph/compile";
 import type { NodeStatus } from "@/types/simulation";
+import type { FaultId, FaultSpec } from "./faults/types";
 import type { SimSpeed, TrafficPattern } from "./traffic/types";
 
 export type { SimGraph, SimNode, SimEdge } from "@/domain/graph/compile";
@@ -105,18 +105,17 @@ export interface SteadyState {
   iterations: number;
 }
 
-/* ---------- Phase 2 / Spec 06–08 placeholders ---------- */
+/* ---------- Spec 06 (traffic) and Spec 08 (chaos) ---------- */
 
 export type { TrafficPattern, SimSpeed } from "./traffic/types";
+export type { FaultId, FaultRecord, FaultSpec } from "./faults/types";
 
-/** Fault description — defined by Spec 08 (chaos engineering). */
-export interface FaultSpec {
-  kind: string;
-  targetId?: string;
-  [key: string]: unknown;
-}
-
-export type FaultId = string;
+/**
+ * Blast radius of the active faults (Spec 08, CHS-04): the fault's own
+ * target, or a node/edge degraded compared with just before the first fault
+ * (errors, worse status, p99 well above baseline).
+ */
+export type BlastRole = "target" | "affected";
 
 /* ---------- runtime metrics (Spec 07) ---------- */
 
@@ -142,6 +141,8 @@ export interface NodeRuntimeMetrics {
   /** Dropped/rejected, req/s. */
   drops: number;
   status: RuntimeNodeStatus;
+  /** Set while faults are active (and until the node recovers). */
+  blast?: BlastRole;
   /** OBS-03, by component type. */
   extra?: {
     hitRatio?: number;
@@ -155,6 +156,7 @@ export interface NodeRuntimeMetrics {
 export interface EdgeRuntimeMetrics {
   rps: number;
   status: RuntimeEdgeStatus;
+  blast?: BlastRole;
 }
 
 /** End-to-end metrics of one tick (OBS-02). Latencies in ms. */
@@ -203,6 +205,7 @@ export interface Engine {
   setSpeed(x: SimSpeed): void;
   /** Changes live. */
   setTraffic(p: TrafficPattern): void;
+  /** Applies from the next tick; throws when the spec can't apply to the loaded graph. */
   inject(fault: FaultSpec): FaultId;
   heal(id: FaultId): void;
   /** Instant analytic mode: steady state at `rps`. */

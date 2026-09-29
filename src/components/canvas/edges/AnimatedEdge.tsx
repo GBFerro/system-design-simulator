@@ -49,6 +49,9 @@ function AnimatedEdgeInner({
     targetPosition,
   });
 
+  // Blast radius (Spec 08): a dashed orange trace on the fault's target
+  // edge, a pulsing one on edges it degrades. Drawn under the edge stroke.
+  const blast = runtime?.blast;
   const badge = protocol ? protocolBadge[protocol] : null;
   const ruleBadge = edgeRuleBadge(edgeData.rule);
   const showLabel = label || badge || ruleBadge;
@@ -57,7 +60,21 @@ function AnimatedEdgeInner({
     <g
       data-edge-status={runtime?.status}
       data-edge-rps={runtime ? Math.round(runtime.rps) : undefined}
+      data-edge-blast={blast}
     >
+      {blast && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke="#fb923c"
+          strokeWidth={edgeStrokeWidth(runtime?.rps) + 5}
+          strokeLinecap="round"
+          strokeOpacity={blast === "target" ? 0.75 : 0.5}
+          strokeDasharray={blast === "target" ? "3 7" : undefined}
+          className={blast === "affected" ? "blast-pulse" : undefined}
+          aria-hidden
+        />
+      )}
       {/* Main edge */}
       <BaseEdge
         id={id}

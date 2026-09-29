@@ -13,11 +13,21 @@
 import { proxy, wrap, type Remote } from "comlink";
 import { compileGraph } from "@/domain/graph/compile";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore, type PlaybackStatus } from "@/store/runtimeStore";
 import type { SimulationResult } from "@/types/simulation";
-import type { FrameListener, SimFrame } from "./session";
+import type { FrameListener, InjectResult, SimFrame } from "./session";
 import { toSimulationResult } from "./toSimulationResult";
-import type { SimConfig, SimGraph, SimSpeed, SteadyState, TrafficPattern } from "./types";
+import type {
+  FaultId,
+  FaultRecord,
+  FaultSpec,
+  SimConfig,
+  SimGraph,
+  SimSpeed,
+  SteadyState,
+  TrafficPattern,
+} from "./types";
 import type { EngineWorkerApi } from "./worker";
 
 interface WorkerHandle {
@@ -112,7 +122,14 @@ interface SimBackend {
   reset(generation: number): MaybePromise;
   setSpeed(x: SimSpeed): MaybePromise;
   setTraffic(p: TrafficPattern): MaybePromise;
+  inject(fault: FaultSpec): InjectResult | Promise<InjectResult>;
+  heal(id: FaultId): FaultState | Promise<FaultState>;
   subscribe(listener: FrameListener): MaybePromise;
+}
+
+interface FaultState {
+  faults: FaultRecord[];
+  faultVersion: number;
 }
 
 function workerBackend(h: WorkerHandle): SimBackend {
@@ -123,6 +140,8 @@ function workerBackend(h: WorkerHandle): SimBackend {
     reset: (gen) => h.api.simReset(gen),
     setSpeed: (x) => h.api.simSetSpeed(x),
     setTraffic: (p) => h.api.simSetTraffic(p),
+    inject: (fault) => h.api.simInject(fault),
+    heal: (id) => h.api.simHeal(id),
     subscribe: (listener) => h.api.simSubscribe(proxy(listener)),
   };
 }
@@ -146,10 +165,15 @@ export const GRAPH_RELOAD_DEBOUNCE_MS = 250;
  * instance during the spike" shows its effect right away. Switching canvas
  * tabs resets the run, and so does an external `runtimeStore.clear()`
  * (playback → idle).
+ *
+ * Faults (Spec 08) go through `inject`/`heal` while a run exists (running or
+ * paused) and are mirrored into `chaosStore`; a reset clears them.
  */
 export class SimController {
   private backend: SimBackend | null = null;
   private backendReady: Promise<SimBackend> | null = null;
+  /** play() between "running" and the graph being loaded into the backend. */
+  private loading: Promise<SimBackend> | null = null;
   private generation = 0;
   private status: PlaybackStatus = "idle";
   private graphKey = "";
@@ -176,11 +200,23 @@ export class SimController {
     if (this.status === "running") return true;
     this.status = "running";
     useRuntimeStore.getState().setPlayback("running");
-    const backend = await this.getBackend();
-    const key = JSON.stringify(graph);
-    if (key !== this.graphKey) {
-      this.graphKey = key;
-      await backend.load(graph);
+    // The UI already shows the run as started; faults injected meanwhile
+    // wait for the worker and the graph (`whenLoaded`).
+    const loading = (async () => {
+      const b = await this.getBackend();
+      const key = JSON.stringify(graph);
+      if (key !== this.graphKey) {
+        this.graphKey = key;
+        await b.load(graph);
+      }
+      return b;
+    })();
+    this.loading = loading;
+    let backend: SimBackend;
+    try {
+      backend = await loading;
+    } finally {
+      if (this.loading === loading) this.loading = null;
     }
     const { speed, pattern } = useRuntimeStore.getState();
     await backend.setSpeed(speed);
@@ -204,7 +240,48 @@ export class SimController {
     this.generation++;
     this.stopWatchingCanvas();
     if (opts.clearStore !== false) useRuntimeStore.getState().clear();
+    useChaosStore.getState().clear();
     await this.backend?.reset(this.generation);
+  }
+
+  /** Start a fault in the current run. Fails (with a message) when no run is loaded. */
+  async inject(fault: FaultSpec): Promise<InjectResult> {
+    const backend = await this.whenLoaded();
+    if (!backend) {
+      return { ok: false, error: "Play the simulation first: faults act on a live run." };
+    }
+    const generation = this.generation;
+    const result = await backend.inject(fault);
+    if (result.ok && generation === this.generation) {
+      useChaosStore.getState().setFaults(result.faults, result.faultVersion);
+    }
+    return result;
+  }
+
+  async heal(id: FaultId): Promise<void> {
+    const backend = await this.whenLoaded();
+    if (!backend) return;
+    const generation = this.generation;
+    const { faults, faultVersion } = await backend.heal(id);
+    if (generation === this.generation) useChaosStore.getState().setFaults(faults, faultVersion);
+  }
+
+  /**
+   * The backend once the current run's graph is loaded; null without a run.
+   * `play()` flips the status before the worker is up, so a fault injected
+   * right after Play waits here instead of failing.
+   */
+  private async whenLoaded(): Promise<SimBackend | null> {
+    if (this.status === "idle") return null;
+    if (this.loading) {
+      try {
+        await this.loading;
+      } catch {
+        return null;
+      }
+    }
+    // (re-read after the await: a reset may have landed meanwhile)
+    return this.playback === "idle" ? null : this.backend;
   }
 
   setSpeed(x: SimSpeed): void {
@@ -229,6 +306,7 @@ export class SimController {
     const store = useRuntimeStore.getState();
     store.pushSnapshot(frame.snapshot);
     store.setClock(frame.snapshot.t, frame.patternTimeSec);
+    if (frame.faults) useChaosStore.getState().setFaults(frame.faults, frame.faultVersion);
   };
 
   private getBackend(): Promise<SimBackend> {

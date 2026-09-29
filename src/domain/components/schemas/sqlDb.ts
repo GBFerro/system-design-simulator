@@ -54,6 +54,18 @@ export const sqlDbSchema = defineSchema(
       group: "latency",
       help: "Writes cost more than reads: WAL fsync on commit plus index updates.",
     },
+    {
+      key: PARAM.failoverSec,
+      label: "Failover time",
+      kind: "duration",
+      default: 60,
+      min: 1,
+      max: 3600,
+      step: 5,
+      unit: "s",
+      group: "resilience",
+      help: "Time to promote a standby when the primary fails; writes fail until then. Amazon RDS Multi-AZ failovers typically take 60–120 s. With a single instance there is nothing to promote.",
+    },
   ],
   {
     instances: { help: "Primary plus in-node replicas. Only the primary takes writes." },

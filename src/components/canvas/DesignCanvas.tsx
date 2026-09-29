@@ -19,6 +19,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
+import { ChaosTimeline } from "./ChaosTimeline";
 import { edgeTypes } from "./edges/edgeTypes";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
@@ -320,6 +321,7 @@ export function DesignCanvas({
 
         <PenOverlay />
         <PenToolbar />
+        <ChaosTimeline />
         {menu && <CanvasContextMenu menu={menu} onClose={closeMenu} />}
 
         {/* Read-only hint for reference tabs */}

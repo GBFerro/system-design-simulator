@@ -17,7 +17,8 @@ npm run lint         # oxlint (config: .oxlintrc.json)
 npm run format       # oxfmt (config: .oxfmtrc.json); CI runs format:check
 npm run typecheck    # tsc --noEmit
 npm test             # vitest (tests/unit)
-npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless one is running
+npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless one runs there. Next 16 allows ONE
+                     # dev server per directory: with `npm run dev` open on :3000, use `E2E_PORT=3000 npm run test:e2e`
 npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%); fails if the lazy engine client leaks in
 ```
 
@@ -32,10 +33,13 @@ Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @x
 ```
 src/
   app/            App Router entry, layout, globals.css (dark-only theme)
+  advisor/        types.ts (Finding/Severity), structure.ts (ADV-03 hints on the ScoringGraph:
+                  no entry point, disconnected node, SPOF)
   components/
     canvas/       DesignCanvas (ReactFlow host), nodes/ (Component, Text, NodeActionsToolbar), edges/, PenOverlay/PenToolbar, CanvasTabBar,
-                  CanvasContextMenu, PaletteDnd (@dnd-kit), useCanvasShortcuts, canvasEvents
-    panel/        RightPanel + Props/Sim/Score/Capacity/Tradeoffs tabs
+                  CanvasContextMenu, PaletteDnd (@dnd-kit), useCanvasShortcuts, canvasEvents,
+                  ChaosTimeline (fault lanes at the bottom of the canvas, Spec 08)
+    panel/        RightPanel + Props/Sim/Chaos/Score/Advisor/Capacity/Tradeoffs tabs (ChaosPanel, AdvisorPanel)
     sidebar/      Sidebar: ComponentPalette, ProblemSelector, LearningPath
     layout/       AppShell (orchestrator + keyboard shortcuts), TopBar, SupportFAB
     interview/    InterviewBar, phase panel, start dialog
@@ -58,21 +62,28 @@ src/
                   stream), worker.ts + client.ts (Comlink worker, lazy; SimController),
                   traffic/ (types = TrafficPattern/SimSpeed/tick constants, patterns = rateAt/sanitize),
                   snapshot.ts (analyze → TickSnapshot), toSimulationResult.ts (→ v1 UI shape),
+                  faults/ (Spec 08: types, catalog = MVP fault types, compile = FaultSpec → modifiers,
+                  effects = active modifiers folded per tick, runner = FaultRunner: active faults,
+                  timeline, blast radius),
                   types.ts, constants.ts, legacy/simulator.ts (v1, kept only as a comparison in tests)
   scoring/        scorer.ts + rules/ (scalability, availability, latency, cost, tradeoffs — 20 pts each)
   store/          zustand stores (see below): canvasStore, appStore (UI + toast), interviewStore, penStore,
                   savedDesignsStore, customComponentsStore, customProblemsStore, tradeoffStore,
                   simulationStore (v1 result + score); runtimeStore.ts = unpersisted live metrics, fed by
                   SimController (tick frames) and the Simulate button (analyze snapshot);
+                  chaosStore (unpersisted faults of the live run), advisorStore (unpersisted findings,
+                  recomputed on topology changes);
                   persistVersion, migrations, hydration, safeStorage, durableStorage (IndexedDB)
   hooks/          useBreakpoint (useIsMobile/useIsCoarsePointer/usePrefersReducedMotion)
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils, ringBuffer,
+                  topology (topologySignature: what structure-dependent views recompute on),
                   particles (particle budget/edge width), runtimeMetrics (snapshot sharing, sparklines, formatters)
   types/          shared interfaces
 tests/
   unit/           vitest (pure logic: scoring, engine, traffic patterns, persistence, store actions;
                   claude-map checks this map against src/)
-  e2e/            playwright specs (smoke today, editor B1–B6 in spec 02)
+  e2e/            playwright specs, one per area (smoke, editor, catalog, persistence, simulate, traffic,
+                  metrics, chaos)
 scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ```
 
@@ -93,14 +104,17 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 - `global.throughput` = this tick's arrivals that succeed (≤ `offeredRps`); per node `rpsOut` = completions and may exceed `rpsIn` while a backlog drains.
 - `FlowEngine`: `play`/`pause`/`reset` (rewind to 0 keeping graph/speed/pattern)/`setSpeed`/`setTraffic` (next tick; the pattern clock restarts only when the KIND changes)/`onTick`/`step(n)`; 6000-tick ring buffer; the scheduler runs speed × wall time in slices, caps work per slice and re-anchors when behind (sim slows, never bursts). `load()` during a run hot-swaps the graph (clock and surviving backlogs kept).
 - `session.ts` streams ≤ `UI_SNAPSHOT_HZ` frames (tagged with a reset generation) through a Comlink `proxy`; `SimController` (`getSimController()` in `client.ts`) mirrors playback/speed/pattern/clock into `runtimeStore`, recompiles the canvas on edits (250 ms debounce) and resets on tab switch or an external `runtimeStore.clear()`.
-- Same graph + seed + pattern calls → bit-identical snapshots. `inject`/`heal` throw until Spec 08.
-- Tests: `tests/unit/engine-*.test.ts`, `traffic-patterns`, `sim-controller`, e2e `traffic.spec.ts`.
+- Same graph + seed + pattern/fault calls → bit-identical snapshots.
+- **Faults (Spec 08, `engine/faults/`):** a `FaultSpec` compiles (pure, `compileFault`) into `CompiledModifier`s with start/end and targets; the tick loop only sees `effectsAt(mods, t)` (null when nothing is active → exactly the fault-free tick) and applies it by rewriting the tick's view of the graph (`TickSimulator.topologyFor`: capacity/service time/hit rate/availability of nodes, latency/loss of edges) plus down nodes, severed edges and drained LB edges. Never add fault-specific code to the tick: add a catalog entry built from modifiers. `inject` applies from the next tick and never edits the graph; auto-heal runs after each tick; `load()` recompiles active faults (a missing target heals); `reset()` clears them. The blast radius (`blast` on node/edge metrics) compares with the snapshot before the first fault and marks callers of degraded edges. Faults don't affect `analyze()`.
+- Tests: `tests/unit/engine-*.test.ts` (chaos: `engine-chaos`), `traffic-patterns`, `sim-controller`, e2e `traffic.spec.ts`, `chaos.spec.ts`.
 
 **Scoring (`scoring/`).** `scorer.ts` builds a shared `ScoringGraph` (cleaned adjacency + reachable-from-entry set) once and passes it to every rule. Presence checks must require reachability — placing a component without wiring it earns no points (with feedback saying so). Each rule scores only through its exported `BUDGET` (plus `PARTIAL` for half credit), which must sum to exactly 20 (`CATEGORY_MAX_SCORE`), and never goes negative; `tests/unit/scoring.test.ts` (`npm test`) checks the sum and that a complete design reaches 20.
 
 **Stores (`store/`).** Every persisted store uses `version: STORE_VERSION` (2, from `persistVersion.ts`; `persistence.versions.test.ts` fails if one does not), `skipHydration: true`, and a real `migrate(persisted, fromVersion)`: `canvasStore` (live nodes/edges + every tab) and `savedDesignsStore` (every design) run `migrateV1toV2` via `migrations.ts`; stores whose shape didn't change use `passThroughMigration`. A new persisted store must do the same. Storage is `safeLocalStorage` (from `safeStorage.ts`, swallows QuotaExceeded + toasts), except saved designs, which live in IndexedDB through `durableStorage.ts` (idb-keyval; a localStorage copy is moved to IndexedDB and removed only after the write is confirmed; falls back to `safeLocalStorage` with a toast when IndexedDB is unavailable). Reuse `createDurableKV()` for anything big (run history). Hydration is deferred: `hydration.ts` exports `rehydrateAllStores()` and `useHasHydrated()` — call after mount to avoid SSR mismatch; custom components rehydrate first (the migration needs them), and saved designs hydrate asynchronously (their `merge` keeps designs saved before it finished). `canvasStore` persists the active tab with empty nodes/edges (live copies live at the top level; reconstructed on rehydrate); it holds no runtime metrics (see below). It also has unpersisted undo/redo history (`undo`/`redo`/`canUndo`/`canRedo`, 50 entries, pushed before mutation; consecutive arrow-key nudges share one entry) and an unpersisted `clipboard`. **Selection has one source of truth: `node.selected` / `edge.selected`** — there is no `selectedNodeId`; use `selectOnly`/`selectAll`/`clearSelection`. Editing actions act on the selection and push exactly one history entry: `deleteSelection`, `copySelection`/`pasteClipboard`, `duplicateSelection`, `nudgeSelection`, `changeReplicas`, `placeNode` (spiral search via `lib/placement.ts` so new nodes never overlap). Every action that edits the graph is listed in `MUTATING_ACTIONS` and no-ops on a read-only tab by itself (there `onNodesChange`/`onEdgesChange` apply only select/dimension changes); every other action is in `READ_ONLY_EXEMPT_ACTIONS` with its reason, and `editor.test.ts` fails on an action in neither list. `interviewStore` timer is timestamp-based (`startedAt`/`accumulatedMs`) so it survives background-tab throttling and refresh — never reintroduce tick-counting.
 
 **Runtime metrics (`store/runtimeStore.ts`, Spec 07).** Live metrics live ONLY in the unpersisted `runtimeStore` (`latest` `TickSnapshot` + `history` ring buffer, `historyVersion` bumps on push/clear), fed by the Simulate button (`steadyStateToSnapshot(steady, t, graph)`, which also derives the OBS-03 extras from params) and by the tick loop. Never write metrics into `node.data` (no `utilization`/`status`/`isBottleneck` there) and never touch `canvasStore` from a tick — that would re-render and re-persist the graph. `pushSnapshot` shares unchanged node/edge/global objects with the previous snapshot, so read per entity with the selector hooks (`useNodeRuntime(id)`, `useNodeStatus(id)`, `useEdgeRuntime(id)`, `useGlobalRuntime()`): a tick re-renders only what changed. Subscribe to history (`useRecentHistory`) only in components mounted on demand (open sparkline, Sim panel). Node badges must keep a fixed size (a resize makes ReactFlow re-measure → a `canvasStore` write). Metrics are cleared (`clear()`) with the simulation result on tab switch/close, load, reference and clear canvas (`resetSimulation` in `canvasStore`). Particles (`components/canvas/FlowParticles.tsx`) are ONE `<canvas>` over the renderer: edge paths sampled with `getPointAtLength` from the rendered `.react-flow__edge-path` and cached by `d` (resampled only after graph changes; the viewport is a canvas transform read from the ReactFlow store), budget from `lib/particles.ts` (density ∝ log10(1 + rps), 2,000 global cap), one rAF loop reading `getLatestSnapshot()` with no React render per frame, stopped without a snapshot or while the tab is hidden, a still frame while paused. Never add per-token DOM/SVG elements. Status is shown by color AND icon. `prefers-reduced-motion`: no particles at all; edges still show load (width) and status (color). Tests push synthetic snapshots through `window.__runtimeStore` (dev, or `?e2e` in any build).
+
+**Chaos UI and advisor (Specs 08/12).** Faults exist only in a live run (playback running or paused): inject/heal go through `simActions` (`injectFault`, `healFault`, `toggleKillNode`) → `SimController` → worker, and the run's faults are mirrored into the unpersisted `chaosStore` (reset clears it). They never edit the graph, so the Kill/Restore shortcuts (node toolbar, context menu) are allowed on read-only tabs too. Blast radius is drawn from `blast` in runtime metrics (`useNodeBlast`), outside the node box so it never resizes. Advisor findings live in the unpersisted `advisorStore`, recomputed only when `topologySignature` changes (never on drag); nodes read their worst severity with `useNodeFindingSeverity(id)`. Structure hints use the scorer's `ScoringGraph` and its notion of redundancy (catalog `scalable` tiers aren't SPOFs), so the Advisor and Score tabs never disagree.
 
 **Persistence schema.** `domain/persistence/`: `migrate.ts` (`migrateV1toV2` — pure, idempotent, never throws: `maxQPS`/`latencyMs`/`replicas` → `params.capacityPerInstance`/`serviceTimeMs`/`instances`, other params from schema defaults, edges get a rule (`on_miss` out of cache/CDN, else `always`), runtime fields dropped, unknown component types kept as `custom` with a warning, dangling edges dropped; text nodes and strokes untouched), `serialize.ts` (canvas ⇄ `SerializedNode`/`SerializedEdge`) and `envelope.ts`. `SerializedEdge` must carry `data` (label/protocol/async **and `rule`**) or edge metadata is lost on save/load. Every JSON export (top bar and Load dialog) uses the v2 envelope `{ schemaVersion: 2, name, problemId, nodes, edges, strokes, chaosScript?, slo? }` (`chaosScript`/`slo` are opaque placeholders for Specs 08/11, preserved on round-trip); `importDesign` accepts schemaVersion 1 and 2 (missing = 1), validates structurally, migrates, and returns `{ ok, error? }` (plus `warnings`). Image export is PNG or SVG (`lib/exportCanvas.ts`, html-to-image; both include pen strokes).
 

@@ -99,6 +99,11 @@ export function useGlobalRuntime(): GlobalRuntimeMetrics | undefined {
   return useRuntimeStore((s) => s.latest?.global);
 }
 
+/** Blast radius role of a node (Spec 08), a string: re-renders only when it changes. */
+export function useNodeBlast(nodeId: string): NodeRuntimeMetrics["blast"] {
+  return useRuntimeStore((s) => s.latest?.nodes[nodeId]?.blast);
+}
+
 /** Just the node's status (a string, so re-renders only when the status changes). */
 export function useNodeStatus(nodeId: string): NodeRuntimeMetrics["status"] | undefined {
   return useRuntimeStore((s) => s.latest?.nodes[nodeId]?.status);

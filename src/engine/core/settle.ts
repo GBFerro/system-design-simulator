@@ -67,7 +67,11 @@ export function settle(
 
     for (const e of edges) {
       const target = flows.get(e.target)!;
-      const timedOut = timeout === undefined ? 0 : probSojournExceeds(target.st, timeout);
+      // The round trip on the link eats into the caller's timeout (as in the sampler).
+      const timedOut =
+        timeout === undefined
+          ? 0
+          : probSojournExceeds(target.st, timeout - 2 * e.rule.networkLatencyMs);
       const ok = (1 - e.rule.packetLoss) * (1 - timedOut) * (success.get(e.target) ?? 1);
       failure.set(e.id, clamp01(1 - ok));
     }

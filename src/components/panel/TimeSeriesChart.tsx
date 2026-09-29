@@ -18,6 +18,7 @@ export function TimeSeriesChart({
   color,
   format,
   testId,
+  markers,
 }: {
   title: string;
   values: number[];
@@ -26,6 +27,8 @@ export function TimeSeriesChart({
   color: string;
   format: (v: number) => string;
   testId?: string;
+  /** Vertical markers at simulated times (fault start/end, Spec 08). */
+  markers?: { t: number; kind: "start" | "end" }[];
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const { d, max, points } = sparklinePath(values, W, H, 2);
@@ -41,6 +44,16 @@ export function TimeSeriesChart({
   };
 
   const span = times.length > 1 ? times[times.length - 1] - times[0] : 0;
+  // Points are evenly spaced by index; the series is uniform in time, so
+  // map a time linearly between the first and last point.
+  const markerX = (t: number) =>
+    points.length > 1 && span > 0
+      ? points[0].x + ((t - times[0]) / span) * (points[points.length - 1].x - points[0].x)
+      : null;
+  const shownMarkers = (markers ?? [])
+    .map((m) => ({ ...m, x: markerX(m.t) }))
+    .filter((m): m is { t: number; kind: "start" | "end"; x: number } => m.x !== null)
+    .filter((m) => m.x >= 0 && m.x <= W);
 
   return (
     <div className="rounded-lg bg-zinc-800/70 px-3 py-2" data-testid={testId}>
@@ -64,6 +77,19 @@ export function TimeSeriesChart({
           onPointerLeave={() => setHover(null)}
         >
           <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} stroke="rgb(63 63 70)" strokeWidth={1} />
+          {shownMarkers.map((m, i) => (
+            <line
+              key={`${m.kind}-${m.t}-${i}`}
+              x1={m.x}
+              x2={m.x}
+              y1={0}
+              y2={H}
+              stroke={m.kind === "start" ? "#fb923c" : "#34d399"}
+              strokeWidth={1}
+              strokeDasharray="2 2"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
           <path
             d={d}
             fill="none"

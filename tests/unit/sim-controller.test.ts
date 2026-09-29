@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { GRAPH_RELOAD_DEBOUNCE_MS, SimController } from "@/engine/client";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { comp, wire } from "./engineFixtures";
 
@@ -85,5 +86,37 @@ describe("SimController (in-thread fallback)", () => {
   it("refuses to play an empty canvas", async () => {
     expect(await controller.play([], [])).toBe(false);
     expect(rt().playback).toBe("idle");
+  });
+});
+
+describe("SimController faults (Spec 08)", () => {
+  const nodes = [comp("lb", "load-balancer"), comp("app", "app-server")];
+  const edges = [wire("lb", "app")];
+
+  it("a fault injected right after Play waits for the graph instead of failing", async () => {
+    // Fresh controller: the backend is created by this play().
+    const controller = new SimController();
+    useCanvasStore.setState({ nodes, edges });
+    const playing = controller.play(nodes, edges);
+    expect(rt().playback).toBe("running"); // the UI already shows the run
+    const result = await controller.inject({
+      type: "kill-node",
+      target: { kind: "node", id: "app" },
+    });
+    await playing;
+    expect(result.ok).toBe(true);
+    expect(useChaosStore.getState().faults).toEqual([
+      expect.objectContaining({ active: true, label: "Kill node · app" }),
+    ]);
+    await controller.reset();
+    expect(useChaosStore.getState().faults).toEqual([]);
+    controller.dispose();
+  });
+
+  it("without a run, inject reports why", async () => {
+    const controller = new SimController();
+    const r = await controller.inject({ type: "kill-node", target: { kind: "node", id: "app" } });
+    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/Play/) });
+    controller.dispose();
   });
 });

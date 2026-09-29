@@ -4,7 +4,7 @@ import { PROBLEMS } from "@/data/problems";
 import { compileGraph, type SimGraph } from "@/domain/graph/compile";
 import { retryAmplification } from "@/engine/core/queueing";
 import { TickSimulator } from "@/engine/core/tick";
-import { FlowEngine, NotImplementedYetError, type EngineClock } from "@/engine/engine";
+import { FlowEngine, type EngineClock } from "@/engine/engine";
 import { createSimSession, type SimFrame } from "@/engine/session";
 import { rateAt } from "@/engine/traffic/patterns";
 import { HISTORY_TICKS, TICK_SEC, type TrafficPattern } from "@/engine/traffic/types";
@@ -435,11 +435,13 @@ describe("FlowEngine playback (in-thread)", () => {
     expect(engine.history.last()!.nodes.app.queueDepth).toBeLessThan(10);
   });
 
-  it("play() needs a graph; inject/heal still belong to Spec 08", () => {
+  it("play() and inject() need a graph; healing an unknown fault is a no-op", () => {
     const engine = new FlowEngine();
     expect(() => engine.play()).toThrow(/load/);
-    expect(() => engine.inject({ kind: "latency" })).toThrow(NotImplementedYetError);
-    expect(() => engine.heal("x")).toThrow(NotImplementedYetError);
+    expect(() => engine.inject({ type: "traffic-spike", target: { kind: "global" } })).toThrow(
+      /load/,
+    );
+    expect(() => engine.heal("x")).not.toThrow();
   });
 });
 
