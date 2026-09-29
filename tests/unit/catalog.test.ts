@@ -137,18 +137,17 @@ describe("schemas (CMP-01)", () => {
     expect(keys).toEqual(expect.arrayContaining(Object.values(CORE_PARAM)));
   });
 
-  it("resolvedParams fills missing core keys from the v1 fields", () => {
+  it("resolvedParams validates params and ignores v1 top-level fields", () => {
     const params = resolvedParams({
       componentId: "app-server",
-      params: { [PARAM.timeoutMs]: 250 },
+      params: { [PARAM.timeoutMs]: 250, [PARAM.instances]: -1 },
       replicas: 3,
       maxQPS: 777,
-      latencyMs: -1, // invalid legacy value → schema default
+    } as { componentId: string; params: unknown });
+    expect(params).toEqual({
+      ...defaultParams("app-server"),
+      [PARAM.timeoutMs]: 250,
     });
-    expect(params[PARAM.instances]).toBe(3);
-    expect(params[PARAM.capacityPerInstance]).toBe(777);
-    expect(params[PARAM.serviceTimeMs]).toBe(20);
-    expect(params[PARAM.timeoutMs]).toBe(250);
   });
 
   it("visibleIf hides dependent params", () => {
