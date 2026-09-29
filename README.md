@@ -270,16 +270,17 @@ Open **http://localhost:3000** — that's it. Everything runs client-side; your 
 
 ### Keyboard Shortcuts
 
-| Shortcut                          | Action         |     | Shortcut                    | Action                             |
-| --------------------------------- | -------------- | --- | --------------------------- | ---------------------------------- |
-| `Ctrl/⌘ + Enter`                  | Run simulation |     | `Ctrl/⌘ + S`                | Save design                        |
-| `Ctrl/⌘ + Shift + S`              | Score design   |     | `Ctrl/⌘ + O`                | Load design                        |
-| `Ctrl/⌘ + Z`                      | Undo           |     | `Ctrl/⌘ + E`                | Export as PNG                      |
-| `Ctrl/⌘ + Shift + Z` / `Ctrl + Y` | Redo           |     | `Delete` / `Backspace`      | Delete selection (nodes and edges) |
-| `Ctrl/⌘ + C` / `Ctrl/⌘ + V`       | Copy / paste   |     | `Ctrl/⌘ + D`                | Duplicate selection                |
-| `Ctrl/⌘ + A`                      | Select all     |     | `Arrows` / `Shift + Arrows` | Move selection 16 px / 64 px       |
-| `Shift + F10`                     | Context menu   |     | `?`                         | Show all shortcuts                 |
-| `Escape`                          | Deselect       |     |                             |                                    |
+| Shortcut                          | Action          |     | Shortcut                    | Action                             |
+| --------------------------------- | --------------- | --- | --------------------------- | ---------------------------------- |
+| `Ctrl/⌘ + Enter`                  | Run simulation  |     | `Ctrl/⌘ + S`                | Save design                        |
+| `Ctrl/⌘ + Shift + S`              | Score design    |     | `Ctrl/⌘ + O`                | Load design                        |
+| `Ctrl/⌘ + Z`                      | Undo            |     | `Ctrl/⌘ + E`                | Export as PNG                      |
+| `Ctrl/⌘ + Shift + Z` / `Ctrl + Y` | Redo            |     | `Delete` / `Backspace`      | Delete selection (nodes and edges) |
+| `Ctrl/⌘ + C` / `Ctrl/⌘ + V`       | Copy / paste    |     | `Ctrl/⌘ + D`                | Duplicate selection                |
+| `Ctrl/⌘ + A`                      | Select all      |     | `Arrows` / `Shift + Arrows` | Move selection 16 px / 64 px       |
+| `Shift + F10`                     | Context menu    |     | `?`                         | Show all shortcuts                 |
+| `Escape`                          | Deselect        |     | `P`                         | Play / pause live traffic          |
+| `Ctrl/⌘ + K`                      | Command palette |     | `Tab`                       | Move focus between nodes           |
 
 ---
 
