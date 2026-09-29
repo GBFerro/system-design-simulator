@@ -12,10 +12,10 @@ test("failure drill: scripted faults, answers, per-fault results and summary", a
 
   await page.goto("/");
   await expect(page.locator(".react-flow")).toBeVisible();
-  await page.getByTitle("Load reference solution").dispatchEvent("click");
+  await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 
-  await page.getByTitle("Start a guided interview practice").dispatchEvent("click");
+  await page.getByTitle("Start a guided interview practice").click();
   await page.getByRole("button", { name: "Start Interview" }).click();
   await page.getByRole("button", { name: "Go to phase 6: Deep Dive" }).click();
 
@@ -67,7 +67,7 @@ test("a design without the scripted target gets the fallback; edits count as the
   await page.mouse.up();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
 
-  await page.getByTitle("Start a guided interview practice").dispatchEvent("click");
+  await page.getByTitle("Start a guided interview practice").click();
   await page.getByRole("button", { name: "Start Interview" }).click();
   await page.getByRole("button", { name: "Go to phase 6: Deep Dive" }).click();
   const drill = page.getByTestId("drill-panel");

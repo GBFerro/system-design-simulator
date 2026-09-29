@@ -55,6 +55,15 @@ interface TopBarProps {
   onToggleRight: () => void;
 }
 
+/*
+ * The full desktop bar needs ~1440 px and its buttons don't shrink, so it
+ * degrades by width instead of overlapping: below xl the desktop-only
+ * actions live in the overflow menu, and up to 2xl their labels collapse to
+ * icons by tier (buttons keep their accessible name via aria-label).
+ */
+/** Text shown only on wide screens (2xl). */
+const WIDE_LABEL = "hidden 2xl:inline";
+
 export function TopBar({
   onSimulate,
   onScore,
@@ -155,7 +164,7 @@ export function TopBar({
     <>
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900 px-2 md:gap-3 md:px-3">
         {/* Left section */}
-        <div className="flex min-w-0 items-center gap-2 md:gap-3">
+        <div className="flex min-w-0 items-center gap-2 lg:gap-3">
           <button
             onClick={onToggleLeft}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
@@ -179,15 +188,17 @@ export function TopBar({
             </span>
           </div>
 
-          <div className="mx-1 hidden h-4 w-px bg-zinc-800 md:block" />
+          <div className="mx-1 hidden h-4 w-px bg-zinc-800 lg:block" />
 
           {/* Problem selector */}
           <div className="relative min-w-0 flex-shrink">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex min-w-0 items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-zinc-100"
+              title={currentProblem?.title}
+              className="flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-zinc-100"
             >
-              <span className="max-w-[120px] truncate md:max-w-none">
+              {/* min-w-0: a flex item won't shrink below its text otherwise, and truncate never kicks in */}
+              <span className="min-w-0 max-w-[120px] truncate lg:max-w-none">
                 {currentProblem?.title ?? "Select Problem"}
               </span>
               <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
@@ -257,26 +268,28 @@ export function TopBar({
           {!selectedProblemId.startsWith("custom-") && (
             <button
               onClick={loadReference}
-              className="hidden shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300 md:flex"
+              className="hidden shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300 xl:flex"
               title="Load reference solution"
+              aria-label="Load reference solution"
             >
               <Download className="h-3 w-3" />
-              Reference
+              <span className={WIDE_LABEL}>Reference</span>
             </button>
           )}
 
-          <div className="mx-1 hidden h-4 w-px bg-zinc-800 md:block" />
+          <div className="mx-1 hidden h-4 w-px bg-zinc-800 lg:block" />
 
           <button
             onClick={addTextNote}
-            className="hidden shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 md:flex"
+            className="hidden shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 xl:flex"
             title="Add text note to canvas"
+            aria-label="Add Note"
           >
             <StickyNote className="h-3 w-3" />
-            Add Note
+            <span className={WIDE_LABEL}>Add Note</span>
           </button>
 
-          <div className="mx-1 hidden h-4 w-px bg-zinc-800 md:block" />
+          <div className="mx-1 hidden h-4 w-px bg-zinc-800 lg:block" />
 
           <button
             onClick={undo}
@@ -297,19 +310,20 @@ export function TopBar({
             <Redo2 className="h-3.5 w-3.5" />
           </button>
 
-          <div className="mx-1 hidden h-4 w-px bg-zinc-800 md:block" />
+          <div className="mx-1 hidden h-4 w-px bg-zinc-800 lg:block" />
 
           <button
             onClick={onStartInterview}
-            className="hidden shrink-0 items-center gap-1 rounded-md bg-zinc-800 px-2 py-1 text-[10px] font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-zinc-100 md:flex"
+            className="hidden shrink-0 items-center gap-1 rounded-md bg-zinc-800 px-2 py-1 text-[10px] font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-zinc-100 xl:flex"
             title="Start a guided interview practice"
+            aria-label="Practice Interview"
           >
             <GraduationCap className="h-3.5 w-3.5" />
             Practice Interview
           </button>
 
-          {/* Mobile-only overflow menu */}
-          <div className="relative md:hidden">
+          {/* Overflow menu below xl (the desktop-only actions live here) */}
+          <div className="relative xl:hidden">
             <button
               onClick={() => setMobileMoreOpen((v) => !v)}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
@@ -452,32 +466,35 @@ export function TopBar({
         <div className="flex items-center gap-1 md:gap-2">
           <button
             onClick={onSave}
-            className="hidden h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 md:flex"
+            className="hidden h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 xl:flex"
             title="Save design (Ctrl+S)"
+            aria-label="Save"
           >
             <Save className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Save</span>
+            <span className={WIDE_LABEL}>Save</span>
           </button>
           <button
             onClick={onLoad}
-            className="hidden h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 md:flex"
+            className="hidden h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 xl:flex"
             title="Load design (Ctrl+O)"
+            aria-label="Load"
           >
             <FolderOpen className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Load</span>
+            <span className={WIDE_LABEL}>Load</span>
           </button>
 
-          <div className="hidden h-4 w-px bg-zinc-800 md:block" />
+          <div className="hidden h-4 w-px bg-zinc-800 xl:block" />
 
-          {/* Export dropdown — desktop only; mobile goes through overflow menu */}
-          <div className="relative hidden md:block">
+          {/* Export dropdown — xl and up; below that it is in the overflow menu */}
+          <div className="relative hidden xl:block">
             <button
               onClick={() => setExportOpen(!exportOpen)}
               className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
               title="Export design (Ctrl+E)"
+              aria-label="Export"
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Export</span>
+              <span className={WIDE_LABEL}>Export</span>
               <ChevronDown className="h-2.5 w-2.5 text-zinc-500" />
             </button>
 
@@ -514,12 +531,12 @@ export function TopBar({
             )}
           </div>
 
-          <div className="hidden h-4 w-px bg-zinc-800 md:block" />
+          <div className="hidden h-4 w-px bg-zinc-800 xl:block" />
 
           <button
             onClick={() => setClearConfirmOpen(true)}
             disabled={activeTabReadOnly}
-            className="hidden h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-rose-400 disabled:pointer-events-none disabled:opacity-40 md:flex"
+            className="hidden h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-rose-400 disabled:pointer-events-none disabled:opacity-40 xl:flex"
             title="Clear canvas"
             aria-label="Clear canvas"
           >
@@ -533,6 +550,7 @@ export function TopBar({
             onClick={onSimulate}
             disabled={isSimulating}
             className="h-7 gap-1.5 bg-cyan-500 px-3 text-xs font-medium text-white transition-colors hover:bg-cyan-400 disabled:opacity-80"
+            aria-label={isSimulating ? "Simulating…" : "Simulate"}
           >
             {isSimulating ? (
               <>
@@ -551,19 +569,21 @@ export function TopBar({
             variant="ghost"
             onClick={onScore}
             className="h-7 gap-1.5 border border-zinc-700 bg-transparent px-2.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 sm:px-3"
+            aria-label="Score"
           >
             <Trophy className="h-3 w-3" />
             <span className="hidden sm:inline">Score</span>
           </Button>
 
-          {/* Buy me a coffee — desktop only (mobile has FAB + overflow menu) */}
+          {/* Buy me a coffee — xl and up (below: FAB + overflow menu) */}
           <button
             onClick={onOpenSupport}
-            className="hidden h-7 items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2.5 text-xs font-medium text-cyan-400 transition-colors hover:border-cyan-400/50 hover:bg-cyan-500/15 hover:text-cyan-300 md:flex"
+            className="hidden h-7 items-center gap-1.5 whitespace-nowrap rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2.5 text-xs font-medium text-cyan-400 transition-colors hover:border-cyan-400/50 hover:bg-cyan-500/15 hover:text-cyan-300 xl:flex"
             title="Buy me a coffee — support the project"
+            aria-label="Buy me a coffee"
           >
             <Coffee className="h-3.5 w-3.5" />
-            <span>Buy me a coffee</span>
+            <span className={WIDE_LABEL}>Buy me a coffee</span>
           </button>
 
           <button

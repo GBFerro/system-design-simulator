@@ -14,8 +14,7 @@ async function readClock(clock: Locator): Promise<number> {
 async function openLiveTraffic(page: Page): Promise<Locator> {
   await page.goto("/");
   await expect(page.locator(".react-flow")).toBeVisible();
-  // The top bar title can overlap this button at 1280px; dispatch the click directly.
-  await page.getByTitle("Load reference solution").dispatchEvent("click");
+  await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await page.getByRole("tab", { name: "Simulate" }).click();
   const panel = page.getByRole("region", { name: "Live traffic" });
@@ -49,6 +48,8 @@ test("play advances the simulated clock and streams metrics; pause stops it", as
 
   await panel.getByRole("button", { name: "Pause live traffic" }).click();
   await expect(panel.getByRole("button", { name: "Play live traffic" })).toBeVisible();
+  // pause() still delivers the last computed frame; let it land before reading.
+  await page.waitForTimeout(300);
   const paused = await readClock(clock);
   await page.waitForTimeout(1500);
   expect(await readClock(clock)).toBe(paused);
@@ -78,6 +79,8 @@ test("speed 20× runs the clock faster; the P shortcut toggles playback", async 
 
   await page.keyboard.press("p");
   await expect(panel.getByRole("button", { name: "Play live traffic" })).toBeVisible();
+  // pause() still delivers the last computed frame; let it land before reading.
+  await page.waitForTimeout(300);
   const paused = await readClock(clock);
   await page.waitForTimeout(800);
   expect(await readClock(clock)).toBe(paused);

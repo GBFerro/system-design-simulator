@@ -26,7 +26,7 @@ async function open(page: Page) {
 }
 
 async function loadReferenceAndSimulate(page: Page) {
-  await page.getByTitle("Load reference solution").dispatchEvent("click");
+  await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await page.getByRole("button", { name: "Simulate", exact: true }).click();
   await expect(page.getByText("Simulation complete!")).toBeVisible();
