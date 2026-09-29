@@ -1,6 +1,6 @@
 # Spec 04: Motor de simulação
 
-Parte da [v2](00-visao-geral.md) · Fase 1 (`analyze()`, worker) e Fase 2 (loop de tick) · Tamanho G · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Fase 1 (`analyze()`, worker) e Fase 2 (loop de tick) · Tamanho G · Status: Fase 1 implementada, Fase 2 pendente
 
 | Campo               | Valor                                                                                                                                    |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -138,11 +138,11 @@ interface Engine {
 
 **Fase 1**
 
-- [ ] As 35 soluções de referência simulam pelo `analyze()` sem erro
-- [ ] Cache com hit 90% reduz a carga do DB para 10% da carga do cache
-- [ ] Throughput ≤ carga oferecida em todos os nós, para qualquer grafo
-- [ ] Nó desconectado não recebe tráfego
-- [ ] Testes do motor passam
+- [x] As 35 soluções de referência simulam pelo `analyze()` sem erro
+- [x] Cache com hit 90% reduz a carga do DB para 10% da carga do cache
+- [x] Throughput ≤ carga oferecida em todos os nós, para qualquer grafo
+- [x] Nó desconectado não recebe tráfego
+- [x] Testes do motor passam
 
 **Fase 2**
 

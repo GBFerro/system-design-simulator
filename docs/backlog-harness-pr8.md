@@ -5,6 +5,7 @@ Origem: `/harness-review` do PR #8. As frases do `CLAUDE.md` sobre o engine (`ma
 Já aplicado no PR:
 
 - `engine/simulator.ts` lia `node.data.params` direto, enquanto o scoring e a latência usam os leitores do registry. Um nó pré-v2 (com `maxQPS`/`replicas` e sem `params`) saía do motor com `effectiveQPS: 0`, utilização 2 e "critical". Agora o motor usa `resolvedParams`. Teste em `tests/unit/legacyNodes.test.ts`.
+- O teste `legacyNodes.test.ts` foi removido no PR #9, quando o motor v1 virou `engine/legacy/` (só comparação); o motor novo já testa os campos v1 em `engine-analyze.test.ts`.
 - `docs/03-catalogo-de-componentes.md`: status e critérios de aceite entregues marcados.
 
 ## C1: `loadDesign` deixa dado no formato v1 entrar no canvas
@@ -19,6 +20,6 @@ Já aplicado no PR:
 
 **Problema.** `registry.ts` mantém `LEGACY_FIELD` e `resolvedParams` lê `maxQPS`/`latencyMs`/`replicas` como reserva. Isso é necessário enquanto houver dado v1 circulando, mas vira código morto e um segundo caminho para testar depois que a Spec 05 migrar tudo no rehydrate.
 
-**Proposta.** Depois do merge do PR #10, confirmar que nenhum caminho (rehydrate do `canvasStore`, `loadDesign`, `importDesign`, `loadReferenceIntoTab`) entrega nó sem `params`. Aí remover `LEGACY_FIELD`, o teste `resolvedParams fills missing core keys from the v1 fields`, o comentário no `simulator.ts` e o teste `legacyNodes.test.ts`, e trocar `ParamsCarrier` por `ComponentNodeData`.
+**Proposta.** Depois do merge do PR #10, confirmar que nenhum caminho (rehydrate do `canvasStore`, `loadDesign`, `importDesign`, `loadReferenceIntoTab`) entrega nó sem `params`. Aí remover `LEGACY_FIELD`, o teste `resolvedParams fills missing core keys from the v1 fields`, e o comentário no `legacy/simulator.ts`, e trocar `ParamsCarrier` por `ComponentNodeData`.
 
 **Custo.** Pequeno, mas só é seguro depois da migração.

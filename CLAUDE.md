@@ -18,14 +18,14 @@ npm run format       # oxfmt (config: .oxfmtrc.json); CI runs format:check
 npm run typecheck    # tsc --noEmit
 npm test             # vitest (tests/unit)
 npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless one is running
-npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%)
+npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%); fails if the lazy engine client leaks in
 ```
 
 CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, and later the engine); editor behavior goes in Playwright. Still exercise UI changes in the browser. Only update `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) when the growth is intended and justified in the PR.
 
 ## Tech stack
 
-Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12 (ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion · perfect-freehand (pen) · html-to-image (export) · @dnd-kit/core (palette drag). No new runtime deps without good reason.
+Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12 (ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion · perfect-freehand (pen) · html-to-image (export) · @dnd-kit/core (palette drag) · comlink (engine Web Worker RPC). No new runtime deps without good reason.
 
 ## Architecture map
 
@@ -46,8 +46,12 @@ src/
   domain/
     components/   types.ts (ParamSpec/ComponentSchema/EdgeRule), params.ts (PARAM keys + spec builders),
                   schemas/<type>.ts (per-type schemas), registry.ts (getSchema/defaultParams/sanitizeParams/readers)
-    graph/        edgeRules.ts (connect defaults, sanitize, rule form specs)
-  engine/         simulator.ts (traffic sim), constants.ts
+    graph/        compile.ts (ReactFlow nodes/edges → validated SimGraph),
+                  edgeRules.ts (connect defaults, sanitize, rule form specs)
+  engine/         analyze.ts (steady state), core/ (queueing = Erlang C/M/M/c, routing, sampler, rng),
+                  engine.ts (Engine contract), worker.ts + client.ts (Comlink worker, lazy),
+                  toSimulationResult.ts (→ v1 UI shape), types.ts, constants.ts,
+                  legacy/simulator.ts (v1, kept only as a comparison in tests)
   scoring/        scorer.ts + rules/ (scalability, availability, latency, cost, tradeoffs — 20 pts each)
   store/          zustand stores (see below)
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils
@@ -60,7 +64,7 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 
 ## Key invariants — don't break these
 
-**Simulation engine (`engine/simulator.ts`).** Called as `runSimulation(componentNodes, allEdges, requestsPerSec)` — text nodes are filtered out but ALL edges are passed, so edges may reference non-component nodes; the engine must skip edges whose source/target isn't a known component node. Entry nodes = in-degree 0 **with** outgoing edges (a fully disconnected node is NOT an entry and must not receive traffic). Sanitize `maxQPS`/`replicas` (finite, positive) before use. Reported throughput never exceeds offered load. Async edges (`edge.data.async`) are excluded from user-facing latency. LBs split traffic evenly; other nodes fan out 100% to each child (intentional).
+**Simulation engine (`engine/`, Spec 04).** Pipeline: `compileGraph(nodes, edges)` (`domain/graph/compile.ts`) → `SimGraph` → `analyze(graph, rps, config?)` → `SteadyState`. The UI calls `simulateCanvas` from `engine/client.ts` via dynamic `import()`; it runs in a Comlink Web Worker created lazily (in-thread fallback without `Worker`), so the engine is never in the initial bundle. `toSimulationResult` maps onto the v1 `SimulationResult` the panel renders. `compileGraph` takes ALL nodes/edges: non-component (text) nodes and edges touching them are dropped, self-loops dropped, parallel edges deduped, params sanitized via the registry (`sanitizeParams`; v1 `maxQPS`/`latencyMs`/`replicas` still read), edge rules resolved (`edge.data.rule` → `sanitizeEdgeRule`, missing → `defaultEdgeRule`). Problems become warnings, never exceptions. Entry nodes = the `client` node(s) if any, else in-degree 0 **with** outgoing edges (a fully disconnected node is NOT an entry and must not receive traffic). Order = Kahn, then cycle members (BFS from where traffic enters), then nodes downstream of cycles; edges closing a cycle are `back` and carry no load. Each node is `instances` × M/M/c with c = round(capacityPerInstance × serviceTimeMs / 1000) slots, so c·μ = capacityPerInstance (the capacity knob); Erlang C only via the Erlang B recursion (never aᶜ/c!); ρ ≥ 1 → backlog grows for the horizon up to `maxQueue`, excess dropped. Routing is by `routingFor(componentId)` + edge rules, NOT 100% fan-out: LB splits by algorithm (round-robin/hash equal, weighted ∝ capacity, least-connections ∝ free capacity); service/fixed/breaker edges carry served × P(rule) × `callsPerRequest` (reads/writes by read ratio, `fraction`, `on_miss` = 1 − hitRate); queues decouple (each consumer edge drains ≤ min(consumers, target instances) × target capacity, the rest is lag; edges out of a queue are off the user path); rate limiter admits min(λ, limitRps). Retries (`maxRetries` on the caller) amplify edge load by (1 − f^{R+1})/(1 − f), solved as a fixed point. Only read params through `PARAM` keys with fallbacks. Invariants: served ≤ offered at every node and throughput ≤ offered load; every reported number finite; async edges carry load but are excluded from user-facing latency; same graph + seed (mulberry32) → deep-equal result. `play`/`pause`/`onTick` (Phase 2) and `inject`/`heal` (Spec 08) are in the `Engine` contract but throw. Tests: `tests/unit/engine-*.test.ts`.
 
 **Scoring (`scoring/`).** `scorer.ts` builds a shared `ScoringGraph` (cleaned adjacency + reachable-from-entry set) once and passes it to every rule. Presence checks must require reachability — placing a component without wiring it earns no points (with feedback saying so). Each category rule must total **exactly 20** max and never go negative; verify the arithmetic if you touch a rule.
 
