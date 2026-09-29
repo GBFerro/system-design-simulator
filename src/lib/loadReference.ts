@@ -3,7 +3,7 @@ import type { Problem } from "@/types/problem";
 import { getComponentById } from "@/data/components";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useAppStore } from "@/store/appStore";
-import { defaultParams } from "@/domain/components/registry";
+import { createComponentNode } from "@/lib/nodeFactory";
 import { defaultEdgeRule } from "@/domain/graph/edgeRules";
 
 /**
@@ -32,19 +32,7 @@ export function buildReferenceGraph(problem: Problem): {
     list.push(nodeId);
     instancesByComponent.set(ref.componentId, list);
 
-    refNodes.push({
-      id: nodeId,
-      type: "component",
-      position: { x: ref.x, y: ref.y },
-      data: {
-        componentId: comp.id,
-        label: comp.label,
-        icon: comp.icon,
-        category: comp.category,
-        scalable: comp.scalable,
-        params: defaultParams(comp.id),
-      },
-    });
+    refNodes.push({ ...createComponentNode(comp, { x: ref.x, y: ref.y }), id: nodeId });
   });
 
   // Round-robin counters, keyed by `${componentId}#${role}`
