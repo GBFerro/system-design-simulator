@@ -172,6 +172,8 @@ export const GRAPH_RELOAD_DEBOUNCE_MS = 250;
 export class SimController {
   private backend: SimBackend | null = null;
   private backendReady: Promise<SimBackend> | null = null;
+  /** play() between "running" and the graph being loaded into the backend. */
+  private loading: Promise<SimBackend> | null = null;
   private generation = 0;
   private status: PlaybackStatus = "idle";
   private graphKey = "";
@@ -198,11 +200,23 @@ export class SimController {
     if (this.status === "running") return true;
     this.status = "running";
     useRuntimeStore.getState().setPlayback("running");
-    const backend = await this.getBackend();
-    const key = JSON.stringify(graph);
-    if (key !== this.graphKey) {
-      this.graphKey = key;
-      await backend.load(graph);
+    // The UI already shows the run as started; faults injected meanwhile
+    // wait for the worker and the graph (`whenLoaded`).
+    const loading = (async () => {
+      const b = await this.getBackend();
+      const key = JSON.stringify(graph);
+      if (key !== this.graphKey) {
+        this.graphKey = key;
+        await b.load(graph);
+      }
+      return b;
+    })();
+    this.loading = loading;
+    let backend: SimBackend;
+    try {
+      backend = await loading;
+    } finally {
+      if (this.loading === loading) this.loading = null;
     }
     const { speed, pattern } = useRuntimeStore.getState();
     await backend.setSpeed(speed);
@@ -232,11 +246,12 @@ export class SimController {
 
   /** Start a fault in the current run. Fails (with a message) when no run is loaded. */
   async inject(fault: FaultSpec): Promise<InjectResult> {
-    if (this.status === "idle" || !this.backend) {
+    const backend = await this.whenLoaded();
+    if (!backend) {
       return { ok: false, error: "Play the simulation first: faults act on a live run." };
     }
     const generation = this.generation;
-    const result = await this.backend.inject(fault);
+    const result = await backend.inject(fault);
     if (result.ok && generation === this.generation) {
       useChaosStore.getState().setFaults(result.faults, result.faultVersion);
     }
@@ -244,10 +259,29 @@ export class SimController {
   }
 
   async heal(id: FaultId): Promise<void> {
-    if (this.status === "idle" || !this.backend) return;
+    const backend = await this.whenLoaded();
+    if (!backend) return;
     const generation = this.generation;
-    const { faults, faultVersion } = await this.backend.heal(id);
+    const { faults, faultVersion } = await backend.heal(id);
     if (generation === this.generation) useChaosStore.getState().setFaults(faults, faultVersion);
+  }
+
+  /**
+   * The backend once the current run's graph is loaded; null without a run.
+   * `play()` flips the status before the worker is up, so a fault injected
+   * right after Play waits here instead of failing.
+   */
+  private async whenLoaded(): Promise<SimBackend | null> {
+    if (this.status === "idle") return null;
+    if (this.loading) {
+      try {
+        await this.loading;
+      } catch {
+        return null;
+      }
+    }
+    // (re-read after the await: a reset may have landed meanwhile)
+    return this.playback === "idle" ? null : this.backend;
   }
 
   setSpeed(x: SimSpeed): void {
