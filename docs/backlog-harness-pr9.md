@@ -10,6 +10,8 @@ Já aplicado no PR:
 
 ## G1: CI não roda em PR empilhado
 
+**Resolvido no PR #14:** o gatilho `pull_request` ficou sem filtro de branch (o `push` continua só em `main`), então o CI roda em qualquer PR, inclusive os empilhados.
+
 **Problema.** `.github/workflows/ci.yml` usa `pull_request: branches: [main]`. Os PRs empilhados (#6 a #12) têm outra base e ficam sem nenhum check ("no checks reported"). Foi assim que a quebra entre o #8 e o #9 (um import de módulo movido) só apareceu ao juntar as branches à mão.
 
 **Proposta.** Tirar o filtro de branch do gatilho `pull_request` (mantendo `push: branches: [main]`), para o CI rodar em qualquer PR. Se o custo de minutos importar, limitar a `branches: [main, "feat/**"]`.

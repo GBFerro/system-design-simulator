@@ -11,6 +11,8 @@ Já aplicado no PR:
 
 ## M1: O mapa de arquitetura do `CLAUDE.md` envelhece a cada PR
 
+**Resolvido no PR #14:** `tests/unit/claude-map.test.ts` confere as pastas de primeiro e segundo nível de `src/` (cada uma na entrada da pasta-mãe), os arquivos de `src/lib`, `src/hooks` e `src/store` e as contagens de componentes, problemas e trade-off cards. O mapa foi atualizado de uma vez (`domain/persistence/`, `hooks/`, `ringBuffer`/`particles`/`runtimeMetrics` e os stores). Mutação testada: tirar um arquivo, mudar uma contagem ou renomear uma pasta no mapa faz o teste falhar.
+
 **Problema.** Nesta pilha o mapa ficou desatualizado em quase todo PR: `tests/` e `scripts/` (#5), os arquivos novos do editor em `components/canvas/` e `lib/` (#6), `domain/` e `data/` (#8, o número de componentes estava em 30 quando eram 36), `lib/ringBuffer.ts`, `lib/particles.ts`, `lib/runtimeMetrics.ts` (#11 e #12), `components/canvas/FlowParticles.tsx`, `nodes/NodeMetricsBadge.tsx` e a pasta `hooks/`, que nunca esteve no mapa. Cada revisão achou e corrigiu na mão, e os PRs empilhados editam as mesmas linhas, o que gera conflito.
 
 **Proposta.** Um teste `tests/unit/claude-map.test.ts` que lê o bloco "Architecture map" do `CLAUDE.md` e exige que:
@@ -22,6 +24,8 @@ Já aplicado no PR:
 **Custo.** Um teste pequeno. Só pode ser ligado depois que a pilha entrar em `main` e o mapa for atualizado de uma vez, senão ele falha por conta dos arquivos dos outros PRs.
 
 ## M2: Gancho de teste `window.__runtimeStore` existe em qualquer build com `?e2e`
+
+**Ainda pendente (condição não atendida), conferido no PR #14:** `window.__runtimeStore` continua sendo o único gancho `window.__*` em `src/`.
 
 **Problema.** `store/runtimeStore.ts` expõe o store em `window.__runtimeStore` em dev ou com `?e2e` na URL de qualquer build, para os testes injetarem snapshots. O CI roda os E2E contra `next start`, então o gancho precisa existir em produção. Está no `CLAUDE.md`, mas nada impede que um segundo gancho do mesmo tipo apareça em outro store sem ser listado.
 

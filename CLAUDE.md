@@ -21,7 +21,7 @@ npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless
 npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%); fails if the lazy engine client leaks in
 ```
 
-CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, engine, traffic patterns, persistence, store actions); editor behavior goes in Playwright. Still exercise UI changes in the browser. Only update `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) when the growth is intended and justified in the PR.
+CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, engine, traffic patterns, persistence, store actions); editor behavior goes in Playwright. Still exercise UI changes in the browser. Bundle budget: the PR that closes a roadmap phase (Fase 0–6 in `docs/00-visao-geral.md`) re-baselines `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) and justifies the growth in its description; between phase ends the +15% limit applies against the current baseline, and the baseline is not updated.
 
 ## Tech stack
 
@@ -51,6 +51,7 @@ src/
                   schemas/<type>.ts (per-type schemas), registry.ts (getSchema/defaultParams/sanitizeParams/readers)
     graph/        compile.ts (ReactFlow nodes/edges → validated SimGraph),
                   edgeRules.ts (connect defaults, sanitize, rule form specs)
+    persistence/  migrate.ts (v1 → v2), serialize.ts (canvas ⇄ Serialized*), envelope.ts (JSON export/import), version.ts (SCHEMA_VERSION)
   engine/         analyze.ts (steady state), core/ (queueing = Erlang C/M/M/c, routing, sampler,
                   rng (+ Poisson), settle = shared reverse pass/sampler model, tick = TickSimulator),
                   engine.ts (FlowEngine: analyze + tick loop scheduler), session.ts (throttled frame
@@ -59,12 +60,18 @@ src/
                   snapshot.ts (analyze → TickSnapshot), toSimulationResult.ts (→ v1 UI shape),
                   types.ts, constants.ts, legacy/simulator.ts (v1, kept only as a comparison in tests)
   scoring/        scorer.ts + rules/ (scalability, availability, latency, cost, tradeoffs — 20 pts each)
-  store/          zustand stores (see below); runtimeStore.ts = unpersisted live metrics, fed by
-                  SimController (tick frames) and the Simulate button (analyze snapshot)
-  lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils
+  store/          zustand stores (see below): canvasStore, appStore (UI + toast), interviewStore, penStore,
+                  savedDesignsStore, customComponentsStore, customProblemsStore, tradeoffStore,
+                  simulationStore (v1 result + score); runtimeStore.ts = unpersisted live metrics, fed by
+                  SimController (tick frames) and the Simulate button (analyze snapshot);
+                  persistVersion, migrations, hydration, safeStorage, durableStorage (IndexedDB)
+  hooks/          useBreakpoint (useIsMobile/useIsCoarsePointer/usePrefersReducedMotion)
+  lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils, ringBuffer,
+                  particles (particle budget/edge width), runtimeMetrics (snapshot sharing, sparklines, formatters)
   types/          shared interfaces
 tests/
-  unit/           vitest (pure logic: scoring, engine, traffic patterns, persistence, store actions)
+  unit/           vitest (pure logic: scoring, engine, traffic patterns, persistence, store actions;
+                  claude-map checks this map against src/)
   e2e/            playwright specs (smoke today, editor B1–B6 in spec 02)
 scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ```
