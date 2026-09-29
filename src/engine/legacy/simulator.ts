@@ -28,12 +28,12 @@ function computeLatency(baseLatency: number, utilization: number): number {
   return baseLatency;
 }
 
-/** Sanitize a raw maxQPS spec: finite positive number, otherwise 0. */
+/** Sanitize a raw per-instance capacity: finite positive number, otherwise 0. */
 function sanitizeMaxQPS(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-/** Sanitize a raw replicas spec: integer >= 1 (NaN/negative/fractional inputs clamp to 1). */
+/** Sanitize a raw instance count: integer >= 1 (NaN/negative/fractional inputs clamp to 1). */
 function sanitizeReplicas(value: unknown): number {
   const n = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : 1;
   return Math.max(1, n);
@@ -48,10 +48,9 @@ export function runSimulation(
   const nodeMetrics = new Map<string, NodeMetrics>();
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-  // Sanitized effective capacity per node (maxQPS * replicas)
+  // Sanitized effective capacity per node (capacityPerInstance * instances)
   const capacity = new Map<string, number>();
   for (const node of nodes) {
-    // resolvedParams also reads pre-v2 nodes (maxQPS/replicas, no params) like serviceTimeMsOf does
     const params = resolvedParams(node.data);
     capacity.set(
       node.id,

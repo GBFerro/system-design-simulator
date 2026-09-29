@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defaultParams, PARAM } from "@/domain/components/registry";
 import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { retryAmplification } from "@/engine/core/queueing";
@@ -292,7 +293,7 @@ describe("analyze(): graph hygiene and entry points", () => {
     expect(byId(s, "c").offeredRps).toBeGreaterThan(0);
   });
 
-  it("sanitizes params: garbage falls back to schema defaults, legacy fields still read", () => {
+  it("sanitizes params: garbage falls back to schema defaults, v1 top-level fields are ignored", () => {
     const bad = comp("app", "app-server");
     (bad.data as Record<string, unknown>).params = {
       instances: -4,
@@ -312,8 +313,14 @@ describe("analyze(): graph hygiene and entry points", () => {
     expect(app.capacityPerInstance).toBe(5000);
     expect(app.serviceTimeMs).toBe(20);
     expect(app.params.hitRate).toBeUndefined(); // not in the app-server schema
+    // v1 numbers are converted by the persistence migration, not read here.
     const old = graph.nodes.find((n) => n.id === "old")!;
-    expect([old.instances, old.capacityPerInstance, old.serviceTimeMs]).toEqual([2, 777, 3]);
+    const db = defaultParams("sql-db");
+    expect([old.instances, old.capacityPerInstance, old.serviceTimeMs]).toEqual([
+      db[PARAM.instances],
+      db[PARAM.capacityPerInstance],
+      db[PARAM.serviceTimeMs],
+    ]);
   });
 });
 

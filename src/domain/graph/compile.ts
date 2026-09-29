@@ -5,7 +5,6 @@ import {
   routingFor,
   sanitizeParams,
   serviceTimeMsOf,
-  type ParamsCarrier,
 } from "@/domain/components/registry";
 import type { EdgeRule, Params, RoutingKind } from "@/domain/components/types";
 import { defaultEdgeRule, sanitizeEdgeRule } from "./edgeRules";
@@ -83,22 +82,10 @@ function compileNode(raw: RawNode): SimNode | null {
   const componentId = data.componentId;
   if (typeof componentId !== "string" || componentId === "") return null;
 
-  const rawParams = asRecord(data.params);
-  const params = sanitizeParams(componentId, rawParams);
-
-  // Core numbers: an explicit (validated) param wins; otherwise the registry
-  // readers fall back to the v1 top-level fields, then the schema default.
-  const present: Params = {};
-  for (const key of Object.keys(params)) {
-    if (Object.prototype.hasOwnProperty.call(rawParams, key)) present[key] = params[key];
-  }
-  const carrier: ParamsCarrier = {
-    componentId,
-    params: present,
-    maxQPS: data.maxQPS,
-    latencyMs: data.latencyMs,
-    replicas: data.replicas,
-  };
+  // Params are validated by the schema (invalid or missing → default); v1
+  // top-level fields were converted by the persistence migration.
+  const params = sanitizeParams(componentId, data.params);
+  const carrier = { componentId, params };
   const instances = instancesOf(carrier);
   const capacityPerInstance = capacityPerInstanceOf(carrier);
   const serviceTimeMs = serviceTimeMsOf(carrier);

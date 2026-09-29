@@ -3,7 +3,6 @@ import type { SystemComponent } from "@/types/component";
 import { coreParams, finitePositive, MAX_INSTANCES, PARAM, routingParams } from "./params";
 import { CATALOG_SCHEMAS } from "./schemas";
 import {
-  CORE_PARAM,
   type ComponentSchema,
   type ParamSpec,
   type ParamValue,
@@ -143,23 +142,16 @@ export function getParamSpec(componentId: string, key: string): ParamSpec | unde
 
 /* ---------- typed readers (used by UI, scoring and engine) ---------- */
 
-/** Minimal shape of a component node's data that the readers need. */
+/**
+ * The part of a component node's data the readers need (`ComponentNodeData`
+ * satisfies it). Every entry path (rehydrate, saved designs, import,
+ * references, palette, paste) delivers `params`; v1 top-level fields are
+ * converted by the persistence migration, never read here.
+ */
 export interface ParamsCarrier {
   componentId?: unknown;
   params?: unknown;
-  [key: string]: unknown;
 }
-
-/**
- * v1 node data kept these three numbers at the top level. Until the persisted
- * stores migrate (Spec 05), readers fall back to them so old canvases keep
- * their values.
- */
-const LEGACY_FIELD: Record<string, string> = {
-  [CORE_PARAM.instances]: "replicas",
-  [CORE_PARAM.capacityPerInstance]: "maxQPS",
-  [CORE_PARAM.serviceTimeMs]: "latencyMs",
-};
 
 function rawParams(data: ParamsCarrier): Record<string, unknown> {
   return typeof data.params === "object" && data.params !== null
@@ -171,8 +163,6 @@ function rawParams(data: ParamsCarrier): Record<string, unknown> {
 export function numParam(data: ParamsCarrier, key: string, fallback: number): number {
   const v = rawParams(data)[key];
   if (typeof v === "number" && Number.isFinite(v)) return v;
-  const legacy = LEGACY_FIELD[key] ? data[LEGACY_FIELD[key]] : undefined;
-  if (typeof legacy === "number" && Number.isFinite(legacy)) return legacy;
   const componentId = typeof data.componentId === "string" ? data.componentId : "custom";
   const def = getSchema(componentId).params.find((p) => p.key === key)?.default;
   return typeof def === "number" && Number.isFinite(def) ? def : fallback;
@@ -190,20 +180,8 @@ export function serviceTimeMsOf(data: ParamsCarrier): number {
   return finitePositive(numParam(data, PARAM.serviceTimeMs, 10), 10);
 }
 
-/**
- * Every schema param of a node, validated: what the Props form shows and
- * what an edit is merged into. Missing core keys fall back to the v1
- * top-level fields (see `LEGACY_FIELD`) before the schema default.
- */
+/** Every schema param of a node, validated: what the Props form shows and what an edit is merged into. */
 export function resolvedParams(data: ParamsCarrier): Params {
   const componentId = typeof data.componentId === "string" ? data.componentId : "custom";
-  const raw = rawParams(data);
-  const params = sanitizeParams(componentId, raw);
-  for (const spec of getSchema(componentId).params) {
-    const legacyKey = LEGACY_FIELD[spec.key];
-    if (!legacyKey || isValidParam(spec, raw[spec.key])) continue;
-    const legacy = data[legacyKey];
-    if (isValidParam(spec, legacy)) params[spec.key] = legacy;
-  }
-  return params;
+  return sanitizeParams(componentId, rawParams(data));
 }
