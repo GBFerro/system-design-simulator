@@ -2,6 +2,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { instancesOf } from "@/domain/components/registry";
 import type { CategoryScore, ScoringGraph } from "@/types/scoring";
+import { CATEGORY_MAX_SCORE } from "../budget";
 
 /** Stores whose replicas constitute real data redundancy (a cache is not durable). */
 const DURABLE_STORES = new Set([
@@ -13,8 +14,17 @@ const DURABLE_STORES = new Set([
   "file-store",
 ]);
 
-// Point budget (max 20): SPOF 3 + DB redundancy 3 + multi-path 3 +
-// monitoring 3 + overload protection 3 + graceful degradation 3 + queue 2 = 20
+/** Max points per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts). */
+export const BUDGET = {
+  noSpof: 3,
+  dbRedundancy: 3,
+  multiPath: 3,
+  monitoring: 3,
+  overloadProtection: 3,
+  gracefulDegradation: 3,
+  queue: 2,
+} as const;
+
 export function scoreAvailability(
   nodes: Node<ComponentNodeData>[],
   _edges: Edge[],
@@ -28,11 +38,11 @@ export function scoreAvailability(
   const connectedIds = new Set(connectedNodes.map((n) => n.data.componentId));
   const placedIds = new Set(nodes.map((n) => n.data.componentId));
 
-  // Check no single point of failure (3 pts)
+  // Check no single point of failure
   const scalableNodes = nodes.filter((n) => n.data.scalable || instancesOf(n.data) > 1);
   const noSpof = scalableNodes.length >= Math.ceil(nodes.length * 0.7);
   if (noSpof) {
-    score += 3;
+    score += BUDGET.noSpof;
     passed.push(
       "At least 70% of components are scalable or redundant, minimizing single points of failure",
     );
@@ -42,14 +52,14 @@ export function scoreAvailability(
     );
   }
 
-  // Check DB redundancy (3 pts) — only durable stores count; a replicated
+  // Check DB redundancy — only durable stores count; a replicated
   // cache doesn't protect your data if the database goes down.
   const isReplicatedDurableStore = (n: Node<ComponentNodeData>) =>
     DURABLE_STORES.has(n.data.componentId) && instancesOf(n.data) > 1;
   const hasReplicatedStorage = connectedNodes.some(isReplicatedDurableStore);
   const placedReplicatedStorage = nodes.some(isReplicatedDurableStore);
   if (hasReplicatedStorage) {
-    score += 3;
+    score += BUDGET.dbRedundancy;
     passed.push(
       "Database replication provides real redundancy — failover to replica if primary goes down",
     );
@@ -63,7 +73,7 @@ export function scoreAvailability(
     );
   }
 
-  // Check multi-path (3 pts) — duplicates must be on the connected request path
+  // Check multi-path — duplicates must be on the connected request path
   const entryComponents = ["load-balancer", "api-gateway", "cdn"];
   const entryWithMultipleDownstream = connectedNodes.some(
     (n) =>
@@ -79,7 +89,7 @@ export function scoreAvailability(
   );
   const hasMultiPath = entryWithMultipleDownstream || hasRedundantInstances;
   if (hasMultiPath && nodes.length > 2) {
-    score += 3;
+    score += BUDGET.multiPath;
     passed.push(
       "Redundant paths exist — entry points fan out to multiple targets or duplicate instances provide failover",
     );
@@ -89,9 +99,9 @@ export function scoreAvailability(
     );
   }
 
-  // Check monitoring (3 pts)
+  // Check monitoring
   if (connectedIds.has("monitoring")) {
-    score += 3;
+    score += BUDGET.monitoring;
     passed.push(
       "Monitoring enables fast incident detection and reduces Mean Time To Recovery (MTTR)",
     );
@@ -105,10 +115,10 @@ export function scoreAvailability(
     );
   }
 
-  // Check rate limiter or API gateway for overload protection (3 pts)
+  // Check rate limiter or API gateway for overload protection
   const hasOverloadProtection = connectedIds.has("rate-limiter") || connectedIds.has("api-gateway");
   if (hasOverloadProtection) {
-    score += 3;
+    score += BUDGET.overloadProtection;
     passed.push("Rate limiting / API gateway protects backend from traffic surges and abuse");
   } else if (placedIds.has("rate-limiter") || placedIds.has("api-gateway")) {
     feedback.push(
@@ -120,11 +130,11 @@ export function scoreAvailability(
     );
   }
 
-  // Check cache for graceful degradation (3 pts)
+  // Check cache for graceful degradation
   const hasCache = connectedIds.has("cache");
   const hasDB = connectedIds.has("sql-db") || connectedIds.has("nosql-db");
   if (hasCache && hasDB) {
-    score += 3;
+    score += BUDGET.gracefulDegradation;
     passed.push(
       "Cache enables graceful degradation — serves stale data if database becomes unavailable",
     );
@@ -142,9 +152,9 @@ export function scoreAvailability(
     );
   }
 
-  // Check queue for resilience (2 pts)
+  // Check queue for resilience
   if (connectedIds.has("message-queue")) {
-    score += 2;
+    score += BUDGET.queue;
     passed.push("Message queue buffers requests during downstream outages, preventing data loss");
   } else if (placedIds.has("message-queue")) {
     feedback.push(
@@ -156,5 +166,5 @@ export function scoreAvailability(
     );
   }
 
-  return { category: "Availability", score, maxScore: 20, feedback, passed };
+  return { category: "Availability", score, maxScore: CATEGORY_MAX_SCORE, feedback, passed };
 }

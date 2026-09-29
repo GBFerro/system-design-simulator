@@ -2,9 +2,19 @@ import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { instancesOf } from "@/domain/components/registry";
 import type { CategoryScore, ScoringGraph } from "@/types/scoring";
+import { CATEGORY_MAX_SCORE } from "../budget";
 
-// Point budget (max 20): LB 3 + scalable compute 3 + cache 3 + queue 3 +
-// DB scaling 3 + CDN 3 + LB->compute wiring 2 = 20
+/** Max points per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts). */
+export const BUDGET = {
+  loadBalancer: 3,
+  scalableCompute: 3,
+  cache: 3,
+  queue: 3,
+  dbScaling: 3,
+  cdn: 3,
+  lbToCompute: 2,
+} as const;
+
 export function scoreScalability(
   nodes: Node<ComponentNodeData>[],
   _edges: Edge[],
@@ -35,9 +45,9 @@ export function scoreScalability(
   const hasDBScaling = connectedNodes.some(isDBScalingNode);
   const placedDBScaling = nodes.some(isDBScalingNode);
 
-  // Check load balancer (3 pts)
+  // Check load balancer
   if (hasLB) {
-    score += 3;
+    score += BUDGET.loadBalancer;
     passed.push("Load balancer distributes traffic across servers, enabling horizontal scaling");
   } else if (placedIds.has("load-balancer")) {
     feedback.push(
@@ -49,9 +59,9 @@ export function scoreScalability(
     );
   }
 
-  // Check horizontal scaling (3 pts)
+  // Check horizontal scaling
   if (hasScalableCompute) {
-    score += 3;
+    score += BUDGET.scalableCompute;
     passed.push("Horizontally scalable compute layer allows adding capacity on demand");
   } else if (placedScalableCompute) {
     feedback.push(
@@ -63,9 +73,9 @@ export function scoreScalability(
     );
   }
 
-  // Check caching (3 pts)
+  // Check caching
   if (hasCache) {
-    score += 3;
+    score += BUDGET.cache;
     passed.push("Caching layer (Redis/Memcached) absorbs read traffic and reduces backend load");
   } else if (placedIds.has("cache")) {
     feedback.push(
@@ -77,9 +87,9 @@ export function scoreScalability(
     );
   }
 
-  // Check async processing (3 pts)
+  // Check async processing
   if (hasQueue) {
-    score += 3;
+    score += BUDGET.queue;
     passed.push("Message queue enables async processing and absorbs traffic spikes");
   } else if (placedIds.has("message-queue")) {
     feedback.push(
@@ -91,9 +101,9 @@ export function scoreScalability(
     );
   }
 
-  // Check DB read scaling (3 pts)
+  // Check DB read scaling
   if (hasDBScaling) {
-    score += 3;
+    score += BUDGET.dbScaling;
     passed.push("Database layer supports read scaling via NoSQL or read replicas");
   } else if (placedDBScaling) {
     feedback.push(
@@ -105,9 +115,9 @@ export function scoreScalability(
     );
   }
 
-  // Check CDN for static content offloading (3 pts)
+  // Check CDN for static content offloading
   if (hasCDN) {
-    score += 3;
+    score += BUDGET.cdn;
     passed.push("CDN offloads static content delivery from origin servers");
   } else if (placedIds.has("cdn")) {
     feedback.push(
@@ -119,7 +129,7 @@ export function scoreScalability(
     );
   }
 
-  // Check LB→compute connectivity (2 pts)
+  // Check LB→compute connectivity
   // True when the LB feeds a compute node directly, or feeds an API gateway /
   // rate limiter that itself reaches a compute node downstream.
   const reachesCompute = (startId: string): boolean => {
@@ -161,7 +171,7 @@ export function scoreScalability(
     }
   }
   if (lbToCompute) {
-    score += 2;
+    score += BUDGET.lbToCompute;
     passed.push("Load balancer is properly connected to compute layer");
   } else if (hasLB && hasScalableCompute) {
     feedback.push(
@@ -169,5 +179,5 @@ export function scoreScalability(
     );
   }
 
-  return { category: "Scalability", score, maxScore: 20, feedback, passed };
+  return { category: "Scalability", score, maxScore: CATEGORY_MAX_SCORE, feedback, passed };
 }

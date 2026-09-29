@@ -77,9 +77,9 @@ Para medir a meta de bundle, `scripts/bundle-size.mjs` (`npm run bundle:check`) 
 3. **Editor (Playwright):** um teste por bug B1–B6, usando os mesmos cenários do diagnóstico: drop no centro vazio, drag e depois Delete, Shift+clique em 2 nós, menu de contexto e touch. Ver [Spec 02](02-editor-confiavel.md).
 4. **CI (GitHub Actions, Node 22):** `lint`, `typecheck`, `vitest`, `build`, `bundle:check` e `playwright` em todo PR. O Node sobe de 20 para 22 porque o vitest 5 exige `^22.12` e o Node 20 saiu de suporte em abril de 2026.
 
-**Estado atual:** `tests/unit/scoring.test.ts` cobre a invariante das regras: o orçamento declarado em cada regra soma 20, e o score bruto fica em [0, 20] para as 35 referências, grafos-limite e 200 grafos aleatórios com seed. `tests/e2e/smoke.spec.ts` abre o app e checa o canvas vazio sem erros no console. Os testes de editor B1–B6 ficam com a [Spec 02](02-editor-confiavel.md).
+**Estado atual:** `tests/unit/scoring.test.ts` cobre a invariante das regras: o `BUDGET` exportado por cada regra soma 20, um design completo por regra chega a exatamente 20, e o score bruto fica em [0, 20] para as 35 referências, grafos-limite e 200 grafos aleatórios com seed. `tests/e2e/smoke.spec.ts` abre o app e checa o canvas vazio sem erros no console. Os testes de editor B1–B6 ficam com a [Spec 02](02-editor-confiavel.md).
 
-**Problema conhecido encontrado pelos testes:** a solução de referência do `web-crawler` é um ciclo puro (`message-queue ↔ app-server`) sem nó de in-degree 0. Nada fica alcançável, e ela tira 0 em Scalability, Latency e Trade-offs. Está isolada em `KNOWN_UNREACHABLE_REFERENCES` no teste até o dado ser corrigido.
+**Problema encontrado pelos testes (resolvido):** a solução de referência do `web-crawler` era um ciclo puro (`message-queue ↔ app-server`) sem nó de in-degree 0, então nada ficava alcançável. Ela ganhou um Task Scheduler como entrada (item H3 de [backlog-harness.md](backlog-harness.md)), e `tests/unit/data.test.ts` exige um nó de entrada em toda referência.
 
 ## Critérios de aceite
 

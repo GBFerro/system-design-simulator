@@ -625,7 +625,7 @@ export const PROBLEMS: Problem[] = [
       {
         title: "URL frontier design",
         content:
-          "Use a message queue as your URL frontier with priority levels. Separate front queues (priority) from back queues (politeness/per-host).",
+          "Use a message queue as your URL frontier with priority levels. Separate front queues (priority) from back queues (politeness/per-host). A scheduler seeds the frontier with the seed URLs and enqueues re-crawls as pages come due.",
       },
       {
         title: "Deduplication",
@@ -645,6 +645,7 @@ export const PROBLEMS: Problem[] = [
     ],
     referenceSolution: {
       nodes: [
+        { componentId: "task-scheduler", x: 100, y: 100 },
         { componentId: "message-queue", x: 100, y: 250 },
         { componentId: "app-server", x: 300, y: 250 },
         { componentId: "cache", x: 300, y: 100 },
@@ -655,6 +656,7 @@ export const PROBLEMS: Problem[] = [
         { componentId: "monitoring", x: 750, y: 250 },
       ],
       edges: [
+        { source: "task-scheduler", target: "message-queue" },
         { source: "message-queue", target: "app-server" },
         { source: "app-server", target: "cache" },
         { source: "app-server", target: "rate-limiter" },

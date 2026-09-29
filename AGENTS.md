@@ -7,13 +7,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Before you start
 
-- **Read `CLAUDE.md`** — it has the architecture map, the engine/scoring/store invariants you must not break, and data conventions. Most subtle bugs here come from violating one of those invariants.
-- This app is 100% client-side (no backend). State persists to `localStorage` via Zustand; hydration is deferred to avoid SSR mismatch.
-- Verify with `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`, and by exercising flows in the browser. The Commands section of `CLAUDE.md` has the full list (CI also runs the bundle check and Playwright E2E).
+- **Read `CLAUDE.md`.** It is the single place for the architecture map and the invariants you must not break (engine, scoring, stores, runtime metrics, persistence, canvas) plus the data conventions. Most subtle bugs here come from violating one of them.
+- Verify with the commands in its Commands section (lint, format, typecheck, unit tests, build; CI also runs the bundle check and Playwright E2E), and exercise UI changes in the browser.
 
 ## Quick rules of thumb
 
-- Don't add runtime dependencies without a strong reason.
-- Don't reintroduce: tick-counting timers, inline `nodeTypes`/`edgeTypes`, presence-only scoring, hover-only touch affordances, or dropping `edge.data` on save.
-- Keep each scoring category capped at exactly 20 points.
-- Dark theme only. No Claude/AI attribution in commit messages.
+- Invariants live only in `CLAUDE.md`; don't restate them here. When a rule can be a test, prefer the test (`tests/unit/`) and point to it.
+- Many invariants are already enforced: scoring budgets (`scoring.test.ts`), catalog and data conventions (`catalog.test.ts`, `data.test.ts`), persisted store versions (`persistence.versions.test.ts`). Run `npm test` instead of checking by hand.
+- Stack, dependencies, theme and commit-message rules: `CLAUDE.md` (Tech stack, Conventions).
+- PR checklist: `.github/PULL_REQUEST_TEMPLATE.md`.

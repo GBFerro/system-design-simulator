@@ -1,9 +1,25 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { CategoryScore, ScoringGraph } from "@/types/scoring";
+import { CATEGORY_MAX_SCORE } from "../budget";
 
-// Point budget (max 20): CDN 3 + cache-before-DB 4 + hop count 4 + DNS 1 +
-// async offloading 4 + load balancer 2 + low-latency store 2 = 20
+/** Max points per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts). */
+export const BUDGET = {
+  cdn: 3,
+  cacheBeforeDb: 4,
+  hopCount: 4,
+  dns: 1,
+  asyncOffload: 4,
+  loadBalancer: 2,
+  lowLatencyStore: 2,
+} as const;
+
+/** Partial credit for a check that is only half met (always below its BUDGET). */
+export const PARTIAL = {
+  cacheBeforeDb: 1,
+  hopCount: 2,
+} as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
+
 export function scoreLatency(
   nodes: Node<ComponentNodeData>[],
   edges: Edge[],
@@ -17,9 +33,9 @@ export function scoreLatency(
   const connectedIds = new Set(connectedNodes.map((n) => n.data.componentId));
   const placedIds = new Set(nodes.map((n) => n.data.componentId));
 
-  // CDN for static content (3 pts)
+  // CDN for static content
   if (connectedIds.has("cdn")) {
-    score += 3;
+    score += BUDGET.cdn;
     passed.push(
       "CDN serves content from edge locations, cutting latency from 200ms+ to <20ms for static assets",
     );
@@ -33,7 +49,7 @@ export function scoreLatency(
     );
   }
 
-  // Cache before DB (4 pts)
+  // Cache before DB
   const adj = graph.adjacency;
   const cacheNodes = connectedNodes.filter((n) => n.data.componentId === "cache");
   const dbNodes = connectedNodes.filter(
@@ -55,12 +71,12 @@ export function scoreLatency(
   });
   const cacheBeforeDB = cacheNodes.length > 0 && dbNodes.length > 0 && (cacheInFront || cacheAside);
   if (cacheBeforeDB) {
-    score += 4;
+    score += BUDGET.cacheBeforeDb;
     passed.push(
       "Cache intercepts reads before hitting the database — memory access (~1ms) vs disk (~5-10ms)",
     );
   } else if (cacheNodes.length > 0) {
-    score += 1;
+    score += PARTIAL.cacheBeforeDb;
     feedback.push(
       "Your cache exists but isn't positioned to intercept reads before the database. Connect your App Server to both Cache and DB so it checks the cache first. A cache hit returns in ~1ms; a DB query takes 5-10ms or more — that's a 5-10x latency improvement on every cached read.",
     );
@@ -74,19 +90,19 @@ export function scoreLatency(
     );
   }
 
-  // Minimal hops on the synchronous request path (4 pts; async edges excluded)
+  // Minimal hops on the synchronous request path (async edges excluded)
   const { depth: maxDepth, cyclic } = computeMaxDepth(nodes, edges);
   if (cyclic) {
     feedback.push(
       "Your design contains a cycle — requests could loop forever, so the hop count can't be credited. Break the cycle (for example, make the back-edge asynchronous via a queue) to earn these points.",
     );
   } else if (maxDepth <= 6) {
-    score += 4;
+    score += BUDGET.hopCount;
     passed.push(
       "Request path has a lean hop count (" + maxDepth + " layers) — minimal serialized latency",
     );
   } else if (maxDepth <= 8) {
-    score += 2;
+    score += PARTIAL.hopCount;
     passed.push("Request path has an acceptable hop count (" + maxDepth + " layers)");
   } else {
     feedback.push(
@@ -94,9 +110,9 @@ export function scoreLatency(
     );
   }
 
-  // DNS entry point (1 pt)
+  // DNS entry point
   if (connectedIds.has("dns")) {
-    score += 1;
+    score += BUDGET.dns;
     passed.push(
       "DNS-based geo-routing can direct users to the nearest region, reducing cross-region latency",
     );
@@ -110,9 +126,9 @@ export function scoreLatency(
     );
   }
 
-  // Async offloading heavy work (4 pts)
+  // Async offloading heavy work
   if (connectedIds.has("message-queue")) {
-    score += 4;
+    score += BUDGET.asyncOffload;
     passed.push(
       "Message queue offloads heavy processing from the request path, keeping responses fast",
     );
@@ -126,9 +142,9 @@ export function scoreLatency(
     );
   }
 
-  // Load balancer for connection reuse (2 pts)
+  // Load balancer for connection reuse
   if (connectedIds.has("load-balancer")) {
-    score += 2;
+    score += BUDGET.loadBalancer;
     passed.push(
       "Load balancer enables connection pooling and keep-alive, though it adds an extra network hop",
     );
@@ -142,10 +158,10 @@ export function scoreLatency(
     );
   }
 
-  // Low-latency data store choice (2 pts) — must be on a connected path
+  // Low-latency data store choice — must be on a connected path
   const hasLowLatencyStore = connectedIds.has("cache") || connectedIds.has("nosql-db");
   if (hasLowLatencyStore) {
-    score += 2;
+    score += BUDGET.lowLatencyStore;
     passed.push("Using low-latency data stores (in-memory cache or NoSQL) for fast data access");
   } else if (placedIds.has("cache") || placedIds.has("nosql-db")) {
     feedback.push(
@@ -157,7 +173,7 @@ export function scoreLatency(
     );
   }
 
-  return { category: "Latency", score, maxScore: 20, feedback, passed };
+  return { category: "Latency", score, maxScore: CATEGORY_MAX_SCORE, feedback, passed };
 }
 
 /**
