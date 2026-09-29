@@ -10,6 +10,12 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 const MAX_GROWTH = 0.15;
+// Code that must never land in the initial JS: it loads on first use (dynamic
+// import). The marker is a string literal unique to that module; string
+// literals survive minification.
+const LAZY_ONLY = [
+  { marker: "systemforge-engine", what: "The engine worker client (src/engine/client.ts)" },
+];
 const root = process.cwd();
 const htmlPath = join(root, ".next/server/app/index.html");
 const baselinePath = join(root, "bundle-baseline.json");
@@ -28,10 +34,19 @@ if (scripts.length === 0) {
 
 let raw = 0;
 let gzip = 0;
+const leaks = [];
 for (const src of scripts) {
   const buf = readFileSync(join(root, ".next", src.replace(/^\/_next\//, "")));
   raw += buf.length;
   gzip += gzipSync(buf, { level: 9 }).length;
+  for (const { marker, what } of LAZY_ONLY) {
+    if (buf.includes(marker)) leaks.push(`${what} is in the initial bundle (${src})`);
+  }
+}
+if (leaks.length > 0) {
+  for (const leak of leaks) console.error(leak);
+  console.error("Keep it behind a dynamic import() so it stays out of the initial JS.");
+  process.exit(1);
 }
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

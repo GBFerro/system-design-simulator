@@ -18,14 +18,14 @@ npm run format       # oxfmt (config: .oxfmtrc.json); CI runs format:check
 npm run typecheck    # tsc --noEmit
 npm test             # vitest (tests/unit)
 npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless one is running
-npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%)
+npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%); fails if the lazy engine client leaks in
 ```
 
 CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, and later the engine); editor behavior goes in Playwright. Still exercise UI changes in the browser. Only update `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) when the growth is intended and justified in the PR.
 
 ## Tech stack
 
-Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12 (ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion · perfect-freehand (pen) · html-to-image (export) · @dnd-kit/core (palette drag). No new runtime deps without good reason.
+Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12 (ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion · perfect-freehand (pen) · html-to-image (export) · @dnd-kit/core (palette drag) · comlink (engine Web Worker RPC). No new runtime deps without good reason.
 
 ## Architecture map
 
