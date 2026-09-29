@@ -9,7 +9,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **Read `CLAUDE.md`** — it has the architecture map, the engine/scoring/store invariants you must not break, and data conventions. Most subtle bugs here come from violating one of those invariants.
 - This app is 100% client-side (no backend). State persists to `localStorage` via Zustand; hydration is deferred to avoid SSR mismatch.
-- Verify with `npm run build` (runs `tsc`) and by exercising flows in the browser — there are no unit tests.
+- Verify with `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`, and by exercising flows in the browser. The Commands section of `CLAUDE.md` has the full list (CI also runs the bundle check and Playwright E2E).
 
 ## Quick rules of thumb
 

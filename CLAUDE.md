@@ -13,12 +13,15 @@ SystemForge — an open-source system-design interview simulator. Drag infrastru
 ```bash
 npm run dev      # dev server (http://localhost:3000)
 npm run build    # production build — also runs tsc; must pass before pushing
-npm run lint     # oxlint (config: .oxlintrc.json)
-npm run format   # oxfmt (config: .oxfmtrc.json); CI runs format:check
-npx tsc --noEmit # type-check only
+npm run lint         # oxlint (config: .oxlintrc.json)
+npm run format       # oxfmt (config: .oxfmtrc.json); CI runs format:check
+npm run typecheck    # tsc --noEmit
+npm test             # vitest (tests/unit)
+npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless one is running
+npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%)
 ```
 
-There are no unit tests; verify changes by building and exercising flows in the browser.
+CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, and later the engine); editor behavior goes in Playwright. Still exercise UI changes in the browser. Only update `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) when the growth is intended and justified in the PR.
 
 ## Tech stack
 
@@ -44,6 +47,10 @@ src/
   store/          zustand stores (see below)
   lib/            exportCanvas, loadReference, icons, utils
   types/          shared interfaces
+tests/
+  unit/           vitest (pure logic: scoring today, engine later)
+  e2e/            playwright specs (smoke today, editor B1–B6 in spec 02)
+scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ```
 
 ## Key invariants — don't break these
