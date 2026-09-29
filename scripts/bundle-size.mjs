@@ -15,6 +15,7 @@ const MAX_GROWTH = 0.15;
 // literals survive minification.
 const LAZY_ONLY = [
   { marker: "systemforge-engine", what: "The engine worker client (src/engine/client.ts)" },
+  { marker: "Engine.analyze() called before load()", what: "The engine (src/engine/engine.ts)" },
 ];
 const root = process.cwd();
 const htmlPath = join(root, ".next/server/app/index.html");

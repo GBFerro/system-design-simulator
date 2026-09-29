@@ -21,7 +21,7 @@ npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless
 npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%); fails if the lazy engine client leaks in
 ```
 
-CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, and later the engine); editor behavior goes in Playwright. Still exercise UI changes in the browser. Only update `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) when the growth is intended and justified in the PR.
+CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, engine, traffic patterns, persistence, store actions); editor behavior goes in Playwright. Still exercise UI changes in the browser. Only update `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) when the growth is intended and justified in the PR.
 
 ## Tech stack
 
@@ -64,7 +64,7 @@ src/
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils
   types/          shared interfaces
 tests/
-  unit/           vitest (pure logic: scoring today, engine later)
+  unit/           vitest (pure logic: scoring, engine, traffic patterns, persistence, store actions)
   e2e/            playwright specs (smoke today, editor B1–B6 in spec 02)
 scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ```
