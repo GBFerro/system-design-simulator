@@ -1,47 +1,36 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { Node } from "@xyflow/react";
-import { useCanvasStore, type ComponentNodeData } from "./canvasStore";
+import { useCanvasStore } from "./canvasStore";
 import { useAppStore } from "./appStore";
 import { usePenStore, type Stroke } from "./penStore";
 import { useSimulationStore } from "./simulationStore";
 import { useCustomProblemsStore } from "./customProblemsStore";
-import { safeLocalStorage } from "./safeStorage";
+import { durableStorage } from "./durableStorage";
+import { migrateSavedDesignsState } from "./migrations";
+import { STORE_VERSION } from "./persistVersion";
 import { PROBLEMS } from "@/data/problems";
-import { PARAM, sanitizeParams } from "@/domain/components/registry";
-import type { EdgeRule, Params } from "@/domain/components/types";
-import { defaultEdgeRule, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
+import {
+  deserializeEdges,
+  deserializeNodes,
+  serializeEdges,
+  serializeNodes,
+  type SerializedEdge,
+  type SerializedNode,
+} from "@/domain/persistence/serialize";
+import {
+  parseEnvelopeJson,
+  stringifyEnvelope,
+  type ChaosScript,
+  type SloOverrides,
+} from "@/domain/persistence/envelope";
 
-export interface SerializedComponentData {
-  componentId: string;
-  label: string;
-  icon: string;
-  category: string;
-  scalable: boolean;
-  params: Params;
-}
-
-export interface SerializedTextData {
-  text: string;
-  fontSize?: "sm" | "base" | "lg";
-}
-
-export interface SerializedNode {
-  id: string;
-  type: string;
-  position: { x: number; y: number };
-  data: SerializedComponentData | SerializedTextData;
-}
-
-export interface SerializedEdge {
-  id: string;
-  type?: string;
-  source: string;
-  target: string;
-  sourceHandle?: string | null;
-  targetHandle?: string | null;
-  data?: { label?: string; protocol?: string; async?: boolean; rule?: EdgeRule };
-}
+export type {
+  SerializedComponentData,
+  SerializedEdge,
+  SerializedNode,
+  SerializedTextData,
+} from "@/domain/persistence/serialize";
+export { serializeEdges, serializeNodes } from "@/domain/persistence/serialize";
 
 export interface SavedDesign {
   id: string;
@@ -51,11 +40,15 @@ export interface SavedDesign {
   edges: SerializedEdge[];
   annotations: string[];
   strokes: Stroke[];
+  /** Spec 08 placeholder, kept from imported files. */
+  chaosScript?: ChaosScript;
+  /** Spec 11 placeholder, kept from imported files. */
+  slo?: SloOverrides;
   createdAt: string;
   updatedAt: string;
 }
 
-export type ImportResult = { ok: true } | { ok: false; error: string };
+export type ImportResult = { ok: true; warnings?: string[] } | { ok: false; error: string };
 
 interface SavedDesignsState {
   designs: SavedDesign[];
@@ -65,235 +58,6 @@ interface SavedDesignsState {
   renameDesign: (id: string, name: string) => void;
   exportDesign: (id: string) => string;
   importDesign: (json: string) => ImportResult;
-}
-
-export function serializeNodes(
-  nodes: ReturnType<typeof useCanvasStore.getState>["nodes"],
-): SerializedNode[] {
-  return nodes.map((n) => {
-    const base = {
-      id: n.id,
-      type: n.type ?? "component",
-      position: { x: n.position.x, y: n.position.y },
-    };
-
-    if (n.type === "text") {
-      return {
-        ...base,
-        data: {
-          text: (n.data.text as string) ?? "",
-          fontSize: (n.data.fontSize as "sm" | "base" | "lg") ?? undefined,
-        } as SerializedTextData,
-      };
-    }
-
-    return {
-      ...base,
-      data: {
-        componentId: n.data.componentId,
-        label: n.data.label,
-        icon: n.data.icon,
-        category: n.data.category,
-        scalable: n.data.scalable,
-        params: { ...(n.data.params as Params) },
-      } as SerializedComponentData,
-    };
-  });
-}
-
-export function serializeEdges(
-  edges: ReturnType<typeof useCanvasStore.getState>["edges"],
-): SerializedEdge[] {
-  return edges.map((e) => ({
-    id: e.id,
-    type: e.type,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle ?? null,
-    targetHandle: e.targetHandle ?? null,
-    data: {
-      label: typeof e.data?.label === "string" ? e.data.label : "",
-      protocol: typeof e.data?.protocol === "string" ? e.data.protocol : "http",
-      async: e.data?.async === true,
-      ...(e.data?.rule ? { rule: e.data.rule as EdgeRule } : {}),
-    },
-  }));
-}
-
-/* ---------- import validation (no external deps) ---------- */
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function str(v: unknown, fallback: string): string {
-  return typeof v === "string" ? v : fallback;
-}
-
-function num(v: unknown, fallback: number): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
-}
-
-/**
- * Structurally validate an imported design and normalize it into the
- * SerializedNode/SerializedEdge shape (stripping unknown/runtime fields).
- * Accepts both the LoadDialog export envelope (a full SavedDesign) and the
- * top-bar exportAsJSON envelope ({ schemaVersion, name, problemId, nodes,
- * edges, strokes }).
- */
-function normalizeImportedDesign(parsed: unknown):
-  | {
-      ok: true;
-      name: string;
-      problemId: string | null;
-      nodes: SerializedNode[];
-      edges: SerializedEdge[];
-      strokes: Stroke[];
-    }
-  | { ok: false; error: string } {
-  if (!isRecord(parsed)) {
-    return { ok: false, error: "File is not a design object" };
-  }
-  if (!Array.isArray(parsed.nodes)) {
-    return { ok: false, error: 'Missing or invalid "nodes" array' };
-  }
-  if (!Array.isArray(parsed.edges)) {
-    return { ok: false, error: 'Missing or invalid "edges" array' };
-  }
-
-  const nodes: SerializedNode[] = [];
-  const nodeIds = new Set<string>();
-  for (let i = 0; i < parsed.nodes.length; i++) {
-    const raw = parsed.nodes[i];
-    if (!isRecord(raw)) {
-      return { ok: false, error: `Node ${i} is not an object` };
-    }
-    if (typeof raw.id !== "string" || raw.id.length === 0) {
-      return { ok: false, error: `Node ${i} has no string id` };
-    }
-    if (nodeIds.has(raw.id)) {
-      return { ok: false, error: `Duplicate node id "${raw.id}"` };
-    }
-    const pos = raw.position;
-    if (
-      !isRecord(pos) ||
-      typeof pos.x !== "number" ||
-      typeof pos.y !== "number" ||
-      !Number.isFinite(pos.x) ||
-      !Number.isFinite(pos.y)
-    ) {
-      return { ok: false, error: `Node "${raw.id}" has an invalid position` };
-    }
-    if (!isRecord(raw.data)) {
-      return { ok: false, error: `Node "${raw.id}" has no data object` };
-    }
-
-    const type = str(raw.type, "component");
-    const d = raw.data;
-    if (type === "text") {
-      const fontSize = d.fontSize;
-      nodes.push({
-        id: raw.id,
-        type,
-        position: { x: pos.x, y: pos.y },
-        data: {
-          text: str(d.text, ""),
-          fontSize:
-            fontSize === "sm" || fontSize === "base" || fontSize === "lg" ? fontSize : undefined,
-        },
-      });
-    } else {
-      const componentId = str(d.componentId, "custom");
-      // v1 files carry maxQPS/latencyMs/replicas instead of params.
-      const rawParams = isRecord(d.params)
-        ? d.params
-        : {
-            [PARAM.capacityPerInstance]: num(d.maxQPS, NaN),
-            [PARAM.serviceTimeMs]: num(d.latencyMs, NaN),
-            [PARAM.instances]: num(d.replicas, NaN),
-          };
-      nodes.push({
-        id: raw.id,
-        type,
-        position: { x: pos.x, y: pos.y },
-        data: {
-          componentId,
-          label: str(d.label, "Component"),
-          icon: str(d.icon, "Box"),
-          category: str(d.category, "compute"),
-          scalable: d.scalable !== false,
-          params: sanitizeParams(componentId, rawParams),
-        },
-      });
-    }
-    nodeIds.add(raw.id);
-  }
-
-  const edges: SerializedEdge[] = [];
-  for (let i = 0; i < parsed.edges.length; i++) {
-    const raw = parsed.edges[i];
-    if (!isRecord(raw)) {
-      return { ok: false, error: `Edge ${i} is not an object` };
-    }
-    const source = raw.source;
-    const target = raw.target;
-    if (typeof source !== "string" || !nodeIds.has(source)) {
-      return { ok: false, error: `Edge ${i} has an unknown source node` };
-    }
-    if (typeof target !== "string" || !nodeIds.has(target)) {
-      return { ok: false, error: `Edge ${i} has an unknown target node` };
-    }
-    const data = isRecord(raw.data) ? raw.data : {};
-    const sourceNode = nodes.find((n) => n.id === source);
-    const sourceComponentId =
-      sourceNode && "componentId" in sourceNode.data ? sourceNode.data.componentId : undefined;
-    const protocol = str(data.protocol, "http");
-    edges.push({
-      id: str(raw.id, `e-${source}-${target}-${i}`),
-      type: str(raw.type, "animated"),
-      source,
-      target,
-      sourceHandle: typeof raw.sourceHandle === "string" ? raw.sourceHandle : null,
-      targetHandle: typeof raw.targetHandle === "string" ? raw.targetHandle : null,
-      data: {
-        label: str(data.label, ""),
-        protocol,
-        async: data.async === true,
-        rule: sanitizeEdgeRule(data.rule, defaultEdgeRule(sourceComponentId, undefined, protocol)),
-      },
-    });
-  }
-
-  // Strokes are best-effort: drop anything malformed instead of rejecting.
-  const strokes: Stroke[] = Array.isArray(parsed.strokes)
-    ? (parsed.strokes as unknown[]).filter((s): s is Stroke => {
-        if (!isRecord(s)) return false;
-        if (typeof s.id !== "string") return false;
-        if (typeof s.color !== "string") return false;
-        if (typeof s.width !== "number" || !Number.isFinite(s.width)) return false;
-        return (
-          Array.isArray(s.points) &&
-          s.points.every(
-            (p) =>
-              Array.isArray(p) &&
-              p.length === 2 &&
-              typeof p[0] === "number" &&
-              typeof p[1] === "number" &&
-              Number.isFinite(p[0]) &&
-              Number.isFinite(p[1]),
-          )
-        );
-      })
-    : [];
-
-  return {
-    ok: true,
-    name: str(parsed.name, "Untitled design"),
-    problemId: typeof parsed.problemId === "string" ? parsed.problemId : null,
-    nodes,
-    edges,
-    strokes,
-  };
 }
 
 export const useSavedDesignsStore = create<SavedDesignsState>()(
@@ -328,40 +92,8 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
         const design = get().designs.find((d) => d.id === id);
         if (!design) return;
 
-        // Restore canvas state
-        const restoredNodes: Node[] = design.nodes.map((n) => {
-          if (n.type === "text") {
-            const textData = n.data as SerializedTextData;
-            return {
-              id: n.id,
-              type: n.type,
-              position: n.position,
-              connectable: false,
-              data: { text: textData.text ?? "", fontSize: textData.fontSize },
-            };
-          }
-          return {
-            id: n.id,
-            type: n.type,
-            position: n.position,
-            data: { ...n.data } as unknown as ComponentNodeData,
-          };
-        });
-
-        const restoredEdges = design.edges.map((e) => ({
-          id: e.id,
-          type: e.type,
-          source: e.source,
-          target: e.target,
-          sourceHandle: e.sourceHandle ?? undefined,
-          targetHandle: e.targetHandle ?? undefined,
-          data: {
-            label: e.data?.label ?? "",
-            protocol: e.data?.protocol ?? "http",
-            async: e.data?.async ?? false,
-            ...(e.data?.rule ? { rule: e.data.rule } : {}),
-          },
-        }));
+        const restoredNodes = deserializeNodes(design.nodes);
+        const restoredEdges = deserializeEdges(design.edges);
 
         // Route through the tab system so a read-only reference tab is never
         // clobbered: loading always (re)targets the "My Design" tab. addTab
@@ -401,49 +133,74 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
       exportDesign: (id: string) => {
         const design = get().designs.find((d) => d.id === id);
         if (!design) return "{}";
-        return JSON.stringify({ schemaVersion: 1, ...design }, null, 2);
+        return stringifyEnvelope({
+          name: design.name,
+          problemId: design.problemId,
+          nodes: design.nodes,
+          edges: design.edges,
+          strokes: design.strokes ?? [],
+          chaosScript: design.chaosScript,
+          slo: design.slo,
+        });
       },
 
       importDesign: (json: string): ImportResult => {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(json);
-        } catch {
-          useAppStore.getState().showToast("Failed to parse JSON", "error");
-          return { ok: false, error: "Failed to parse JSON" };
-        }
-
-        const result = normalizeImportedDesign(parsed);
+        const result = parseEnvelopeJson(json);
         if (!result.ok) {
           useAppStore.getState().showToast(`Invalid design file: ${result.error}`, "error");
           return result;
         }
 
+        const { design: imported, warnings } = result;
         const now = new Date().toISOString();
         const design: SavedDesign = {
           id: `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: `${result.name} (imported)`,
-          problemId: result.problemId,
-          nodes: result.nodes,
-          edges: result.edges,
+          name: `${imported.name} (imported)`,
+          problemId: imported.problemId,
+          nodes: imported.nodes,
+          edges: imported.edges,
           annotations: [],
-          strokes: result.strokes,
+          strokes: imported.strokes,
+          ...(imported.chaosScript !== undefined ? { chaosScript: imported.chaosScript } : {}),
+          ...(imported.slo !== undefined ? { slo: imported.slo } : {}),
           createdAt: now,
           updatedAt: now,
         };
 
         set((s) => ({ designs: [design, ...s.designs] }));
-        useAppStore.getState().showToast("Design imported", "success");
-        return { ok: true };
+        if (warnings.length > 0) {
+          for (const w of warnings) console.warn(`[import] ${w}`);
+          useAppStore
+            .getState()
+            .showToast(
+              `Design imported with ${warnings.length} warning${warnings.length === 1 ? "" : "s"}: ${warnings[0]}`,
+              "info",
+            );
+        } else {
+          useAppStore.getState().showToast("Design imported", "success");
+        }
+        return { ok: true, warnings };
       },
     }),
     {
       name: "systemsim-saved-designs",
-      version: 1,
+      version: STORE_VERSION,
       skipHydration: true,
-      storage: createJSONStorage(() => safeLocalStorage),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      migrate: (state) => state as any,
+      // IndexedDB (moved over from localStorage on first v2 run), falling
+      // back to safeLocalStorage when IndexedDB is unavailable.
+      storage: createJSONStorage(() => durableStorage),
+      migrate: migrateSavedDesignsState,
+      partialize: (state) => ({ designs: state.designs }),
+      // Hydration is async now: keep anything saved/imported before it
+      // finished instead of letting the stored list overwrite it.
+      merge: (persisted, current) => {
+        const stored = (persisted as { designs?: SavedDesign[] } | undefined)?.designs ?? [];
+        const storedIds = new Set(stored.map((d) => d.id));
+        return {
+          ...current,
+          designs: [...current.designs.filter((d) => !storedIds.has(d.id)), ...stored],
+        };
+      },
     },
   ),
 );

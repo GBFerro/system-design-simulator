@@ -13,6 +13,8 @@ import {
 } from "@xyflow/react";
 import { useSimulationStore } from "./simulationStore";
 import { safeLocalStorage } from "./safeStorage";
+import { migrateCanvasState } from "./migrations";
+import { STORE_VERSION } from "./persistVersion";
 import { randomId } from "@/lib/nodeFactory";
 import { findFreePosition, freePositionNear, nodeRect } from "@/lib/placement";
 import {
@@ -663,11 +665,11 @@ export const useCanvasStore = create<CanvasState>()(
     }),
     {
       name: "systemsim-canvas",
-      version: 1,
+      version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      migrate: (state) => state as any,
+      // v1 → v2: params + edge rules for the live graph and every tab.
+      migrate: migrateCanvasState,
       partialize: (state) => ({
         nodes: stripRuntimeFields(state.nodes),
         edges: state.edges,

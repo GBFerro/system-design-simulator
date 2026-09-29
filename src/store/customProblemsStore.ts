@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
+import { passThroughMigration, STORE_VERSION } from "./persistVersion";
 
 /** crypto.randomUUID is unavailable on non-secure (http) origins. */
 function randomId(): string {
@@ -68,11 +69,11 @@ export const useCustomProblemsStore = create<CustomProblemsState>()(
     }),
     {
       name: "systemsim-custom-problems",
-      version: 1,
+      version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      migrate: (state) => state as any,
+      // Shape unchanged in v2.
+      migrate: passThroughMigration,
     },
   ),
 );

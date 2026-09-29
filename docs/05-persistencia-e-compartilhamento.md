@@ -1,6 +1,6 @@
 # Spec 05: Persistência e compartilhamento
 
-Parte da [v2](00-visao-geral.md) · Fase 1 (PER-01/02) e Fase 6 (PER-03) · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Fase 1 (PER-01/02) e Fase 6 (PER-03) · Status: PER-01 e PER-02 implementados
 
 | Campo               | Valor                                                                                                            |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -77,10 +77,10 @@ O envelope atual `{ schemaVersion, name, problemId, nodes, edges, strokes }` gan
 
 ## Critérios de aceite
 
-- [ ] As 35 soluções de referência carregam migradas
-- [ ] Um `localStorage` v1 real (fixture) abre na v2 sem perda de nós, edges, labels, protocolos, async e strokes
-- [ ] Export JSON v2 → import devolve o mesmo grafo
-- [ ] Import de um JSON v1 funciona
+- [x] As 35 soluções de referência carregam migradas
+- [x] Um `localStorage` v1 real (fixture) abre na v2 sem perda de nós, edges, labels, protocolos, async e strokes
+- [x] Export JSON v2 → import devolve o mesmo grafo
+- [x] Import de um JSON v1 funciona
 - [ ] Link compartilhado abre o mesmo design em outro browser (Fase 6)
 
 ## Testes

@@ -93,9 +93,12 @@ export function LoadDialog({ open, onClose }: LoadDialogProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${name.replace(/[^a-zA-Z0-9-_ ]/g, "")}.json`;
+    a.download = `${name.replace(/[^a-zA-Z0-9-_ ]/g, "") || "design"}.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    // Revoking synchronously can cancel the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const handleImport = () => {
