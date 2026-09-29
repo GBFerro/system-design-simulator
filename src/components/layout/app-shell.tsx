@@ -184,6 +184,10 @@ export function AppShell() {
   }, [isMobile]);
 
   const handleClearCanvas = useCallback(() => {
+    if (isActiveTabReadOnly(useCanvasStore.getState())) {
+      useAppStore.getState().showToast("Reference tabs are read-only", "info");
+      return;
+    }
     useCanvasStore.getState().clearCanvas();
     useAppStore.getState().showToast("Canvas cleared", "info");
   }, []);

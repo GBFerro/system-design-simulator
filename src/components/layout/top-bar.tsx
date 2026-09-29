@@ -436,7 +436,8 @@ export function TopBar({
                       setMobileMoreOpen(false);
                       setClearConfirmOpen(true);
                     }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs text-rose-400 transition-colors hover:bg-zinc-800"
+                    disabled={activeTabReadOnly}
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs text-rose-400 transition-colors hover:bg-zinc-800 disabled:pointer-events-none disabled:opacity-40"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Clear canvas
@@ -517,7 +518,8 @@ export function TopBar({
 
           <button
             onClick={() => setClearConfirmOpen(true)}
-            className="hidden h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-rose-400 md:flex"
+            disabled={activeTabReadOnly}
+            className="hidden h-7 w-7 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-rose-400 disabled:pointer-events-none disabled:opacity-40 md:flex"
             title="Clear canvas"
             aria-label="Clear canvas"
           >
