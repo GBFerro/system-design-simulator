@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   Minus,
   PanelRight,
+  HeartPulse,
   Pencil,
   Plus,
   Skull,
@@ -30,6 +31,9 @@ import {
 import { ParamField } from "@/components/panel/ParamsForm";
 import { useAppStore } from "@/store/appStore";
 import { createTextNode } from "@/lib/nodeFactory";
+import { useRuntimeStore } from "@/store/runtimeStore";
+import { useChaosStore } from "@/store/chaosStore";
+import { killFaultsOf, killOneInstance, toggleKillNode } from "@/components/traffic/simActions";
 import { MOD_KEY, openPropertiesPanel } from "./canvasEvents";
 
 export type ContextTarget =
@@ -207,8 +211,44 @@ function useMenuEntries(
   const isComponent = node.type === "component";
   const replicas = isComponent ? instancesOf(node.data as ComponentNodeData) : 0;
 
+  // Chaos (Spec 08): acts on the live run, never on the graph, so it's
+  // offered on read-only reference tabs too.
+  const live = useRuntimeStore.getState().playback !== "idle";
+  const killed = killFaultsOf(useChaosStore.getState().faults, node.id).length > 0;
+  const chaosEntries: MenuEntry[] =
+    isComponent && !many
+      ? [
+          killed
+            ? {
+                label: "Restore node",
+                icon: <HeartPulse className={ICON} />,
+                onSelect: () => toggleKillNode(node.id),
+              }
+            : {
+                label: "Kill node",
+                icon: <Skull className={ICON} />,
+                disabled: !live,
+                tag: live ? undefined : "play first",
+                danger: live,
+                onSelect: () => toggleKillNode(node.id),
+              },
+          ...(live && !killed && replicas > 1
+            ? [
+                {
+                  label: "Kill 1 instance",
+                  icon: <Skull className={ICON} />,
+                  danger: true,
+                  onSelect: () => killOneInstance(node.id),
+                },
+              ]
+            : []),
+          "separator",
+        ]
+      : [];
+
   if (readOnly) {
     return [
+      ...chaosEntries,
       ...(!many
         ? [
             {
@@ -265,14 +305,8 @@ function useMenuEntries(
             disabled: replicas <= 1,
             onSelect: () => store.changeReplicas(node.id, -1),
           },
-          {
-            label: "Kill instance",
-            icon: <Skull className={ICON} />,
-            disabled: true,
-            tag: "soon",
-            onSelect: () => {},
-          },
           "separator",
+          ...chaosEntries,
         ]
       : [];
 

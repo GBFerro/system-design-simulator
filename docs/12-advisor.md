@@ -50,6 +50,8 @@ Calculados sobre o `ScoringGraph` que o `scorer.ts` já monta, sem depender do m
 | Nó desconectado | Aviso      | Nó de componente fora do conjunto alcançável a partir dos entry points             |
 | SPOF            | Aviso      | Nó alcançável no caminho síncrono com `instances = 1` e sem réplica/LB em paralelo |
 
+Na implementação, "SPOF" usa a mesma noção de redundância do scorer (regra de disponibilidade): tiers que escalam horizontalmente (`scalable` no catálogo) não são marcados, só tiers stateful de escritor único (SQL, lock distribuído) com uma instância, sem cópia em paralelo sob o mesmo chamador nem read replica ligada. Client, DNS, CDN e object storage são redundantes por construção. Assim o Advisor e a aba Score nunca se contradizem.
+
 Aparecem como lista no painel e como marcador discreto no nó afetado. Clicar foca o nó.
 
 ### Findings por métricas e scoring (ADV-01)
@@ -73,7 +75,7 @@ Exemplos:
 
 ## Critérios de aceite
 
-- [ ] (Fase 3) Os três hints de estrutura aparecem e somem quando corrigidos
+- [x] (Fase 3) Os três hints de estrutura aparecem e somem quando corrigidos
 - [ ] Quick fix mostra preview antes de aplicar
 - [ ] Quick fix e "aplicar todos" são desfeitos com um único ⌘Z
 - [ ] Aplicar o fix de um finding faz o finding sumir na próxima análise

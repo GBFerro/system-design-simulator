@@ -421,6 +421,20 @@ button:not([disabled]):active {
     opacity: 0.5;
   }
 }
+/* Blast radius (Spec 08): affected nodes/edges pulse. Reduced motion keeps
+   the final (visible) frame via the global rule below. */
+@keyframes blast-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.blast-pulse {
+  animation: blast-pulse 1.4s ease-in-out infinite;
+}
 @keyframes spin {
   from {
     transform: rotate(0deg);

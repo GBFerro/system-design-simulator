@@ -5,6 +5,7 @@ import { Activity } from "lucide-react";
 import { useSimulationStore } from "@/store/simulationStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useRecentHistory, useRuntimeStore } from "@/store/runtimeStore";
+import { useChaosStore } from "@/store/chaosStore";
 import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { abbrev, fmtMs, fmtPct } from "@/lib/runtimeMetrics";
 import { RUNTIME_STATUS_META, utilizationBarClass } from "@/components/canvas/nodes/runtimeStatus";
@@ -109,8 +110,22 @@ function SmallStat({ label, value, tone }: { label: string; value: string; tone?
   );
 }
 
+/** Fault start/end times of the run, as chart markers (Spec 08). */
+function useFaultMarkers(): { t: number; kind: "start" | "end" }[] {
+  const faults = useChaosStore((s) => s.faults);
+  return useMemo(
+    () =>
+      faults.flatMap((f) => [
+        { t: f.startT, kind: "start" as const },
+        ...(!f.active && f.endT !== undefined ? [{ t: f.endT, kind: "end" as const }] : []),
+      ]),
+    [faults],
+  );
+}
+
 function GlobalCharts() {
   const recent = useRecentHistory(PANEL_WINDOW_SEC, PANEL_MAX_POINTS);
+  const markers = useFaultMarkers();
   const times = recent.map((s) => s.t);
   return (
     <div className="space-y-2">
@@ -121,6 +136,7 @@ function GlobalCharts() {
         color="#22d3ee"
         format={(v) => `${abbrev(v)}/s`}
         testId="chart-throughput"
+        markers={markers}
       />
       <TimeSeriesChart
         title="Latency p99 (ms)"
@@ -129,6 +145,7 @@ function GlobalCharts() {
         color="#a78bfa"
         format={fmtMs}
         testId="chart-p99"
+        markers={markers}
       />
     </div>
   );

@@ -1,11 +1,14 @@
 "use client";
 
 import { NodeToolbar, Position } from "@xyflow/react";
-import { CopyPlus, Minus, Plus, Trash2 } from "lucide-react";
+import { CopyPlus, HeartPulse, Minus, Plus, Skull, Trash2 } from "lucide-react";
 import { isActiveTabReadOnly, useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { usePenStore } from "@/store/penStore";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import { instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
+import { useRuntimeStore } from "@/store/runtimeStore";
+import { useChaosStore } from "@/store/chaosStore";
+import { killFaultsOf, toggleKillNode } from "@/components/traffic/simActions";
 
 /**
  * Quick actions floating above a node while it is the only selected item.
@@ -33,6 +36,9 @@ export function NodeActionsToolbar({ nodeId }: { nodeId: string }) {
   const changeReplicas = useCanvasStore((s) => s.changeReplicas);
   const duplicateSelection = useCanvasStore((s) => s.duplicateSelection);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
+  // Chaos shortcut (Spec 08): only while a run is loaded; never edits the graph.
+  const live = useRuntimeStore((s) => s.playback !== "idle");
+  const killed = useChaosStore((s) => killFaultsOf(s.faults, nodeId).length > 0);
 
   const btn = `flex ${isCoarse ? "h-9 w-9" : "h-7 w-7"} items-center justify-center rounded-md text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent`;
   const icon = isCoarse ? "h-4 w-4" : "h-3.5 w-3.5";
@@ -71,6 +77,20 @@ export function NodeActionsToolbar({ nodeId }: { nodeId: string }) {
               onClick={() => changeReplicas(nodeId, 1)}
             >
               <Plus className={icon} />
+            </button>
+            <div className="mx-0.5 h-4 w-px bg-zinc-700" />
+          </>
+        )}
+        {live && replicas !== null && (
+          <>
+            <button
+              type="button"
+              className={`${btn} ${killed ? "text-emerald-400 hover:text-emerald-300" : "text-orange-400 hover:text-orange-300"}`}
+              aria-label={killed ? "Restore node" : "Kill node"}
+              title={killed ? "Restore node (heal the kill)" : "Kill node (chaos)"}
+              onClick={() => toggleKillNode(nodeId)}
+            >
+              {killed ? <HeartPulse className={icon} /> : <Skull className={icon} />}
             </button>
             <div className="mx-0.5 h-4 w-px bg-zinc-700" />
           </>

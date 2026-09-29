@@ -5,10 +5,12 @@
  * controller reads them when it starts.
  */
 import type { SimController } from "@/engine/client";
+import type { FaultId, FaultRecord, FaultSpec } from "@/engine/faults/types";
 import { sanitizePattern } from "@/engine/traffic/patterns";
 import type { SimSpeed, TrafficPattern } from "@/engine/traffic/types";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore } from "@/store/canvasStore";
+import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 
 let loading: Promise<SimController> | null = null;
@@ -61,4 +63,54 @@ export function setTrafficPattern(p: TrafficPattern): void {
   const pattern = sanitizePattern(p);
   if (controller) controller.setTraffic(pattern);
   else useRuntimeStore.getState().setPattern(pattern);
+}
+
+/**
+ * Start a fault in the live run (Spec 08). Only while a run exists (running
+ * or paused); the error comes back as a toast. Returns whether it started.
+ */
+export async function injectFault(spec: FaultSpec): Promise<boolean> {
+  const toast = useAppStore.getState().showToast;
+  if (!controller || useRuntimeStore.getState().playback === "idle") {
+    toast("Play the simulation first: faults act on a live run", "info");
+    return false;
+  }
+  try {
+    const r = await controller.inject(spec);
+    if (!r.ok) toast(r.error, "error");
+    return r.ok;
+  } catch (err) {
+    console.error("Fault injection failed", err);
+    toast("Fault injection failed — see console for details", "error");
+    return false;
+  }
+}
+
+export function healFault(id: FaultId): void {
+  void controller?.heal(id);
+}
+
+/** Active kill faults (node or instances) on a node: what "Restore" heals. */
+export function killFaultsOf(faults: readonly FaultRecord[], nodeId: string): FaultRecord[] {
+  return faults.filter(
+    (f) =>
+      f.active &&
+      f.spec.target.id === nodeId &&
+      (f.spec.type === "kill-node" || f.spec.type === "kill-instances"),
+  );
+}
+
+/**
+ * Canvas Kill/Restore shortcut (node toolbar, context menu): kills the node
+ * until restored, or heals the kills on it.
+ */
+export function toggleKillNode(nodeId: string): void {
+  const kills = killFaultsOf(useChaosStore.getState().faults, nodeId);
+  if (kills.length > 0) for (const f of kills) healFault(f.id);
+  else void injectFault({ type: "kill-node", target: { kind: "node", id: nodeId } });
+}
+
+/** Kill one instance until restored (context menu). */
+export function killOneInstance(nodeId: string): void {
+  void injectFault({ type: "kill-instances", target: { kind: "node", id: nodeId }, intensity: 1 });
 }

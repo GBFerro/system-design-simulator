@@ -37,6 +37,7 @@ Como no ArchSim, cada fault vira um conjunto de modificadores com início, fim e
 | `trafficMultiplier`                  | Spike ×N, DDoS                                                  |
 | `hitRateOverride`                    | Flush de cache / stampede                                       |
 | `nodeDown`                           | Falha do primary, falha de AZ (todos os nós do grupo)           |
+| `drainEdge`                          | Health check do LB tira um alvo morto de rotação                |
 
 ```ts
 interface FaultSpec {
@@ -71,7 +72,7 @@ interface CompiledModifier {
 | Fault                   | Modificadores                                                                                                                           |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | Kill de instância       | `capacityMultiplier = 1 − k/c`; com LB na frente, o tráfego continua indo para a instância morta até o intervalo do health check passar |
-| Kill de nó              | `nodeDown`                                                                                                                              |
+| Kill de nó              | `nodeDown`; um LB com outros alvos aplica `drainEdge` na aresta depois do intervalo do health check                                     |
 | Nó lento (grey failure) | `latencyMultiplier` (sem erro, o health check não pega)                                                                                 |
 | Spike de tráfego        | `trafficMultiplier` global ou numa fonte                                                                                                |
 | Latência na aresta      | `latencyAddMs` na aresta                                                                                                                |
@@ -106,11 +107,11 @@ Cada tipo de fault declara dicas de mitigação ligadas a quick fixes do advisor
 
 ## Critérios de aceite
 
-- [ ] Cada fault do MVP muda as métricas esperadas enquanto está ativo
-- [ ] Cada fault volta ao baseline depois do heal (dentro de uma tolerância, depois de drenar a fila)
-- [ ] Blast radius aparece no canvas
-- [ ] Timeline mostra início e fim de cada fault
-- [ ] Faults só podem ser injetados com a simulação carregada e não editam o grafo
+- [x] Cada fault do MVP muda as métricas esperadas enquanto está ativo
+- [x] Cada fault volta ao baseline depois do heal (dentro de uma tolerância, depois de drenar a fila)
+- [x] Blast radius aparece no canvas
+- [x] Timeline mostra início e fim de cada fault
+- [x] Faults só podem ser injetados com a simulação carregada e não editam o grafo
 
 ## Testes (Vitest)
 

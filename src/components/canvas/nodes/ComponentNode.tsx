@@ -4,13 +4,14 @@ import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { useCanvasStore } from "@/store/canvasStore";
-import { Server } from "lucide-react";
+import { Server, TriangleAlert, OctagonAlert } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import { NodeActionsToolbar } from "./NodeActionsToolbar";
 import { NodeMetricsBadge } from "./NodeMetricsBadge";
 import { RUNTIME_STATUS_META } from "./runtimeStatus";
-import { useNodeStatus } from "@/store/runtimeStore";
+import { useNodeBlast, useNodeStatus } from "@/store/runtimeStore";
+import { useNodeFindingSeverity } from "@/store/advisorStore";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
@@ -36,6 +37,10 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   const status = useNodeStatus(id);
   const statusDot = status ? RUNTIME_STATUS_META[status].dot : "bg-zinc-600";
   const isBottleneck = status === "critical" || status === "down";
+  // Chaos (Spec 08): the fault's target gets its own outline; nodes it
+  // degrades pulse. Advisor (Spec 12): a discreet marker for structure hints.
+  const blast = useNodeBlast(id);
+  const finding = useNodeFindingSeverity(id);
   const replicas = instancesOf(nodeData);
   const capacity = capacityPerInstanceOf(nodeData);
 
@@ -79,6 +84,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
 
   return (
     <div
+      data-blast={blast}
+      data-finding={finding}
       className={`
         group relative flex flex-col items-center gap-1 rounded-xl border bg-zinc-900 px-4 py-3
         shadow-[var(--shadow-e2)] transition-[border-color,box-shadow] duration-150
@@ -92,6 +99,43 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
       `}
     >
       <NodeActionsToolbar nodeId={id} />
+
+      {/* Blast radius: outline/pulse drawn outside the box, so the node never resizes */}
+      {blast && (
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute -inset-1.5 rounded-[14px] border-2 ${
+            blast === "target"
+              ? "border-dashed border-orange-400"
+              : "blast-pulse border-orange-400/80"
+          }`}
+        />
+      )}
+      {blast && (
+        <span className="sr-only">
+          {blast === "target" ? "Fault target" : "Affected by the active faults"}
+        </span>
+      )}
+
+      {/* Advisor marker (structure hint) */}
+      {finding && finding !== "info" && (
+        <span
+          className={`absolute -bottom-1.5 -left-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-zinc-900 ring-1 ${
+            finding === "critical"
+              ? "text-rose-400 ring-rose-500/50"
+              : "text-amber-400 ring-amber-500/50"
+          }`}
+          role="img"
+          aria-label={finding === "critical" ? "Advisor: critical issue" : "Advisor: warning"}
+          title="See the Advisor tab"
+        >
+          {finding === "critical" ? (
+            <OctagonAlert className="h-2.5 w-2.5" aria-hidden />
+          ) : (
+            <TriangleAlert className="h-2.5 w-2.5" aria-hidden />
+          )}
+        </span>
+      )}
 
       {/* Status indicator dot */}
       <div
