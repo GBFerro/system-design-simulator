@@ -2,6 +2,7 @@
 // Measures the initial JS of `/` (the scripts referenced by the prerendered
 // index.html, i.e. everything loaded before any dynamic import) and compares
 // it with the committed baseline. Spec 01: initial JS may not grow > 15%.
+// Policy: only the PR that closes a roadmap phase runs --update (justified in the PR).
 //
 //   node scripts/bundle-size.mjs            # check against baseline (run after `next build`)
 //   node scripts/bundle-size.mjs --update   # rewrite the baseline

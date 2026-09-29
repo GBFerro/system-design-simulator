@@ -21,7 +21,7 @@ npm run test:e2e     # playwright (tests/e2e); starts `next dev` on :3100 unless
 npm run bundle:check # after build: initial JS of / vs bundle-baseline.json (max +15%); fails if the lazy engine client leaks in
 ```
 
-CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, engine, traffic patterns, persistence, store actions); editor behavior goes in Playwright. Still exercise UI changes in the browser. Only update `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) when the growth is intended and justified in the PR.
+CI (Node 22) runs lint, typecheck, unit tests, build, bundle check and E2E on every PR. Unit tests cover pure logic (scoring, engine, traffic patterns, persistence, store actions); editor behavior goes in Playwright. Still exercise UI changes in the browser. Bundle budget: the PR that closes a roadmap phase (Fase 0–6 in `docs/00-visao-geral.md`) re-baselines `bundle-baseline.json` (`node scripts/bundle-size.mjs --update`) and justifies the growth in its description; between phase ends the +15% limit applies against the current baseline, and the baseline is not updated.
 
 ## Tech stack
 
