@@ -11,6 +11,8 @@ Já aplicado no PR:
 
 ## T1: Orçamento de bundle quase esgotado antes das Specs 08 a 14
 
+**Resolvido no PR #14:** o dono do projeto escolheu re-baselinar por fase. O PR que fecha uma fase do roadmap (Fase 0 a 6 de `docs/00-visao-geral.md`) roda `--update` e justifica o crescimento; entre fases vale o +15% sobre o baseline atual. A regra está no `CLAUDE.md` (Commands) e no cabeçalho de `scripts/bundle-size.mjs`. O baseline não foi atualizado nesse PR.
+
 **Problema.** O baseline (`bundle-baseline.json`, 25/09/2026) é do v1 e o limite é +15%. Com as Specs 03 a 07 o bundle inicial está em +10,9% (números dos PRs #11 e #12), sobrando 4,1 pontos percentuais para as sete specs restantes. O `bundle:check` compara sempre com o baseline fixo, então também não acusa um PR isolado que consuma metade da folga.
 
 **Proposta.** Decisão do dono do projeto, uma destas:
@@ -21,6 +23,8 @@ Já aplicado no PR:
 **Custo.** Pequeno; a escolha é de política, por isso não foi aplicada.
 
 ## T2: Tabela de atalhos do README sem o `P`
+
+**Resolvido no PR #14:** a tabela ganhou `P` (Play / pause live traffic) e também `Ctrl/⌘ + K` (Command palette) e `Tab` (Move focus between nodes), que estavam no `ShortcutsDialog.tsx` e faltavam no README.
 
 **Problema.** O atalho `P` (play/pause) está no `?` (`ShortcutsDialog.tsx`), mas não na tabela do README. Esta branch ainda tem a tabela antiga; o PR #6 reescreve a tabela inteira, então mexer aqui geraria conflito.
 
