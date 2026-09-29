@@ -266,7 +266,7 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:3000** — that's it. Everything runs client-side; your designs are saved to `localStorage`.
+Open **http://localhost:3000** — that's it. Everything runs client-side; your designs are saved in the browser (IndexedDB for saved designs, `localStorage` for the rest).
 
 ### Keyboard Shortcuts
 
@@ -290,7 +290,7 @@ Open **http://localhost:3000** — that's it. Everything runs client-side; your 
 | Framework    | Next.js 16 (App Router, fully static)                  |
 | Language     | React 19 + TypeScript                                  |
 | Canvas       | [@xyflow/react](https://reactflow.dev) (ReactFlow v12) |
-| State        | Zustand v5, persisted to `localStorage`                |
+| State        | Zustand v5, persisted to `localStorage` + IndexedDB    |
 | Styling      | Tailwind CSS v4 + shadcn-style components on Base UI   |
 | Animation    | Framer Motion                                          |
 | Freehand pen | perfect-freehand                                       |
