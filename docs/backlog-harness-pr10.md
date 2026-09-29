@@ -20,18 +20,6 @@ O item C2 de `docs/backlog-harness-pr8.md` estava esperando a migração. Depois
 
 **Custo.** Um fixture e um teste; não muda código de produção.
 
-## P3: A frase de abertura do `CLAUDE.md` ainda diz só `localStorage`
+## P3 e P4: resolvidos no PR #12
 
-**Problema.** A descrição do projeto no topo ("state persists to `localStorage`") ficou incompleta: os designs salvos estão em IndexedDB desde este PR. Não foi corrigida aqui porque o PR #12 (métricas) edita a mesma linha e geraria conflito.
-
-**Proposta.** Depois que o #12 entrar, trocar por "state persists in the browser (`localStorage`; saved designs in IndexedDB)".
-
-**Custo.** Uma linha.
-
-## P4: Apontar o teste de versões no parágrafo Stores
-
-**Problema.** A regra "every persisted store uses `STORE_VERSION`…" do `CLAUDE.md` não diz que `persistence.versions.test.ts` a verifica. Não foi acrescentado aqui porque o PR #12 (métricas) reescreve o parágrafo Stores e gerou conflito.
-
-**Proposta.** Depois que o #12 entrar, acrescentar "(`persistence.versions.test.ts` fails if one does not)" à frase.
-
-**Custo.** Uma linha.
+O #10 não podia tocar a frase de abertura do `CLAUDE.md` nem o parágrafo Stores sem conflitar com o #12, que reescreve o Stores. O #12 foi o lugar para fazer as duas coisas: a abertura agora diz que os designs salvos ficam em IndexedDB, e o parágrafo Stores aponta `persistence.versions.test.ts` como o teste que confere a regra da versão.

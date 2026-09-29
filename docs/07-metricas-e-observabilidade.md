@@ -1,6 +1,6 @@
 # Spec 07: Métricas e observabilidade
 
-Parte da [v2](00-visao-geral.md) · Fase 2 (OBS-01 a 04) e Fase 5 (OBS-05 a 07) · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Fase 2 (OBS-01 a 04) e Fase 5 (OBS-05 a 07) · Status: OBS-01 a 04 implementados
 
 | Campo               | Valor                                                                                                                  |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -106,11 +106,11 @@ Regras simples avaliadas no `runtimeStore`: utilização > 90% por mais de 5 s, 
 
 ## Critérios de aceite
 
-- [ ] p99 visível ao vivo no nó e no painel
-- [ ] 60 fps com 100 arestas e 2.000 partículas
-- [ ] Um tick não re-renderiza nós cujas métricas não mudaram
-- [ ] O `canvasStore` não é persistido durante o play
-- [ ] Com `prefers-reduced-motion`, nenhuma partícula é desenhada
+- [x] p99 visível ao vivo no nó e no painel
+- [x] 60 fps com 100 arestas e 2.000 partículas
+- [x] Um tick não re-renderiza nós cujas métricas não mudaram
+- [x] O `canvasStore` não é persistido durante o play
+- [x] Com `prefers-reduced-motion`, nenhuma partícula é desenhada
 - [ ] (Fase 5) Comparação entre duas execuções no dashboard
 
 ## Testes
