@@ -83,8 +83,7 @@ src/
 tests/
   unit/           vitest (pure logic: scoring, engine, traffic patterns, persistence, store actions;
                   claude-map checks this map against src/)
-  e2e/            playwright specs, one per area (smoke, editor, catalog, persistence, simulate, traffic,
-                  metrics, chaos)
+  e2e/            playwright specs, one per feature area (see tests/e2e/)
 scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ```
 
