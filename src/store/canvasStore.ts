@@ -9,6 +9,8 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  type EdgeChange,
+  type NodeChange,
   type XYPosition,
 } from "@xyflow/react";
 import { useSimulationStore } from "./simulationStore";
@@ -112,8 +114,22 @@ function nudgeHistory(state: {
   return coalesce ? state.history : pushedHistory(state);
 }
 
-function isActiveTabReadOnly(state: { tabs: CanvasTab[]; activeTabId: string }): boolean {
+/**
+ * True when the active tab is a reference (read-only) tab. The one check for
+ * "may the user edit this canvas": read it with `useIsActiveTabReadOnly()` in
+ * render and `isActiveTabReadOnly(useCanvasStore.getState())` in handlers.
+ */
+export function isActiveTabReadOnly(state: { tabs: CanvasTab[]; activeTabId: string }): boolean {
   return state.tabs.find((t) => t.id === state.activeTabId)?.readOnly === true;
+}
+
+/**
+ * ReactFlow changes that only touch view state (selection, measured size) and
+ * so still apply on a read-only tab; moves, removals, additions and
+ * replacements are dropped there.
+ */
+function isViewChange(change: NodeChange | EdgeChange): boolean {
+  return change.type === "select" || change.type === "dimensions";
 }
 
 interface Clipboard {
@@ -409,6 +425,10 @@ export const useCanvasStore = create<CanvasState>()(
 
       onNodesChange: (changes) => {
         set((state) => {
+          if (isActiveTabReadOnly(state)) {
+            const view = changes.filter(isViewChange);
+            return view.length === 0 ? state : { nodes: applyNodeChanges(view, state.nodes) };
+          }
           const dragStart = changes.some((c) => c.type === "position" && c.dragging === true);
           const dragEnd = changes.some((c) => c.type === "position" && c.dragging === false);
           const hasRemove = changes.some((c) => c.type === "remove");
@@ -439,6 +459,10 @@ export const useCanvasStore = create<CanvasState>()(
       },
       onEdgesChange: (changes) => {
         set((state) => {
+          if (isActiveTabReadOnly(state)) {
+            const view = changes.filter(isViewChange);
+            return view.length === 0 ? state : { edges: applyEdgeChanges(view, state.edges) };
+          }
           const hasRemove = changes.some((c) => c.type === "remove");
           return {
             edges: applyEdgeChanges(changes, state.edges),
@@ -448,6 +472,7 @@ export const useCanvasStore = create<CanvasState>()(
       },
       onConnect: (connection) => {
         set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
           const graph = ruleGraph(state);
           const data: CustomEdgeData = {
             label: "",
@@ -468,11 +493,14 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       addNode: (node) => {
-        set((state) => ({
-          history: pushedHistory(state),
-          future: [],
-          nodes: [...state.nodes, node],
-        }));
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            nodes: [...state.nodes, node],
+          };
+        });
       },
       placeNode: (node, center) => {
         set((state) => {
@@ -605,20 +633,27 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       updateNodeData: (nodeId, data) => {
-        set((state) => ({
-          nodes: state.nodes.map((n) =>
-            n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n,
-          ),
-        }));
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          return {
+            nodes: state.nodes.map((n) =>
+              n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n,
+            ),
+          };
+        });
       },
       updateEdgeData: (edgeId, data) => {
-        set((state) => ({
-          edges: state.edges.map((e) =>
-            e.id === edgeId ? { ...e, data: { ...e.data, ...data } } : e,
-          ),
-        }));
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          return {
+            edges: state.edges.map((e) =>
+              e.id === edgeId ? { ...e, data: { ...e.data, ...data } } : e,
+            ),
+          };
+        });
       },
       clearCanvas: () => {
+        if (isActiveTabReadOnly(get())) return;
         set((state) => ({
           history: pushedHistory(state),
           future: [],
@@ -687,3 +722,61 @@ export const useCanvasStore = create<CanvasState>()(
     },
   ),
 );
+
+/** Reactive form of `isActiveTabReadOnly` (re-renders only when the flag flips). */
+export function useIsActiveTabReadOnly(): boolean {
+  return useCanvasStore(isActiveTabReadOnly);
+}
+
+type CanvasAction = {
+  [K in keyof CanvasState]: CanvasState[K] extends (...args: never[]) => unknown ? K : never;
+}[keyof CanvasState];
+
+/**
+ * Actions that edit the active tab's graph. Each one refuses by itself on a
+ * read-only (reference) tab — the UI gates are affordances, not the guard.
+ * `tests/unit/editor.test.ts` runs every one of them on a read-only tab, and
+ * checks that every action is listed here or in `READ_ONLY_EXEMPT_ACTIONS`.
+ */
+export const MUTATING_ACTIONS = [
+  // Only view changes (select, dimensions) apply on a read-only tab.
+  "onNodesChange",
+  "onEdgesChange",
+  "onConnect",
+  "addNode",
+  "placeNode",
+  "pasteClipboard",
+  "duplicateSelection",
+  "nudgeSelection",
+  "changeReplicas",
+  "updateNodeParams",
+  "updateEdgeRule",
+  "updateNodeData",
+  "updateEdgeData",
+  "clearCanvas",
+  "deleteSelection",
+] as const satisfies readonly CanvasAction[];
+
+/** Actions that legitimately run on a read-only tab, each for the reason given. */
+export const READ_ONLY_EXEMPT_ACTIONS = [
+  // Tab management: `addTab` is how `loadReferenceIntoTab` creates (or
+  // refreshes) a reference tab; switching, closing and renaming tabs never
+  // edit a tab's graph.
+  "addTab",
+  "switchTab",
+  "closeTab",
+  "renameTab",
+  // History only replays this tab's own entries, and a read-only tab never
+  // records any (every edit above is gated; tab switches clear the stacks).
+  "undo",
+  "redo",
+  "canUndo",
+  "canRedo",
+  "clearHistory",
+  // Selection is view state: selecting (and inspecting) reference nodes works.
+  "selectOnly",
+  "selectAll",
+  "clearSelection",
+  // Copying out of a reference writes only the clipboard.
+  "copySelection",
+] as const satisfies readonly CanvasAction[];

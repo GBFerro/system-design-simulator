@@ -2,7 +2,7 @@
 
 import { NodeToolbar, Position } from "@xyflow/react";
 import { CopyPlus, Minus, Plus, Trash2 } from "lucide-react";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { isActiveTabReadOnly, useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { usePenStore } from "@/store/penStore";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import { instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
@@ -14,7 +14,7 @@ import { instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
  */
 export function NodeActionsToolbar({ nodeId }: { nodeId: string }) {
   const visible = useCanvasStore((s) => {
-    if (s.tabs.find((t) => t.id === s.activeTabId)?.readOnly) return false;
+    if (isActiveTabReadOnly(s)) return false;
     let count = 0;
     let self = false;
     for (const n of s.nodes) {

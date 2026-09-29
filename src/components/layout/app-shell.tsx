@@ -9,7 +9,7 @@ import { Sidebar } from "@/components/sidebar/Sidebar";
 import { RightPanel } from "@/components/panel/RightPanel";
 import { DesignCanvas } from "@/components/canvas/DesignCanvas";
 import { useAppStore } from "@/store/appStore";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { isActiveTabReadOnly, useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useSimulationStore } from "@/store/simulationStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { scoreDesign } from "@/scoring/scorer";
@@ -184,6 +184,10 @@ export function AppShell() {
   }, [isMobile]);
 
   const handleClearCanvas = useCallback(() => {
+    if (isActiveTabReadOnly(useCanvasStore.getState())) {
+      useAppStore.getState().showToast("Reference tabs are read-only", "info");
+      return;
+    }
     useCanvasStore.getState().clearCanvas();
     useAppStore.getState().showToast("Canvas cleared", "info");
   }, []);
@@ -231,20 +235,18 @@ export function AppShell() {
 
       // Undo / Redo — Cmd/Ctrl+Z, redo via Shift+Z or Ctrl+Y. Disabled on read-only tabs.
       if (key === "z" && (e.metaKey || e.ctrlKey)) {
-        const { tabs, activeTabId, undo, redo } = useCanvasStore.getState();
-        const isReadOnlyTab = tabs.find((t) => t.id === activeTabId)?.readOnly === true;
-        if (!isReadOnlyTab) {
+        const canvas = useCanvasStore.getState();
+        if (!isActiveTabReadOnly(canvas)) {
           e.preventDefault();
-          if (e.shiftKey) redo();
-          else undo();
+          if (e.shiftKey) canvas.redo();
+          else canvas.undo();
         }
       }
       if (key === "y" && (e.metaKey || e.ctrlKey)) {
-        const { tabs, activeTabId, redo } = useCanvasStore.getState();
-        const isReadOnlyTab = tabs.find((t) => t.id === activeTabId)?.readOnly === true;
-        if (!isReadOnlyTab) {
+        const canvas = useCanvasStore.getState();
+        if (!isActiveTabReadOnly(canvas)) {
           e.preventDefault();
-          redo();
+          canvas.redo();
         }
       }
 

@@ -20,7 +20,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
 import { edgeTypes } from "./edges/edgeTypes";
-import { useCanvasStore } from "@/store/canvasStore";
+import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
 import { useAppStore } from "@/store/appStore";
@@ -96,9 +96,8 @@ export function DesignCanvas({
   const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
   const onConnect = useCanvasStore((s) => s.onConnect);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const tabs = useCanvasStore((s) => s.tabs);
   const activeTabId = useCanvasStore((s) => s.activeTabId);
-  const isReadOnly = tabs.find((t) => t.id === activeTabId)?.readOnly === true;
+  const isReadOnly = useIsActiveTabReadOnly();
   const penMode = usePenStore((s) => s.mode);
   const isDark = useAppStore((s) => s.theme) === "dark";
   const dotColor = isDark ? "rgba(155,172,205,0.24)" : "rgba(70,85,115,0.20)";

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { useAppStore } from "@/store/appStore";
-import { useCanvasStore } from "@/store/canvasStore";
+import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 import { ModalShell } from "./ModalShell";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -81,7 +81,7 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
       tags,
     });
 
-    // Clear canvas, select the new problem
+    // Clear canvas (a no-op on a reference tab), select the new problem
     useCanvasStore.getState().clearCanvas();
     setSelectedProblem(id);
     showToast("Custom problem created!", "success");
@@ -91,8 +91,9 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
   const handleCreate = () => {
     if (!title.trim()) return;
     // Creating a problem clears the canvas — ask before destroying work
-    const { nodes, edges } = useCanvasStore.getState();
-    if (nodes.length > 0 || edges.length > 0) {
+    // (a reference tab is never cleared, so there is nothing to confirm)
+    const canvas = useCanvasStore.getState();
+    if (!isActiveTabReadOnly(canvas) && (canvas.nodes.length > 0 || canvas.edges.length > 0)) {
       setClearConfirmOpen(true);
       return;
     }
