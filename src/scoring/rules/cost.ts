@@ -1,9 +1,24 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { CategoryScore, ScoringGraph } from "@/types/scoring";
+import { CATEGORY_MAX_SCORE } from "../budget";
 
-// Point budget (max 20): component count 3 + storage count 3 + cache savings 3 +
-// no disconnected nodes 3 + CDN 3 + queue 3 + no duplicate networking 2 = 20
+/** Max points per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts). */
+export const BUDGET = {
+  componentCount: 3,
+  storageCount: 3,
+  cacheSavings: 3,
+  noDisconnected: 3,
+  cdn: 3,
+  queue: 3,
+  noDuplicateNetworking: 2,
+} as const;
+
+/** Partial credit for a check that is only half met (always below its BUDGET). */
+export const PARTIAL = {
+  componentCount: 1,
+} as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
+
 export function scoreCost(
   nodes: Node<ComponentNodeData>[],
   edges: Edge[],
@@ -18,23 +33,23 @@ export function scoreCost(
   const connectedIds = new Set(connectedNodes.map((n) => n.data.componentId));
   const placedIds = new Set(componentIds);
 
-  // Not over-provisioned (3 pts) — total component count reasonable
+  // Not over-provisioned — total component count reasonable
   if (nodes.length >= 3 && nodes.length <= 25) {
-    score += 3;
+    score += BUDGET.componentCount;
     passed.push(
       "Appropriate number of components (" +
         nodes.length +
         ") — not over-engineered or under-provisioned",
     );
   } else if (nodes.length < 3) {
-    score += 1;
+    score += PARTIAL.componentCount;
     feedback.push(
       "System has only " +
         nodes.length +
         " component(s) — this is under-provisioned for any real workload. A minimal production system needs at least DNS → Load Balancer → App Server → Database. Add the missing layers.",
     );
   } else if (nodes.length <= 35) {
-    score += 1;
+    score += PARTIAL.componentCount;
     feedback.push(
       "System has " +
         nodes.length +
@@ -48,10 +63,10 @@ export function scoreCost(
     );
   }
 
-  // Appropriate storage choice (3 pts)
+  // Appropriate storage choice
   const storageNodes = nodes.filter((n) => n.data.category === "storage");
   if (storageNodes.length >= 1 && storageNodes.length <= 5) {
-    score += 3;
+    score += BUDGET.storageCount;
     passed.push("Appropriate number of storage components — each serves a distinct purpose");
   } else if (storageNodes.length === 0) {
     feedback.push(
@@ -65,11 +80,11 @@ export function scoreCost(
     );
   }
 
-  // Caching reduces DB load = cost savings (3 pts) — both must be on the request path
+  // Caching reduces DB load = cost savings — both must be on the request path
   const hasCache = connectedIds.has("cache");
   const hasDB = connectedIds.has("sql-db") || connectedIds.has("nosql-db");
   if (hasCache && hasDB) {
-    score += 3;
+    score += BUDGET.cacheSavings;
     passed.push(
       "Cache reduces expensive database queries — a $50/mo Redis instance can save $500/mo in DB scaling costs",
     );
@@ -86,7 +101,7 @@ export function scoreCost(
   }
   // No cache or no DB = 0 points for this check (cache cost savings only apply when both exist)
 
-  // No disconnected nodes (3 pts) — self-loops and edges to non-component
+  // No disconnected nodes — self-loops and edges to non-component
   // nodes (text annotations) don't count as being "connected"
   const nodeIds = new Set(nodes.map((n) => n.id));
   const attachedNodes = new Set<string>();
@@ -98,7 +113,7 @@ export function scoreCost(
   }
   const disconnected = nodes.filter((n) => !attachedNodes.has(n.id));
   if (disconnected.length === 0) {
-    score += 3;
+    score += BUDGET.noDisconnected;
     passed.push("All components are connected — no wasted resources sitting idle");
   } else {
     feedback.push(
@@ -106,9 +121,9 @@ export function scoreCost(
     );
   }
 
-  // CDN offloads origin traffic (3 pts)
+  // CDN offloads origin traffic
   if (connectedIds.has("cdn")) {
-    score += 3;
+    score += BUDGET.cdn;
     passed.push(
       "CDN offloads traffic from origin servers, reducing compute and bandwidth costs significantly",
     );
@@ -122,9 +137,9 @@ export function scoreCost(
     );
   }
 
-  // Async processing avoids over-provisioning compute (3 pts)
+  // Async processing avoids over-provisioning compute
   if (connectedIds.has("message-queue")) {
-    score += 3;
+    score += BUDGET.queue;
     passed.push(
       "Message queue enables right-sizing compute — process background tasks at lower priority instead of provisioning for peak",
     );
@@ -138,13 +153,13 @@ export function scoreCost(
     );
   }
 
-  // Efficient architecture — not duplicating functionality (2 pts)
+  // Efficient architecture — not duplicating functionality
   const hasApiGw = placedIds.has("api-gateway");
   const hasRateLimiter = placedIds.has("rate-limiter");
   const hasServiceMesh = placedIds.has("service-mesh");
   const duplicateNetworking = hasApiGw && hasRateLimiter && hasServiceMesh;
   if (!duplicateNetworking) {
-    score += 2;
+    score += BUDGET.noDuplicateNetworking;
     passed.push("No excessive duplication of networking functionality");
   } else {
     feedback.push(
@@ -152,5 +167,5 @@ export function scoreCost(
     );
   }
 
-  return { category: "Cost Efficiency", score, maxScore: 20, feedback, passed };
+  return { category: "Cost Efficiency", score, maxScore: CATEGORY_MAX_SCORE, feedback, passed };
 }

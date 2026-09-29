@@ -1,10 +1,25 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { CategoryScore, ScoringGraph } from "@/types/scoring";
+import { CATEGORY_MAX_SCORE } from "../budget";
 
-// Point budget (max 20): read/write separation 3 + polyglot persistence 3 +
-// async queue 3 + defense in depth 3 + architecture breadth 3 + auth 3 +
-// monitoring 2 = 20
+/** Max points per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts). */
+export const BUDGET = {
+  readWriteSeparation: 3,
+  polyglot: 3,
+  queue: 3,
+  defenseInDepth: 3,
+  breadth: 3,
+  auth: 3,
+  monitoring: 2,
+} as const;
+
+/** Partial credit for a check that is only half met (always below its BUDGET). */
+export const PARTIAL = {
+  polyglot: 1,
+  breadth: 1,
+} as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
+
 export function scoreTradeoffs(
   nodes: Node<ComponentNodeData>[],
   _edges: Edge[],
@@ -18,11 +33,11 @@ export function scoreTradeoffs(
   const connectedIds = new Set(connectedNodes.map((n) => n.data.componentId));
   const placedIds = new Set(nodes.map((n) => n.data.componentId));
 
-  // Read/write separation (3 pts) — cache for reads + DB for writes, on the request path
+  // Read/write separation — cache for reads + DB for writes, on the request path
   const hasCache = connectedIds.has("cache");
   const hasDB = connectedIds.has("sql-db") || connectedIds.has("nosql-db");
   if (hasCache && hasDB) {
-    score += 3;
+    score += BUDGET.readWriteSeparation;
     passed.push("Read/write separation via cache + database — optimizes each path independently");
   } else if (placedIds.has("cache") && (placedIds.has("sql-db") || placedIds.has("nosql-db"))) {
     feedback.push(
@@ -34,7 +49,7 @@ export function scoreTradeoffs(
     );
   }
 
-  // Polyglot persistence (3 pts) — multiple durable storage types suited to
+  // Polyglot persistence — multiple durable storage types suited to
   // different access patterns. Cache is excluded: cache+DB is already
   // rewarded above as read/write separation.
   const polyglotTypes = [
@@ -50,14 +65,14 @@ export function scoreTradeoffs(
     if (polyglotTypes.includes(n.data.componentId)) storageTypes.add(n.data.componentId);
   }
   if (storageTypes.size >= 2) {
-    score += 3;
+    score += BUDGET.polyglot;
     passed.push(
       "Polyglot persistence — using " +
         storageTypes.size +
         " distinct storage types suited to different access patterns",
     );
   } else if (storageTypes.size === 1) {
-    score += 1;
+    score += PARTIAL.polyglot;
     feedback.push(
       "Consider polyglot persistence — using multiple storage technologies suited to different access patterns. For example, SQL for transactional data, NoSQL for high-throughput key-value access, and object storage for blobs. One storage type rarely fits all workloads efficiently.",
     );
@@ -67,9 +82,9 @@ export function scoreTradeoffs(
     );
   }
 
-  // Async processing with queues (3 pts)
+  // Async processing with queues
   if (connectedIds.has("message-queue")) {
-    score += 3;
+    score += BUDGET.queue;
     passed.push(
       "Message queue decouples services — trading immediate consistency for resilience and throughput",
     );
@@ -83,10 +98,10 @@ export function scoreTradeoffs(
     );
   }
 
-  // Defense in depth (3 pts) — rate limiter or API gateway
+  // Defense in depth — rate limiter or API gateway
   const hasDefense = connectedIds.has("rate-limiter") || connectedIds.has("api-gateway");
   if (hasDefense) {
-    score += 3;
+    score += BUDGET.defenseInDepth;
     passed.push(
       "Defense in depth with rate limiting / API gateway — protects against abuse and overload",
     );
@@ -100,17 +115,17 @@ export function scoreTradeoffs(
     );
   }
 
-  // Overall architecture depth (3 pts) — at least 4 distinct connected component categories
+  // Overall architecture depth — at least 4 distinct connected component categories
   const uniqueCategories = new Set(connectedNodes.map((n) => n.data.category));
   if (uniqueCategories.size >= 4) {
-    score += 3;
+    score += BUDGET.breadth;
     passed.push(
       "Design covers " +
         uniqueCategories.size +
         " architectural layers — shows breadth of thinking",
     );
   } else if (uniqueCategories.size >= 3) {
-    score += 1;
+    score += PARTIAL.breadth;
     feedback.push(
       "Your connected design covers " +
         uniqueCategories.size +
@@ -124,12 +139,12 @@ export function scoreTradeoffs(
     );
   }
 
-  // Auth / security considerations (3 pts)
+  // Auth / security considerations
   const hasAuthLayer =
     connectedIds.has("auth-service") ||
     (connectedIds.has("api-gateway") && connectedIds.has("rate-limiter"));
   if (hasAuthLayer) {
-    score += 3;
+    score += BUDGET.auth;
     passed.push("Security layer (Auth Service / API Gateway + Rate Limiter) protects the system");
   } else if (
     placedIds.has("auth-service") ||
@@ -144,9 +159,9 @@ export function scoreTradeoffs(
     );
   }
 
-  // Monitoring / observability awareness (2 pts)
+  // Monitoring / observability awareness
   if (connectedIds.has("monitoring")) {
-    score += 2;
+    score += BUDGET.monitoring;
     passed.push(
       "Monitoring shows awareness that you need observability to manage tradeoffs in production",
     );
@@ -160,5 +175,5 @@ export function scoreTradeoffs(
     );
   }
 
-  return { category: "Trade-offs", score, maxScore: 20, feedback, passed };
+  return { category: "Trade-offs", score, maxScore: CATEGORY_MAX_SCORE, feedback, passed };
 }
