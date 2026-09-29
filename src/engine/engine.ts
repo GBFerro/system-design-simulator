@@ -2,11 +2,13 @@ import type { SimGraph } from "@/domain/graph/compile";
 import { RingBuffer } from "@/lib/ringBuffer";
 import { analyze } from "./analyze";
 import { TickSimulator, type TickOptions } from "./core/tick";
+import { FaultRunner } from "./faults/runner";
 import { rateAt, sanitizePattern } from "./traffic/patterns";
 import { HISTORY_TICKS, SIM_SPEEDS, TICK_SEC } from "./traffic/types";
 import type {
   Engine,
   FaultId,
+  FaultRecord,
   FaultSpec,
   SimConfig,
   SimSpeed,
@@ -15,15 +17,6 @@ import type {
   TrafficPattern,
   Unsubscribe,
 } from "./types";
-
-export class NotImplementedYetError extends Error {
-  constructor(method: string, where: string) {
-    super(`Engine.${method}() is not implemented yet (${where}).`);
-    this.name = "NotImplementedYetError";
-  }
-}
-
-const CHAOS = "Spec 08: chaos engineering";
 
 export const DEFAULT_TRAFFIC: TrafficPattern = { kind: "constant", rps: 10_000 };
 
@@ -62,8 +55,8 @@ function sanitizeSpeed(x: unknown): SimSpeed {
 }
 
 /**
- * Engine (Spec 04): `analyze()` (Phase 1) and the time-stepped loop
- * (Phase 2). `inject`/`heal` throw until Spec 08.
+ * Engine (Spec 04): `analyze()` (Phase 1), the time-stepped loop (Phase 2)
+ * and chaos faults (Spec 08).
  *
  * Playback: `play()` runs ticks of TICK_SEC simulated seconds on a wall-clock
  * scheduler at `speed`× real time; `pause()` stops it; `reset()` rewinds to
@@ -73,8 +66,15 @@ function sanitizeSpeed(x: unknown): SimSpeed {
  * on reset. `load()` while a run exists hot-swaps the graph and keeps the
  * clock plus the backlogs of nodes that still exist.
  *
- * Deterministic: same graph + seed + pattern/speed calls at the same ticks →
- * bit-identical snapshots (`step()` drives it without the scheduler).
+ * Faults: `inject(spec)` compiles a fault against the loaded graph and applies
+ * it from the next tick (it never edits the graph); it heals by itself after
+ * its duration or with `heal(id)`. `faults` lists the run's faults (the
+ * timeline); snapshots carry the blast radius (`blast` on nodes/edges).
+ * `reset()` clears them; `load()` recompiles the active ones against the new
+ * graph (a fault whose target disappeared heals).
+ *
+ * Deterministic: same graph + seed + pattern/speed/fault calls at the same
+ * ticks → bit-identical snapshots (`step()` drives it without the scheduler).
  */
 export class FlowEngine implements Engine {
   private graph: SimGraph | null = null;
@@ -91,6 +91,7 @@ export class FlowEngine implements Engine {
   private readonly clock: EngineClock;
   private readonly sliceMs: number;
   private readonly tickOptions: Pick<TickOptions, "tickSamples">;
+  private readonly chaos = new FaultRunner();
   /** Every tick of the run, oldest → newest (5 min simulated). */
   readonly history = new RingBuffer<TickSnapshot>(HISTORY_TICKS);
 
@@ -106,6 +107,7 @@ export class FlowEngine implements Engine {
     // Hot swap: keep the clock and the state of surviving nodes. A new seed
     // or other config applies from the next reset().
     this.sim?.setGraph(graph);
+    this.chaos.reload(graph, this.config, this.time);
   }
 
   analyze(rps: number): SteadyState {
@@ -161,6 +163,7 @@ export class FlowEngine implements Engine {
     this.sim = null;
     this.patternStart = 0;
     this.history.clear();
+    this.chaos.reset();
   }
 
   setSpeed(x: SimSpeed): void {
@@ -203,12 +206,27 @@ export class FlowEngine implements Engine {
     return () => this.batchListeners.delete(cb);
   }
 
-  inject(_fault: FaultSpec): FaultId {
-    throw new NotImplementedYetError("inject", CHAOS);
+  /**
+   * Starts a fault at the current simulated time (applies from the next
+   * tick). Throws a `FaultError` when it can't apply to the loaded graph.
+   */
+  inject(fault: FaultSpec): FaultId {
+    if (!this.graph) throw new Error("Engine.inject() called before load().");
+    return this.chaos.inject(fault, this.time, this.graph, this.config, this.history.last());
   }
 
-  heal(_id: FaultId): void {
-    throw new NotImplementedYetError("heal", CHAOS);
+  heal(id: FaultId): void {
+    this.chaos.heal(id, this.time);
+  }
+
+  /** The run's faults, oldest first (active ones included). */
+  get faults(): FaultRecord[] {
+    return this.chaos.records();
+  }
+
+  /** Changes whenever a fault starts or ends. */
+  get faultVersion(): number {
+    return this.chaos.version;
   }
 
   /* ---------- internals ---------- */
@@ -220,7 +238,14 @@ export class FlowEngine implements Engine {
   }
 
   private tickOnce(sim: TickSimulator): TickSnapshot {
-    const snap = sim.step(rateAt(this.pattern, Math.max(0, sim.time - this.patternStart)));
+    const t = sim.time;
+    const snap = sim.step(
+      rateAt(this.pattern, Math.max(0, t - this.patternStart)),
+      this.chaos.effects(t),
+    );
+    this.chaos.annotate(snap, this.graph!);
+    // Auto-heal what is due by the end of this tick, so the timeline is current.
+    this.chaos.expire(sim.time);
     this.history.push(snap);
     for (const cb of this.tickListeners) cb(snap);
     return snap;

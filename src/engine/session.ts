@@ -7,7 +7,15 @@
 import type { SimGraph } from "@/domain/graph/compile";
 import { FlowEngine, type FlowEngineOptions } from "./engine";
 import { UI_SNAPSHOT_HZ } from "./traffic/types";
-import type { SimConfig, SimSpeed, TickSnapshot, TrafficPattern } from "./types";
+import type {
+  FaultId,
+  FaultRecord,
+  FaultSpec,
+  SimConfig,
+  SimSpeed,
+  TickSnapshot,
+  TrafficPattern,
+} from "./types";
 
 /** What the UI receives. */
 export interface SimFrame {
@@ -16,7 +24,15 @@ export interface SimFrame {
   patternTimeSec: number;
   /** The run this frame belongs to: frames of an older generation must be ignored. */
   generation: number;
+  /** Bumped whenever a fault starts or ends (Spec 08). */
+  faultVersion: number;
+  /** The run's faults; only sent when `faultVersion` changed since the previous frame. */
+  faults?: FaultRecord[];
 }
+
+export type InjectResult =
+  | { ok: true; id: FaultId; faults: FaultRecord[]; faultVersion: number }
+  | { ok: false; error: string };
 
 export type FrameListener = (frame: SimFrame) => void;
 
@@ -29,6 +45,10 @@ export interface SimSession {
   reset(generation: number): void;
   setSpeed(x: SimSpeed): void;
   setTraffic(p: TrafficPattern): void;
+  /** Starts a fault now (Spec 08); applies from the next tick. Needs a loaded graph. */
+  inject(fault: FaultSpec): InjectResult;
+  /** Ends a fault now; returns the run's faults. */
+  heal(id: FaultId): { faults: FaultRecord[]; faultVersion: number };
   /** Replaces the listener (null to stop streaming). */
   subscribe(listener: FrameListener | null): void;
   dispose(): void;
@@ -42,11 +62,24 @@ export function createSimSession(options: FlowEngineOptions = {}): SimSession {
   let generation = 0;
   let lastSent = -Infinity;
   let pending: TickSnapshot | null = null;
+  let loaded = false;
+  let sentFaultVersion = -1;
 
   const send = (snapshot: TickSnapshot) => {
     pending = null;
     lastSent = now();
-    listener?.({ snapshot, patternTimeSec: engine.patternTime, generation });
+    const faultVersion = engine.faultVersion;
+    const frame: SimFrame = {
+      snapshot,
+      patternTimeSec: engine.patternTime,
+      generation,
+      faultVersion,
+    };
+    if (faultVersion !== sentFaultVersion) {
+      frame.faults = engine.faults;
+      sentFaultVersion = faultVersion;
+    }
+    listener?.(frame);
   };
 
   engine.onBatch((s) => {
@@ -55,7 +88,10 @@ export function createSimSession(options: FlowEngineOptions = {}): SimSession {
   });
 
   return {
-    load: (graph, config) => engine.load(graph, config),
+    load: (graph, config) => {
+      engine.load(graph, config);
+      loaded = true;
+    },
     play: () => engine.play(),
     pause: () => {
       engine.pause();
@@ -69,6 +105,19 @@ export function createSimSession(options: FlowEngineOptions = {}): SimSession {
     },
     setSpeed: (x) => engine.setSpeed(x),
     setTraffic: (p) => engine.setTraffic(p),
+    inject: (fault) => {
+      if (!loaded) return { ok: false, error: "Start the simulation before injecting faults." };
+      try {
+        const id = engine.inject(fault);
+        return { ok: true, id, faults: engine.faults, faultVersion: engine.faultVersion };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    heal: (id) => {
+      engine.heal(id);
+      return { faults: engine.faults, faultVersion: engine.faultVersion };
+    },
     subscribe: (l) => {
       listener = l;
     },

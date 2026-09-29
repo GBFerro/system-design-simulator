@@ -7,12 +7,12 @@
 import { expose } from "comlink";
 import { createEngine } from "./engine";
 import { createSimSession, type FrameListener } from "./session";
-import type { SimConfig, SimGraph, SimSpeed, TrafficPattern } from "./types";
+import type { FaultId, FaultSpec, SimConfig, SimGraph, SimSpeed, TrafficPattern } from "./types";
 
 const engine = createEngine();
 const session = createSimSession();
 
-/** What the worker exposes: `analyze()` (Phase 1) and the live tick loop (Phase 2). */
+/** What the worker exposes: `analyze()` (Phase 1), the live tick loop (Phase 2) and faults (Spec 08). */
 export const workerApi = {
   load: engine.load.bind(engine),
   analyze: engine.analyze.bind(engine),
@@ -24,6 +24,8 @@ export const workerApi = {
   simReset: (generation: number) => session.reset(generation),
   simSetSpeed: (x: SimSpeed) => session.setSpeed(x),
   simSetTraffic: (p: TrafficPattern) => session.setTraffic(p),
+  simInject: (fault: FaultSpec) => session.inject(fault),
+  simHeal: (id: FaultId) => session.heal(id),
   simSubscribe: (listener: FrameListener | null) => session.subscribe(listener),
 };
 

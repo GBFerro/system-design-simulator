@@ -87,6 +87,8 @@ export const PARAM = {
   connectionPool: "connectionPool",
   /** SQL/search: horizontal partitions of the data set. */
   shards: "shards",
+  /** SQL: time to promote a standby after the primary fails (Spec 08); writes fail meanwhile. */
+  failoverSec: "failoverSec",
   /** Read replica: how far the replica trails the primary. */
   replicationLagMs: "replicationLagMs",
   /** NoSQL/queue: partitions (the unit of parallelism). */
