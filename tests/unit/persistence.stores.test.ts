@@ -175,3 +175,129 @@ describe("v1 localStorage → v2 stores", () => {
     expect(exported.strokes).toEqual(imported.strokes);
   });
 });
+
+describe("hydration order: custom components before the graph migration", () => {
+  // `rehydrateAllStores()` must hydrate `customComponentsStore` before the
+  // canvas and saved designs: the migration tells a custom component from an
+  // unknown type (which it rewrites to "custom") by looking it up there.
+  const CUSTOM_ID = "custom-geo-index";
+  const customNode = {
+    id: "geo-1",
+    type: "component",
+    position: { x: 100, y: 100 },
+    data: {
+      componentId: CUSTOM_ID,
+      label: "Geo Index",
+      icon: "Box",
+      category: "storage",
+      replicas: 2,
+      maxQPS: 3500,
+      latencyMs: 12,
+      scalable: true,
+    },
+  };
+  const clientNode = {
+    id: "client-1",
+    type: "component",
+    position: { x: 0, y: 0 },
+    data: {
+      componentId: "client",
+      label: "Client",
+      icon: "Users",
+      category: "networking",
+      replicas: 1,
+      maxQPS: 1000000,
+      latencyMs: 1,
+      scalable: true,
+    },
+  };
+  const edge = { id: "e-client-geo", source: "client-1", target: "geo-1", data: {} };
+  const graph = { nodes: [clientNode, customNode], edges: [edge] };
+
+  beforeAll(() => {
+    storage.clear();
+    storage.set(
+      "systemsim-custom-components",
+      JSON.stringify({
+        state: {
+          components: [
+            {
+              id: CUSTOM_ID,
+              label: "Geo Index",
+              category: "storage",
+              icon: "Box",
+              maxQPS: 4000,
+              latencyMs: 12,
+              scalable: true,
+              stateful: true,
+              description: "",
+              custom: true,
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+        version: 1,
+      }),
+    );
+    storage.set(
+      "systemsim-canvas",
+      JSON.stringify({
+        state: {
+          ...graph,
+          tabs: [{ id: "my-design", label: "My Design", ...graph }],
+          activeTabId: "my-design",
+        },
+        version: 1,
+      }),
+    );
+    storage.set(
+      "systemsim-saved-designs",
+      JSON.stringify({
+        state: {
+          designs: [
+            {
+              id: "design-geo",
+              name: "Geo search",
+              problemId: null,
+              ...graph,
+              strokes: [],
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+        version: 1,
+      }),
+    );
+    // Fresh store singletons (the tests above already hydrated them).
+    vi.resetModules();
+  });
+
+  it("a v1 custom component stays custom after rehydrateAllStores()", async () => {
+    const warn = vi.mocked(console.warn);
+    warn.mockClear();
+    const { rehydrateAllStores } = await import("@/store/hydration");
+    const { useCanvasStore } = await import("@/store/canvasStore");
+    const { useSavedDesignsStore } = await import("@/store/savedDesignsStore");
+    await rehydrateAllStores();
+
+    const expectCustom = (nodes: readonly { id: string; data: object }[]) => {
+      const data = nodes.find((n) => n.id === "geo-1")!.data as Record<string, unknown>;
+      expect(data.componentId).toBe(CUSTOM_ID);
+      expect(data.params).toMatchObject({
+        [PARAM.capacityPerInstance]: 3500,
+        [PARAM.serviceTimeMs]: 12,
+        [PARAM.instances]: 2,
+      });
+    };
+    const canvas = useCanvasStore.getState();
+    expectCustom(canvas.nodes);
+    expectCustom(canvas.tabs.find((t) => t.id === "my-design")!.nodes);
+    expectCustom(useSavedDesignsStore.getState().designs[0].nodes);
+
+    const unknownType = warn.mock.calls.filter((args) =>
+      String(args[0]).includes("unknown component type"),
+    );
+    expect(unknownType).toEqual([]);
+  });
+});
