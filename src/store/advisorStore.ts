@@ -2,8 +2,8 @@ import { create } from "zustand";
 import type { Edge, Node } from "@xyflow/react";
 import { structureFindings } from "@/advisor/structure";
 import { SEVERITY_RANK, type Finding, type Severity } from "@/advisor/types";
-import { instancesOf } from "@/domain/components/registry";
-import { useCanvasStore, type ComponentNodeData } from "./canvasStore";
+import { topologySignature } from "@/lib/topology";
+import { useCanvasStore } from "./canvasStore";
 
 /**
  * Advisor findings for the active canvas (Spec 12). NOT persisted: derived
@@ -18,21 +18,6 @@ interface AdvisorState {
 }
 
 export const useAdvisorStore = create<AdvisorState>(() => ({ findings: [], byNode: {} }));
-
-/** What the structure hints depend on; positions and selection are left out. */
-export function topologySignature(nodes: readonly Node[], edges: readonly Edge[]): string {
-  let sig = "";
-  for (const n of nodes) {
-    if (n.type === "text") continue;
-    const d = n.data as ComponentNodeData;
-    sig += `${n.id}|${d.componentId}|${d.label}|${d.scalable ? 1 : 0}|${instancesOf(d)};`;
-  }
-  sig += "#";
-  for (const e of edges) {
-    sig += `${e.source}>${e.target}|${(e.data as { async?: unknown } | undefined)?.async === true ? 1 : 0};`;
-  }
-  return sig;
-}
 
 function worstByNode(findings: Finding[]): Record<string, Severity> {
   const out: Record<string, Severity> = {};

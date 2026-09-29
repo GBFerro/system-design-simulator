@@ -16,7 +16,7 @@ import {
 import type { FaultRecord, FaultSpec, FaultType } from "@/engine/faults/types";
 import { formatClock } from "@/components/traffic/format";
 import { healFault, injectFault, togglePlayback } from "@/components/traffic/simActions";
-import { topologySignature } from "@/store/advisorStore";
+import { topologySignature } from "@/lib/topology";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
@@ -135,8 +135,7 @@ export function ChaosPanel() {
   };
 
   return (
-    // Bottom padding lets the last controls scroll clear of the Support FAB.
-    <section aria-label="Chaos engineering" className="space-y-4 pb-16" data-testid="chaos-panel">
+    <section aria-label="Chaos engineering" className="space-y-4" data-testid="chaos-panel">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Chaos</p>
         <p className="mt-1 text-[11px] leading-snug text-zinc-400">

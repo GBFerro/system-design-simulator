@@ -132,6 +132,11 @@ export function effectsAt(mods: readonly CompiledModifier[], t: number): TickEff
       case "drainEdge":
         for (const id of m.targetIds) onEdge(id).drained = true;
         break;
+      default: {
+        // A new ModifierKind must be folded here, or its faults silently do nothing.
+        const unhandled: never = m.kind;
+        void unhandled;
+      }
     }
   }
   return fx;

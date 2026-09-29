@@ -65,6 +65,12 @@ interface RightPanelProps {
 const TAB_TRIGGER =
   "h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100";
 
+/**
+ * Body of every tab. The bottom padding lets the last controls scroll clear
+ * of the fixed Support FAB (bottom-right), which would otherwise cover them.
+ */
+const TAB_BODY = "p-3 pb-16";
+
 /** Small count on a tab trigger (active faults, advisor findings). */
 function TabCount({ n, tone, label }: { n: number; tone: string; label: string }) {
   if (n === 0) return null;
@@ -143,7 +149,7 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
 
       <TabsContent value="properties" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
-          <div className="p-3">
+          <div className={TAB_BODY}>
             <PropertiesTab />
           </div>
         </ScrollArea>
@@ -151,7 +157,7 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
 
       <TabsContent value="simulation" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
-          <div className="p-3 space-y-4">
+          <div className={`${TAB_BODY} space-y-4`}>
             <TrafficControls />
             <Separator className="bg-zinc-800" />
             <SimulationControls onSimulate={onSimulate} />
@@ -163,7 +169,7 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
 
       <TabsContent value="chaos" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
-          <div className="p-3">
+          <div className={TAB_BODY}>
             <ChaosPanel />
           </div>
         </ScrollArea>
@@ -171,21 +177,21 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
 
       <TabsContent value="advisor" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
-          <div className="p-3">
+          <div className={TAB_BODY}>
             <AdvisorPanel />
           </div>
         </ScrollArea>
       </TabsContent>
 
       <TabsContent value="score" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <div className="h-full p-3">
+        <div className={`h-full ${TAB_BODY}`}>
           <ScoreReport />
         </div>
       </TabsContent>
 
       <TabsContent value="capacity" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
-          <div className="p-3">
+          <div className={TAB_BODY}>
             <CapacityCalculator />
           </div>
         </ScrollArea>
@@ -193,7 +199,7 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
 
       <TabsContent value="tradeoffs" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
-          <div className="p-3 space-y-4">
+          <div className={`${TAB_BODY} space-y-4`}>
             <TradeoffLog />
             <Separator className="bg-zinc-800" />
             <TradeoffCards />

@@ -5,8 +5,14 @@ import type { EdgeRule, EdgeRuleKind, Params } from "@/domain/components/types";
 import { defaultEdgeRule } from "@/domain/graph/edgeRules";
 import { mulberry32, type Rng } from "@/engine/core/rng";
 
-/** Component node as the canvas stores it (params from the schema defaults + overrides). */
+/**
+ * Component node as the canvas stores it: icon/category/`scalable` from the
+ * catalog entry (the scorer and the advisor read `scalable`), params from
+ * the schema defaults + overrides. Unknown ids fall back to a generic
+ * scalable compute node.
+ */
 export function comp(id: string, componentId: string, params: Params = {}): Node {
+  const spec = SYSTEM_COMPONENTS.find((c) => c.id === componentId);
   return {
     id,
     type: "component",
@@ -14,9 +20,9 @@ export function comp(id: string, componentId: string, params: Params = {}): Node
     data: {
       componentId,
       label: id,
-      icon: "Box",
-      category: "compute",
-      scalable: true,
+      icon: spec?.icon ?? "Box",
+      category: spec?.category ?? "compute",
+      scalable: spec?.scalable ?? true,
       params: { ...defaultParams(componentId), ...params },
     },
   };

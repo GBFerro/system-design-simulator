@@ -27,11 +27,3 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
   },
   clear: () => set({ faults: [], version: -1 }),
 }));
-
-// Playwright reads the run's faults through this handle (same gate as `__runtimeStore`).
-if (
-  typeof window !== "undefined" &&
-  (process.env.NODE_ENV !== "production" || new URLSearchParams(window.location.search).has("e2e"))
-) {
-  (window as unknown as { __chaosStore?: typeof useChaosStore }).__chaosStore = useChaosStore;
-}

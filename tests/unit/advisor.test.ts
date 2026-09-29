@@ -1,18 +1,9 @@
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { structureFindings } from "@/advisor/structure";
-import { getComponentById } from "@/data/components";
-import type { Params } from "@/domain/components/types";
 import { PROBLEMS } from "@/data/problems";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import { comp, text, wire } from "./engineFixtures";
-
-/** Like `comp`, but with the catalog's `scalable` flag (the fixture always says true). */
-function node(id: string, componentId: string, params: Params = {}): Node {
-  const n = comp(id, componentId, params);
-  (n.data as { scalable: boolean }).scalable = getComponentById(componentId)?.scalable ?? true;
-  return n;
-}
+import { comp as node, text, wire } from "./engineFixtures";
 
 const ids = (nodes: Node[], edges: Edge[]) => structureFindings(nodes, edges).map((f) => f.id);
 
