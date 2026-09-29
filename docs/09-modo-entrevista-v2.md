@@ -37,7 +37,14 @@ O timer continua baseado em timestamp (`startedAt`/`accumulatedMs`), como exige 
 3. O candidato pode editar o grafo com a simulação rodando (adicionar réplica, circuit breaker, fila) e escrever a resposta em texto.
 4. Ao fim de cada fault, aparecem a resposta de referência (`answer`) e o gráfico do incidente: quando o SLO quebrou, quando o candidato agiu e quando recuperou.
 
-**Roteiros:** cada um dos 35 problemas ganha em `interviewData.ts` um `drill: { followUpId, fault: FaultSpec, window: number }[]`. Problemas sem follow-up `failure` suficiente recebem faults genéricos pela arquitetura de referência (ex.: kill do tier com mais tráfego).
+**Roteiros:** cada um dos 35 problemas ganha em `interviewData.ts` um `drill: { followUpId?, fault, window }[]`. Problemas sem follow-up `failure` suficiente recebem faults genéricos pela arquitetura de referência (ex.: kill do tier com mais tráfego).
+
+**Implementação (PR 1 da Spec 09):**
+
+- O alvo do fault é um **tipo de componente**, não um `FaultSpec` com id de nó, porque os ids mudam a cada design (`DrillTarget`: tipos de nó, link entre tipos, tier mais ocupado ou global). `resolveDrillStep` escolhe o nó ou link mais carregado do tipo no design do candidato.
+- Se o design não tem o alvo, o drill mata uma instância do tier mais ocupado e avisa.
+- Passos sem `followUpId` usam a pergunta e a resposta genéricas do tipo de fault (`GENERIC_DRILL_QA`).
+- Até a fase 2 capturar a estimativa (PR 3), a carga do drill é o pico de referência (reads + writes). O SLO é p99 ≤ SLA do problema e erros ≤ 1%, até a [Spec 11](11-slo-e-error-budget.md).
 
 **Edição ao vivo:** mudanças no grafo durante o play recompilam o `SimGraph` e recarregam o motor mantendo o tempo, as filas dos nós que continuam existindo e os faults ativos.
 
@@ -71,7 +78,7 @@ Separado, não entra nos 100: aderência ao tempo de cada fase, precisão da est
 
 ## Critérios de aceite
 
-- [ ] Os 35 problemas têm roteiro de drill
+- [x] Os 35 problemas têm roteiro de drill
 - [ ] Cada regra soma exatamente 20 e nunca fica negativa
 - [ ] A solução de referência de cada problema, simulada no pico de referência, tira pelo menos 16/20 em scalability e latency (sanidade das regras medidas)
 - [ ] Um grafo vazio tira 0 em scalability, availability e latency

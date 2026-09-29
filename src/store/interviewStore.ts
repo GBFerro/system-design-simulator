@@ -44,7 +44,7 @@ const PHASES: Phase[] = [
   {
     name: "Deep Dive",
     targetMinutes: 10,
-    description: "Discuss trade-offs, failure modes, scaling",
+    description: "Failure drill: survive injected faults, then discuss trade-offs",
     icon: "Search",
   },
 ];

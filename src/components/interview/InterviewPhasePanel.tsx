@@ -4,6 +4,13 @@ import { useInterviewStore } from "@/store/interviewStore";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
 import { ClipboardList, Calculator, FileCode2, Database, Search, ChevronRight } from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Phase 6 only: the drill and its scripts (interviewData) stay out of the initial bundle.
+const DrillPanel = dynamic(() => import("./DrillPanel").then((m) => m.DrillPanel), {
+  ssr: false,
+  loading: () => <p className="text-[11px] text-zinc-400">Loading the failure drill…</p>,
+});
 
 /** Panel content shown during interview phases 0-3 and 5 (not phase 4 = HLD). */
 export function InterviewPhasePanel() {
@@ -34,7 +41,12 @@ export function InterviewPhasePanel() {
           {currentPhase === 1 && <EstimationGuide problem={problem} />}
           {currentPhase === 2 && <APIDesignGuide problem={problem} />}
           {currentPhase === 3 && <DataModelGuide problem={problem} />}
-          {currentPhase === 5 && <DeepDiveGuide problem={problem} />}
+          {currentPhase === 5 && (
+            <>
+              <DrillPanel problem={problem} />
+              <DeepDiveGuide problem={problem} />
+            </>
+          )}
         </div>
       </div>
 
