@@ -12,6 +12,7 @@ import { scoreLatency } from "@/scoring/rules/latency";
 import { scoreScalability } from "@/scoring/rules/scalability";
 import { scoreTradeoffs } from "@/scoring/rules/tradeoffs";
 import type { ComponentNodeData } from "@/store/canvasStore";
+import { defaultParams } from "@/domain/components/registry";
 
 type Graph = { nodes: Node<ComponentNodeData>[]; edges: Edge[] };
 
@@ -34,9 +35,7 @@ function node(componentId: string, index: number, replicas = 1): Node<ComponentN
       label: comp.label,
       icon: comp.icon,
       category: comp.category,
-      replicas,
-      maxQPS: comp.maxQPS,
-      latencyMs: comp.latencyMs,
+      params: { ...defaultParams(comp.id), instances: replicas },
       scalable: comp.scalable,
     },
   };

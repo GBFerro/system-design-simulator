@@ -8,16 +8,17 @@ import { useSimulationStore } from "./simulationStore";
 import { useCustomProblemsStore } from "./customProblemsStore";
 import { safeLocalStorage } from "./safeStorage";
 import { PROBLEMS } from "@/data/problems";
+import { PARAM, sanitizeParams } from "@/domain/components/registry";
+import type { EdgeRule, Params } from "@/domain/components/types";
+import { defaultEdgeRule, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
 
 export interface SerializedComponentData {
   componentId: string;
   label: string;
   icon: string;
   category: string;
-  replicas: number;
-  maxQPS: number;
-  latencyMs: number;
   scalable: boolean;
+  params: Params;
 }
 
 export interface SerializedTextData {
@@ -39,7 +40,7 @@ export interface SerializedEdge {
   target: string;
   sourceHandle?: string | null;
   targetHandle?: string | null;
-  data?: { label?: string; protocol?: string; async?: boolean };
+  data?: { label?: string; protocol?: string; async?: boolean; rule?: EdgeRule };
 }
 
 export interface SavedDesign {
@@ -93,10 +94,8 @@ export function serializeNodes(
         label: n.data.label,
         icon: n.data.icon,
         category: n.data.category,
-        replicas: n.data.replicas,
-        maxQPS: n.data.maxQPS,
-        latencyMs: n.data.latencyMs,
         scalable: n.data.scalable,
+        params: { ...(n.data.params as Params) },
       } as SerializedComponentData,
     };
   });
@@ -116,6 +115,7 @@ export function serializeEdges(
       label: typeof e.data?.label === "string" ? e.data.label : "",
       protocol: typeof e.data?.protocol === "string" ? e.data.protocol : "http",
       async: e.data?.async === true,
+      ...(e.data?.rule ? { rule: e.data.rule as EdgeRule } : {}),
     },
   }));
 }
@@ -203,19 +203,26 @@ function normalizeImportedDesign(parsed: unknown):
         },
       });
     } else {
+      const componentId = str(d.componentId, "custom");
+      // v1 files carry maxQPS/latencyMs/replicas instead of params.
+      const rawParams = isRecord(d.params)
+        ? d.params
+        : {
+            [PARAM.capacityPerInstance]: num(d.maxQPS, NaN),
+            [PARAM.serviceTimeMs]: num(d.latencyMs, NaN),
+            [PARAM.instances]: num(d.replicas, NaN),
+          };
       nodes.push({
         id: raw.id,
         type,
         position: { x: pos.x, y: pos.y },
         data: {
-          componentId: str(d.componentId, "custom"),
+          componentId,
           label: str(d.label, "Component"),
           icon: str(d.icon, "Box"),
           category: str(d.category, "compute"),
-          replicas: num(d.replicas, 1),
-          maxQPS: num(d.maxQPS, 1000),
-          latencyMs: num(d.latencyMs, 10),
           scalable: d.scalable !== false,
+          params: sanitizeParams(componentId, rawParams),
         },
       });
     }
@@ -237,6 +244,10 @@ function normalizeImportedDesign(parsed: unknown):
       return { ok: false, error: `Edge ${i} has an unknown target node` };
     }
     const data = isRecord(raw.data) ? raw.data : {};
+    const sourceNode = nodes.find((n) => n.id === source);
+    const sourceComponentId =
+      sourceNode && "componentId" in sourceNode.data ? sourceNode.data.componentId : undefined;
+    const protocol = str(data.protocol, "http");
     edges.push({
       id: str(raw.id, `e-${source}-${target}-${i}`),
       type: str(raw.type, "animated"),
@@ -246,8 +257,9 @@ function normalizeImportedDesign(parsed: unknown):
       targetHandle: typeof raw.targetHandle === "string" ? raw.targetHandle : null,
       data: {
         label: str(data.label, ""),
-        protocol: str(data.protocol, "http"),
+        protocol,
         async: data.async === true,
+        rule: sanitizeEdgeRule(data.rule, defaultEdgeRule(sourceComponentId, undefined, protocol)),
       },
     });
   }
@@ -332,7 +344,7 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
             id: n.id,
             type: n.type,
             position: n.position,
-            data: { ...n.data } as ComponentNodeData,
+            data: { ...n.data } as unknown as ComponentNodeData,
           };
         });
 
@@ -347,6 +359,7 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
             label: e.data?.label ?? "",
             protocol: e.data?.protocol ?? "http",
             async: e.data?.async ?? false,
+            ...(e.data?.rule ? { rule: e.data.rule } : {}),
           },
         }));
 

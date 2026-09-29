@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
+import { instancesOf } from "@/domain/components/registry";
 import type { CategoryScore, ScoringGraph } from "@/types/scoring";
 
 // Point budget (max 20): LB 3 + scalable compute 3 + cache 3 + queue 3 +
@@ -30,7 +31,7 @@ export function scoreScalability(
   // SQL needs explicit read replicas to scale reads.
   const isDBScalingNode = (n: Node<ComponentNodeData>) =>
     n.data.componentId === "nosql-db" ||
-    (n.data.componentId === "sql-db" && (n.data.replicas || 1) > 1);
+    (n.data.componentId === "sql-db" && instancesOf(n.data) > 1);
   const hasDBScaling = connectedNodes.some(isDBScalingNode);
   const placedDBScaling = nodes.some(isDBScalingNode);
 

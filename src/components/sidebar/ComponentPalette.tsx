@@ -175,7 +175,9 @@ export function ComponentPalette({
                                 <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">
                                   {item.maxQPS === Infinity
                                     ? "\u221e"
-                                    : `${(item.maxQPS / 1000).toFixed(0)}k`}
+                                    : item.maxQPS < 1000
+                                      ? String(item.maxQPS)
+                                      : `${(item.maxQPS / 1000).toFixed(0)}k`}
                                 </span>
                                 <button
                                   onClick={(e) => {

@@ -3,6 +3,8 @@ import type { Problem } from "@/types/problem";
 import { getComponentById } from "@/data/components";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useAppStore } from "@/store/appStore";
+import { defaultParams } from "@/domain/components/registry";
+import { defaultEdgeRule } from "@/domain/graph/edgeRules";
 
 /**
  * Build canvas nodes + edges for a problem's reference solution.
@@ -39,10 +41,8 @@ export function buildReferenceGraph(problem: Problem): {
         label: comp.label,
         icon: comp.icon,
         category: comp.category,
-        replicas: 1,
-        maxQPS: comp.maxQPS,
-        latencyMs: comp.latencyMs,
         scalable: comp.scalable,
+        params: defaultParams(comp.id),
       },
     });
   });
@@ -68,6 +68,12 @@ export function buildReferenceGraph(problem: Problem): {
         source: sourceId,
         target: targetId,
         type: "animated",
+        data: {
+          label: "",
+          protocol: "http",
+          async: false,
+          rule: defaultEdgeRule(ref.source, ref.target, "http"),
+        },
       });
     }
   }

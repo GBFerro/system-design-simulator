@@ -5,7 +5,6 @@ import type { Edge } from "@xyflow/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import {
   Info,
@@ -22,7 +21,21 @@ import {
   Pencil,
   CopyPlus,
 } from "lucide-react";
-import { useCanvasStore, type ComponentNodeData, type CustomEdgeData } from "@/store/canvasStore";
+import {
+  edgeRuleOf,
+  useCanvasStore,
+  type ComponentNodeData,
+  type CustomEdgeData,
+} from "@/store/canvasStore";
+import {
+  capacityPerInstanceOf,
+  getSchema,
+  instancesOf,
+  resolvedParams,
+} from "@/domain/components/registry";
+import type { EdgeRule } from "@/domain/components/types";
+import { EDGE_RULE_SPECS, edgeRuleValues } from "@/domain/graph/edgeRules";
+import { ParamsForm } from "./ParamsForm";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
 import { getConceptByComponentId } from "@/data/conceptLibrary";
@@ -167,9 +180,18 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
   );
 }
 
+function useActiveTabReadOnly(): boolean {
+  return useCanvasStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.readOnly === true);
+}
+
 function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
+  const updateEdgeRule = useCanvasStore((s) => s.updateEdgeRule);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
+  const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
+  const rule = edgeRuleOf({ nodes, edges }, selectedEdge);
+  const readOnly = useActiveTabReadOnly();
 
   const data = (selectedEdge.data ?? {}) as CustomEdgeData;
   const protocols: CustomEdgeData["protocol"][] = [
@@ -194,6 +216,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           <input
             type="text"
             value={data.label ?? ""}
+            disabled={readOnly}
             onChange={(e) => updateEdgeData(selectedEdge.id, { label: e.target.value })}
             placeholder="e.g. /api/users"
             className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/50"
@@ -205,6 +228,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           <label className="mb-1 block text-xs text-zinc-400">Protocol</label>
           <select
             value={data.protocol ?? "http"}
+            disabled={readOnly}
             onChange={(e) =>
               updateEdgeData(selectedEdge.id, {
                 protocol: e.target.value as CustomEdgeData["protocol"],
@@ -235,6 +259,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           <label className="mb-1 block text-xs text-zinc-400">Communication</label>
           <div className="flex gap-1">
             <button
+              disabled={readOnly}
               onClick={() => updateEdgeData(selectedEdge.id, { async: false })}
               className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 !data.async
@@ -245,6 +270,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
               Sync
             </button>
             <button
+              disabled={readOnly}
               onClick={() => updateEdgeData(selectedEdge.id, { async: true })}
               className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 data.async
@@ -262,10 +288,22 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           </p>
         </div>
 
+        {/* Call rule (Spec 03): which requests take this edge */}
+        <ParamsForm
+          specs={EDGE_RULE_SPECS}
+          values={edgeRuleValues(rule)}
+          grouped={false}
+          disabled={readOnly}
+          onCommit={(key, value) =>
+            updateEdgeRule(selectedEdge.id, { [key]: value } as Partial<EdgeRule>)
+          }
+        />
+
         {/* Remove connection — clears selection via the store */}
         <Button
           variant="outline"
           size="sm"
+          disabled={readOnly}
           onClick={deleteSelection}
           className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
         >
@@ -321,7 +359,9 @@ function PropertiesTab() {
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const updateNodeParams = useCanvasStore((s) => s.updateNodeParams);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
+  const readOnly = useActiveTabReadOnly();
   const selectedProblemId = useAppStore((s) => s.selectedProblemId);
 
   // Selection has one source of truth: node.selected / edge.selected
@@ -451,6 +491,8 @@ function PropertiesTab() {
       ) : selectedNode ? (
         (() => {
           const data = selectedNode.data as ComponentNodeData;
+          const instances = instancesOf(data);
+          const capacity = capacityPerInstanceOf(data);
           return (
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -467,6 +509,7 @@ function PropertiesTab() {
                     ref={labelRef}
                     type="text"
                     value={data.label as string}
+                    disabled={readOnly}
                     onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })}
                     onBlur={(e) => {
                       if (!e.target.value.trim()) {
@@ -482,61 +525,29 @@ function PropertiesTab() {
                   />
                 </div>
                 <div className="rounded-md bg-zinc-800 px-3 py-2">
-                  <p className="text-xs text-zinc-500">
-                    {data.category as string} · Max{" "}
-                    {(data.maxQPS as number) === Infinity
-                      ? "\u221e"
-                      : new Intl.NumberFormat("en-US").format(data.maxQPS as number)}{" "}
-                    QPS
+                  <p className="text-xs text-zinc-400">
+                    <span className="capitalize">{data.category as string}</span> · {instances} ×{" "}
+                    {new Intl.NumberFormat("en-US").format(capacity)} ={" "}
+                    <span className="font-mono text-cyan-500">
+                      {new Intl.NumberFormat("en-US").format(capacity * instances)}
+                    </span>{" "}
+                    rps
                   </p>
                 </div>
 
-                {/* Replicas slider \u2014 shown for every component node */}
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <label className="text-xs text-zinc-400">Replicas</label>
-                    <span className="font-mono text-xs text-cyan-500">
-                      {data.replicas as number}
-                    </span>
-                  </div>
-                  <Slider
-                    aria-label="Replicas"
-                    value={[data.replicas as number]}
-                    onValueChange={(v) =>
-                      updateNodeData(selectedNode.id, { replicas: Array.isArray(v) ? v[0] : v })
-                    }
-                    min={1}
-                    max={20}
-                    step={1}
-                    className=""
-                  />
-                  <p className="mt-1 text-[11px] text-zinc-400">
-                    Effective capacity:{" "}
-                    {(data.maxQPS as number) === Infinity
-                      ? "\u221e"
-                      : new Intl.NumberFormat("en-US").format(
-                          (data.maxQPS as number) * (data.replicas as number),
-                        )}{" "}
-                    QPS
-                  </p>
-                </div>
-
-                {/* Info */}
-                <div className="space-y-1">
-                  {[
-                    { label: "Base Latency", value: `${data.latencyMs}ms` },
-                    { label: "Scalable", value: data.scalable ? "Yes" : "No" },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-400">{item.label}</span>
-                      <span className="text-zinc-300">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
+                {/* Generated from the component's schema (Spec 03, CMP-01) */}
+                <ParamsForm
+                  key={selectedNode.id}
+                  specs={getSchema(data.componentId).params}
+                  values={resolvedParams(data)}
+                  disabled={readOnly}
+                  onCommit={(key, value) => updateNodeParams(selectedNode.id, { [key]: value })}
+                />
 
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={readOnly}
                   onClick={deleteSelection}
                   className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
                 >

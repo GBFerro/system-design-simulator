@@ -1624,6 +1624,282 @@ export const CONCEPT_LIBRARY: Record<string, ComponentConcept> = {
       "LaunchDarkly processes 30+ trillion feature flag evaluations per month for enterprise customers",
     ],
   },
+  client: {
+    componentId: "client",
+    whenToUse: [
+      "Make the entry point explicit: who calls the system (web, mobile, devices, partner APIs) and at what rate",
+      "Model the read/write mix of the workload so reads and writes can be routed to different backends",
+      "Show the load pattern (daily cycle, ramp-up, spikes) that drives capacity planning",
+      "Anchor back-of-the-envelope math: DAU × requests per user per day ÷ 86,400 s = average RPS",
+    ],
+    whenNotToUse: [
+      "Internal service-to-service callers — those are components in the graph, not traffic sources",
+      "As a home for business logic: anything that runs on your servers belongs in a service node",
+    ],
+    keyTradeoffs: [
+      "Client-side logic (caching, batching, retries) cuts server load, but you don't control client versions — old app versions stay in the wild for years",
+      "Client retries without exponential backoff and jitter can turn a brief outage into a retry storm",
+      "Thick clients (offline-first, local caches) improve UX but complicate consistency and conflict resolution",
+      "Peak traffic is several times the daily average (2–3× is a common interview assumption) — size for the peak, not the mean",
+    ],
+    interviewTips: [
+      "Start by naming the clients and the read:write ratio — it decides caching, replication and database choice",
+      "Convert DAU to QPS out loud: 10M DAU × 10 requests/day ÷ 86,400 s ≈ 1,160 RPS on average",
+      "Mention that mobile clients live on flaky networks, so mutating requests need idempotency keys to be safely retried",
+    ],
+    commonPatterns: [
+      {
+        name: "Exponential Backoff with Jitter",
+        description:
+          "Clients wait base × 2^attempt plus a random amount before retrying, spreading retries out instead of synchronizing them",
+      },
+      {
+        name: "Idempotency Keys",
+        description:
+          "The client sends a unique key with each mutating request so a retried request is applied only once",
+      },
+      {
+        name: "Backend for Frontend (BFF)",
+        description:
+          "A thin API layer per client type (web, iOS, Android) that shapes responses for that client",
+      },
+    ],
+    realWorldExamples: [
+      "Stripe's API accepts an Idempotency-Key header so clients can safely retry POST requests",
+      "AWS SDKs retry throttled and 5xx responses with exponential backoff and jitter by default",
+      "The Backend-for-Frontend pattern, described by Sam Newman in 2015, grew out of SoundCloud giving each client type its own API layer",
+    ],
+  },
+  "worker-pool": {
+    componentId: "worker-pool",
+    whenToUse: [
+      "Work that doesn't have to finish inside the user's request: emails, thumbnails, video transcoding, reports",
+      "Smoothing spikes: a queue absorbs bursts while a fixed pool drains it at a steady rate",
+      "CPU- or IO-heavy jobs that should scale independently of the web tier",
+      "Fan-out work such as pushing a new post into many followers' feeds",
+    ],
+    whenNotToUse: [
+      "The user needs the result in the response — async processing adds queueing delay",
+      "Very low, sporadic volume where a scheduled job or a serverless function is simpler to run",
+    ],
+    keyTradeoffs: [
+      "Throughput = workers × per-worker rate; if producers outpace it, the backlog (lag) grows without bound",
+      "At-least-once delivery means a job can run twice — handlers must be idempotent",
+      "More workers raise throughput but can overload the database or third-party APIs downstream",
+      "Long jobs need a visibility timeout (or heartbeat) longer than their processing time, or they are redelivered mid-run",
+    ],
+    interviewTips: [
+      "Size the pool with Little's law: total concurrency (workers × threads) ≥ arrival rate × processing time",
+      "Say what happens on failure: retries with backoff, then a dead-letter queue after N attempts",
+      "Autoscale workers on queue depth or the age of the oldest message, not only on CPU",
+    ],
+    commonPatterns: [
+      {
+        name: "Competing Consumers",
+        description:
+          "Many workers read from one queue and each message goes to one of them, so adding workers adds throughput",
+      },
+      {
+        name: "Queue-based Load Leveling",
+        description:
+          "The queue buffers bursts and workers process at a sustainable rate, protecting downstream systems",
+      },
+      {
+        name: "Priority Queues",
+        description:
+          "Separate queues (and pools) for urgent and bulk work, so a backlog of bulk jobs never delays urgent ones",
+      },
+    ],
+    realWorldExamples: [
+      "GitHub created Resque, a Redis-backed Ruby job queue, to run its background jobs",
+      "Instagram ran its asynchronous tasks on Celery workers with RabbitMQ as the broker",
+      "AWS Lambda can consume SQS queues directly, scaling the number of concurrent pollers with the backlog",
+    ],
+  },
+  waf: {
+    componentId: "waf",
+    whenToUse: [
+      "Any public web app or API: blocks SQL injection, XSS and other OWASP Top 10 attacks before they reach your code",
+      "Bot mitigation and credential-stuffing protection on login, signup and checkout endpoints",
+      "Virtual patching: block exploitation of a known vulnerability while the real fix is rolled out",
+      "Compliance: PCI DSS requires public-facing web apps that handle card data to be protected against attacks, commonly with a WAF",
+    ],
+    whenNotToUse: [
+      "As a substitute for secure code — a WAF is defense in depth, not a fix for injection bugs",
+      "Volumetric L3/L4 DDoS — that needs network-level protection (e.g., AWS Shield, Cloudflare), not HTTP inspection",
+      "Trusted internal service-to-service traffic, where it mostly adds latency and false positives",
+    ],
+    keyTradeoffs: [
+      "False positives block real users — new rules usually run in count/log mode before they block",
+      "Every request pays an inspection cost, and large bodies are only partially inspected (AWS WAF looks at the first 8–64 KB depending on the resource)",
+      "Managed rule sets are quick to adopt but generic; custom rules need tuning and an owner",
+      "An edge WAF (at the CDN) drops attacks closest to the source; an origin WAF sees more context but the traffic already crossed the network",
+    ],
+    interviewTips: [
+      "Place the WAF at the edge (CDN or in front of the load balancer) and show it in the request path",
+      "Pair it with rate limiting and bot management for login and signup abuse",
+      "Mention false positives and a count-mode rollout — it shows operational maturity",
+    ],
+    commonPatterns: [
+      {
+        name: "Edge WAF",
+        description:
+          "Rules run at CDN PoPs (CloudFront + AWS WAF, Cloudflare) so malicious traffic is dropped before it reaches the origin",
+      },
+      {
+        name: "Managed + Custom Rules",
+        description:
+          "Start from a managed rule set such as the OWASP Core Rule Set, then add app-specific allow and deny rules",
+      },
+      {
+        name: "Rate-based Rules",
+        description:
+          "Block or challenge clients that exceed a request rate, e.g., on login endpoints",
+      },
+    ],
+    realWorldExamples: [
+      "Azure Web Application Firewall and Google Cloud Armor ship preconfigured rules based on the OWASP Core Rule Set",
+      "AWS WAF attaches to CloudFront, Application Load Balancer, API Gateway and AppSync, and is billed per web ACL, rule and million requests",
+      "Cloudflare's WAF runs in every data center of its global network, in front of millions of websites",
+    ],
+  },
+  "read-replica": {
+    componentId: "read-replica",
+    whenToUse: [
+      "Read-heavy workloads (e.g., 10:1 reads to writes) where the primary is saturated by queries",
+      "Offloading analytics and reporting queries so they don't slow down the OLTP primary",
+      "Serving reads close to users with cross-region replicas",
+      "Faster recovery: a replica can be promoted to primary if the primary fails",
+    ],
+    whenNotToUse: [
+      "Write-heavy workloads — every replica replays every write, so replicas add no write capacity (shard instead)",
+      "Reads that must see the latest write (read-your-writes), unless those reads go to the primary",
+    ],
+    keyTradeoffs: [
+      "Asynchronous replication means replicas lag: a user may not see a write they just made",
+      "Synchronous replication removes lag but adds write latency and can stall writes when a replica is slow",
+      "Each replica adds read capacity, but also cost and replication work on the primary",
+      "With async replication, promoting a replica on failover can lose the last few committed writes",
+    ],
+    interviewTips: [
+      "Explain the split: writes go to the primary, reads to replicas — then say how you handle read-your-writes",
+      "Quantify it: at 50k reads/s and ~10k reads/s per replica, you need about 5 replicas plus headroom",
+      "Mention monitoring replication lag and routing lag-sensitive reads (e.g., right after a write) to the primary",
+    ],
+    commonPatterns: [
+      {
+        name: "Read/Write Splitting",
+        description:
+          "The app or a proxy (ProxySQL, pgpool-II) sends writes to the primary and reads to the replicas",
+      },
+      {
+        name: "Read-your-writes",
+        description:
+          "After a user writes, route that user's reads to the primary for a short window or until the replica catches up",
+      },
+      {
+        name: "Cross-region Replica",
+        description:
+          "A replica in another region serves local reads and doubles as a disaster-recovery target",
+      },
+    ],
+    realWorldExamples: [
+      "Amazon Aurora supports up to 15 read replicas that share the cluster's storage volume, typically lagging under 100 ms",
+      "Amazon RDS for MySQL and PostgreSQL support up to 15 read replicas per source instance",
+      "GitHub runs MySQL as primaries with multiple replicas and uses orchestrator for automated failover",
+    ],
+  },
+  dlq: {
+    componentId: "dlq",
+    whenToUse: [
+      "Any queue consumer that can fail on specific messages (malformed payloads, bugs, missing data)",
+      "Stopping poison messages from being retried forever and slowing down or blocking the main queue",
+      "Keeping failed events for inspection and replay instead of silently dropping them",
+    ],
+    whenNotToUse: [
+      "Transient failures (timeouts, throttling) — retry with backoff first; the DLQ is for messages that keep failing",
+      "Strictly ordered workflows where setting one message aside lets later ones overtake it and break correctness",
+    ],
+    keyTradeoffs: [
+      "A low max-receive count dead-letters messages on transient errors; a high one delays spotting poison messages",
+      "A DLQ nobody watches is silent data loss — alert on its depth and on the age of its oldest message",
+      "Redriving after a fix needs idempotent consumers, because some messages may have partially succeeded",
+      "Retention must outlive the time to notice and fix the bug (SQS keeps messages for at most 14 days)",
+    ],
+    interviewTips: [
+      "When you add a queue, say what happens to messages that fail repeatedly — a DLQ is the expected answer",
+      "Mention an alert on DLQ depth > 0 and a redrive procedure once the bug is fixed",
+      "Distinguish retries for transient errors from dead-lettering for permanent ones",
+    ],
+    commonPatterns: [
+      {
+        name: "Redrive Policy",
+        description:
+          "After maxReceiveCount failed receives, the broker moves the message to the DLQ automatically (Amazon SQS)",
+      },
+      {
+        name: "Retry Topics",
+        description:
+          "Kafka consumers republish failed records to delayed retry topics, then to a DLQ topic after the last attempt",
+      },
+      {
+        name: "Redrive / Replay",
+        description:
+          "After fixing the consumer, move DLQ messages back to the source queue to be processed again",
+      },
+    ],
+    realWorldExamples: [
+      "Amazon SQS dead-letters messages through a redrive policy and can redrive them back to the source queue",
+      "RabbitMQ dead-letter exchanges route rejected, expired or overflowed messages to another queue",
+      "Uber built retry and dead-letter topics on Kafka for reliable reprocessing of failed events",
+    ],
+  },
+  autoscaler: {
+    componentId: "autoscaler",
+    whenToUse: [
+      "Traffic with daily cycles or steady growth — scale in at night to save cost, out at peak",
+      "Stateless tiers (app servers, workers) that can add instances behind a load balancer or a queue",
+      "Worker pools scaled on queue depth so the backlog stays bounded",
+    ],
+    whenNotToUse: [
+      "Spikes shorter than instance boot time — pre-provision (scheduled scaling) or keep headroom instead",
+      "Stateful systems like a primary database, where adding a node means moving data",
+      "When the real bottleneck is downstream — more app instances only overload the database faster",
+    ],
+    keyTradeoffs: [
+      "A lower target utilization leaves more headroom for spikes but costs more",
+      "Short cooldowns react fast but can flap (scale out and in repeatedly); long ones react slowly",
+      "CPU is an easy metric but lags for IO-bound services; request rate or queue depth tracks load more directly",
+      "Scale-out is bounded by provisioning delay: VMs take minutes, containers seconds, and new instances start with cold caches",
+    ],
+    interviewTips: [
+      "State the metric and the policy: e.g., target tracking at 60% CPU, min 3, max 50 instances",
+      "Mention max instances as a guardrail that protects the database and the bill",
+      "For known events (sales, launches), pre-scale with scheduled or predictive scaling ahead of the spike",
+    ],
+    commonPatterns: [
+      {
+        name: "Target Tracking",
+        description:
+          "Keep a metric (CPU, requests per target) near a target value by adding or removing instances proportionally",
+      },
+      {
+        name: "Scheduled / Predictive Scaling",
+        description:
+          "Add capacity ahead of known or forecast peaks instead of reacting after load arrives",
+      },
+      {
+        name: "Queue-depth Scaling",
+        description:
+          "Scale workers on backlog per worker or the age of the oldest message (e.g., KEDA on Kubernetes)",
+      },
+    ],
+    realWorldExamples: [
+      "The Kubernetes Horizontal Pod Autoscaler re-evaluates metrics every 15 seconds by default",
+      "AWS EC2 Auto Scaling offers target tracking, step, scheduled and predictive scaling policies",
+      "Netflix built Scryer to scale predictively ahead of its daily viewing peaks",
+    ],
+  },
 };
 
 export function getConceptByComponentId(componentId: string): ComponentConcept | undefined {
