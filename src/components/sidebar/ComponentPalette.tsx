@@ -8,7 +8,7 @@ import { SYSTEM_COMPONENTS, COMPONENT_CATEGORIES, getComponentById } from "@/dat
 import { CONCEPT_LIBRARY } from "@/data/conceptLibrary";
 import { Server, GripVertical, Plus, Search as SearchIcon, Sparkles, Trash2 } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
-import { useCanvasStore } from "@/store/canvasStore";
+import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { visibleCanvasCenter } from "@/lib/placement";
 import type { PaletteDragData } from "@/components/canvas/PaletteDnd";
@@ -60,8 +60,7 @@ export function ComponentPalette({
     (componentId: string) => {
       const component = getComponentById(componentId);
       if (!component) return;
-      const { tabs, activeTabId } = useCanvasStore.getState();
-      if (tabs.find((t) => t.id === activeTabId)?.readOnly) {
+      if (isActiveTabReadOnly(useCanvasStore.getState())) {
         useAppStore.getState().showToast("Reference tabs are read-only", "info");
         return;
       }

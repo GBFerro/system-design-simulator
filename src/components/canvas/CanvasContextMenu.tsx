@@ -23,6 +23,7 @@ import {
 import {
   edgeRuleOf,
   useCanvasStore,
+  useIsActiveTabReadOnly,
   type ComponentNodeData,
   type CustomEdgeData,
 } from "@/store/canvasStore";
@@ -84,7 +85,7 @@ function useMenuEntries(
   flowPoint: () => { x: number; y: number },
 ): MenuEntry[] {
   const store = useCanvasStore();
-  const readOnly = store.tabs.find((t) => t.id === store.activeTabId)?.readOnly === true;
+  const readOnly = useIsActiveTabReadOnly();
   const hasClipboard = (store.clipboard?.nodes.length ?? 0) > 0;
   const toast = useAppStore.getState().showToast;
 

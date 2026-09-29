@@ -17,7 +17,7 @@ import { getComponentById } from "@/data/components";
 import { ICON_MAP } from "@/lib/icons";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { DEFAULT_NODE_SIZE } from "@/lib/placement";
-import { useCanvasStore } from "@/store/canvasStore";
+import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 
 /** Marks the element that accepts palette drops (the canvas area in DesignCanvas). */
 export const CANVAS_DROP_ATTR = "data-canvas-drop";
@@ -94,15 +94,15 @@ export function PaletteDndProvider({
     // Geometry, not DOM hit-testing: the empty-state overlay sits on top of the
     // canvas and must not swallow drops (bug B1)
     if (!data || !point || !isOverCanvas(point)) return;
-    const { tabs, activeTabId, addNode } = useCanvasStore.getState();
-    if (tabs.find((t) => t.id === activeTabId)?.readOnly) return;
+    const canvas = useCanvasStore.getState();
+    if (isActiveTabReadOnly(canvas)) return;
 
     const component = getComponentById(data.componentId);
     if (!component) return;
 
     const drop = screenToFlowPosition(point);
     // Center the new node under the pointer
-    addNode(
+    canvas.addNode(
       createComponentNode(component, {
         x: drop.x - DEFAULT_NODE_SIZE.width / 2,
         y: drop.y - DEFAULT_NODE_SIZE.height / 2,

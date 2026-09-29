@@ -28,7 +28,7 @@ import {
   Moon,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
-import { useCanvasStore } from "@/store/canvasStore";
+import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { useSimulationStore } from "@/store/simulationStore";
 import { usePenStore } from "@/store/penStore";
 import { PROBLEMS } from "@/data/problems";
@@ -78,9 +78,7 @@ export function TopBar({
   // Undo/redo — subscribe to stack lengths so the buttons enable/disable reactively
   const canUndo = useCanvasStore((s) => s.history.length > 0);
   const canRedo = useCanvasStore((s) => s.future.length > 0);
-  const activeTabReadOnly = useCanvasStore(
-    (s) => s.tabs.find((t) => t.id === s.activeTabId)?.readOnly === true,
-  );
+  const activeTabReadOnly = useIsActiveTabReadOnly();
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
 

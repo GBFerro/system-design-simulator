@@ -24,6 +24,7 @@ import {
 import {
   edgeRuleOf,
   useCanvasStore,
+  useIsActiveTabReadOnly,
   type ComponentNodeData,
   type CustomEdgeData,
 } from "@/store/canvasStore";
@@ -183,10 +184,6 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
   );
 }
 
-function useActiveTabReadOnly(): boolean {
-  return useCanvasStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.readOnly === true);
-}
-
 function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
   const updateEdgeRule = useCanvasStore((s) => s.updateEdgeRule);
@@ -194,7 +191,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const rule = edgeRuleOf({ nodes, edges }, selectedEdge);
-  const readOnly = useActiveTabReadOnly();
+  const readOnly = useIsActiveTabReadOnly();
 
   const data = (selectedEdge.data ?? {}) as CustomEdgeData;
   const protocols: CustomEdgeData["protocol"][] = [
@@ -364,7 +361,7 @@ function PropertiesTab() {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const updateNodeParams = useCanvasStore((s) => s.updateNodeParams);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
-  const readOnly = useActiveTabReadOnly();
+  const readOnly = useIsActiveTabReadOnly();
   const selectedProblemId = useAppStore((s) => s.selectedProblemId);
 
   // Selection has one source of truth: node.selected / edge.selected
