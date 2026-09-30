@@ -31,6 +31,8 @@ export interface SampleNode {
   station: StationState;
   /** P(request is dropped/rejected here). */
   dropProbability: number;
+  /** P(request pays this hop's service + wait): 1 except resolvers (cached answers skip it). */
+  latencyShare: number;
   kind: "lb" | "queue" | "rules";
   /** Timeout on outgoing calls; undefined = no timeout. */
   timeoutMs?: number;
@@ -88,7 +90,11 @@ export function sampleLatency(model: SampleModel, samples: number, rng: Rng): Sa
     const node = model.nodes.get(id)!;
     visits++;
     if (rng() < node.dropProbability) return { ok: false, ms: 0 };
-    let ms = sampleServiceMs(node.station, rng) + sampleWaitMs(node.station, rng);
+    // (short-circuit: a share of 1 consumes no extra random numbers)
+    let ms =
+      node.latencyShare >= 1 || rng() < node.latencyShare
+        ? sampleServiceMs(node.station, rng) + sampleWaitMs(node.station, rng)
+        : 0;
     if (node.kind === "queue" || node.edges.length === 0) return { ok: true, ms };
     if (visits > MAX_VISITS_PER_REQUEST) {
       truncated = true;

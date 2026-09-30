@@ -45,9 +45,9 @@
  */
 import type { SimEdge, SimGraph, SimNode } from "@/domain/graph/compile";
 import { UTILIZATION_CRITICAL, UTILIZATION_WARNING } from "../constants";
-import { PARAM } from "@/domain/components/params";
 import { resolveConfig } from "../analyze";
 import type { TickEffects } from "../faults/effects";
+import { drainShares, entryShares, withEffects } from "./faultView";
 import { EDGE_ERROR_THRESHOLD } from "../snapshot";
 import { TICK_SEC } from "../traffic/types";
 import type {
@@ -64,6 +64,7 @@ import {
   forwardEdges,
   hitRateOf,
   lbShares,
+  lookupShareOf,
   maxQueueOf,
   maxRetriesOf,
   rateLimit,
@@ -77,9 +78,6 @@ export const TICK_SAMPLES = 1000;
 
 /** Backlog below this many seconds of work is treated as queueing noise (Erlang C covers it). */
 const BACKLOG_NOISE_SEC = 0.01;
-
-/** A stopped node keeps this share of its capacity (keeps the station math finite). */
-const MIN_CAPACITY_FACTOR = 1e-6;
 
 export interface TickOptions extends SimConfig {
   /** Synthetic requests per tick. Default TICK_SAMPLES. */
@@ -96,6 +94,9 @@ interface NodeState {
 interface TickFlow extends FlowView {
   /** Completion rate (includes a draining backlog). */
   completed: number;
+  /** Arrivals / completions of the station itself (a resolver's lookups only), for utilization. */
+  stationIn: number;
+  stationOut: number;
   capacity: number;
   backlog: number;
   /** Queue/stream: total lag and whether it grew this tick. */
@@ -198,24 +199,19 @@ export class TickSimulator {
   /** Advance one tick under an arrival rate λ (req/s) and the faults active now. */
   step(lambda: number, effects: TickEffects | null = null): TickSnapshot {
     const dt = TICK_SEC;
-    const topo = this.topologyFor(effects);
+    const topo = withEffects(this.topo, effects);
     const { byId, order, entries, out, readRatio } = topo;
     const rate = Number.isFinite(lambda) && lambda > 0 ? lambda : 0;
     const edgeFx = (e: SimEdge) => effects?.edges.get(e.id);
 
     // 1. arrivals (the PRNG is consumed even without entries, for a stable
     //    stream); a traffic spike scales them globally or at its entry points
-    const weights = entries.map((id) => effects?.entryTraffic.get(id) ?? 1);
-    const weightSum = weights.reduce((s, w) => s + w, 0);
-    const spread = entries.length > 0 && weightSum > 0 ? weightSum / entries.length : 1;
-    const arrivals = samplePoisson(this.rng, rate * (effects?.traffic ?? 1) * spread * dt);
+    const split = entryShares(entries, effects);
+    const arrivals = samplePoisson(this.rng, rate * split.factor * dt);
     const offered = entries.length > 0 ? arrivals / dt : 0;
 
     const inflow = new Map<string, number>();
-    entries.forEach((id, i) => {
-      const share = weightSum > 0 ? weights[i] / weightSum : 1 / entries.length;
-      inflow.set(id, (inflow.get(id) ?? 0) + offered * share);
-    });
+    entries.forEach((id, i) => inflow.set(id, (inflow.get(id) ?? 0) + offered * split.shares[i]));
     const base = new Map<string, number>();
     const load = new Map<string, number>();
     const shares = new Map<string, number>();
@@ -242,6 +238,8 @@ export class TickSimulator {
           served: 0,
           dropped: arriving,
           completed: 0,
+          stationIn: 0,
+          stationOut: 0,
           capacity: 0,
           backlog: 0,
           lag,
@@ -272,6 +270,10 @@ export class TickSimulator {
       const refused = fx && fx.errorRate > 0 ? admitted * fx.errorRate : 0;
       admitted -= refused;
       const capacity = node.instances * capacityPerInstance;
+      // A resolver only works on its uncached lookups; cached answers pass straight through.
+      const share = lookupShareOf(node);
+      const bypass = admitted * (1 - share);
+      admitted -= bypass;
 
       let completed: number;
       let overflow = 0;
@@ -298,6 +300,8 @@ export class TickSimulator {
           : this.stableStation(node, admitted, capacityPerInstance, maxQueue);
       }
 
+      const stationOut = completed;
+      completed += bypass; // cached answers leave with the completed lookups
       const dropped = Math.min(arriving, rejected + overflow + refused);
       const flow: TickFlow = {
         st,
@@ -305,6 +309,8 @@ export class TickSimulator {
         served: Math.max(0, arriving - dropped),
         dropped,
         completed,
+        stationIn: share < 1 ? admitted : arriving,
+        stationOut,
         capacity,
         backlog: state.backlog,
         lag: 0,
@@ -405,55 +411,6 @@ export class TickSimulator {
     return this.snapshot(topo, offered, flows, load, settled, sampled.latency);
   }
 
-  /**
-   * The graph as this tick sees it under `effects`: faulted nodes get their
-   * capacity × multiplier and a longer service time (same concurrency, so
-   * capacity shrinks by the same factor), an overridden hit rate, and zero
-   * availability when down; faulted edges get extra latency and loss (a
-   * severed edge loses every call). Unaffected entries are shared as is.
-   */
-  private topologyFor(effects: TickEffects | null): Topology {
-    if (!effects || (effects.nodes.size === 0 && effects.edges.size === 0)) return this.topo;
-    const byId = new Map(this.topo.byId);
-    for (const [id, fx] of effects.nodes) {
-      const node = byId.get(id);
-      if (!node) continue;
-      const serviceTimeMs = node.serviceTimeMs * fx.latency + fx.latencyAddMs;
-      const slowdown = serviceTimeMs / node.serviceTimeMs;
-      const params = { ...node.params };
-      if (fx.hitRate !== undefined) params[PARAM.hitRate] = fx.hitRate;
-      if (fx.down) params[PARAM.availability] = 0;
-      byId.set(id, {
-        ...node,
-        params,
-        serviceTimeMs,
-        capacityPerInstance:
-          (node.capacityPerInstance * Math.max(MIN_CAPACITY_FACTOR, fx.capacity)) / slowdown,
-      });
-    }
-    if (effects.edges.size === 0) return { ...this.topo, byId };
-    const out = new Map<string, SimEdge[]>();
-    for (const [id, edges] of this.topo.out) {
-      out.set(
-        id,
-        edges.map((e) => {
-          const fx = effects.edges.get(e.id);
-          if (!fx || (fx.latencyAddMs === 0 && fx.errorRate === 0 && !fx.severed)) return e;
-          const loss = fx.severed ? 1 : 1 - (1 - e.rule.packetLoss) * (1 - fx.errorRate);
-          return {
-            ...e,
-            rule: {
-              ...e.rule,
-              networkLatencyMs: e.rule.networkLatencyMs + fx.latencyAddMs,
-              packetLoss: clamp01(loss),
-            },
-          };
-        }),
-      );
-    }
-    return { ...this.topo, byId, out };
-  }
-
   /* ---------- stations ---------- */
 
   private stableStation(
@@ -525,7 +482,8 @@ export class TickSimulator {
         nodes[n.id] = idleMetrics();
         continue;
       }
-      const util = flow.capacity > 0 ? Math.max(flow.offered, flow.completed) / flow.capacity : 0;
+      const util =
+        flow.capacity > 0 ? Math.max(flow.stationIn, flow.stationOut) / flow.capacity : 0;
       const queueDepth =
         flow.st.regime === "stable" ? Math.max(flow.backlog, flow.st.queueDepth) : flow.backlog;
       const m: NodeRuntimeMetrics = {
@@ -604,18 +562,6 @@ function idleMetrics(): NodeRuntimeMetrics {
     drops: 0,
     status: "ok",
   };
-}
-
-/**
- * LB shares with the drained (out-of-rotation) targets removed and the rest
- * renormalized. If every target is drained there's nowhere else to go: the
- * shares stay as they were.
- */
-function drainShares(split: number[], drained: boolean[]): number[] {
-  if (!drained.some(Boolean)) return split;
-  const kept = split.reduce((s, v, i) => (drained[i] ? s : s + v), 0);
-  if (!(kept > 0)) return split;
-  return split.map((v, i) => (drained[i] ? 0 : v / kept));
 }
 
 function nodeStatus(flow: TickFlow, util: number): RuntimeNodeStatus {

@@ -9,6 +9,7 @@ import {
   availabilityOf,
   callsOf,
   hitRateOf,
+  lookupShareOf,
   maxRetriesOf,
   ruleProbability,
   timeoutMsOf,
@@ -137,6 +138,7 @@ export function sampleNodesFor(
     sampleNodes.set(id, {
       station: flow.st,
       dropProbability: flow.offered > 0 ? clamp01(flow.dropped / flow.offered) : 0,
+      latencyShare: lookupShareOf(node),
       kind: node.routing === "lb" ? "lb" : node.routing === "queue" ? "queue" : "rules",
       timeoutMs: timeoutMsOf(node),
       maxRetries: maxRetriesOf(node),

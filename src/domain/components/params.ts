@@ -57,6 +57,11 @@ export const PARAM = {
   scaleCooldownSec: "scaleCooldownSec",
   /** Autoscaler: boot + warm-up time before a new instance takes traffic. */
   provisioningDelaySec: "provisioningDelaySec",
+  /**
+   * Resolver (DNS): share of requests that pay an uncached lookup; the rest
+   * resolve from browser/OS/resolver caches and don't touch the node.
+   */
+  lookupShare: "lookupShare",
   /** DNS/CDN/cache: time-to-live of a cached entry. */
   ttlSec: "ttlSec",
   /** Load balancer: seconds between health checks. */
@@ -120,7 +125,7 @@ export const PARAM = {
 } as const;
 
 /** Upper bound of `instances` everywhere (form, toolbar, context menu). */
-export const MAX_INSTANCES = 100;
+export const MAX_INSTANCES = 1000;
 
 export function finitePositive(v: number, fallback: number): number {
   return Number.isFinite(v) && v > 0 ? v : fallback;
