@@ -42,7 +42,9 @@ src/
     panel/        RightPanel + Props/Sim/Chaos/Score/Advisor/Capacity/Tradeoffs tabs (ChaosPanel, AdvisorPanel)
     sidebar/      Sidebar: ComponentPalette, ProblemSelector, LearningPath
     layout/       AppShell (orchestrator + keyboard shortcuts), TopBar, SupportFAB
-    interview/    InterviewBar, phase panel, start dialog, DrillPanel + drillDriver (phase 6 failure drill, Spec 09)
+    interview/    InterviewBar, phase panel, start dialog, PhaseForms (phase 1–4 answers, lazy),
+                  DrillPanel + drillDriver (phase 6 failure drill, Spec 09), scoreNow (measure + score),
+                  finishInterview + ReportDialog (final report and attempt history, lazy)
     dialogs/      ModalShell (shared modal: focus trap/Escape/scroll) + Save/Load/Confirm/Support/Create*
     traffic/      live traffic (Spec 06): TrafficControls (Sim panel: play/pause/reset, speed, clock,
                   log RPS slider, PatternEditor + PatternPreview), PlaybackMini (top bar),
@@ -75,9 +77,12 @@ src/
                   simulationStore (v1 result + score); runtimeStore.ts = unpersisted live metrics, fed by
                   SimController (tick frames) and the Simulate button (analyze snapshot);
                   chaosStore (unpersisted faults of the live run), advisorStore (unpersisted findings,
-                  recomputed on topology changes), drillStore (unpersisted failure drill of phase 6);
+                  recomputed on topology changes), drillStore (unpersisted failure drill of phase 6),
+                  reportStore (open interview report; attempt history in IndexedDB via createDurableKV);
                   persistVersion, migrations, hydration, safeStorage, durableStorage (IndexedDB)
-  interview/      drill.ts (Spec 09: resolve a scripted fault against the candidate's design, evaluate the SLO per step)
+  interview/      drill.ts (Spec 09: resolve a scripted fault against the candidate's design, evaluate the SLO per step),
+                  checks.ts (grade the phase 1–4 answers against interviewData, process score),
+                  report.ts (buildReport: the final report, also what the attempt history stores)
   hooks/          useBreakpoint (useIsMobile/useIsCoarsePointer/usePrefersReducedMotion)
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils, ringBuffer,
                   topology (topologySignature: what structure-dependent views recompute on),
@@ -121,6 +126,8 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 **Chaos UI and advisor (Specs 08/12).** Faults exist only in a live run (playback running or paused): inject/heal go through `simActions` (`injectFault`, `healFault`, `toggleKillNode`) → `SimController` → worker, and the run's faults are mirrored into the unpersisted `chaosStore` (reset clears it). They never edit the graph, so the Kill/Restore shortcuts (node toolbar, context menu) are allowed on read-only tabs too. Blast radius is drawn from `blast` in runtime metrics (`useNodeBlast`), outside the node box so it never resizes. Advisor findings live in the unpersisted `advisorStore`, recomputed only when `topologySignature` changes (never on drag); nodes read their worst severity with `useNodeFindingSeverity(id)`. Structure hints use the scorer's `ScoringGraph` and its notion of redundancy (catalog `scalable` tiers aren't SPOFs), so the Advisor and Score tabs never disagree.
 
 **Failure drill (Spec 09, phase 6).** Each problem's `interviewData.drill` (2–3 steps) targets **component types**, never node ids (`DrillTarget`: node types, a link between types, the busiest tier or global); `resolveDrillStep` picks the busiest matching node in the candidate's design and falls back to killing an instance of the busiest tier (with a note). Steps without a `followUpId` use `GENERIC_DRILL_QA` by fault type. `drillDriver.ts` schedules faults from the simulated clock (warm-up, fault window, `DRILL_RECOVERY_SEC` of recovery) through `injectFault`, so faults go through the same chaos path; any new undo entry during a fault is the candidate's first action. `data.test.ts` checks every script is valid and applies to its reference solution without falling back.
+
+**Interview answers and report (Spec 09).** Phases 1–4 are checkable: the candidate's answers (requirements, estimates, APIs, entities) and the seconds spent per phase persist in `interviewStore` (`answers`, `phaseSeconds`, accumulated when leaving a phase — read the live value with `phaseSecondsNow()`). The drill and the interview's Score run at `effectivePeak` (the candidate's reads + writes, clamped to [½, 2×] the problem's peak), so a bad estimate changes the test without making it trivial or impossible. Grading is pure (`interview/checks.ts`, estimates within 2×), and `buildReport` produces a JSON-safe report; **Finish** (`finishInterview`, lazy) measures and scores, saves the attempt (last 20 per problem, IndexedDB through `createDurableKV`) and opens `ReportDialog`. Every lost point in the report comes with its reason (the rules' feedback).
 
 **Persistence schema.** `domain/persistence/`: `migrate.ts` (`migrateV1toV2` — pure, idempotent, never throws: `maxQPS`/`latencyMs`/`replicas` → `params.capacityPerInstance`/`serviceTimeMs`/`instances`, other params from schema defaults, edges get a rule (`on_miss` out of cache/CDN, else `always`), runtime fields dropped, unknown component types kept as `custom` with a warning, dangling edges dropped; text nodes and strokes untouched), `serialize.ts` (canvas ⇄ `SerializedNode`/`SerializedEdge`) and `envelope.ts`. `SerializedEdge` must carry `data` (label/protocol/async **and `rule`**) or edge metadata is lost on save/load. Every JSON export (top bar and Load dialog) uses the v2 envelope `{ schemaVersion: 2, name, problemId, nodes, edges, strokes, chaosScript?, slo? }` (`chaosScript`/`slo` are opaque placeholders for Specs 08/11, preserved on round-trip); `importDesign` accepts schemaVersion 1 and 2 (missing = 1), validates structurally, migrates, and returns `{ ok, error? }` (plus `warnings`). Image export is PNG or SVG (`lib/exportCanvas.ts`, html-to-image; both include pen strokes).
 

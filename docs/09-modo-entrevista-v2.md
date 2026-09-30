@@ -30,6 +30,16 @@ O timer continua baseado em timestamp (`startedAt`/`accumulatedMs`), como exige 
 
 **Fase 5:** a carga usada é o pico que o candidato estimou na fase 2, limitado à faixa ±2× da referência para evitar que uma estimativa baixa demais facilite a fase.
 
+**Implementação (PR 3 da Spec 09):**
+
+- As fases 1–4 ganharam formulários (`PhaseForms`, carregado sob demanda): requisitos como checklist + notas, estimativas com `k`/`M`/`B`, endpoints (método + path) e entidades (nome, store, partition key). As respostas e o tempo gasto em cada fase persistem no `interviewStore` e sobrevivem a refresh.
+- A correção é pura (`interview/checks.ts`):
+  - requisitos: cobertura dos `critical` + `important`;
+  - estimativas: cada número dentro de 2× da referência (o DAU vem do texto de usuários do problema);
+  - APIs: paths normalizados (sem `/api/vN`, parâmetros viram `*`, sem query string), e cada endpoint do candidato explica no máximo um endpoint de referência como verbo errado;
+  - data model: entidade achada pelo nome (singular/plural, caixa e separadores ignorados), store igual ao da referência e partition key preenchida onde a referência tem uma.
+- A carga das fases 5 e 6 é `effectivePeak`: reads + writes estimados, limitados a [½, 2×] do pico de referência (sem estimativa, o pico de referência). O Score dentro da entrevista usa a mesma carga.
+
 ## Failure drill
 
 1. Ao entrar na fase 6, o sistema escolhe 2–3 faults do roteiro do problema, mapeados a partir dos follow-ups `failure` (ex.: URL Shortener: "cache cai no pico" → `hitRateOverride: 0` por 60 s).
@@ -44,7 +54,7 @@ O timer continua baseado em timestamp (`startedAt`/`accumulatedMs`), como exige 
 - O alvo do fault é um **tipo de componente**, não um `FaultSpec` com id de nó, porque os ids mudam a cada design (`DrillTarget`: tipos de nó, link entre tipos, tier mais ocupado ou global). `resolveDrillStep` escolhe o nó ou link mais carregado do tipo no design do candidato.
 - Se o design não tem o alvo, o drill mata uma instância do tier mais ocupado e avisa.
 - Passos sem `followUpId` usam a pergunta e a resposta genéricas do tipo de fault (`GENERIC_DRILL_QA`).
-- Até a fase 2 capturar a estimativa (PR 3), a carga do drill é o pico de referência (reads + writes). O SLO é p99 ≤ SLA do problema e erros ≤ 1%, até a [Spec 11](11-slo-e-error-budget.md).
+- A carga do drill é o pico estimado na fase 2 (`effectivePeak`, PR 3). O SLO é p99 ≤ SLA do problema e erros ≤ 1%, até a [Spec 11](11-slo-e-error-budget.md).
 
 **Edição ao vivo:** mudanças no grafo durante o play recompilam o `SimGraph` e recarregam o motor mantendo o tempo, as filas dos nós que continuam existindo e os faults ativos.
 
@@ -81,6 +91,15 @@ O total continua 100 (5 × 20), para não quebrar o histórico nem a invariante 
 
 Separado, não entra nos 100: aderência ao tempo de cada fase, precisão da estimativa, cobertura de requisitos e tempo de reação no drill. É o que diferencia "chegou na resposta" de "conduziu bem a entrevista".
 
+**Implementação (PR 3):** média, de 0 a 100, dos itens que se aplicam:
+
+- **Tempo:** por fase, nota cheia até o tempo alvo, caindo linearmente até 0 no dobro.
+- **Estimativas:** fração dentro de 2×.
+- **Requisitos:** cobertura dos `critical` + `important`.
+- **Reação no drill:** nota cheia agindo em até 30 s, zero a partir de 120 s ou sem agir.
+
+Sem drill, o item de reação não conta.
+
 ## Relatório final
 
 - Score por dimensão com cada ponto perdido explicado e com link para o nó ou métrica responsável
@@ -88,14 +107,31 @@ Separado, não entra nos 100: aderência ao tempo de cada fase, precisão da est
 - Histórico de tentativas por problema, em IndexedDB ([Spec 05](05-persistencia-e-compartilhamento.md)), para acompanhar a evolução
 - **P2:** narração por voz (Web Speech API), transcrita e checada contra os pontos-chave do follow-up
 
+**Implementação (PR 3):**
+
+- **Finish** na barra da entrevista mede e pontua o design (rubrica medida, na carga estimada), corrige as respostas, junta o resultado do drill e abre o relatório (`ReportDialog`, carregado sob demanda).
+- **O relatório mostra:**
+  - o score de design por dimensão, com o motivo de cada ponto perdido (o feedback das regras);
+  - o score de processo item a item;
+  - o tempo por fase contra o alvo;
+  - as respostas contra a referência;
+  - cada fault do drill (SLO mantido ou não, tempo de reação, error budget);
+  - as tentativas anteriores.
+- **Histórico:** as últimas 20 tentativas por problema, em IndexedDB via `createDurableKV`. **Compare with the reference** abre a solução de referência numa aba só de leitura.
+- **Fica para depois:**
+  - o link de cada ponto perdido para o nó ou a métrica;
+  - a linha do tempo completa da sessão (o relatório tem tempo por fase e o resultado de cada fault);
+  - a comparação lado a lado no mesmo canvas;
+  - a narração por voz (P2).
+
 ## Critérios de aceite
 
 - [x] Os 35 problemas têm roteiro de drill
 - [x] Cada regra soma exatamente 20 e nunca fica negativa
 - [x] A solução de referência de cada problema, simulada no pico de referência, tira pelo menos 16/20 em scalability e latency (sanidade das regras medidas)
 - [x] Um grafo vazio tira 0 em scalability, availability e latency
-- [ ] O timer sobrevive a refresh e a aba em background
-- [ ] O relatório mostra cada ponto perdido com o motivo
+- [x] O timer sobrevive a refresh e a aba em background
+- [x] O relatório mostra cada ponto perdido com o motivo
 
 ## Testes
 
