@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
 import { passThroughMigration, STORE_VERSION } from "./persistVersion";
+import type { ApiDraft, EntityDraft, Estimates, EstimateField } from "@/interview/checks";
 
 export interface Phase {
   name: string;
@@ -49,6 +50,27 @@ const PHASES: Phase[] = [
   },
 ];
 
+/** What the candidate answered in the checkable phases (Spec 09). Free text is never graded. */
+export interface InterviewAnswers {
+  /** Checked requirement ids (phase 1). */
+  requirements: string[];
+  requirementNotes: string;
+  /** Phase 2. */
+  estimates: Estimates;
+  /** Phase 3. */
+  apis: ApiDraft[];
+  /** Phase 4. */
+  entities: EntityDraft[];
+}
+
+export const EMPTY_ANSWERS: InterviewAnswers = {
+  requirements: [],
+  requirementNotes: "",
+  estimates: {},
+  apis: [],
+  entities: [],
+};
+
 interface InterviewState {
   mode: "free" | "interview";
   currentPhase: number;
@@ -67,6 +89,9 @@ interface InterviewState {
   startedAt: number | null;
   /** Elapsed ms accumulated across previous run segments (before startedAt). */
   accumulatedMs: number;
+  /** Seconds spent in each phase so far (the current one is added on leaving it). */
+  phaseSeconds: number[];
+  answers: InterviewAnswers;
 
   /** Source of truth for elapsed time, computed from timestamps. */
   elapsedSeconds: () => number;
@@ -77,6 +102,31 @@ interface InterviewState {
   setPhase: (index: number) => void;
   tickTimer: () => void;
   toggleTimer: () => void;
+  /** Seconds per phase including the one in progress (for the report). */
+  phaseSecondsNow: () => number[];
+  toggleRequirement: (id: string) => void;
+  setRequirementNotes: (text: string) => void;
+  setEstimate: (field: EstimateField, value: number | undefined) => void;
+  addApi: () => void;
+  updateApi: (index: number, patch: Partial<ApiDraft>) => void;
+  removeApi: (index: number) => void;
+  addEntity: () => void;
+  updateEntity: (index: number, patch: Partial<EntityDraft>) => void;
+  removeEntity: (index: number) => void;
+}
+
+/** Add the time spent in the phase being left. */
+function leavePhase(
+  s: {
+    phaseSeconds: number[];
+    currentPhase: number;
+    phaseStartTime: number;
+  },
+  elapsed: number,
+): number[] {
+  const out = [...s.phaseSeconds];
+  out[s.currentPhase] = (out[s.currentPhase] ?? 0) + Math.max(0, elapsed - s.phaseStartTime);
+  return out;
 }
 
 function elapsedMsOf(s: { startedAt: number | null; accumulatedMs: number }): number {
@@ -94,6 +144,8 @@ export const useInterviewStore = create<InterviewState>()(
       phaseStartTime: 0,
       startedAt: null,
       accumulatedMs: 0,
+      phaseSeconds: [],
+      answers: EMPTY_ANSWERS,
 
       elapsedSeconds: () => Math.floor(elapsedMsOf(get()) / 1000),
 
@@ -106,6 +158,8 @@ export const useInterviewStore = create<InterviewState>()(
           phaseStartTime: 0,
           startedAt: Date.now(),
           accumulatedMs: 0,
+          phaseSeconds: [],
+          answers: EMPTY_ANSWERS,
         }),
 
       endInterview: () =>
@@ -124,6 +178,7 @@ export const useInterviewStore = create<InterviewState>()(
         if (currentPhase < phases.length - 1) {
           const elapsed = elapsedSeconds();
           set({
+            phaseSeconds: leavePhase(get(), elapsed),
             currentPhase: currentPhase + 1,
             phaseStartTime: elapsed,
             timerSeconds: elapsed,
@@ -136,6 +191,7 @@ export const useInterviewStore = create<InterviewState>()(
         if (currentPhase > 0) {
           const elapsed = elapsedSeconds();
           set({
+            phaseSeconds: leavePhase(get(), elapsed),
             currentPhase: currentPhase - 1,
             phaseStartTime: elapsed,
             timerSeconds: elapsed,
@@ -148,6 +204,7 @@ export const useInterviewStore = create<InterviewState>()(
         if (index >= 0 && index < phases.length) {
           const elapsed = elapsedSeconds();
           set({
+            phaseSeconds: leavePhase(get(), elapsed),
             currentPhase: index,
             phaseStartTime: elapsed,
             timerSeconds: elapsed,
@@ -165,6 +222,63 @@ export const useInterviewStore = create<InterviewState>()(
           set({ timerSeconds: elapsed });
         }
       },
+
+      phaseSecondsNow: () => leavePhase(get(), get().elapsedSeconds()),
+
+      toggleRequirement: (id) =>
+        set((s) => {
+          const has = s.answers.requirements.includes(id);
+          return {
+            answers: {
+              ...s.answers,
+              requirements: has
+                ? s.answers.requirements.filter((x) => x !== id)
+                : [...s.answers.requirements, id],
+            },
+          };
+        }),
+      setRequirementNotes: (text) =>
+        set((s) => ({ answers: { ...s.answers, requirementNotes: text } })),
+      setEstimate: (field, value) =>
+        set((s) => {
+          const estimates = { ...s.answers.estimates };
+          if (value === undefined || !Number.isFinite(value) || value <= 0) delete estimates[field];
+          else estimates[field] = value;
+          return { answers: { ...s.answers, estimates } };
+        }),
+      addApi: () =>
+        set((s) => ({
+          answers: { ...s.answers, apis: [...s.answers.apis, { method: "GET", path: "" }] },
+        })),
+      updateApi: (index, patch) =>
+        set((s) => ({
+          answers: {
+            ...s.answers,
+            apis: s.answers.apis.map((a, i) => (i === index ? { ...a, ...patch } : a)),
+          },
+        })),
+      removeApi: (index) =>
+        set((s) => ({
+          answers: { ...s.answers, apis: s.answers.apis.filter((_, i) => i !== index) },
+        })),
+      addEntity: () =>
+        set((s) => ({
+          answers: {
+            ...s.answers,
+            entities: [...s.answers.entities, { name: "", store: "sql", partitionKey: "" }],
+          },
+        })),
+      updateEntity: (index, patch) =>
+        set((s) => ({
+          answers: {
+            ...s.answers,
+            entities: s.answers.entities.map((e, i) => (i === index ? { ...e, ...patch } : e)),
+          },
+        })),
+      removeEntity: (index) =>
+        set((s) => ({
+          answers: { ...s.answers, entities: s.answers.entities.filter((_, i) => i !== index) },
+        })),
 
       toggleTimer: () => {
         const s = get();
@@ -186,7 +300,7 @@ export const useInterviewStore = create<InterviewState>()(
       version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),
-      // Shape unchanged in v2.
+      // Additive fields only (answers, phaseSeconds): old state merges over the defaults.
       migrate: passThroughMigration,
       partialize: (state) => ({
         mode: state.mode,
@@ -196,6 +310,8 @@ export const useInterviewStore = create<InterviewState>()(
         phaseStartTime: state.phaseStartTime,
         startedAt: state.startedAt,
         accumulatedMs: state.accumulatedMs,
+        phaseSeconds: state.phaseSeconds,
+        answers: state.answers,
       }),
       onRehydrateStorage: () => (state) => {
         // Resync the derived display seconds from timestamps after a

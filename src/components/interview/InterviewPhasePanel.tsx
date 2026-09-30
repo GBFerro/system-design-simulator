@@ -11,6 +11,11 @@ const DrillPanel = dynamic(() => import("./DrillPanel").then((m) => m.DrillPanel
   ssr: false,
   loading: () => <p className="text-[11px] text-zinc-400">Loading the failure drill…</p>,
 });
+// Phases 1–4 answer forms (they read the interview scripts, so also lazy).
+const PhaseForm = dynamic(() => import("./PhaseForms").then((m) => m.PhaseForm), {
+  ssr: false,
+  loading: () => <p className="text-[11px] text-zinc-400">Loading…</p>,
+});
 
 /** Panel content shown during interview phases 0-3 and 5 (not phase 4 = HLD). */
 export function InterviewPhasePanel() {
@@ -37,6 +42,7 @@ export function InterviewPhasePanel() {
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="p-3 space-y-4">
+          {currentPhase <= 3 && problem && <PhaseForm phase={currentPhase} problem={problem} />}
           {currentPhase === 0 && <RequirementsGuide problem={problem} />}
           {currentPhase === 1 && <EstimationGuide problem={problem} />}
           {currentPhase === 2 && <APIDesignGuide problem={problem} />}
@@ -140,54 +146,21 @@ function RequirementsGuide({ problem }: GuideProps) {
   );
 }
 
-function EstimationGuide({ problem }: GuideProps) {
+function EstimationGuide(_props: GuideProps) {
+  // The reference numbers are what phase 2 grades, so they aren't shown here
+  // (the form shows the brief); the report compares them afterwards.
   return (
-    <>
-      {problem && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            Given numbers
-          </p>
-          <div className="space-y-1">
-            {[
-              { label: "Users", value: problem.requirements.users },
-              {
-                label: "Reads/sec",
-                value: new Intl.NumberFormat("en-US").format(problem.requirements.readsPerSec),
-              },
-              {
-                label: "Writes/sec",
-                value: new Intl.NumberFormat("en-US").format(problem.requirements.writesPerSec),
-              },
-              {
-                label: "Storage",
-                value: `${new Intl.NumberFormat("en-US").format(problem.requirements.storageGB)} GB`,
-              },
-              { label: "Latency SLA", value: `< ${problem.requirements.latencyMs}ms` },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="flex items-center justify-between rounded-md bg-zinc-800 px-2.5 py-1.5"
-              >
-                <span className="text-xs text-zinc-400">{item.label}</span>
-                <span className="font-mono text-xs text-zinc-300">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <GuideItem
-        title="Estimate"
-        items={[
-          "Daily active users -> QPS (queries per second)",
-          "Peak QPS (typically 2-5x average)",
-          "Storage per record x total records over N years",
-          "Bandwidth: QPS x average response size",
-          "Cache size: hot data that fits in memory",
-          "Number of servers: QPS / single-server capacity",
-        ]}
-      />
-    </>
+    <GuideItem
+      title="Estimate"
+      items={[
+        "Daily active users -> QPS (queries per second)",
+        "Peak QPS (typically 2-5x average)",
+        "Storage per record x total records over N years",
+        "Bandwidth: QPS x average response size",
+        "Cache size: hot data that fits in memory",
+        "Number of servers: QPS / single-server capacity",
+      ]}
+    />
   );
 }
 

@@ -43,25 +43,29 @@ export function referenceSyncDepth(problemId: string): number | undefined {
   return syncPath(nodes, edges, buildScoringGraph(nodes, edges)).depth;
 }
 
-/**
- * Null when the problem is unknown or the canvas has no component. `drill`:
- * a finished interview drill's results, which replace the steady-state
- * faults in the availability check.
- */
+export interface MeasureOptions {
+  /** A finished interview drill's results; they replace the steady-state faults in availability. */
+  drill?: { held: number; total: number };
+  /** The load to measure at (an interview's estimated peak); default: the reference peak. */
+  peakRps?: number;
+}
+
+/** Null when the problem is unknown or the canvas has no component. */
 export async function measureDesign(
   nodes: readonly Node[],
   edges: readonly Edge[],
   problemId: string,
   api: MeasureApi,
-  drill?: { held: number; total: number },
+  { drill, peakRps: override }: MeasureOptions = {},
 ): Promise<Measurements | null> {
   const problem = getProblemById(problemId);
   if (!problem || components(nodes).length === 0) return null;
   const graph = compileGraph(nodes, edges);
   const { readsPerSec, writesPerSec } = problem.requirements;
-  const peakRps = readsPerSec + writesPerSec;
+  const referencePeak = readsPerSec + writesPerSec;
+  const peakRps = override !== undefined && override > 0 ? override : referencePeak;
   // The problem's own read/write mix drives `reads`/`writes` edges.
-  const config: SimConfig = peakRps > 0 ? { readRatio: readsPerSec / peakRps } : {};
+  const config: SimConfig = referencePeak > 0 ? { readRatio: readsPerSec / referencePeak } : {};
   const [atPeak, atDoublePeak] = await Promise.all([
     api.analyze(graph, peakRps, config),
     api.analyze(graph, 2 * peakRps, config),

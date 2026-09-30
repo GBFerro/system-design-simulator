@@ -20,6 +20,7 @@ import { useCanvasStore } from "@/store/canvasStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useDrillStore, type IncidentPoint } from "@/store/drillStore";
 import { useInterviewStore } from "@/store/interviewStore";
+import { effectivePeak } from "@/interview/checks";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import {
   injectFault,
@@ -49,7 +50,8 @@ export async function startDrill(problemId: string): Promise<void> {
   if (!problem || !data) return;
   stopWatching();
   resetSimulation();
-  const loadRps = problem.requirements.readsPerSec + problem.requirements.writesPerSec;
+  // The candidate's estimated peak (phase 2), kept within 2× of the reference.
+  const loadRps = effectivePeak(useInterviewStore.getState().answers.estimates, problem);
   setTrafficPattern({ kind: "constant", rps: loadRps });
   useDrillStore.getState().begin({
     problemId,

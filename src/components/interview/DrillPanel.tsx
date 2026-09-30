@@ -14,6 +14,8 @@ import {
 import { INTERVIEW_DATA } from "@/data/interviewData";
 import type { Problem } from "@/types/problem";
 import { breaches } from "@/interview/drill";
+import { effectivePeak } from "@/interview/checks";
+import { useInterviewStore } from "@/store/interviewStore";
 import { useDrillStore, type DrillStepState } from "@/store/drillStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { formatMs, formatPercent, formatRps } from "@/components/traffic/format";
@@ -33,10 +35,12 @@ export function DrillPanel({ problem }: { problem: Problem | undefined }) {
   const drillProblem = useDrillStore((s) => s.problemId);
   const steps = useDrillStore((s) => s.steps);
   const abortReason = useDrillStore((s) => s.abortReason);
+  const estimates = useInterviewStore((s) => s.answers.estimates);
   const data = problem ? INTERVIEW_DATA.find((d) => d.problemId === problem.id) : undefined;
   if (!problem || !data) return null;
 
-  const peak = problem.requirements.readsPerSec + problem.requirements.writesPerSec;
+  // Same load the drill runs at: the estimated peak, within 2× of the reference.
+  const peak = effectivePeak(estimates, problem);
   const ours = drillProblem === problem.id;
   const running = ours && status === "running";
 
@@ -47,8 +51,9 @@ export function DrillPanel({ problem }: { problem: Problem | undefined }) {
           <Flame className="h-3.5 w-3.5 text-orange-400" aria-hidden /> Failure drill
         </p>
         <p className="text-[11px] leading-snug text-zinc-400">
-          Your design runs at the peak load while the interviewer breaks it {data.drill.length}{" "}
-          times, without warning. Edit the canvas live to mitigate and answer each question.
+          Your design runs at your estimated peak while the interviewer breaks it{" "}
+          {data.drill.length} times, without warning. Edit the canvas live to mitigate and answer
+          each question.
         </p>
         <dl className="grid grid-cols-3 gap-1.5 pt-1">
           <Fact label="Load" value={`${formatRps(peak)} rps`} />
