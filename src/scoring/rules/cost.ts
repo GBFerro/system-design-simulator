@@ -1,28 +1,38 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import type { CategoryScore, ScoringGraph } from "@/types/scoring";
-import { CATEGORY_MAX_SCORE } from "../budget";
+import { instancesOf } from "@/domain/components/registry";
+import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
+import { CATEGORY_MAX_SCORE, OVERPROVISIONED_UTILIZATION } from "../budget";
+import { metricsOf, pct } from "../steady";
 
-/** Max points per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts). */
+/**
+ * Spec 09: 12 points for staying within budget and 8 for not
+ * over-provisioning (measured). Until Spec 10 prices components, the budget
+ * part keeps the structural cost checks below as its fallback. Max points
+ * per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts).
+ */
 export const BUDGET = {
-  componentCount: 3,
-  storageCount: 3,
-  cacheSavings: 3,
-  noDisconnected: 3,
-  cdn: 3,
-  queue: 3,
-  noDuplicateNetworking: 2,
+  componentCount: 2,
+  storageCount: 2,
+  cacheSavings: 2,
+  noDisconnected: 2,
+  cdn: 2,
+  queue: 1,
+  noDuplicateNetworking: 1,
+  noOverprovisioning: 8,
 } as const;
 
 /** Partial credit for a check that is only half met (always below its BUDGET). */
 export const PARTIAL = {
   componentCount: 1,
+  noOverprovisioning: 4,
 } as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
 
 export function scoreCost(
   nodes: Node<ComponentNodeData>[],
   edges: Edge[],
   graph: ScoringGraph,
+  m?: Measurements,
 ): CategoryScore {
   const feedback: string[] = [];
   const passed: string[] = [];
@@ -165,6 +175,38 @@ export function scoreCost(
     feedback.push(
       "You have an API Gateway, Rate Limiter, and Service Mesh — some functionality overlaps. API Gateways often include rate limiting built-in. Consider whether you need all three or if consolidating would reduce complexity and cost.",
     );
+  }
+
+  // Measured: no tier keeps an instance it doesn't need at the peak (with one
+  // fewer it would still run under OVERPROVISIONED_UTILIZATION).
+  if (!m || connectedNodes.length === 0) {
+    feedback.push(
+      "Over-provisioning is measured by simulating your design at the problem's peak; there's nothing to measure yet.",
+    );
+  } else {
+    // Nodes without traffic (control planes such as a quorum) aren't sized by load.
+    const idle = metricsOf(m.atPeak, connectedNodes).filter(({ node, m: nm }) => {
+      const n = instancesOf(node.data);
+      return (
+        nm.offeredRps > 0 && n >= 3 && (nm.utilization * n) / (n - 1) < OVERPROVISIONED_UTILIZATION
+      );
+    });
+    if (idle.length === 0) {
+      score += BUDGET.noOverprovisioning;
+      passed.push("No tier is over-provisioned at the peak: every instance earns its keep.");
+    } else {
+      if (idle.length === 1) score += PARTIAL.noOverprovisioning;
+      feedback.push(
+        `Over-provisioned at the peak: ${idle
+          .map(
+            ({ node, m: nm }) =>
+              `${node.data.label} (${instancesOf(node.data)} instances at ${pct(nm.utilization)})`,
+          )
+          .join(
+            ", ",
+          )}. Even with one instance fewer it would idle under ${pct(OVERPROVISIONED_UTILIZATION)} — scale it in (or autoscale) and keep the headroom where the load is.`,
+      );
+    }
   }
 
   return { category: "Cost Efficiency", score, maxScore: CATEGORY_MAX_SCORE, feedback, passed };

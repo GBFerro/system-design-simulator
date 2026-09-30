@@ -15,11 +15,12 @@ import type { SimGraph } from "@/domain/graph/compile";
 import { edgeTargets, getFaultType, nodeTargets } from "@/engine/faults/catalog";
 import type { FaultSpec } from "@/engine/faults/types";
 import type { TickSnapshot } from "@/engine/types";
+import { SLO_ERROR_RATE } from "@/scoring/budget";
 
 /** Simulated seconds of fault-free warm-up before the first fault (the baseline). */
 export const DRILL_WARMUP_SEC = 15;
 /** The drill's SLO until Spec 11 defines real ones: p99 within the problem's SLA, ≤ 1% errors. */
-export const DRILL_ERROR_SLO = 0.01;
+export const DRILL_ERROR_SLO = SLO_ERROR_RATE;
 /** Simulated seconds watched after a fault heals (recovery) before the next one. */
 export const DRILL_RECOVERY_SEC = 20;
 /** The SLO counts as recovered once it holds this long without breaking again. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ReactFlowProvider, type Node } from "@xyflow/react";
 import { X } from "lucide-react";
 import { TopBar } from "./top-bar";
@@ -13,6 +13,8 @@ import { isActiveTabReadOnly, useCanvasStore, type ComponentNodeData } from "@/s
 import { useSimulationStore } from "@/store/simulationStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { scoreDesign } from "@/scoring/scorer";
+import type { Measurements } from "@/types/scoring";
+import { useDrillStore } from "@/store/drillStore";
 import { PROBLEMS } from "@/data/problems";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
 import { Toast } from "@/components/ui/Toast";
@@ -33,6 +35,15 @@ import { PaletteDndProvider } from "@/components/canvas/PaletteDnd";
 import { OPEN_PROPERTIES_EVENT, isTypingTarget } from "@/components/canvas/canvasEvents";
 import { rehydrateAllStores } from "@/store/hydration";
 import { togglePlayback } from "@/components/traffic/simActions";
+
+/** A finished interview drill for this problem: faults whose SLO held (availability, Spec 09). */
+function finishedDrill(problemId: string): { held: number; total: number } | undefined {
+  const d = useDrillStore.getState();
+  if (d.status !== "done" || d.problemId !== problemId) return undefined;
+  const scored = d.steps.filter((s) => s.result);
+  if (scored.length === 0) return undefined;
+  return { held: scored.filter((s) => s.result!.mitigated).length, total: scored.length };
+}
 
 export function AppShell() {
   const isMobile = useIsMobile();
@@ -163,6 +174,7 @@ export function AppShell() {
     })();
   }, []);
 
+  const scoringRef = useRef(false);
   const handleScore = useCallback(() => {
     const { nodes, edges } = useCanvasStore.getState();
     const componentNodes = nodes.filter((n) => n.type !== "text") as Node<ComponentNodeData>[];
@@ -171,16 +183,47 @@ export function AppShell() {
       useAppStore.getState().showToast("No components to score", "info");
       return;
     }
+    if (scoringRef.current) return;
+    scoringRef.current = true;
 
-    const result = scoreDesign(componentNodes, edges);
-    useSimulationStore.getState().setScoreResult(result);
-    useSimulationStore.getState().setShowScore(true);
-    useAppStore.getState().setActiveRightTab("score");
+    // The rubric is measured (Spec 09): simulate the design at the problem's
+    // peak, 2× it and under its drill faults. Measuring code and the engine
+    // load on demand, and the analyses run in the engine worker.
+    void (async () => {
+      let measurements: Measurements | undefined;
+      try {
+        const [{ measureDesign }, engine] = await Promise.all([
+          import("@/scoring/measure"),
+          import("@/engine/client"),
+        ]);
+        const problemId = useAppStore.getState().selectedProblemId;
+        measurements =
+          (await measureDesign(
+            nodes,
+            edges,
+            problemId,
+            { analyze: engine.analyzeGraph, analyzeUnderFault: engine.analyzeGraphUnderFault },
+            finishedDrill(problemId),
+          )) ?? undefined;
+      } catch (err) {
+        console.error("Measuring the design failed", err);
+        useAppStore
+          .getState()
+          .showToast("Couldn't simulate the design; measured checks score 0", "error");
+      } finally {
+        scoringRef.current = false;
+      }
 
-    // On mobile, auto-open the right sheet so the score is visible
-    if (isMobile) setMobileRightOpen(true);
+      const result = scoreDesign(componentNodes, edges, measurements);
+      useSimulationStore.getState().setScoreResult(result);
+      useSimulationStore.getState().setShowScore(true);
+      useAppStore.getState().setActiveRightTab("score");
 
-    useAppStore.getState().showToast("Design scored!", "success");
+      // On mobile, auto-open the right sheet so the score is visible
+      if (isMobile) setMobileRightOpen(true);
+
+      useAppStore.getState().showToast("Design scored!", "success");
+    })();
   }, [isMobile]);
 
   const handleClearCanvas = useCallback(() => {
