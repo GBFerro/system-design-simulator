@@ -65,6 +65,18 @@ O total continua 100 (5 × 20), para não quebrar o histórico nem a invariante 
 - **Fora do modo entrevista** (sem drill), o item "disponibilidade medida no drill" usa `analyze()` com os faults do roteiro aplicados em steady state
 - Até a Fase 5, cost e SLA usam os valores atuais como fallback; a [Spec 10](10-custo.md) e a [Spec 11](11-slo-e-error-budget.md) trocam pelos valores medidos
 
+**Implementação (PR 2 da Spec 09):**
+
+- **Medições:** `scoring/measure.ts` roda `analyze()` a 1× e 2× o pico, com o read ratio do problema, e sob cada fault do roteiro em regime (`faults/steady.ts`, lido no fim da janela do fault, depois dos transitórios). As regras recebem essas `Measurements`.
+- **Rubrica:**
+  - "Aguenta" o pico: erros ≤ 1% e todo tier com ρ < 0,8. No 2×: erros ≤ 1% e ρ < 1.
+  - "Sem SPOF": a mesma checagem do Advisor (`scoring/paths.ts`).
+  - Cost: as checagens estruturais atuais valem os 12 pontos de orçamento até a [Spec 10](10-custo.md). Over-provisioning (8) = um tier com ≥ 3 instâncias que, com uma a menos, ainda ficaria abaixo de 15% de utilização.
+- **Latência viável:**
+  - O DNS passou a pesar só na fração de requests sem cache (`lookupShare`, padrão 1%), porque a resolução fica em cache no cliente e no SO.
+  - Problemas cujo SLA é de um componente (rate limiter, cache distribuído, fila) ganharam `slaScope`.
+- **Referências dimensionadas:** as 35 ganharam `params` por nó e ajustes de aresta, e `MAX_INSTANCES` subiu para 1000.
+
 ### Score de processo
 
 Separado, não entra nos 100: aderência ao tempo de cada fase, precisão da estimativa, cobertura de requisitos e tempo de reação no drill. É o que diferencia "chegou na resposta" de "conduziu bem a entrevista".
@@ -79,9 +91,9 @@ Separado, não entra nos 100: aderência ao tempo de cada fase, precisão da est
 ## Critérios de aceite
 
 - [x] Os 35 problemas têm roteiro de drill
-- [ ] Cada regra soma exatamente 20 e nunca fica negativa
-- [ ] A solução de referência de cada problema, simulada no pico de referência, tira pelo menos 16/20 em scalability e latency (sanidade das regras medidas)
-- [ ] Um grafo vazio tira 0 em scalability, availability e latency
+- [x] Cada regra soma exatamente 20 e nunca fica negativa
+- [x] A solução de referência de cada problema, simulada no pico de referência, tira pelo menos 16/20 em scalability e latency (sanidade das regras medidas)
+- [x] Um grafo vazio tira 0 em scalability, availability e latency
 - [ ] O timer sobrevive a refresh e a aba em background
 - [ ] O relatório mostra cada ponto perdido com o motivo
 
