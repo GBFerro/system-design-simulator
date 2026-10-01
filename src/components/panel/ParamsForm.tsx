@@ -18,7 +18,6 @@ const GROUP_ORDER: (ParamGroup | "general")[] = [
   "capacity",
   "latency",
   "resilience",
-  "cost",
   "advanced",
 ];
 
@@ -27,7 +26,6 @@ const GROUP_LABEL: Record<ParamGroup | "general", string> = {
   capacity: "Capacity",
   latency: "Latency",
   resilience: "Resilience",
-  cost: "Cost",
   advanced: "Advanced",
 };
 

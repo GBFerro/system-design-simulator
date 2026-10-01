@@ -3,7 +3,7 @@ import { getComponentById } from "@/data/components";
 import { instancesOf, PARAM } from "@/domain/components/registry";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
-import { CATEGORY_MAX_SCORE, PEAK_UTILIZATION, SLO_ERROR_RATE } from "../budget";
+import { CATEGORY_MAX_SCORE, PEAK_UTILIZATION, SLO_ERROR_RATE, SURGE_FACTOR } from "../budget";
 import { INHERENTLY_REDUNDANT, syncPath } from "../paths";
 import { hottest, metricsOf, NO_TRAFFIC_FEEDBACK, noTraffic, pct, rps } from "../steady";
 
@@ -76,18 +76,18 @@ export function scoreScalability(
     if (m.atDoublePeak.errorRate <= SLO_ERROR_RATE && surgeMax < 1) {
       score += BUDGET.holdsDoublePeak;
       passed.push(
-        `Survives a 2× surge (${rps(2 * m.peakRps)} rps) without errors: busiest tier at ${pct(surgeMax)}.`,
+        `Survives a ${SURGE_FACTOR}× surge (${rps(SURGE_FACTOR * m.peakRps)} rps) without errors: busiest tier at ${pct(surgeMax)}.`,
       );
     } else if (m.atDoublePeak.errorRate <= SURGE_PARTIAL_ERROR_RATE) {
       score += PARTIAL.holdsDoublePeak;
       feedback.push(
-        `A 2× surge (${rps(2 * m.peakRps)} rps) degrades it: ${pct(m.atDoublePeak.errorRate)} errors${
+        `A ${SURGE_FACTOR}× surge (${rps(SURGE_FACTOR * m.peakRps)} rps) degrades it: ${pct(m.atDoublePeak.errorRate)} errors${
           surgeMax >= 1 ? `, ${hottest(surge, 1)} saturated` : ""
         }. Leave room for bursts (launches, retries) or shed load at the edge with a rate limiter.`,
       );
     } else {
       feedback.push(
-        `A 2× surge (${rps(2 * m.peakRps)} rps) breaks it: ${pct(m.atDoublePeak.errorRate)} of requests fail (${hottest(surge, 1) || "overloaded tiers"}). Real traffic bursts well above the average peak; size for it or shed the excess at the edge.`,
+        `A ${SURGE_FACTOR}× surge (${rps(SURGE_FACTOR * m.peakRps)} rps) breaks it: ${pct(m.atDoublePeak.errorRate)} of requests fail (${hottest(surge, 1) || "overloaded tiers"}). Real traffic bursts well above the average peak; size for it or shed the excess at the edge.`,
       );
     }
   }

@@ -14,6 +14,7 @@ import type { TickSnapshot } from "@/engine/types";
 import { useCostEstimate } from "@/components/cost/useCostEstimate";
 import { getProblemById } from "@/data/problems";
 import { PRICE_TABLE } from "@/domain/components/pricing";
+import { SURGE_FACTOR } from "@/scoring/budget";
 import { rps as formatRps, pct } from "@/scoring/steady";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
@@ -114,6 +115,26 @@ export function CostPanel() {
       </div>
 
       <RightSizeSection money={money} snapshot={snapshot} />
+
+      <details className="text-[11px] text-zinc-400" data-testid="cost-sources">
+        <summary className="cursor-pointer select-none hover:text-zinc-200">
+          Price sources ({PRICE_TABLE.asOf})
+        </summary>
+        <ul className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+          {PRICE_TABLE.sources.map((s) => (
+            <li key={s.url}>
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-cyan-400 underline-offset-2 hover:underline"
+              >
+                {s.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }
@@ -269,8 +290,8 @@ function RightSizeSection({
         <p className={SECTION_TITLE}>Right-size</p>
       </div>
       <p className="text-[11px] leading-snug text-zinc-400">
-        Instances for ~{pct(TARGET_UTILIZATION)} utilization at the current load (so a 2× surge
-        stays under saturation), at least 2 per tier.
+        Instances for ~{pct(TARGET_UTILIZATION)} utilization at the current load (so a{" "}
+        {SURGE_FACTOR}× surge stays under saturation), at least 2 per tier.
       </p>
       {!snapshot ? (
         <p className="text-[11px] text-zinc-400">Simulate first: right-size needs the load.</p>

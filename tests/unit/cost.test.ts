@@ -14,6 +14,7 @@ import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { buildScoringGraph } from "@/scoring/scorer";
+import { SURGE_FACTOR } from "@/scoring/budget";
 import { BUDGET, budgetPoints, scoreCost } from "@/scoring/rules/cost";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { Measurements } from "@/types/scoring";
@@ -107,8 +108,8 @@ describe("right-size (CST-03)", () => {
     expect(suggestedInstances(1e9, 1)).toBe(1000);
   });
 
-  it("a 2× surge on a right-sized tier stays under saturation", () => {
-    expect(2 * TARGET_UTILIZATION).toBeLessThan(1);
+  it("the scored surge on a right-sized tier stays under saturation", () => {
+    expect(SURGE_FACTOR * TARGET_UTILIZATION).toBeLessThan(1);
   });
 
   it("applies to stateless tiers, only suggests for stateful ones, skips unloaded or per-request ones", () => {

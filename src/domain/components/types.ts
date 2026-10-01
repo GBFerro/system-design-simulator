@@ -12,7 +12,8 @@ export type Params = Record<string, ParamValue>;
 
 export type ParamKind = "number" | "percent" | "duration" | "enum" | "boolean";
 
-export type ParamGroup = "capacity" | "latency" | "resilience" | "cost" | "advanced";
+/** Props form sections. Prices aren't params: they live in `PricingSpec` (`pricing.ts`). */
+export type ParamGroup = "capacity" | "latency" | "resilience" | "advanced";
 
 export interface ParamSpec {
   /** e.g. "instances", "hitRate", "ttlSec" */

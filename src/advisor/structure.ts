@@ -7,17 +7,11 @@
 import type { Edge, Node } from "@xyflow/react";
 import { findSpofs, syncPath } from "@/scoring/paths";
 import { buildScoringGraph } from "@/scoring/scorer";
-import type { ComponentNodeData } from "@/store/canvasStore";
+import { isComponentNode } from "@/lib/nodeFactory";
 import { SEVERITY_RANK, type Finding } from "./types";
 
-function isComponent(n: Node): n is Node<ComponentNodeData> {
-  return (
-    n.type !== "text" && typeof (n.data as { componentId?: unknown })?.componentId === "string"
-  );
-}
-
 export function structureFindings(nodes: readonly Node[], edges: readonly Edge[]): Finding[] {
-  const comps = nodes.filter(isComponent);
+  const comps = nodes.filter(isComponentNode);
   if (comps.length === 0) return [];
   const byId = new Map(comps.map((n) => [n.id, n]));
   const label = (id: string) => byId.get(id)?.data.label ?? id;

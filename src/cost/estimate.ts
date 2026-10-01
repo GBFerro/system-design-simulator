@@ -13,6 +13,7 @@
 import type { Node } from "@xyflow/react";
 import { getSchema, instancesOf, numParam, PARAM } from "@/domain/components/registry";
 import type { PricingSpec } from "@/domain/components/types";
+import { isComponentNode } from "@/lib/nodeFactory";
 import type { ComponentNodeData } from "@/store/canvasStore";
 
 export const HOURS_PER_MONTH = 730;
@@ -88,9 +89,6 @@ export function costLine(node: Node<ComponentNodeData>, rps: number): CostLine {
   };
 }
 
-const isComponent = (n: Node): n is Node<ComponentNodeData> =>
-  n.type !== "text" && typeof (n.data as Partial<ComponentNodeData>)?.componentId === "string";
-
 /**
  * Cost of every component node on the canvas (text nodes are skipped).
  * Unreachable nodes cost money too: deployed is deployed.
@@ -108,7 +106,7 @@ export function estimateCost(
   };
   const lines: CostLine[] = [];
   for (const n of nodes) {
-    if (!isComponent(n)) continue;
+    if (!isComponentNode(n)) continue;
     const line = costLine(n, rpsOf(n.id));
     lines.push(line);
     byArea[line.area] += line.monthly;

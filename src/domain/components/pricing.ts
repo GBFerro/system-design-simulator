@@ -8,9 +8,33 @@ import type { PricingSpec } from "./types";
  */
 export const PRICE_TABLE = {
   version: 1,
-  /** When the list prices were taken. */
+  /** When the list prices were taken. Review it, and the sources, each release. */
   asOf: "2025-09",
   region: "AWS us-east-1, on-demand",
+  /** The official pricing pages every figure below comes from. */
+  sources: [
+    { label: "EC2 On-Demand", url: "https://aws.amazon.com/ec2/pricing/on-demand/" },
+    { label: "RDS for PostgreSQL", url: "https://aws.amazon.com/rds/postgresql/pricing/" },
+    { label: "ElastiCache", url: "https://aws.amazon.com/elasticache/pricing/" },
+    { label: "CloudFront", url: "https://aws.amazon.com/cloudfront/pricing/" },
+    { label: "Route 53", url: "https://aws.amazon.com/route53/pricing/" },
+    {
+      label: "Elastic Load Balancing",
+      url: "https://aws.amazon.com/elasticloadbalancing/pricing/",
+    },
+    { label: "API Gateway", url: "https://aws.amazon.com/api-gateway/pricing/" },
+    { label: "WAF", url: "https://aws.amazon.com/waf/pricing/" },
+    { label: "S3", url: "https://aws.amazon.com/s3/pricing/" },
+    { label: "EFS", url: "https://aws.amazon.com/efs/pricing/" },
+    { label: "SQS", url: "https://aws.amazon.com/sqs/pricing/" },
+    { label: "SNS", url: "https://aws.amazon.com/sns/pricing/" },
+    { label: "SES", url: "https://aws.amazon.com/ses/pricing/" },
+    { label: "MSK", url: "https://aws.amazon.com/msk/pricing/" },
+    { label: "OpenSearch Service", url: "https://aws.amazon.com/opensearch-service/pricing/" },
+    { label: "Neptune", url: "https://aws.amazon.com/neptune/pricing/" },
+    { label: "Redshift", url: "https://aws.amazon.com/redshift/pricing/" },
+    { label: "CloudWatch", url: "https://aws.amazon.com/cloudwatch/pricing/" },
+  ],
 } as const;
 
 /** A fleet of instances of one size, nothing billed per request. */

@@ -16,7 +16,7 @@ import {
 import { CATALOG_SCHEMAS } from "@/domain/components/schemas";
 import { parseNumberText, parseParamInput } from "@/domain/components/paramInput";
 import { CORE_PARAM, type ParamSpec } from "@/domain/components/types";
-import { DEFAULT_PRICING, hasOwnPricing } from "@/domain/components/pricing";
+import { DEFAULT_PRICING, hasOwnPricing, PRICE_TABLE } from "@/domain/components/pricing";
 
 const ids = SYSTEM_COMPONENTS.map((c) => c.id);
 const NEW_IDS = ["client", "worker-pool", "waf", "read-replica", "dlq", "autoscaler"];
@@ -143,6 +143,9 @@ describe("schemas (CMP-01)", () => {
       expect(p.assumptions.trim().length, id).toBeGreaterThan(20);
     }
     expect(getSchema("custom-my-thing").pricing).toBe(DEFAULT_PRICING);
+    expect(PRICE_TABLE.sources.length).toBeGreaterThan(0);
+    for (const s of PRICE_TABLE.sources)
+      expect(s.url).toMatch(/^https:\/\/aws\.amazon\.com\/.+\/pricing\//);
   });
 
   it("unknown ids (user custom components) get the generic schema", () => {

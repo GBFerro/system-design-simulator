@@ -17,8 +17,9 @@ import { steadyStateToSnapshot } from "@/engine/snapshot";
 import type { SimConfig, SteadyState } from "@/engine/types";
 import { resolveDrillStep } from "@/interview/drill";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import type { ComponentNodeData } from "@/store/canvasStore";
+import { isComponentNode } from "@/lib/nodeFactory";
 import type { Measurements } from "@/types/scoring";
+import { SURGE_FACTOR } from "./budget";
 import { syncPath } from "./paths";
 import { buildScoringGraph } from "./scorer";
 
@@ -32,8 +33,7 @@ export interface MeasureApi {
   ): Promise<SteadyUnderFault> | SteadyUnderFault;
 }
 
-const components = (nodes: readonly Node[]) =>
-  nodes.filter((n) => n.type !== "text") as Node<ComponentNodeData>[];
+const components = (nodes: readonly Node[]) => nodes.filter(isComponentNode);
 
 /** Deepest synchronous path of the problem's reference solution (undefined without one). */
 export function referenceSyncDepth(problemId: string): number | undefined {
@@ -68,7 +68,7 @@ export async function measureDesign(
   const config: SimConfig = referencePeak > 0 ? { readRatio: readsPerSec / referencePeak } : {};
   const [atPeak, atDoublePeak] = await Promise.all([
     api.analyze(graph, peakRps, config),
-    api.analyze(graph, 2 * peakRps, config),
+    api.analyze(graph, SURGE_FACTOR * peakRps, config),
   ]);
 
   const script = INTERVIEW_DATA.find((d) => d.problemId === problemId);

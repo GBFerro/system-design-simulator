@@ -1,9 +1,9 @@
 /**
  * Right-size (Spec 10, CST-03): instances per tier for ~45% utilization at
  * the current load, never fewer than 2 per tier (one spare to survive losing
- * an instance). The spec's ~55% would put a 2× surge at 110%, past
- * saturation, and Spec 09 scores every design on holding 2× its peak: at 45%
- * the surge runs at 90%. Stateless tiers can be applied in one undo step; stateful
+ * an instance). The spec's ~55% would put the scored surge (SURGE_FACTOR =
+ * 2× the peak, Spec 09) at 110%, past saturation: at 45% it runs at 90%.
+ * `scoring.test.ts` right-sizes every reference and checks its score holds. Stateless tiers can be applied in one undo step; stateful
  * ones (databases, caches, brokers) only get a suggestion, because adding or
  * removing their nodes moves data. The advisor's quick fix (Spec 12) uses the
  * same calculation.
@@ -11,7 +11,7 @@
 import type { Node } from "@xyflow/react";
 import { getComponentById } from "@/data/components";
 import { capacityPerInstanceOf, instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
-import type { ComponentNodeData } from "@/store/canvasStore";
+import { isComponentNode } from "@/lib/nodeFactory";
 import { costLine } from "./estimate";
 
 export const TARGET_UTILIZATION = 0.45;
@@ -38,9 +38,6 @@ export function suggestedInstances(rps: number, capacityPerInstance: number): nu
   return Math.min(MAX_INSTANCES, Math.max(MIN_INSTANCES_PER_TIER, needed));
 }
 
-const isComponent = (n: Node): n is Node<ComponentNodeData> =>
-  n.type !== "text" && typeof (n.data as Partial<ComponentNodeData>)?.componentId === "string";
-
 /**
  * One suggestion per tier whose instance count should change. Tiers without
  * load can't be sized from it, and tiers with no per-instance price (managed
@@ -52,7 +49,7 @@ export function rightSize(
 ): RightSizeSuggestion[] {
   const out: RightSizeSuggestion[] = [];
   for (const node of nodes) {
-    if (!isComponent(node)) continue;
+    if (!isComponentNode(node)) continue;
     const rps = rpsOf(node.id);
     if (!Number.isFinite(rps) || rps <= 0) continue;
     const before = costLine(node, rps);

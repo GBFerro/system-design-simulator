@@ -165,7 +165,7 @@ export function TopBar({
     <>
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900 px-2 md:gap-3 md:px-3">
         {/* Left section */}
-        <div className="flex min-w-0 items-center gap-2 lg:gap-3">
+        <div data-testid="topbar-left" className="flex min-w-0 items-center gap-2 lg:gap-3">
           <button
             onClick={onToggleLeft}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
@@ -196,6 +196,7 @@ export function TopBar({
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               title={currentProblem?.title}
+              data-testid="problem-selector"
               className="flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-zinc-100"
             >
               {/* min-w-0: a flex item won't shrink below its text otherwise, and truncate never kicks in */}
@@ -464,7 +465,7 @@ export function TopBar({
         </div>
 
         {/* Right section */}
-        <div className="flex items-center gap-1 md:gap-2">
+        <div data-testid="topbar-right" className="flex items-center gap-1 md:gap-2">
           <button
             onClick={onSave}
             className="hidden h-7 items-center gap-1 rounded-md px-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 xl:flex"

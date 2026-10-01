@@ -7,6 +7,7 @@ import { createComponentNode } from "@/lib/nodeFactory";
 import { CATEGORY_MAX_SCORE } from "@/scoring/budget";
 import { buildScoringGraph, scoreDesign } from "@/scoring/scorer";
 import { measureDesign, type MeasureApi } from "@/scoring/measure";
+import { rightSize } from "@/cost/rightSize";
 import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { analyzeUnderFault } from "@/engine/faults/steady";
@@ -322,6 +323,36 @@ describe("measured rubric vs the reference solutions (Spec 09)", () => {
       expect(by.Scalability.score, by.Scalability.feedback.join(" | ")).toBeGreaterThanOrEqual(16);
       expect(by.Latency.score, by.Latency.feedback.join(" | ")).toBeGreaterThanOrEqual(16);
       for (const c of result.categories) expect(c.score, c.category).toBeGreaterThan(0);
+    },
+  );
+
+  // Spec 10: the right-size button must never cost points. Apply its
+  // applicable suggestions at the peak and measure again.
+  it.each(PROBLEMS.map((p) => [p.id, p] as const))(
+    "%s: right-sizing the reference at its peak costs no scalability or cost points",
+    async (_id, p) => {
+      const { nodes, edges } = buildReferenceGraph(p);
+      const before = (await measureDesign(nodes, edges, p.id, inThread))!;
+      const offered = new Map(before.atPeak.nodes.map((n) => [n.nodeId, n.offeredRps]));
+      const to = new Map(
+        rightSize(nodes, (id) => offered.get(id) ?? 0)
+          .filter((s) => s.applicable)
+          .map((s) => [s.nodeId, s.to]),
+      );
+      const sized = nodes.map((n) =>
+        to.has(n.id)
+          ? { ...n, data: { ...n.data, params: { ...n.data.params, instances: to.get(n.id)! } } }
+          : n,
+      );
+      const after = (await measureDesign(sized, edges, p.id, inThread))!;
+      const scale = (m: Measurements, ns: typeof nodes) =>
+        scalability.scoreScalability(ns, edges, buildScoringGraph(ns, edges), m);
+      const s0 = scale(before, nodes);
+      const s1 = scale(after, sized);
+      expect(s1.score, s1.feedback.join(" | ")).toBeGreaterThanOrEqual(s0.score);
+      const c0 = cost.scoreCost(nodes, edges, buildScoringGraph(nodes, edges), before);
+      const c1 = cost.scoreCost(sized, edges, buildScoringGraph(sized, edges), after);
+      expect(c1.score, c1.feedback.join(" | ")).toBeGreaterThanOrEqual(c0.score);
     },
   );
 
