@@ -41,6 +41,7 @@ import { loadReferenceIntoTab } from "@/lib/loadReference";
 import { exportAsPng, exportAsSvg, exportAsJSON } from "@/lib/exportCanvas";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
 import { PlaybackMini } from "@/components/traffic/PlaybackMini";
+import { CostMini } from "@/components/cost/CostMini";
 
 interface TopBarProps {
   onSimulate: () => void;
@@ -544,6 +545,7 @@ export function TopBar({
           </button>
 
           <PlaybackMini />
+          <CostMini />
 
           <Button
             size="sm"

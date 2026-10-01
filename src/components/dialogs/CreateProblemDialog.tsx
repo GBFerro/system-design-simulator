@@ -14,6 +14,8 @@ interface CreateProblemDialogProps {
 }
 
 const DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
+/** Starting monthly budget for a custom problem (Spec 10); 0 leaves cost unjudged. */
+const DEFAULT_BUDGET_USD = 20_000;
 
 export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps) {
   const addProblem = useCustomProblemsStore((s) => s.addProblem);
@@ -28,6 +30,7 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
   const [storageGB, setStorageGB] = useState(1000);
   const [latencyMs, setLatencyMs] = useState(200);
   const [users, setUsers] = useState("10M DAU");
+  const [budget, setBudget] = useState(DEFAULT_BUDGET_USD);
   const [constraintsText, setConstraintsText] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -45,6 +48,7 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
     setStorageGB(1000);
     setLatencyMs(200);
     setUsers("10M DAU");
+    setBudget(DEFAULT_BUDGET_USD);
     setConstraintsText("");
     setTagsText("");
     setClearConfirmOpen(false);
@@ -76,6 +80,7 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
         storageGB,
         latencyMs,
         users: users.trim() || "10M DAU",
+        ...(budget > 0 ? { budgetMonthlyUsd: budget } : {}),
       },
       constraints,
       tags,
@@ -212,7 +217,18 @@ export function CreateProblemDialog({ open, onClose }: CreateProblemDialogProps)
                   className={inputClass}
                 />
               </div>
-              <div className="col-span-2">
+              <div>
+                <label className="mb-0.5 block text-[11px] text-zinc-500">Budget ($/month)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={budget}
+                  onChange={(e) => setBudget(Number(e.target.value) || 0)}
+                  className={inputClass}
+                  title="Monthly infrastructure budget the cost score compares against (0 = none)"
+                />
+              </div>
+              <div>
                 <label className="mb-0.5 block text-[11px] text-zinc-500">Users</label>
                 <input
                   type="text"

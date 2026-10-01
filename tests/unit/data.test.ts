@@ -8,6 +8,8 @@ import { getFaultType } from "@/engine/faults/catalog";
 import { compileFault } from "@/engine/faults/compile";
 import { resolveDrillStep } from "@/interview/drill";
 import { buildReferenceGraph } from "@/lib/loadReference";
+import { analyze } from "@/engine/analyze";
+import { estimateCost } from "@/cost/estimate";
 
 // Ids, duplicates and learning-path coverage are in catalog.test.ts; this file
 // checks the "Data conventions" of CLAUDE.md that are about order and wiring.
@@ -52,6 +54,29 @@ describe("reference solutions", () => {
       expect(hasEntry, `${id}: no entry node, nothing on the request path is reachable`).toBe(true);
     }
   });
+});
+
+describe("budgets (Spec 10)", () => {
+  // Calibrated as the reference's cost at its peak × 1.3, rounded up to two
+  // significant figures: the reference fits, and the budget isn't a blank check.
+  it.each(PROBLEMS.map((p) => [p.id, p] as const))(
+    "%s: the reference costs between 1/1.5 and 1/1.3 of the budget at its peak",
+    (_id, p) => {
+      const budget = p.requirements.budgetMonthlyUsd;
+      expect(budget).toBeGreaterThan(0);
+      const { readsPerSec, writesPerSec } = p.requirements;
+      const peak = readsPerSec + writesPerSec;
+      const { nodes, edges } = buildReferenceGraph(p);
+      const steady = analyze(compileGraph(nodes, edges), peak, {
+        readRatio: readsPerSec / peak,
+        samples: 100,
+      });
+      const offered = new Map(steady.nodes.map((n) => [n.nodeId, n.offeredRps]));
+      const cost = estimateCost(nodes, (id) => offered.get(id) ?? 0).monthly;
+      expect(cost * 1.3).toBeLessThanOrEqual(budget!);
+      expect(cost * 1.5).toBeGreaterThanOrEqual(budget!);
+    },
+  );
 });
 
 describe("failure drill scripts (Spec 09)", () => {

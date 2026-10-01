@@ -52,16 +52,29 @@ export type RoutingKind =
   | "breaker"
   | "fixed";
 
-/** Placeholder for Spec 10 (cost). Kept open so schemas can declare it later. */
+/**
+ * Price of one component type (Spec 10, CST-01), in USD: approximate
+ * on-demand list prices of a reference region, from the versioned table in
+ * `pricing.ts`. Educational estimates, not a quote.
+ */
 export interface PricingSpec {
-  [key: string]: unknown;
+  /** Per instance (the `instances` param) per hour. */
+  perInstanceHour: number;
+  /** Fixed per node per month (e.g. a hosted zone, a web ACL). */
+  baseMonthly: number;
+  /** Per million requests the node handles. */
+  perMillionRequests: number;
+  /** Storage per GB-month, when the type has a size param (none yet). */
+  perGbMonth?: number;
+  /** Short text shown in the breakdown: what the prices are and what's left out. */
+  assumptions: string;
 }
 
 export interface ComponentSchema {
   /** Same id as `components.ts`. */
   id: string;
   params: ParamSpec[];
-  pricing?: PricingSpec;
+  pricing: PricingSpec;
   routing: RoutingKind;
 }
 

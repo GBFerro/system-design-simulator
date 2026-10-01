@@ -12,6 +12,12 @@ export interface ProblemRequirements {
    * measures that component's hop p99 instead of the end-to-end one.
    */
   slaScope?: string;
+  /**
+   * Monthly budget in USD for the cost score (Spec 10, CST-05). Built-in
+   * problems set it from their reference solution's cost at the peak × 1.3
+   * (`data.test.ts` checks it); a custom problem may leave it out.
+   */
+  budgetMonthlyUsd?: number;
 }
 
 export interface ProblemHint {

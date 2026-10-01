@@ -51,4 +51,9 @@ export interface Measurements {
   drill?: { held: number; total: number };
   /** Deepest sync path of the problem's reference solution, for the hop check. */
   referenceSyncDepth?: number;
+  /**
+   * Monthly budget in USD at this peak (Spec 10): the problem's, scaled up
+   * when the measured peak is above the reference one. Absent → cost unjudged.
+   */
+  budgetMonthlyUsd?: number;
 }

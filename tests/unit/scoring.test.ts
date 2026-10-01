@@ -44,6 +44,7 @@ function measured({ nodes, edges }: Graph, rps = 100, samples = 500): Measuremen
     atPeak: analyze(g, rps, { samples }),
     atDoublePeak: analyze(g, 2 * rps, { samples }),
     underFaults: [{ label: "Kill instances · App Server", errorRate: 0 }],
+    budgetMonthlyUsd: 1_000_000,
   };
 }
 

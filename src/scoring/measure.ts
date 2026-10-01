@@ -105,5 +105,12 @@ export async function measureDesign(
       const depth = referenceSyncDepth(problemId);
       return depth !== undefined ? { referenceSyncDepth: depth } : {};
     })(),
+    ...(() => {
+      const budget = problem.requirements.budgetMonthlyUsd;
+      if (budget === undefined || !(budget > 0)) return {};
+      // A design measured above the reference peak (an interview's estimate) needs more.
+      const scale = referencePeak > 0 ? Math.max(1, peakRps / referencePeak) : 1;
+      return { budgetMonthlyUsd: budget * scale };
+    })(),
   };
 }

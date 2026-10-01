@@ -3,34 +3,42 @@ import type { ComponentNodeData } from "@/store/canvasStore";
 import { instancesOf } from "@/domain/components/registry";
 import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
 import { CATEGORY_MAX_SCORE, OVERPROVISIONED_UTILIZATION } from "../budget";
-import { metricsOf, pct } from "../steady";
+import { metricsOf, NO_TRAFFIC_FEEDBACK, noTraffic, pct, rps } from "../steady";
+import { estimateCost } from "@/cost/estimate";
+import { formatMoney } from "@/cost/currency";
 
 /**
- * Spec 09: 12 points for staying within budget and 8 for not
- * over-provisioning (measured). Until Spec 10 prices components, the budget
- * part keeps the structural cost checks below as its fallback. Max points
- * per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts).
+ * Spec 10 (CST-05): 12 points for the design's monthly cost at the peak
+ * staying within the problem's budget (linear down to 0 at twice it) and 8
+ * for not over-provisioning (Spec 09). Both are measured. Max points per
+ * check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts).
  */
 export const BUDGET = {
-  componentCount: 2,
-  storageCount: 2,
-  cacheSavings: 2,
-  noDisconnected: 2,
-  cdn: 2,
-  queue: 1,
-  noDuplicateNetworking: 1,
+  withinBudget: 12,
   noOverprovisioning: 8,
 } as const;
 
 /** Partial credit for a check that is only half met (always below its BUDGET). */
 export const PARTIAL = {
-  componentCount: 1,
   noOverprovisioning: 4,
 } as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
 
+/**
+ * Points for costing `ratio` × the budget: full up to 1, then linear down to
+ * 0 at 2 (rounded down, so any overspend loses at least a point).
+ */
+export function budgetPoints(ratio: number): number {
+  if (ratio <= 1) return BUDGET.withinBudget;
+  if (!Number.isFinite(ratio)) return 0;
+  return Math.max(
+    0,
+    Math.min(BUDGET.withinBudget - 1, Math.floor(BUDGET.withinBudget * (2 - ratio))),
+  );
+}
+
 export function scoreCost(
   nodes: Node<ComponentNodeData>[],
-  edges: Edge[],
+  _edges: Edge[],
   graph: ScoringGraph,
   m?: Measurements,
 ): CategoryScore {
@@ -38,151 +46,52 @@ export function scoreCost(
   const passed: string[] = [];
   let score = 0;
 
-  const componentIds = nodes.map((n) => n.data.componentId);
   const connectedNodes = nodes.filter((n) => graph.reachable.has(n.id));
-  const connectedIds = new Set(connectedNodes.map((n) => n.data.componentId));
-  const placedIds = new Set(componentIds);
 
-  // Not over-provisioned — total component count reasonable
-  if (nodes.length >= 3 && nodes.length <= 25) {
-    score += BUDGET.componentCount;
-    passed.push(
-      "Appropriate number of components (" +
-        nodes.length +
-        ") — not over-engineered or under-provisioned",
-    );
-  } else if (nodes.length < 3) {
-    score += PARTIAL.componentCount;
+  // Monthly cost at the peak against the budget. Every node counts, reachable
+  // or not: an idle component is still paid for.
+  if (!m || noTraffic(m)) {
     feedback.push(
-      "System has only " +
-        nodes.length +
-        " component(s) — this is under-provisioned for any real workload. A minimal production system needs at least DNS → Load Balancer → App Server → Database. Add the missing layers.",
+      m
+        ? NO_TRAFFIC_FEEDBACK
+        : "Cost is measured by simulating your design at the problem's peak and pricing what each component handles; the simulation didn't run.",
     );
-  } else if (nodes.length <= 35) {
-    score += PARTIAL.componentCount;
+  } else if (m.budgetMonthlyUsd === undefined) {
     feedback.push(
-      "System has " +
-        nodes.length +
-        " components — this is getting complex. Each component adds operational cost (hosting, monitoring, on-call burden). Verify each component serves a distinct, necessary purpose.",
+      "This problem has no monthly budget, so the cost isn't judged. Give the problem a budget to score it.",
     );
   } else {
-    feedback.push(
-      "System has " +
-        nodes.length +
-        " components — this is likely over-engineered. Each component adds operational cost (hosting, monitoring, on-call burden). Over-engineering a simple problem is as costly as under-engineering a complex one. Consider consolidating.",
-    );
-  }
-
-  // Appropriate storage choice
-  const storageNodes = nodes.filter((n) => n.data.category === "storage");
-  if (storageNodes.length >= 1 && storageNodes.length <= 5) {
-    score += BUDGET.storageCount;
-    passed.push("Appropriate number of storage components — each serves a distinct purpose");
-  } else if (storageNodes.length === 0) {
-    feedback.push(
-      "No storage components in your design — where is data persisted? Every system needs at least one database. Without persistent storage, you lose all data on restart.",
-    );
-  } else {
-    feedback.push(
-      "You have " +
-        storageNodes.length +
-        " storage components — consider consolidating. Each storage system requires backups, monitoring, and operational expertise. Use the minimum number of distinct stores that satisfy your access patterns.",
-    );
-  }
-
-  // Caching reduces DB load = cost savings — both must be on the request path
-  const hasCache = connectedIds.has("cache");
-  const hasDB = connectedIds.has("sql-db") || connectedIds.has("nosql-db");
-  if (hasCache && hasDB) {
-    score += BUDGET.cacheSavings;
-    passed.push(
-      "Cache reduces expensive database queries — a $50/mo Redis instance can save $500/mo in DB scaling costs",
-    );
-  } else if (hasDB && !hasCache) {
-    if (placedIds.has("cache")) {
-      feedback.push(
-        "You placed a Cache but it isn't connected to the request path — it's costing money without absorbing any database load. Connect your App Servers to it.",
+    const offered = new Map(m.atPeak.nodes.map((n) => [n.nodeId, n.offeredRps]));
+    const estimate = estimateCost(nodes, (id) => offered.get(id) ?? 0);
+    const budget = m.budgetMonthlyUsd;
+    const ratio = estimate.monthly / budget;
+    const top = estimate.lines
+      .filter((l) => l.monthly > 0)
+      .slice(0, 3)
+      .map((l) => `${l.label} ${formatMoney(l.monthly)}`)
+      .join(", ");
+    score += budgetPoints(ratio);
+    const costs = `Costs ${formatMoney(estimate.monthly)}/month at the peak (${rps(m.peakRps)} rps)`;
+    if (ratio <= 1) {
+      passed.push(
+        `${costs}, within the ${formatMoney(budget)} budget (${pct(ratio)} of it). Biggest lines: ${top || "none"}.`,
       );
     } else {
       feedback.push(
-        "Add a Cache (Redis/Memcached) to reduce database load and cost. Databases are one of the most expensive components to scale. A cache costing $50-100/month can handle reads that would otherwise require a $500+/month larger DB instance.",
+        `${costs}: ${pct(ratio - 1)} over the ${formatMoney(budget)} budget. Biggest lines: ${top}. Per-request services (CDN, managed gateways, object storage) grow with traffic; caching and batching cut them, and right-sizing trims idle instances.`,
       );
     }
-  }
-  // No cache or no DB = 0 points for this check (cache cost savings only apply when both exist)
-
-  // No disconnected nodes — self-loops and edges to non-component
-  // nodes (text annotations) don't count as being "connected"
-  const nodeIds = new Set(nodes.map((n) => n.id));
-  const attachedNodes = new Set<string>();
-  for (const edge of edges) {
-    if (edge.source === edge.target) continue;
-    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
-    attachedNodes.add(edge.source);
-    attachedNodes.add(edge.target);
-  }
-  const disconnected = nodes.filter((n) => !attachedNodes.has(n.id));
-  if (disconnected.length === 0) {
-    score += BUDGET.noDisconnected;
-    passed.push("All components are connected — no wasted resources sitting idle");
-  } else {
-    feedback.push(
-      `${disconnected.length} disconnected component(s) are not connected to anything — they're costing money without providing value. Either connect them to your architecture or remove them. Idle infrastructure is pure waste.`,
-    );
-  }
-
-  // CDN offloads origin traffic
-  if (connectedIds.has("cdn")) {
-    score += BUDGET.cdn;
-    passed.push(
-      "CDN offloads traffic from origin servers, reducing compute and bandwidth costs significantly",
-    );
-  } else if (placedIds.has("cdn")) {
-    feedback.push(
-      "You placed a CDN but it isn't connected to the request path — it can't offload any origin traffic. Put it in front of your origin servers.",
-    );
-  } else {
-    feedback.push(
-      "Add a CDN to offload static content delivery from your origin servers. CDN bandwidth costs $0.01-0.08/GB vs $0.09-0.12/GB for origin egress. For a media-heavy service serving 100TB/month, a CDN can save $4,000-8,000/month in bandwidth alone.",
-    );
-  }
-
-  // Async processing avoids over-provisioning compute
-  if (connectedIds.has("message-queue")) {
-    score += BUDGET.queue;
-    passed.push(
-      "Message queue enables right-sizing compute — process background tasks at lower priority instead of provisioning for peak",
-    );
-  } else if (placedIds.has("message-queue")) {
-    feedback.push(
-      "You placed a Message Queue but it isn't connected to the request path — no work is being offloaded to it. Connect a producer so it can absorb background tasks.",
-    );
-  } else {
-    feedback.push(
-      "Add a Message Queue for background processing. Without async offloading, you must provision your App Servers for peak load including background tasks. With a queue, you can run cheaper, smaller worker instances that process tasks at their own pace.",
-    );
-  }
-
-  // Efficient architecture — not duplicating functionality
-  const hasApiGw = placedIds.has("api-gateway");
-  const hasRateLimiter = placedIds.has("rate-limiter");
-  const hasServiceMesh = placedIds.has("service-mesh");
-  const duplicateNetworking = hasApiGw && hasRateLimiter && hasServiceMesh;
-  if (!duplicateNetworking) {
-    score += BUDGET.noDuplicateNetworking;
-    passed.push("No excessive duplication of networking functionality");
-  } else {
-    feedback.push(
-      "You have an API Gateway, Rate Limiter, and Service Mesh — some functionality overlaps. API Gateways often include rate limiting built-in. Consider whether you need all three or if consolidating would reduce complexity and cost.",
-    );
   }
 
   // Measured: no tier keeps an instance it doesn't need at the peak (with one
   // fewer it would still run under OVERPROVISIONED_UTILIZATION).
-  if (!m || connectedNodes.length === 0) {
-    feedback.push(
-      "Over-provisioning is measured by simulating your design at the problem's peak; there's nothing to measure yet.",
-    );
+  // Without traffic nothing is sized by load (the budget check already said why).
+  if (!m || connectedNodes.length === 0 || noTraffic(m)) {
+    if (m && !noTraffic(m)) {
+      feedback.push(
+        "Over-provisioning is measured by simulating your design at the problem's peak; there's nothing to measure yet.",
+      );
+    }
   } else {
     // Nodes without traffic (control planes such as a quorum) aren't sized by load.
     const idle = metricsOf(m.atPeak, connectedNodes).filter(({ node, m: nm }) => {

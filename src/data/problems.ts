@@ -14,6 +14,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 75000,
       latencyMs: 100,
       users: "100M DAU",
+      budgetMonthlyUsd: 360_000,
     },
     constraints: [
       "Short codes must be unique and non-enumerable — use random key generation or a Key Generation Service rather than base62-encoding a sequential counter (predictable/enumerable)",
@@ -92,6 +93,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 500000,
       latencyMs: 200,
       users: "250M DAU",
+      budgetMonthlyUsd: 3_400_000,
     },
     constraints: [
       "Timeline should be eventually consistent within 5 seconds of a new post",
@@ -186,6 +188,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 50000,
       latencyMs: 50,
       users: "200M DAU",
+      budgetMonthlyUsd: 52_000,
     },
     constraints: [
       "Messages delivered in under 50ms for online users via persistent WebSocket connections",
@@ -268,6 +271,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 1000,
       latencyMs: 100,
       users: "50M DAU",
+      budgetMonthlyUsd: 85_000,
     },
     constraints: [
       "Driver matching within 5 seconds using geospatial proximity search",
@@ -349,6 +353,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 1000000,
       latencyMs: 1000,
       users: "~2.5B MAU",
+      budgetMonthlyUsd: 1_100_000,
     },
     constraints: [
       "Videos transcoded into multiple resolutions (360p, 720p, 1080p, 4K) and codecs (H.264, VP9, AV1)",
@@ -429,6 +434,7 @@ export const PROBLEMS: Problem[] = [
       latencyMs: 5,
       users: "50M DAU",
       slaScope: "rate-limiter",
+      budgetMonthlyUsd: 18_000,
     },
     constraints: [
       "Sub-millisecond decision latency — rate limiting must not become a bottleneck itself",
@@ -499,6 +505,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 2000,
       latencyMs: 500,
       users: "500M DAU",
+      budgetMonthlyUsd: 300_000,
     },
     constraints: [
       "Support push (iOS/Android/Web), email, and SMS delivery channels with pluggable providers",
@@ -572,6 +579,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 100,
       latencyMs: 50,
       users: "500M+ DAU, ~8.5B searches/day",
+      budgetMonthlyUsd: 1_500_000,
     },
     constraints: [
       "Response time under 50ms at p99 — suggestions must appear as the user types each character",
@@ -642,6 +650,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 50000,
       latencyMs: 1000,
       users: "N/A (internal system)",
+      budgetMonthlyUsd: 34_000,
     },
     constraints: [
       "Crawl rate of 1000+ pages per second across the entire cluster",
@@ -713,6 +722,7 @@ export const PROBLEMS: Problem[] = [
       latencyMs: 2,
       users: "N/A (infrastructure)",
       slaScope: "cache",
+      budgetMonthlyUsd: 97_000,
     },
     constraints: [
       "Sub-millisecond read latency at p99 with support for 1M+ ops/sec per node",
@@ -774,6 +784,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 5000,
       latencyMs: 200,
       users: "10M merchants",
+      budgetMonthlyUsd: 14_000,
     },
     constraints: [
       "Effectively-once (idempotent) payment execution — idempotency keys make at-least-once retries safe, preventing double-charges under any failure scenario",
@@ -849,6 +860,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 1000,
       latencyMs: 200,
       users: "100M DAU",
+      budgetMonthlyUsd: 930_000,
     },
     constraints: [
       "No double-booking — optimistic locking or distributed locks must prevent two users from booking the same seat",
@@ -944,6 +956,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 5000,
       latencyMs: 100,
       users: "100M DAU",
+      budgetMonthlyUsd: 310_000,
     },
     constraints: [
       "Real-time collaboration with changes visible to all editors within 200ms",
@@ -1032,6 +1045,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 1000000,
       latencyMs: 500,
       users: "700M registered users",
+      budgetMonthlyUsd: 370_000,
     },
     constraints: [
       "Block-level chunking (4MB blocks) with content-addressable storage for deduplication",
@@ -1108,6 +1122,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 100,
       latencyMs: 200,
       users: "10M DAU",
+      budgetMonthlyUsd: 3_900,
     },
     constraints: [
       "Real-time spot availability updated within 2 seconds of vehicle entry/exit via IoT sensors",
@@ -1176,6 +1191,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 500000,
       latencyMs: 200,
       users: "500M DAU",
+      budgetMonthlyUsd: 770_000,
     },
     constraints: [
       "Photo upload processing pipeline: resize to multiple resolutions, apply optional filters, strip EXIF data",
@@ -1254,6 +1270,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 500000,
       latencyMs: 200,
       users: "200M DAU",
+      budgetMonthlyUsd: 420_000,
     },
     constraints: [
       "Adaptive bitrate audio streaming (96kbps, 160kbps, 320kbps) based on network conditions",
@@ -1330,6 +1347,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 20000,
       latencyMs: 200,
       users: "300M active accounts",
+      budgetMonthlyUsd: 970_000,
     },
     constraints: [
       "Product catalog with 100M+ SKUs, each with variants (size, color), pricing tiers, and seller information",
@@ -1420,6 +1438,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 10000,
       latencyMs: 100,
       users: "100M DAU",
+      budgetMonthlyUsd: 620_000,
     },
     constraints: [
       "Workspace isolation — data from one workspace must never leak to another (multi-tenant security)",
@@ -1511,6 +1530,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 50000,
       latencyMs: 100,
       users: "N/A (infrastructure)",
+      budgetMonthlyUsd: 180_000,
     },
     constraints: [
       "Ingest 500K+ metrics data points per second with sub-second write latency",
@@ -1587,6 +1607,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 2000000,
       latencyMs: 100,
       users: "302M subscribers",
+      budgetMonthlyUsd: 1_400_000,
     },
     constraints: [
       "Adaptive bitrate streaming (ABR) using per-shot encoding — each scene encoded at optimal bitrate/resolution ladder",
@@ -1671,6 +1692,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 100000,
       latencyMs: 200,
       users: "75M MAU",
+      budgetMonthlyUsd: 560_000,
     },
     constraints: [
       "Geospatial proximity search using geohashing or R-tree index — find users within configurable radius (1-160 km)",
@@ -1746,6 +1768,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 5000000,
       latencyMs: 200,
       users: "2B+ MAU",
+      budgetMonthlyUsd: 2_300_000,
     },
     constraints: [
       "Map tile serving at 20+ zoom levels — vector tiles for mobile, raster tiles for web, pre-rendered and cached at CDN edge",
@@ -1820,6 +1843,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 500000,
       latencyMs: 50,
       users: "300M daily meeting participants",
+      budgetMonthlyUsd: 160_000,
     },
     constraints: [
       "End-to-end glass-to-glass latency under 150ms for real-time audio/video using WebRTC or custom UDP protocol",
@@ -1896,6 +1920,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 50000,
       latencyMs: 200,
       users: "~42M MAU (37M+ all-time high reported Dec 2023, growing double-digit YoY)",
+      budgetMonthlyUsd: 450_000,
     },
     constraints: [
       "Real-time order tracking with GPS updates every 5 seconds from active delivery drivers",
@@ -1969,6 +1994,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 200000,
       latencyMs: 200,
       users: "~120M daily active uniques (DAUq, Q4 2025)",
+      budgetMonthlyUsd: 820_000,
     },
     constraints: [
       "Multiple ranking algorithms: hot (time-decayed score), top (by time window), controversial (balanced up/down), best (Wilson score)",
@@ -2044,6 +2070,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 100000,
       latencyMs: 200,
       users: "200M+ active users, ~5M DAU",
+      budgetMonthlyUsd: 430_000,
     },
     constraints: [
       "Search with compound filters: location (geo-radius), date range availability, price range, guest count, amenities, property type",
@@ -2119,6 +2146,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 500000,
       latencyMs: 50,
       users: "3B MAU",
+      budgetMonthlyUsd: 5_500_000,
     },
     constraints: [
       "End-to-end encryption using Signal Protocol — server stores only ciphertext, key exchange via X3DH (Extended Triple Diffie-Hellman)",
@@ -2205,6 +2233,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 100000000,
       latencyMs: 200,
       users: "8.5B queries/day",
+      budgetMonthlyUsd: 2_800_000,
     },
     constraints: [
       "Distributed inverted index sharded across thousands of machines — each shard holds a portion of the web",
@@ -2280,6 +2309,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 50000,
       latencyMs: 200,
       users: "~178M monthly unique visitors across web + app (2024)",
+      budgetMonthlyUsd: 400_000,
     },
     constraints: [
       "Geospatial search using QuadTree or Geohash index — find businesses within radius sorted by relevance and distance",
@@ -2352,6 +2382,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 5000000,
       latencyMs: 100,
       users: "1.5B MAU",
+      budgetMonthlyUsd: 2_200_000,
     },
     constraints: [
       "For You Page recommendation combining collaborative filtering, content embeddings, and real-time engagement signals",
@@ -2428,6 +2459,7 @@ export const PROBLEMS: Problem[] = [
       latencyMs: 5,
       users: "N/A (infrastructure)",
       slaScope: "app-server",
+      budgetMonthlyUsd: 240_000,
     },
     constraints: [
       "Partitioned commit log — messages within a partition are strictly ordered and assigned monotonic offsets",
@@ -2495,6 +2527,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 10000,
       latencyMs: 200,
       users: "100M DAU",
+      budgetMonthlyUsd: 27_000,
     },
     constraints: [
       "Effectively-once (idempotent) transaction execution using idempotency keys — retries must return the same result without re-debiting",
@@ -2569,6 +2602,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 50000,
       latencyMs: 100,
       users: "10M DAU",
+      budgetMonthlyUsd: 250_000,
     },
     constraints: [
       "Real-time collaborative editing using OT or CRDT with multi-cursor support and conflict resolution",
@@ -2647,6 +2681,7 @@ export const PROBLEMS: Problem[] = [
       storageGB: 200000,
       latencyMs: 500,
       users: "5M DAU",
+      budgetMonthlyUsd: 50_000,
     },
     constraints: [
       "Pipeline orchestration: define workflows as DAGs (directed acyclic graphs) of jobs with dependency edges",
