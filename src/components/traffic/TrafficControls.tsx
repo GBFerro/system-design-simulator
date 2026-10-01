@@ -4,16 +4,12 @@ import { useId } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { baseRateOf, rpsToSlider, sliderToRps } from "@/engine/traffic/patterns";
-import { MAX_RPS, MIN_RPS, SIM_SPEEDS } from "@/engine/traffic/types";
+import { MAX_RPS, MIN_RPS } from "@/engine/traffic/types";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { formatClock, formatMs, formatPercent, formatRps } from "./format";
 import { PatternEditor } from "./PatternEditor";
-import {
-  resetSimulation,
-  setSimulationSpeed,
-  setTrafficPattern,
-  togglePlayback,
-} from "./simActions";
+import { SpeedToggle } from "./SpeedToggle";
+import { resetSimulation, setTrafficPattern, togglePlayback } from "./simActions";
 
 const SLIDER_STEPS = 1000;
 
@@ -37,7 +33,6 @@ function SimClock() {
 /** Play/pause/reset and speed (TRF-01). */
 function PlaybackBar() {
   const playback = useRuntimeStore((s) => s.playback);
-  const speed = useRuntimeStore((s) => s.speed);
   const simTime = useRuntimeStore((s) => s.simTimeSec);
   const running = playback === "running";
 
@@ -68,22 +63,7 @@ function PlaybackBar() {
         <RotateCcw className="h-3.5 w-3.5" />
       </button>
 
-      <div role="group" aria-label="Simulation speed" className="flex rounded-md bg-zinc-800 p-0.5">
-        {SIM_SPEEDS.map((x) => (
-          <button
-            key={x}
-            type="button"
-            onClick={() => setSimulationSpeed(x)}
-            aria-pressed={speed === x}
-            aria-label={`Speed ${x}×`}
-            className={`h-8 min-w-9 rounded px-2 font-mono text-xs transition-colors ${
-              speed === x ? "bg-zinc-600 text-zinc-50" : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            {x}×
-          </button>
-        ))}
-      </div>
+      <SpeedToggle label="Simulation speed" />
     </div>
   );
 }

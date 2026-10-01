@@ -16,6 +16,7 @@ import { useCanvasStore } from "@/store/canvasStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore, type PlaybackStatus } from "@/store/runtimeStore";
 import type { SimulationResult } from "@/types/simulation";
+import type { SteadyUnderFault } from "./faults/steady";
 import type { FrameListener, InjectResult, SimFrame } from "./session";
 import { toSimulationResult } from "./toSimulationResult";
 import type {
@@ -92,6 +93,25 @@ export async function analyzeGraph(
   }
   const { analyze } = await import("./analyze");
   return analyze(graph, rps, config);
+}
+
+/** Steady state of a compiled graph under one fault (Spec 09 scoring) — in the worker when possible. */
+export async function analyzeGraphUnderFault(
+  graph: SimGraph,
+  rps: number,
+  fault: FaultSpec,
+  config?: SimConfig,
+): Promise<SteadyUnderFault> {
+  const h = getWorker();
+  if (h) {
+    try {
+      return await Promise.race([h.api.analyzeUnderFault(graph, rps, fault, config), h.failed]);
+    } catch (err) {
+      disableWorker(err);
+    }
+  }
+  const { analyzeUnderFault } = await import("./faults/steady");
+  return analyzeUnderFault(graph, rps, fault, config);
 }
 
 /**

@@ -1,4 +1,4 @@
-import { ttlSpec } from "../params";
+import { PARAM, ttlSpec } from "../params";
 import { defineSchema } from "./define";
 
 export const dnsSchema = defineSchema(
@@ -9,6 +9,17 @@ export const dnsSchema = defineSchema(
       300,
       "How long resolvers cache the answer. Lower = faster failover, more lookups (300 s is a common record TTL).",
     ),
+    {
+      key: PARAM.lookupShare,
+      label: "Uncached lookups",
+      kind: "percent",
+      default: 0.01,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      group: "advanced",
+      help: "Share of requests that pay a fresh resolution. Browsers, the OS and resolvers cache the answer for the TTL, so most requests never reach DNS; only this share adds lookup time and load.",
+    },
   ],
   {
     serviceTimeMs: {

@@ -1,6 +1,17 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Clock, Pause, Play, X } from "lucide-react";
+import { useState } from "react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Flag,
+  Loader2,
+  Pause,
+  Play,
+  X,
+} from "lucide-react";
 import { useInterviewStore } from "@/store/interviewStore";
 
 function formatTime(seconds: number): string {
@@ -20,6 +31,7 @@ export function InterviewBar() {
   const prevPhase = useInterviewStore((s) => s.prevPhase);
   const endInterview = useInterviewStore((s) => s.endInterview);
   const toggleTimer = useInterviewStore((s) => s.toggleTimer);
+  const [finishing, setFinishing] = useState(false);
 
   if (mode !== "interview") return null;
 
@@ -141,6 +153,28 @@ export function InterviewBar() {
           </button>
 
           <div className="h-4 w-px bg-zinc-700" />
+
+          {/* Finish: score everything and open the report (Spec 09) */}
+          <button
+            onClick={() => {
+              if (finishing) return;
+              setFinishing(true);
+              void import("./finishInterview")
+                .then((m) => m.finishInterview())
+                .catch((err) => console.error("Finishing the interview failed", err))
+                .finally(() => setFinishing(false));
+            }}
+            disabled={finishing}
+            className="flex h-6 items-center gap-1 rounded-md bg-cyan-600 px-2 text-xs font-medium text-white transition-colors hover:bg-cyan-500 disabled:opacity-60"
+            title="Finish the interview and see the report"
+          >
+            {finishing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Flag className="h-3.5 w-3.5" />
+            )}
+            Finish
+          </button>
 
           {/* End interview */}
           <button

@@ -13,8 +13,7 @@ async function center(locator: Locator) {
 async function loadReferenceAndPlay(page: Page) {
   await page.goto("/");
   await expect(page.locator(".react-flow")).toBeVisible();
-  // The top bar title can overlap this button at 1280px; dispatch the click directly.
-  await page.getByTitle("Load reference solution").dispatchEvent("click");
+  await page.getByTitle("Load reference solution").click();
   await expect(nodes(page).first()).toBeVisible();
   await page.getByRole("tab", { name: "Simulate" }).click();
   const live = page.getByRole("region", { name: "Live traffic" });
@@ -70,7 +69,7 @@ test("inject a fault from the Chaos tab: blast radius, timeline, then heal", asy
 
 test("Kill/Restore from the context menu; faults need a live run", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("Load reference solution").dispatchEvent("click");
+  await page.getByTitle("Load reference solution").click();
   const app = nodes(page).filter({ hasText: "App Server" }).first();
   await expect(app).toBeVisible();
 

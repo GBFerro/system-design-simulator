@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { INTERVIEW_DATA } from "@/data/interviewData";
 import { LEARNING_PATH, PROBLEM_CONCEPTS } from "@/data/learningPath";
 import { PROBLEMS } from "@/data/problems";
+import { SYSTEM_COMPONENTS } from "@/data/components";
+import { compileGraph } from "@/domain/graph/compile";
+import { getFaultType } from "@/engine/faults/catalog";
+import { compileFault } from "@/engine/faults/compile";
+import { resolveDrillStep } from "@/interview/drill";
+import { buildReferenceGraph } from "@/lib/loadReference";
 
 // Ids, duplicates and learning-path coverage are in catalog.test.ts; this file
 // checks the "Data conventions" of CLAUDE.md that are about order and wiring.
@@ -44,6 +50,56 @@ describe("reference solutions", () => {
           !edges.some((e) => e.target === n.componentId && e.source !== n.componentId),
       );
       expect(hasEntry, `${id}: no entry node, nothing on the request path is reachable`).toBe(true);
+    }
+  });
+});
+
+describe("failure drill scripts (Spec 09)", () => {
+  const catalogIds = new Set(SYSTEM_COMPONENTS.map((c) => c.id));
+
+  it("every problem has 2–3 valid faults in the catalog", () => {
+    for (const d of INTERVIEW_DATA) {
+      expect(d.drill.length, `${d.problemId}: drill length`).toBeGreaterThanOrEqual(2);
+      expect(d.drill.length, `${d.problemId}: drill length`).toBeLessThanOrEqual(3);
+      for (const step of d.drill) {
+        const type = getFaultType(step.fault.type);
+        expect(type, `${d.problemId}: unknown fault ${step.fault.type}`).toBeDefined();
+        expect(step.window, `${d.problemId}: window`).toBeGreaterThan(0);
+        if (step.fault.intensity !== undefined) {
+          expect(
+            type!.intensity,
+            `${d.problemId}: ${step.fault.type} takes no intensity`,
+          ).toBeDefined();
+          expect(step.fault.intensity).toBeGreaterThanOrEqual(type!.intensity!.min);
+          expect(step.fault.intensity).toBeLessThanOrEqual(type!.intensity!.max);
+        }
+        if (step.followUpId)
+          expect(
+            d.followUpQuestions.some((q) => q.id === step.followUpId),
+            `${d.problemId}: follow-up ${step.followUpId}`,
+          ).toBe(true);
+        const t = step.fault.target;
+        const ids =
+          t.kind === "node" ? t.componentIds : t.kind === "edge" ? [...t.from, ...t.to] : [];
+        for (const id of ids) expect(catalogIds.has(id), `${d.problemId}: ${id}`).toBe(true);
+      }
+    }
+  });
+
+  it("every scripted fault applies to the problem's reference solution as written", () => {
+    for (const p of PROBLEMS) {
+      const d = INTERVIEW_DATA.find((x) => x.problemId === p.id)!;
+      const { nodes, edges } = buildReferenceGraph(p);
+      const graph = compileGraph(nodes, edges);
+      d.drill.forEach((step, i) => {
+        const r = resolveDrillStep(step, d, graph, null);
+        expect(r, `${p.id} step ${i + 1}`).not.toBeNull();
+        expect(r!.note, `${p.id} step ${i + 1} fell back`).toBeUndefined();
+        const compiled = compileFault(r!.spec, 0, { graph, readRatio: 0.9 });
+        expect(compiled.ok, `${p.id} step ${i + 1}: ${compiled.ok ? "" : compiled.error}`).toBe(
+          true,
+        );
+      });
     }
   });
 });

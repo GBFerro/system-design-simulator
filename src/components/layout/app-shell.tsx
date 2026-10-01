@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ReactFlowProvider, type Node } from "@xyflow/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ReactFlowProvider } from "@xyflow/react";
 import { X } from "lucide-react";
 import { TopBar } from "./top-bar";
 import { SupportFAB } from "./SupportFAB";
@@ -9,10 +9,9 @@ import { Sidebar } from "@/components/sidebar/Sidebar";
 import { RightPanel } from "@/components/panel/RightPanel";
 import { DesignCanvas } from "@/components/canvas/DesignCanvas";
 import { useAppStore } from "@/store/appStore";
-import { isActiveTabReadOnly, useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 import { useSimulationStore } from "@/store/simulationStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
-import { scoreDesign } from "@/scoring/scorer";
 import { PROBLEMS } from "@/data/problems";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
 import { Toast } from "@/components/ui/Toast";
@@ -33,8 +32,18 @@ import { PaletteDndProvider } from "@/components/canvas/PaletteDnd";
 import { OPEN_PROPERTIES_EVENT, isTypingTarget } from "@/components/canvas/canvasEvents";
 import { rehydrateAllStores } from "@/store/hydration";
 import { togglePlayback } from "@/components/traffic/simActions";
+import { measureAndScore } from "@/components/interview/scoreNow";
+import { useReportStore } from "@/store/reportStore";
+import dynamic from "next/dynamic";
+
+// The interview report only loads once an interview is finished (Spec 09).
+const ReportDialog = dynamic(
+  () => import("@/components/interview/ReportDialog").then((m) => m.ReportDialog),
+  { ssr: false },
+);
 
 export function AppShell() {
+  const reportOpen = useReportStore((st) => st.open);
   const isMobile = useIsMobile();
   const leftSidebarOpen = useAppStore((s) => s.leftSidebarOpen);
   const rightPanelOpen = useAppStore((s) => s.rightPanelOpen);
@@ -163,24 +172,37 @@ export function AppShell() {
     })();
   }, []);
 
+  const scoringRef = useRef(false);
   const handleScore = useCallback(() => {
-    const { nodes, edges } = useCanvasStore.getState();
-    const componentNodes = nodes.filter((n) => n.type !== "text") as Node<ComponentNodeData>[];
-
-    if (componentNodes.length === 0) {
+    if (!useCanvasStore.getState().nodes.some((n) => n.type !== "text")) {
       useAppStore.getState().showToast("No components to score", "info");
       return;
     }
+    if (scoringRef.current) return;
+    scoringRef.current = true;
 
-    const result = scoreDesign(componentNodes, edges);
-    useSimulationStore.getState().setScoreResult(result);
-    useSimulationStore.getState().setShowScore(true);
-    useAppStore.getState().setActiveRightTab("score");
+    // The rubric is measured (Spec 09): simulate the design, then score it.
+    void (async () => {
+      try {
+        const scored = await measureAndScore();
+        if (!scored) return;
+        if (!scored.measured) {
+          useAppStore
+            .getState()
+            .showToast("Couldn't simulate the design; measured checks score 0", "error");
+        }
+        useSimulationStore.getState().setScoreResult(scored.result);
+        useSimulationStore.getState().setShowScore(true);
+        useAppStore.getState().setActiveRightTab("score");
 
-    // On mobile, auto-open the right sheet so the score is visible
-    if (isMobile) setMobileRightOpen(true);
+        // On mobile, auto-open the right sheet so the score is visible
+        if (isMobile) setMobileRightOpen(true);
 
-    useAppStore.getState().showToast("Design scored!", "success");
+        useAppStore.getState().showToast("Design scored!", "success");
+      } finally {
+        scoringRef.current = false;
+      }
+    })();
   }, [isMobile]);
 
   const handleClearCanvas = useCallback(() => {
@@ -427,6 +449,7 @@ export function AppShell() {
             open={interviewDialogOpen}
             onClose={() => setInterviewDialogOpen(false)}
           />
+          {reportOpen && <ReportDialog />}
           <CreateProblemDialog
             open={createProblemDialogOpen}
             onClose={() => setCreateProblemDialogOpen(false)}

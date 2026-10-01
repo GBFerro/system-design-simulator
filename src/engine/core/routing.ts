@@ -34,6 +34,15 @@ export function hitRateOf(node: SimNode): number {
   return clamp01(paramNumber(node, PARAM.hitRate, 0));
 }
 
+/**
+ * Share of a node's requests that actually hit its station: 1 for every
+ * node except resolvers (DNS), where cached answers skip the lookup.
+ */
+export function lookupShareOf(node: SimNode): number {
+  const v = paramNumber(node, PARAM.lookupShare, 1);
+  return v >= 0 && v <= 1 ? v : 1;
+}
+
 /** Retries a node makes on its outgoing calls (client-side). */
 export function maxRetriesOf(node: SimNode): number {
   return Math.min(10, Math.max(0, Math.floor(paramNumber(node, PARAM.maxRetries, 0))));

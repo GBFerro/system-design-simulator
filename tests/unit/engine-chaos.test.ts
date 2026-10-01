@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { compileGraph, type SimGraph } from "@/domain/graph/compile";
+import { analyze } from "@/engine/analyze";
 import { FlowEngine } from "@/engine/engine";
+import { analyzeUnderFault } from "@/engine/faults/steady";
 import { edgeTargets, FAULT_CATALOG, getFaultType, nodeTargets } from "@/engine/faults/catalog";
 import { compileFault } from "@/engine/faults/compile";
 import { effectsAt } from "@/engine/faults/effects";
@@ -460,5 +462,95 @@ describe("FlowEngine faults", () => {
     expect(() =>
       engine.inject({ type: "cache-flush", target: { kind: "node", id: "app" } }),
     ).toThrow(FaultError);
+  });
+});
+
+describe("analyzeUnderFault (Spec 09 scoring)", () => {
+  it("reads the fault after its transients: an LB routes around dead instances", () => {
+    const g = shop();
+    const base = analyze(g, RPS);
+    const r = analyzeUnderFault(g, RPS, {
+      type: "kill-instances",
+      target: { kind: "node", id: "app" },
+      intensity: 2,
+      durationSec: 60,
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Past the health-check window: no errors, twice the utilization.
+    expect(r.steady.errorRate).toBeLessThan(0.01);
+    const util = (s: typeof base) => s.nodes.find((n) => n.nodeId === "app")!.utilization;
+    expect(util(r.steady)).toBeCloseTo(util(base) * 2, 5);
+  });
+
+  it("a dead single target fails every request; a spike multiplies the offered load", () => {
+    const g = shop();
+    const down = analyzeUnderFault(g, RPS, {
+      type: "kill-node",
+      target: { kind: "node", id: "app" },
+    });
+    expect(down.ok && down.steady.errorRate).toBeGreaterThan(0.99);
+    const spike = analyzeUnderFault(g, RPS, {
+      type: "traffic-spike",
+      target: { kind: "global" },
+      intensity: 3,
+      durationSec: 30,
+    });
+    expect(spike.ok && spike.steady.offeredRps).toBeCloseTo(RPS * 3, 6);
+  });
+
+  it("a DB primary failure with a standby: writes are back after the failover", () => {
+    const r = analyzeUnderFault(shop(), RPS, {
+      type: "db-primary-failure",
+      target: { kind: "node", id: "db" },
+      durationSec: 90,
+    });
+    expect(r.ok && r.steady.errorRate).toBeLessThan(0.01);
+  });
+
+  it("rejects a fault that can't apply", () => {
+    expect(
+      analyzeUnderFault(shop(), RPS, { type: "cache-flush", target: { kind: "node", id: "app" } })
+        .ok,
+    ).toBe(false);
+  });
+
+  it("analyze() without effects is unchanged", () => {
+    const g = shop();
+    expect(analyze(g, RPS, { seed: 5 }, null)).toEqual(analyze(g, RPS, { seed: 5 }));
+  });
+});
+
+describe("DNS resolver (lookupShare)", () => {
+  const dnsGraph = (share: number) =>
+    compileGraph(
+      [
+        comp("dns", "dns", { lookupShare: share, capacityPerInstance: 1000, serviceTimeMs: 20 }),
+        comp("app", "app-server", { instances: 10, capacityPerInstance: 5000, serviceTimeMs: 5 }),
+      ],
+      [wire("dns", "app")],
+    );
+
+  it("only the uncached share loads the resolver and pays its lookup time", () => {
+    const cached = analyze(dnsGraph(0.01), 10_000);
+    const uncached = analyze(dnsGraph(1), 10_000);
+    const dns = (s: typeof cached) => s.nodes.find((n) => n.nodeId === "dns")!;
+    // 1% of 10k = 100 lookups/s on a 1000/s resolver; all 10k would overload it.
+    expect(dns(cached).utilization).toBeCloseTo(0.1, 6);
+    expect(dns(uncached).utilization).toBeGreaterThan(1);
+    // Every request still reaches the app.
+    expect(cached.nodes.find((n) => n.nodeId === "app")!.offeredRps).toBeCloseTo(10_000, 6);
+    expect(cached.errorRate).toBe(0);
+    // p50 no longer includes the 20 ms lookup.
+    expect(cached.latency.p50Ms).toBeLessThan(10);
+  });
+
+  it("the tick loop agrees: traffic passes, the resolver sees only lookups", () => {
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(dnsGraph(0.01), { seed: 3 });
+    engine.setTraffic({ kind: "constant", rps: 10_000 });
+    const snaps = run(engine, 3);
+    expect(mean(snaps, (s) => s.nodes.app.rpsIn)).toBeGreaterThan(9_000);
+    expect(mean(snaps, (s) => s.nodes.dns.utilization)).toBeLessThan(0.2);
   });
 });

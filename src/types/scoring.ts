@@ -1,3 +1,5 @@
+import type { SteadyState } from "@/engine/types";
+
 /**
  * Connectivity context computed once per scoring run and shared by all rules.
  * Built from component nodes only — edges referencing unknown nodes (e.g. text
@@ -28,4 +30,25 @@ export interface ScoreResult {
   verdict: string;
   verdictColor: string;
   summary: string;
+}
+
+/**
+ * What the measured rubric (Spec 09) scores against: the design simulated by
+ * `analyze()` at the problem's peak and twice it, and under the problem's
+ * drill faults. Built by `scoring/measure.ts`; without it the measured checks
+ * score 0 and say why.
+ */
+export interface Measurements {
+  /** Load of the problem's peak, req/s (reference peak until phase 2 captures an estimate). */
+  peakRps: number;
+  /** Latency SLA; `scope` = component whose hop p99 it refers to (else end to end). */
+  sla: { p99Ms: number; scope?: string };
+  atPeak: SteadyState;
+  atDoublePeak: SteadyState;
+  /** The drill's faults in steady state (outside an interview). */
+  underFaults: { label: string; errorRate: number }[];
+  /** A finished interview drill: faults whose SLO held before they ended. */
+  drill?: { held: number; total: number };
+  /** Deepest sync path of the problem's reference solution, for the hop check. */
+  referenceSyncDepth?: number;
 }

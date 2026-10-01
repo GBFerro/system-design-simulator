@@ -1,3 +1,5 @@
+import type { FaultType } from "@/engine/faults/types";
+
 export interface RequirementItem {
   id: string;
   text: string;
@@ -29,8 +31,93 @@ export interface DataModelEntity {
   partitionKey?: string;
 }
 
+/**
+ * Where a drill fault lands in the candidate's design (Spec 09). Node ids
+ * differ per design, so targets are component types, resolved at drill time
+ * to the busiest matching node or link.
+ */
+export type DrillTarget =
+  | { kind: "global" }
+  /** The busiest node of any of these types. */
+  | { kind: "node"; componentIds: string[] }
+  /** The busiest link from a node of `from` to a node of `to`. */
+  | { kind: "edge"; from: string[]; to: string[] }
+  /** The busiest tier: most traffic, entry points and load balancers excluded. */
+  | { kind: "busiest" };
+
+/** One fault of the failure drill (phase 6). */
+export interface DrillStep {
+  /** The follow-up this fault acts out (its question and answer are shown); absent → the fault type's generic one. */
+  followUpId?: string;
+  fault: { type: FaultType; target: DrillTarget; intensity?: number };
+  /** Simulated seconds the fault lasts; it heals by itself. */
+  window: number;
+}
+
+/** Question and reference answer of a drill step without a follow-up, by fault type. */
+export const GENERIC_DRILL_QA: Record<FaultType, { question: string; answer: string }> = {
+  "kill-instances": {
+    question: "An instance of one of your busiest tiers just died. Does the system stay up?",
+    answer:
+      "Run N+1 stateless instances behind a load balancer whose health checks take the dead one out of rotation; until they notice, its share of requests fails, so keep the check interval short and let clients retry idempotent calls. Size each tier to stay below ~70–80% utilization with one instance down.",
+  },
+  "kill-node": {
+    question: "A whole tier just went down. What keeps the rest of the system working?",
+    answer:
+      "Anything that calls it synchronously fails with it. Put redundant copies behind a load balancer (ideally in different availability zones), and for non-critical dependencies degrade gracefully: timeouts, a circuit breaker and a fallback (cached or default response) instead of failing the whole request.",
+  },
+  "slow-node": {
+    question:
+      "One dependency becomes 5× slower without failing (a grey failure). What happens to your latency and to its callers?",
+    answer:
+      "Health checks still pass, so traffic keeps flowing to it; callers pile up waiting, their own queues and thread pools fill, and latency spreads upstream. Set timeouts below the SLO, retry with backoff and jitter within a retry budget, and add a circuit breaker so callers fail fast (or fall back) instead of waiting.",
+  },
+  "traffic-spike": {
+    question:
+      "Traffic suddenly triples (a launch, a viral post). What breaks first and how do you protect it?",
+    answer:
+      "The tier with the least headroom saturates first and its queue grows until requests time out. Keep headroom and autoscaling for the stateless tiers, serve hot reads from caches/CDN, shed excess load at the edge (rate limiter or API gateway returning 429) and move non-critical work to a queue.",
+  },
+  "edge-latency": {
+    question:
+      "The network between two of your services suddenly adds hundreds of milliseconds. What do callers see?",
+    answer:
+      "Every call pays the extra round trip, so end-to-end latency jumps and callers with tight timeouts start failing. Set timeouts per hop from the latency budget, avoid long chains of synchronous calls, and prefer asynchronous messaging for work the user doesn't wait for.",
+  },
+  "packet-loss": {
+    question: "One link starts losing a share of its requests. How does your design cope?",
+    answer:
+      "Lost calls surface as timeouts or errors. Retries recover most of them if the operation is idempotent (use idempotency keys for writes), but they also add load: cap them with a retry budget and exponential backoff with jitter so a partial loss doesn't become a retry storm.",
+  },
+  partition: {
+    question:
+      "A network partition cuts two of your services apart. What happens to requests that need both?",
+    answer:
+      "They fail (or hang until the timeout). Decide per operation between consistency and availability: fail fast with a clear error, serve stale data from a cache, or accept the write locally and reconcile later through a queue once the partition heals.",
+  },
+  "cache-flush": {
+    question:
+      "Your cache is flushed at peak (a restart or a bad deploy). What happens to the database?",
+    answer:
+      "Every read misses at once and the database takes the whole read load (a cache stampede) until the hit rate recovers. Protect it with request coalescing or per-key locks so one request refills each hot key, staggered TTLs, warming the cache before it takes traffic, and headroom or a rate limit in front of the database.",
+  },
+  "db-primary-failure": {
+    question: "Your primary database fails. What happens to reads and writes?",
+    answer:
+      "Writes fail until a standby is promoted (a managed Multi-AZ failover typically takes a minute or two); reads can keep going on replicas. Run a synchronous standby, make clients retry writes idempotently with backoff, and buffer writes that can wait in a queue. With a single instance there is nothing to promote.",
+  },
+  "consumer-stopped": {
+    question:
+      "The consumers of one of your queues stop (a crash loop or a poison message). What happens?",
+    answer:
+      "Producers keep succeeding and the queue absorbs the work: nothing is lost, but consumer lag grows and the results arrive late. Alert on lag, move messages that keep failing to a dead-letter queue after N attempts, and scale consumers out to drain the backlog after recovery.",
+  },
+};
+
 export interface ProblemInterviewData {
   problemId: string;
+  /** Failure drill script (Spec 09): 2–3 faults injected in phase 6. */
+  drill: DrillStep[];
   requirements: RequirementItem[];
   followUpQuestions: FollowUpQuestion[];
   referenceAPIs: ReferenceAPI[];
@@ -49,6 +136,26 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "url-shortener",
+    drill: [
+      {
+        followUpId: "q1",
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -232,6 +339,22 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "twitter-feed",
+    drill: [
+      {
+        followUpId: "q2",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -440,6 +563,22 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "chat-system",
+    drill: [
+      {
+        followUpId: "q2",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["websocket-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "consumer-stopped", target: { kind: "node", componentIds: ["nosql-db"] } },
+        window: 60,
+      },
+      { fault: { type: "kill-instances", target: { kind: "busiest" }, intensity: 1 }, window: 60 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -638,6 +777,20 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "ride-sharing",
+    drill: [
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["stream-processor"] },
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -848,6 +1001,26 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "video-streaming",
+    drill: [
+      {
+        followUpId: "q2",
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["stream-processor"] },
+        },
+        window: 60,
+      },
+      {
+        followUpId: "q6",
+        fault: {
+          type: "packet-loss",
+          target: { kind: "edge", from: ["load-balancer"], to: ["api-gateway", "app-server"] },
+          intensity: 0.2,
+        },
+        window: 60,
+      },
+      { fault: { type: "kill-instances", target: { kind: "busiest" }, intensity: 1 }, window: 60 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -1053,6 +1226,15 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "rate-limiter",
+    drill: [
+      {
+        followUpId: "q1",
+        fault: { type: "kill-node", target: { kind: "node", componentIds: ["cache"] } },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+      { fault: { type: "kill-instances", target: { kind: "busiest" }, intensity: 1 }, window: 60 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -1214,6 +1396,21 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "notification-system",
+    drill: [
+      {
+        followUpId: "q2",
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["notification-service"] },
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -1424,6 +1621,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "typeahead-autocomplete",
+    drill: [
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["search"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -1599,6 +1815,28 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "web-crawler",
+    drill: [
+      {
+        fault: { type: "consumer-stopped", target: { kind: "node", componentIds: ["app-server"] } },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -1790,6 +2028,19 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "distributed-cache",
+    drill: [
+      {
+        followUpId: "q2",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+      { fault: { type: "kill-instances", target: { kind: "busiest" }, intensity: 1 }, window: 60 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -1966,6 +2217,24 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "payment-system",
+    drill: [
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      {
+        fault: { type: "consumer-stopped", target: { kind: "node", componentIds: ["nosql-db"] } },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["distributed-lock"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -2189,6 +2458,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "ticket-booking",
+    drill: [
+      {
+        followUpId: "q6",
+        fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 5 },
+        window: 30,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      {
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["websocket-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -2407,6 +2695,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "collaborative-editor",
+    drill: [
+      {
+        followUpId: "q2",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["websocket-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      {
+        fault: { type: "consumer-stopped", target: { kind: "node", componentIds: ["nosql-db"] } },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -2603,6 +2910,18 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "file-storage",
+    drill: [
+      {
+        followUpId: "q5",
+        fault: { type: "kill-node", target: { kind: "node", componentIds: ["object-storage"] } },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -2802,6 +3121,14 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "parking-lot",
+    drill: [
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "kill-instances", target: { kind: "busiest" }, intensity: 1 }, window: 60 },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -3001,6 +3328,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "instagram",
+    drill: [
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -3213,6 +3559,29 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "music-streaming",
+    drill: [
+      {
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["cdn"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      {
+        followUpId: "q6",
+        fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 5 },
+        window: 30,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -3431,6 +3800,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "ecommerce",
+    drill: [
+      {
+        followUpId: "q3",
+        fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 10 },
+        window: 30,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -3659,6 +4047,22 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "team-messaging",
+    drill: [
+      {
+        followUpId: "q6",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["websocket-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "consumer-stopped", target: { kind: "node", componentIds: ["search"] } },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -3879,6 +4283,21 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "metrics-monitoring",
+    drill: [
+      {
+        followUpId: "q2",
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["timeseries-db"] },
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -4095,6 +4514,32 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "netflix",
+    drill: [
+      {
+        followUpId: "q4",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["cdn"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["stream-processor"] },
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -4314,6 +4759,31 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "tinder",
+    drill: [
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["stream-processor"] },
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["geospatial-index"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -4544,6 +5014,22 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "google-maps",
+    drill: [
+      {
+        followUpId: "q5",
+        fault: { type: "kill-node", target: { kind: "node", componentIds: ["stream-processor"] } },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -4770,6 +5256,26 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "zoom",
+    drill: [
+      {
+        followUpId: "q5",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["websocket-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -4998,6 +5504,20 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "food-delivery",
+    drill: [
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["stream-processor"] },
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -5228,6 +5748,27 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "reddit",
+    drill: [
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["sharded-counter"] },
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -5455,6 +5996,29 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "airbnb",
+    drill: [
+      {
+        followUpId: "q6",
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["search"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -5683,6 +6247,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "whatsapp",
+    drill: [
+      {
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["websocket-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -5912,6 +6495,32 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "search-engine",
+    drill: [
+      {
+        followUpId: "q5",
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["search"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["stream-processor"] },
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -6133,6 +6742,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "location-service",
+    drill: [
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["geospatial-index"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -6339,6 +6967,24 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "tiktok",
+    drill: [
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["stream-processor"] },
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "cache-flush",
+          target: { kind: "node", componentIds: ["cache"] },
+          intensity: 20,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -6569,6 +7215,26 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "message-queue-design",
+    drill: [
+      {
+        followUpId: "q3",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["coordination-service"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+      { fault: { type: "traffic-spike", target: { kind: "global" }, intensity: 3 }, window: 30 },
+    ],
     requirements: [
       {
         id: "r1",
@@ -6796,6 +7462,25 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "digital-wallet",
+    drill: [
+      {
+        followUpId: "q5",
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      {
+        fault: { type: "consumer-stopped", target: { kind: "node", componentIds: ["nosql-db"] } },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["distributed-lock"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -7038,6 +7723,33 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "code-editor",
+    drill: [
+      {
+        followUpId: "q5",
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["app-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "kill-instances",
+          target: { kind: "node", componentIds: ["websocket-server"] },
+          intensity: 1,
+        },
+        window: 60,
+      },
+      {
+        fault: {
+          type: "slow-node",
+          target: { kind: "node", componentIds: ["nosql-db"] },
+          intensity: 5,
+        },
+        window: 60,
+      },
+    ],
     requirements: [
       {
         id: "r1",
@@ -7262,6 +7974,20 @@ export const INTERVIEW_DATA: ProblemInterviewData[] = [
   // ─────────────────────────────────────────────────────────────────────────────
   {
     problemId: "cicd-pipeline",
+    drill: [
+      {
+        fault: {
+          type: "consumer-stopped",
+          target: { kind: "node", componentIds: ["task-scheduler"] },
+        },
+        window: 60,
+      },
+      {
+        fault: { type: "db-primary-failure", target: { kind: "node", componentIds: ["sql-db"] } },
+        window: 90,
+      },
+      { fault: { type: "kill-instances", target: { kind: "busiest" }, intensity: 1 }, window: 60 },
+    ],
     requirements: [
       {
         id: "r1",

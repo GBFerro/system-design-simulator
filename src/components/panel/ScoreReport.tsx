@@ -43,7 +43,7 @@ function CategorySection({ category, index = 0 }: { category: CategoryScore; ind
   const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
 
   return (
-    <div className="rounded-md bg-zinc-800 px-3 py-2.5">
+    <div className="rounded-md bg-zinc-800 px-3 py-2.5" data-category={category.category}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center justify-between"

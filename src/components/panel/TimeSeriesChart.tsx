@@ -4,6 +4,18 @@ import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { sparklinePath } from "@/lib/runtimeMetrics";
 
 const W = 240;
+
+export interface ChartMarker {
+  t: number;
+  kind: "start" | "end" | "action" | "recovered";
+}
+
+const MARKER_COLOR: Record<ChartMarker["kind"], string> = {
+  start: "#fb923c",
+  end: "#34d399",
+  action: "#22d3ee",
+  recovered: "#a3e635",
+};
 const H = 44;
 
 /**
@@ -27,8 +39,8 @@ export function TimeSeriesChart({
   color: string;
   format: (v: number) => string;
   testId?: string;
-  /** Vertical markers at simulated times (fault start/end, Spec 08). */
-  markers?: { t: number; kind: "start" | "end" }[];
+  /** Vertical markers at simulated times (fault start/end, Spec 08; action/recovery, Spec 09). */
+  markers?: ChartMarker[];
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const { d, max, points } = sparklinePath(values, W, H, 2);
@@ -52,7 +64,7 @@ export function TimeSeriesChart({
       : null;
   const shownMarkers = (markers ?? [])
     .map((m) => ({ ...m, x: markerX(m.t) }))
-    .filter((m): m is { t: number; kind: "start" | "end"; x: number } => m.x !== null)
+    .filter((m): m is ChartMarker & { x: number } => m.x !== null)
     .filter((m) => m.x >= 0 && m.x <= W);
 
   return (
@@ -84,7 +96,7 @@ export function TimeSeriesChart({
               x2={m.x}
               y1={0}
               y2={H}
-              stroke={m.kind === "start" ? "#fb923c" : "#34d399"}
+              stroke={MARKER_COLOR[m.kind]}
               strokeWidth={1}
               strokeDasharray="2 2"
               vectorEffect="non-scaling-stroke"

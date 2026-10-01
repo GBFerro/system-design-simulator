@@ -1,181 +1,130 @@
 import type { Node, Edge } from "@xyflow/react";
+import { getComponentById } from "@/data/components";
+import { instancesOf, PARAM } from "@/domain/components/registry";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import { instancesOf } from "@/domain/components/registry";
-import type { CategoryScore, ScoringGraph } from "@/types/scoring";
-import { CATEGORY_MAX_SCORE } from "../budget";
+import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
+import { CATEGORY_MAX_SCORE, PEAK_UTILIZATION, SLO_ERROR_RATE } from "../budget";
+import { INHERENTLY_REDUNDANT, syncPath } from "../paths";
+import { hottest, metricsOf, NO_TRAFFIC_FEEDBACK, noTraffic, pct, rps } from "../steady";
 
-/** Max points per check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts). */
+/**
+ * Measured (Spec 09): the design holds the problem's peak with headroom and
+ * a 2× surge, and its stateless tiers scale out. Max points per check; sums
+ * to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts).
+ */
 export const BUDGET = {
-  loadBalancer: 3,
-  scalableCompute: 3,
-  cache: 3,
-  queue: 3,
-  dbScaling: 3,
-  cdn: 3,
-  lbToCompute: 2,
+  holdsPeak: 8,
+  holdsDoublePeak: 8,
+  horizontal: 4,
 } as const;
+
+/** Partial credit for a check that is only half met (always below its BUDGET). */
+export const PARTIAL = {
+  holdsPeak: 4,
+  holdsDoublePeak: 4,
+  horizontal: 2,
+} as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
+
+/** A 2× surge may run a tier hot, but not past saturation, and errors stay under this. */
+const SURGE_PARTIAL_ERROR_RATE = 0.05;
 
 export function scoreScalability(
   nodes: Node<ComponentNodeData>[],
-  _edges: Edge[],
+  edges: Edge[],
   graph: ScoringGraph,
+  m?: Measurements,
 ): CategoryScore {
   const feedback: string[] = [];
   const passed: string[] = [];
   let score = 0;
+  const connected = nodes.filter((n) => graph.reachable.has(n.id));
 
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  const connectedNodes = nodes.filter((n) => graph.reachable.has(n.id));
-  const connectedIds = new Set(connectedNodes.map((n) => n.data.componentId));
-  const placedIds = new Set(nodes.map((n) => n.data.componentId));
+  if (connected.length === 0 || noTraffic(m)) {
+    feedback.push(NO_TRAFFIC_FEEDBACK);
+    return { category: "Scalability", score, maxScore: CATEGORY_MAX_SCORE, feedback, passed };
+  }
+  if (!m) {
+    feedback.push(
+      "Scalability is measured by simulating your design at the problem's peak; the simulation didn't run.",
+    );
+  } else {
+    // 1× peak with headroom
+    const peak = metricsOf(m.atPeak, connected);
+    const maxUtil = Math.max(0, ...peak.map((x) => x.m.utilization));
+    const peakOk = m.atPeak.errorRate <= SLO_ERROR_RATE;
+    if (peakOk && maxUtil < PEAK_UTILIZATION) {
+      score += BUDGET.holdsPeak;
+      passed.push(
+        `Holds the peak (${rps(m.peakRps)} rps) with headroom: errors ${pct(m.atPeak.errorRate)}, busiest tier at ${pct(maxUtil)}.`,
+      );
+    } else if (peakOk && maxUtil < 1) {
+      score += PARTIAL.holdsPeak;
+      feedback.push(
+        `Holds the peak (${rps(m.peakRps)} rps) but without headroom: ${hottest(peak, PEAK_UTILIZATION)}. Keep every tier under ${pct(PEAK_UTILIZATION)} so a slow instance or a small burst doesn't tip it over — add instances or capacity there.`,
+      );
+    } else {
+      feedback.push(
+        `Doesn't hold the peak (${rps(m.peakRps)} rps): ${pct(m.atPeak.errorRate)} of requests fail${
+          maxUtil >= 1 ? `; saturated: ${hottest(peak, 1)}` : ""
+        }. Size each tier for its load: instances × capacity per instance must exceed the requests it receives.`,
+      );
+    }
 
-  const hasLB = connectedIds.has("load-balancer");
-  const hasCache = connectedIds.has("cache");
-  const hasQueue = connectedIds.has("message-queue");
-  const hasCDN = connectedIds.has("cdn");
-  const hasScalableCompute = connectedNodes.some(
-    (n) => n.data.category === "compute" && n.data.scalable,
+    // 2× surge
+    const surge = metricsOf(m.atDoublePeak, connected);
+    const surgeMax = Math.max(0, ...surge.map((x) => x.m.utilization));
+    if (m.atDoublePeak.errorRate <= SLO_ERROR_RATE && surgeMax < 1) {
+      score += BUDGET.holdsDoublePeak;
+      passed.push(
+        `Survives a 2× surge (${rps(2 * m.peakRps)} rps) without errors: busiest tier at ${pct(surgeMax)}.`,
+      );
+    } else if (m.atDoublePeak.errorRate <= SURGE_PARTIAL_ERROR_RATE) {
+      score += PARTIAL.holdsDoublePeak;
+      feedback.push(
+        `A 2× surge (${rps(2 * m.peakRps)} rps) degrades it: ${pct(m.atDoublePeak.errorRate)} errors${
+          surgeMax >= 1 ? `, ${hottest(surge, 1)} saturated` : ""
+        }. Leave room for bursts (launches, retries) or shed load at the edge with a rate limiter.`,
+      );
+    } else {
+      feedback.push(
+        `A 2× surge (${rps(2 * m.peakRps)} rps) breaks it: ${pct(m.atDoublePeak.errorRate)} of requests fail (${hottest(surge, 1) || "overloaded tiers"}). Real traffic bursts well above the average peak; size for it or shed the excess at the edge.`,
+      );
+    }
+  }
+
+  // Stateless tiers on the request path scale out (instances ≥ 2 or autoscaling).
+  const path = syncPath(nodes, edges, graph);
+  const stateless = connected.filter(
+    (n) =>
+      path.onPath.has(n.id) &&
+      !INHERENTLY_REDUNDANT.has(n.data.componentId) &&
+      getComponentById(n.data.componentId)?.stateful === false,
   );
-  const placedScalableCompute = nodes.some((n) => n.data.category === "compute" && n.data.scalable);
-  // NoSQL databases scale horizontally out of the box (replicas=1 is fine);
-  // SQL needs explicit read replicas to scale reads.
-  const isDBScalingNode = (n: Node<ComponentNodeData>) =>
-    n.data.componentId === "nosql-db" ||
-    (n.data.componentId === "sql-db" && instancesOf(n.data) > 1);
-  const hasDBScaling = connectedNodes.some(isDBScalingNode);
-  const placedDBScaling = nodes.some(isDBScalingNode);
-
-  // Check load balancer
-  if (hasLB) {
-    score += BUDGET.loadBalancer;
-    passed.push("Load balancer distributes traffic across servers, enabling horizontal scaling");
-  } else if (placedIds.has("load-balancer")) {
+  const scaled = stateless.filter(
+    (n) => instancesOf(n.data) >= 2 || n.data.params?.[PARAM.autoscale] === true,
+  );
+  if (stateless.length > 0 && scaled.length === stateless.length) {
+    score += BUDGET.horizontal;
+    passed.push(
+      "Every stateless tier on the request path runs several instances (or autoscales), so capacity grows by adding machines.",
+    );
+  } else if (stateless.length > 0 && scaled.length * 2 >= stateless.length) {
+    score += PARTIAL.horizontal;
     feedback.push(
-      "You placed a Load Balancer but it isn't connected to the request path. Wire traffic through it (entry → Load Balancer → App Servers) so it can actually distribute load.",
+      `Some stateless tiers run a single instance with no autoscaling: ${stateless
+        .filter((n) => !scaled.includes(n))
+        .map((n) => n.data.label)
+        .join(
+          ", ",
+        )}. Stateless tiers are the cheapest to scale out — run at least two behind a load balancer.`,
+    );
+  } else if (stateless.length > 0) {
+    feedback.push(
+      "Most stateless tiers run a single instance. Run at least two instances (or enable autoscaling) so you scale by adding machines and survive losing one.",
     );
   } else {
     feedback.push(
-      "Add a Load Balancer (e.g., AWS ALB, Nginx) to distribute traffic across multiple servers. Without one, a single server handles all requests and becomes a bottleneck — you can't scale horizontally.",
-    );
-  }
-
-  // Check horizontal scaling
-  if (hasScalableCompute) {
-    score += BUDGET.scalableCompute;
-    passed.push("Horizontally scalable compute layer allows adding capacity on demand");
-  } else if (placedScalableCompute) {
-    feedback.push(
-      "You placed scalable compute (e.g., App Server) but it isn't connected to the request path. Connect it behind your load balancer so it can serve traffic.",
-    );
-  } else {
-    feedback.push(
-      "Add stateless App Servers that can scale horizontally behind the load balancer. Stateless servers let you spin up new instances in seconds during traffic spikes, handling 10x load by simply adding more machines.",
-    );
-  }
-
-  // Check caching
-  if (hasCache) {
-    score += BUDGET.cache;
-    passed.push("Caching layer (Redis/Memcached) absorbs read traffic and reduces backend load");
-  } else if (placedIds.has("cache")) {
-    feedback.push(
-      "You placed a Cache but it isn't connected to the request path. Connect your App Servers to it so reads can actually be absorbed by the cache.",
-    );
-  } else {
-    feedback.push(
-      "Add a caching layer (Redis/Memcached) between your App Servers and Database. This can reduce DB load by 80-90% for read-heavy workloads by serving frequently accessed data from memory (~1ms) instead of disk (~5-10ms).",
-    );
-  }
-
-  // Check async processing
-  if (hasQueue) {
-    score += BUDGET.queue;
-    passed.push("Message queue enables async processing and absorbs traffic spikes");
-  } else if (placedIds.has("message-queue")) {
-    feedback.push(
-      "You placed a Message Queue but it isn't connected to the request path. Connect a producer (e.g., App Server) to it so heavy work can actually be offloaded.",
-    );
-  } else {
-    feedback.push(
-      "Add a Message Queue (Kafka, SQS, RabbitMQ) for asynchronous processing. Queues decouple producers from consumers, letting you buffer traffic spikes and process heavy tasks (email, transcoding, analytics) in the background without blocking user requests.",
-    );
-  }
-
-  // Check DB read scaling
-  if (hasDBScaling) {
-    score += BUDGET.dbScaling;
-    passed.push("Database layer supports read scaling via NoSQL or read replicas");
-  } else if (placedDBScaling) {
-    feedback.push(
-      "You have a scalable database (NoSQL or replicated SQL) but it isn't connected to the request path. Connect your App Servers to it so queries actually reach it.",
-    );
-  } else {
-    feedback.push(
-      "Scale your database layer — use a NoSQL database (DynamoDB, Cassandra) for automatic horizontal scaling, or add SQL read replicas to distribute query load. A single SQL primary becomes a bottleneck beyond ~10K QPS.",
-    );
-  }
-
-  // Check CDN for static content offloading
-  if (hasCDN) {
-    score += BUDGET.cdn;
-    passed.push("CDN offloads static content delivery from origin servers");
-  } else if (placedIds.has("cdn")) {
-    feedback.push(
-      "You placed a CDN but it isn't connected to the request path. Put it in front of your origin (e.g., DNS → CDN → Load Balancer) so static content is actually served from the edge.",
-    );
-  } else {
-    feedback.push(
-      "Add a CDN (CloudFront, Cloudflare) to offload static content delivery from your origin servers. CDNs serve cached content from 200+ edge locations worldwide, reducing origin load by 60-80% and cutting latency for global users from 200ms+ to under 20ms.",
-    );
-  }
-
-  // Check LB→compute connectivity
-  // True when the LB feeds a compute node directly, or feeds an API gateway /
-  // rate limiter that itself reaches a compute node downstream.
-  const reachesCompute = (startId: string): boolean => {
-    const visited = new Set<string>([startId]);
-    const queue: string[] = [startId];
-    let head = 0;
-    while (head < queue.length) {
-      const id = queue[head++];
-      for (const child of graph.adjacency.get(id) ?? []) {
-        if (visited.has(child)) continue;
-        visited.add(child);
-        if (nodeMap.get(child)?.data.category === "compute") return true;
-        queue.push(child);
-      }
-    }
-    return false;
-  };
-
-  let lbToCompute = false;
-  if (hasLB && hasScalableCompute) {
-    outer: for (const [sourceId, children] of graph.adjacency) {
-      if (nodeMap.get(sourceId)?.data.componentId !== "load-balancer") continue;
-      for (const childId of children) {
-        const target = nodeMap.get(childId);
-        if (!target) continue;
-        if (target.data.category === "compute") {
-          lbToCompute = true;
-          break outer;
-        }
-        if (
-          (target.data.componentId === "api-gateway" ||
-            target.data.componentId === "rate-limiter") &&
-          reachesCompute(childId)
-        ) {
-          lbToCompute = true;
-          break outer;
-        }
-      }
-    }
-  }
-  if (lbToCompute) {
-    score += BUDGET.lbToCompute;
-    passed.push("Load balancer is properly connected to compute layer");
-  } else if (hasLB && hasScalableCompute) {
-    feedback.push(
-      "Connect your Load Balancer to your App Servers (directly or via an API Gateway). Without this connection, the LB can't distribute traffic to your compute layer — it's like having a highway on-ramp that leads nowhere.",
+      "No stateless compute tier on the request path — add the application tier (e.g. App Server) behind your entry point.",
     );
   }
 

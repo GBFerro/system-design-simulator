@@ -61,15 +61,23 @@ describe("reference solutions through analyze()", () => {
 
   // Legacy engine kept only as a comparison: the new routing (rules, hit
   // rates, LB split) changes HOW MUCH each node gets, never WHETHER it gets
-  // traffic. A node reached by the legacy fan-out must be reached now too.
+  // traffic. A node reached by the legacy fan-out must be reached now too —
+  // except through control links (`callsPerRequest: 0`, e.g. a message
+  // queue's coordination service), which carry no requests by design.
   it.each(PROBLEMS.map((p) => [p.id, p] as const))(
     "%s: same nodes receive traffic as the legacy engine",
     (_id, problem) => {
       const { nodes, edges } = buildReferenceGraph(problem);
       const legacy = runSimulation(nodes as Node<ComponentNodeData>[], edges, 10_000);
       const steady = analyze(compileGraph(nodes, edges), 10_000);
+      const incoming = (id: string) => edges.filter((e) => e.target === id);
+      const controlOnly = (id: string) =>
+        incoming(id).length > 0 &&
+        incoming(id).every(
+          (e) => (e.data as { rule?: { callsPerRequest?: number } }).rule?.callsPerRequest === 0,
+        );
       const legacyReached = [...legacy.nodeMetrics.values()]
-        .filter((m) => m.incomingQPS > 0)
+        .filter((m) => m.incomingQPS > 0 && !controlOnly(m.nodeId))
         .map((m) => m.nodeId)
         .sort();
       const reached = steady.nodes

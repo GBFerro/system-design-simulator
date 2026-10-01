@@ -6,6 +6,7 @@
  */
 import { expose } from "comlink";
 import { createEngine } from "./engine";
+import { analyzeUnderFault } from "./faults/steady";
 import { createSimSession, type FrameListener } from "./session";
 import type { FaultId, FaultSpec, SimConfig, SimGraph, SimSpeed, TrafficPattern } from "./types";
 
@@ -17,6 +18,8 @@ export const workerApi = {
   load: engine.load.bind(engine),
   analyze: engine.analyze.bind(engine),
   analyzeGraph: engine.analyzeGraph.bind(engine),
+  analyzeUnderFault: (graph: SimGraph, rps: number, fault: FaultSpec, config?: SimConfig) =>
+    analyzeUnderFault(graph, rps, fault, config),
 
   simLoad: (graph: SimGraph, config?: SimConfig) => session.load(graph, config),
   simPlay: () => session.play(),

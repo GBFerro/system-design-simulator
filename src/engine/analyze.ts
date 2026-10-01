@@ -32,6 +32,7 @@ import {
   consumerCapacity,
   forwardEdges,
   lbShares,
+  lookupShareOf,
   maxQueueOf,
   maxRetriesOf,
   paramNumber,
@@ -40,6 +41,8 @@ import {
 } from "./core/routing";
 import { sampleLatency } from "./core/sampler";
 import { sampleNodesFor, settle, type Topology } from "./core/settle";
+import { drainShares, entryShares, withEffects } from "./core/faultView";
+import type { TickEffects } from "./faults/effects";
 import type { EdgeSteadyState, NodeSteadyState, SimConfig, SteadyState } from "./types";
 import type { NodeStatus } from "@/types/simulation";
 
@@ -120,16 +123,41 @@ function finite(v: number, fallback = 0): number {
   return Number.isFinite(v) ? v : fallback;
 }
 
-export function analyze(graph: SimGraph, rps: number, config?: SimConfig): SteadyState {
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-  const cfg = resolveConfig(graph, byId, config);
+/**
+ * `effects` (optional): faults active in the steady state (Spec 09 scoring
+ * measures the design under the drill's faults), applied like the tick loop
+ * does — `core/faultView.ts` plus down nodes, severed/drained edges and
+ * traffic multipliers. Without it, the fault-free steady state.
+ */
+export function analyze(
+  graph: SimGraph,
+  rps: number,
+  config?: SimConfig,
+  effects: TickEffects | null = null,
+): SteadyState {
+  const graphById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const cfg = resolveConfig(graph, graphById, config);
   const requestedRps = Number.isFinite(rps) && rps > 0 ? rps : 0;
   const warnings = [...graph.warnings];
 
-  const order = graph.order.filter((id) => byId.has(id));
-  const entries = graph.entryIds.filter((id) => byId.has(id));
-  const out = forwardEdges(graph.edges.filter((e) => byId.has(e.source) && byId.has(e.target)));
-  const offeredRps = entries.length > 0 ? requestedRps : 0;
+  const order = graph.order.filter((id) => graphById.has(id));
+  const entries = graph.entryIds.filter((id) => graphById.has(id));
+  const topo: Topology = withEffects(
+    {
+      byId: graphById,
+      order,
+      entries,
+      out: forwardEdges(
+        graph.edges.filter((e) => graphById.has(e.source) && graphById.has(e.target)),
+      ),
+      readRatio: cfg.readRatio,
+    },
+    effects,
+  );
+  const { byId, out } = topo;
+  const edgeFx = (e: SimEdge) => effects?.edges.get(e.id);
+  const split = entryShares(entries, effects);
+  const offeredRps = entries.length > 0 ? requestedRps * split.factor : 0;
 
   const retrying = order.some(
     (id) => maxRetriesOf(byId.get(id)!) > 0 && (out.get(id)?.length ?? 0) > 0,
@@ -138,7 +166,13 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
   /* ---------- forward pass: load propagation ---------- */
   const propagate = (failure: Map<string, number>): Pass => {
     const inflow = new Map<string, number>();
-    for (const id of entries) inflow.set(id, (inflow.get(id) ?? 0) + offeredRps / entries.length);
+    entries.forEach((id, i) =>
+      inflow.set(
+        id,
+        (inflow.get(id) ?? 0) +
+          (effects ? offeredRps * split.shares[i] : offeredRps / entries.length),
+      ),
+    );
     const flows = new Map<string, NodeFlow>();
     const base = new Map<string, number>();
     const load = new Map<string, number>();
@@ -149,6 +183,32 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
       const offered = finite(inflow.get(id) ?? 0);
       const edges = out.get(id) ?? [];
       const maxQueue = maxQueueOf(node);
+      const fx = effects?.nodes.get(id);
+      if (fx?.down) {
+        // Down: every arrival fails and nothing goes out.
+        flows.set(id, {
+          offered,
+          served: 0,
+          dropped: offered,
+          capacity: 0,
+          st: station({
+            lambda: 0,
+            instances: node.instances,
+            capacityPerInstance: node.capacityPerInstance,
+            serviceTimeMs: node.serviceTimeMs,
+            maxQueue,
+            horizonSec: cfg.horizonSec,
+          }),
+          backlog: 0,
+          lagging: false,
+          rejected: 0,
+        });
+        for (const e of edges) {
+          base.set(e.id, 0);
+          load.set(e.id, 0);
+        }
+        continue;
+      }
       let capacityPerInstance = node.capacityPerInstance;
       let admitted = offered;
       let rejected = 0;
@@ -159,16 +219,20 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
         rejected = adm.rejected;
         capacityPerInstance = Math.min(capacityPerInstance, adm.capacityLimit / node.instances);
       }
+      // Dead instances still in rotation fail their share (fault, Spec 08).
+      if (fx && fx.errorRate > 0) admitted -= admitted * fx.errorRate;
+      // A resolver only works on its uncached lookups; cached answers pass straight through.
+      const bypass = admitted * (1 - lookupShareOf(node));
 
       const st = station({
-        lambda: admitted,
+        lambda: admitted - bypass,
         instances: node.instances,
         capacityPerInstance,
         serviceTimeMs: node.serviceTimeMs,
         maxQueue,
         horizonSec: cfg.horizonSec,
       });
-      const served = Math.min(offered, Math.max(0, st.servedRps));
+      const served = Math.min(offered, Math.max(0, st.servedRps) + bypass);
       const flow: NodeFlow = {
         offered,
         served,
@@ -187,15 +251,19 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
         const amplified = baseLoad * retryAmplification(failure.get(e.id) ?? 0, retries);
         base.set(e.id, baseLoad);
         load.set(e.id, amplified);
-        inflow.set(e.target, (inflow.get(e.target) ?? 0) + amplified);
+        // A severed link: the calls are made (and fail), nothing arrives.
+        if (!edgeFx(e)?.severed) inflow.set(e.target, (inflow.get(e.target) ?? 0) + amplified);
       };
 
       if (node.routing === "lb") {
         const targets = edges.map((e) => byId.get(e.target)!);
-        const split = lbShares(node, targets, (t) => inflow.get(t) ?? 0);
+        const lb = drainShares(
+          lbShares(node, targets, (t) => inflow.get(t) ?? 0),
+          edges.map((e) => edgeFx(e)?.drained === true),
+        );
         edges.forEach((e, i) => {
-          shares.set(e.id, split[i]);
-          push(e, served * split[i]);
+          shares.set(e.id, lb[i]);
+          push(e, served * lb[i]);
         });
       } else if (node.routing === "queue") {
         // Decoupled: each consumer edge drains at most its consumer capacity;
@@ -203,7 +271,8 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
         let lag = 0;
         for (const e of edges) {
           const demand = served * ruleFactor(e.rule, node, cfg.readRatio);
-          const drained = Math.min(demand, consumerCapacity(node, byId.get(e.target)!));
+          const pull = edgeFx(e)?.severed ? 0 : consumerCapacity(node, byId.get(e.target)!);
+          const drained = Math.min(demand, pull);
           lag += demand - drained;
           push(e, drained);
         }
@@ -217,7 +286,6 @@ export function analyze(graph: SimGraph, rps: number, config?: SimConfig): Stead
   };
 
   /* ---------- reverse pass: success, call failure, availability ---------- */
-  const topo: Topology = { byId, order, entries, out, readRatio: cfg.readRatio };
   const settleOf = (p: Pass) => settle(topo, p.flows, p.shares);
 
   /* ---------- fixed point for retry amplification ---------- */

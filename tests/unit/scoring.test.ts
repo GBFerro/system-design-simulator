@@ -6,16 +6,46 @@ import { buildReferenceGraph } from "@/lib/loadReference";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { CATEGORY_MAX_SCORE } from "@/scoring/budget";
 import { buildScoringGraph, scoreDesign } from "@/scoring/scorer";
+import { measureDesign, type MeasureApi } from "@/scoring/measure";
+import { compileGraph } from "@/domain/graph/compile";
+import { analyze } from "@/engine/analyze";
+import { analyzeUnderFault } from "@/engine/faults/steady";
 import * as availability from "@/scoring/rules/availability";
 import * as cost from "@/scoring/rules/cost";
 import * as latency from "@/scoring/rules/latency";
 import * as scalability from "@/scoring/rules/scalability";
 import * as tradeoffs from "@/scoring/rules/tradeoffs";
-import type { CategoryScore, ScoringGraph } from "@/types/scoring";
+import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
 import type { ComponentNodeData } from "@/store/canvasStore";
 
 type Graph = { nodes: Node<ComponentNodeData>[]; edges: Edge[] };
-type Rule = (nodes: Node<ComponentNodeData>[], edges: Edge[], graph: ScoringGraph) => CategoryScore;
+type Rule = (
+  nodes: Node<ComponentNodeData>[],
+  edges: Edge[],
+  graph: ScoringGraph,
+  m?: Measurements,
+) => CategoryScore;
+
+/** In-thread engine for `measureDesign`, as the worker would run it. */
+const inThread: MeasureApi = {
+  analyze: (g, rps, config) => analyze(g, rps, config),
+  analyzeUnderFault: (g, rps, fault, config) => analyzeUnderFault(g, rps, fault, config),
+};
+
+/**
+ * Measurements of a fixture at a light load with a loose SLA and one fault
+ * it survives: what a healthy design would get.
+ */
+function measured({ nodes, edges }: Graph, rps = 100, samples = 500): Measurements {
+  const g = compileGraph(nodes, edges);
+  return {
+    peakRps: rps,
+    sla: { p99Ms: 1000 },
+    atPeak: analyze(g, rps, { samples }),
+    atDoublePeak: analyze(g, 2 * rps, { samples }),
+    underFaults: [{ label: "Kill instances · App Server", errorRate: 0 }],
+  };
+}
 
 function node(componentId: string, index: number, replicas = 1): Node<ComponentNodeData> {
   const created = createComponentNode(getComponentById(componentId)!, { x: index * 100, y: 0 });
@@ -36,9 +66,9 @@ function graphOf(specs: [string, number?][], links: [number, number][]): Graph {
   return { nodes, edges: links.map(([s, t]) => edge(nodes[s].id, nodes[t].id)) };
 }
 
-/** CDN -> LB -> App Server -> Cache, NoSQL, Queue */
+/** CDN -> LB x2 -> App Server x2 -> Cache, NoSQL, Queue (stateless tiers scaled out) */
 const EDGE_TO_STORES = graphOf(
-  [["cdn"], ["load-balancer"], ["app-server"], ["cache"], ["nosql-db"], ["message-queue"]],
+  [["cdn"], ["load-balancer", 2], ["app-server", 2], ["cache"], ["nosql-db"], ["message-queue"]],
   [
     [0, 1],
     [1, 2],
@@ -59,7 +89,7 @@ const RULES: Record<
   availability: {
     score: availability.scoreAvailability,
     budget: availability.BUDGET,
-    // API GW -> LB fanning out to 2 App Servers -> Cache, NoSQL x2, Queue, Monitoring
+    // API GW -> LB fanning out to 2 App Servers -> Cache, NoSQL x2, Queue, Circuit Breaker
     full: graphOf(
       [
         ["api-gateway"],
@@ -69,7 +99,7 @@ const RULES: Record<
         ["cache"],
         ["nosql-db", 2],
         ["message-queue"],
-        ["monitoring"],
+        ["circuit-breaker"],
       ],
       [
         [0, 1],
@@ -97,8 +127,8 @@ const RULES: Record<
       [
         ["dns"],
         ["cdn"],
-        ["load-balancer"],
-        ["app-server"],
+        ["load-balancer", 2],
+        ["app-server", 2],
         ["cache"],
         ["nosql-db"],
         ["message-queue"],
@@ -221,7 +251,8 @@ describe("scoring rules", () => {
   it.each(Object.entries(RULES))(
     "%s: the complete design reaches exactly 20",
     (_name, { score, budget, full }) => {
-      const result = score(full.nodes, full.edges, buildScoringGraph(full.nodes, full.edges));
+      const graph = buildScoringGraph(full.nodes, full.edges);
+      const result = score(full.nodes, full.edges, graph, measured(full));
       expect(result.feedback).toEqual([]);
       expect(result.passed).toHaveLength(Object.keys(budget).length);
       expect(result.score).toBe(CATEGORY_MAX_SCORE);
@@ -230,24 +261,92 @@ describe("scoring rules", () => {
 
   const cases = fixtures();
 
-  it.each(Object.entries(RULES))("%s stays within [0, 20] with maxScore 20", (_name, { score }) => {
-    for (const [label, { nodes, edges }] of cases) {
-      const result = score(nodes, edges, buildScoringGraph(nodes, edges));
-      expect(result.maxScore, label).toBe(CATEGORY_MAX_SCORE);
-      expect(Number.isFinite(result.score), label).toBe(true);
-      expect(result.score, label).toBeGreaterThanOrEqual(0);
-      expect(result.score, label).toBeLessThanOrEqual(CATEGORY_MAX_SCORE);
+  it.each(Object.entries(RULES))(
+    "%s stays within [0, 20] with maxScore 20, measured or not",
+    (_name, { score }) => {
+      for (const [label, g] of cases) {
+        const graph = buildScoringGraph(g.nodes, g.edges);
+        for (const m of [undefined, measured(g, 1000, 100)]) {
+          const result = score(g.nodes, g.edges, graph, m);
+          expect(result.maxScore, label).toBe(CATEGORY_MAX_SCORE);
+          expect(Number.isFinite(result.score), label).toBe(true);
+          expect(result.score, label).toBeGreaterThanOrEqual(0);
+          expect(result.score, label).toBeLessThanOrEqual(CATEGORY_MAX_SCORE);
+        }
+      }
+    },
+  );
+
+  it("an empty design scores 0 in scalability, availability and latency", () => {
+    const empty = { nodes: [], edges: [] };
+    const graph = buildScoringGraph([], []);
+    const rules = [
+      scalability.scoreScalability,
+      availability.scoreAvailability,
+      latency.scoreLatency,
+    ];
+    for (const rule of rules) expect(rule([], [], graph, measured(empty)).score).toBe(0);
+  });
+});
+
+describe("measured checks without traffic", () => {
+  it("a design no request reaches scores 0 in scalability, availability and latency", () => {
+    // A lone node is "reachable" for presence checks, but the engine sends it nothing.
+    const lone = graphOf([["app-server", 2]], []);
+    const graph = buildScoringGraph(lone.nodes, lone.edges);
+    const m = measured(lone);
+    expect(m.atPeak.offeredRps).toBe(0);
+    const rules = [
+      scalability.scoreScalability,
+      availability.scoreAvailability,
+      latency.scoreLatency,
+    ];
+    for (const rule of rules) {
+      const r = rule(lone.nodes, lone.edges, graph, m);
+      expect(r.score, r.category).toBe(0);
+      expect(r.feedback.join(" "), r.category).toMatch(/entry point/);
     }
   });
+});
 
-  it("every reference solution scores in every category", () => {
-    for (const p of PROBLEMS) {
+describe("measured rubric vs the reference solutions (Spec 09)", () => {
+  // Each reference, simulated at its own peak, must be a design that holds it.
+  it.each(PROBLEMS.map((p) => [p.id, p] as const))(
+    "%s: at least 16/20 in scalability and latency at the reference peak",
+    async (_id, p) => {
       const { nodes, edges } = buildReferenceGraph(p);
-      const result = scoreDesign(nodes, edges);
-      expect(result.categories).toHaveLength(5);
-      for (const c of result.categories)
-        expect(c.score, `${p.id} / ${c.category}`).toBeGreaterThan(0);
-    }
+      const m = (await measureDesign(nodes, edges, p.id, inThread))!;
+      const result = scoreDesign(nodes, edges, m);
+      const by = Object.fromEntries(result.categories.map((c) => [c.category, c]));
+      expect(by.Scalability.score, by.Scalability.feedback.join(" | ")).toBeGreaterThanOrEqual(16);
+      expect(by.Latency.score, by.Latency.feedback.join(" | ")).toBeGreaterThanOrEqual(16);
+      for (const c of result.categories) expect(c.score, c.category).toBeGreaterThan(0);
+    },
+  );
+
+  it("measures at the problem's peak and read mix, under each drill fault", async () => {
+    const p = PROBLEMS.find((x) => x.id === "url-shortener")!;
+    const { nodes, edges } = buildReferenceGraph(p);
+    const m = (await measureDesign(nodes, edges, p.id, inThread))!;
+    expect(m.peakRps).toBe(p.requirements.readsPerSec + p.requirements.writesPerSec);
+    expect(m.atPeak.offeredRps).toBe(m.peakRps);
+    expect(m.atDoublePeak.offeredRps).toBe(2 * m.peakRps);
+    expect(m.sla).toEqual({ p99Ms: p.requirements.latencyMs });
+    expect(m.underFaults).toHaveLength(3);
+    expect(m.referenceSyncDepth).toBeGreaterThan(0);
+  });
+
+  it("uses the SLA scope when the problem has one", async () => {
+    const p = PROBLEMS.find((x) => x.id === "distributed-cache")!;
+    const { nodes, edges } = buildReferenceGraph(p);
+    const m = (await measureDesign(nodes, edges, p.id, inThread))!;
+    expect(m.sla).toEqual({ p99Ms: 2, scope: "cache" });
+  });
+
+  it("is null for an unknown problem or a canvas without components", async () => {
+    const { nodes, edges } = EDGE_TO_STORES;
+    expect(await measureDesign(nodes, edges, "no-such-problem", inThread)).toBeNull();
+    expect(await measureDesign([], [], "url-shortener", inThread)).toBeNull();
   });
 });
 

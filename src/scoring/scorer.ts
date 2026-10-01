@@ -1,6 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import type { ScoreResult, ScoringGraph } from "@/types/scoring";
+import type { Measurements, ScoreResult, ScoringGraph } from "@/types/scoring";
 import { scoreScalability } from "./rules/scalability";
 import { scoreAvailability } from "./rules/availability";
 import { scoreLatency } from "./rules/latency";
@@ -72,7 +72,16 @@ export function buildScoringGraph(nodes: Node<ComponentNodeData>[], edges: Edge[
   return { adjacency, reachable };
 }
 
-export function scoreDesign(nodes: Node<ComponentNodeData>[], edges: Edge[]): ScoreResult {
+/**
+ * `m`: the design measured by `measureDesign` (Spec 09). Scalability,
+ * availability, latency and part of cost are measured; without it those
+ * checks score 0 and say the simulation didn't run.
+ */
+export function scoreDesign(
+  nodes: Node<ComponentNodeData>[],
+  edges: Edge[],
+  m?: Measurements,
+): ScoreResult {
   if (nodes.length === 0) {
     return {
       total: 0,
@@ -86,10 +95,10 @@ export function scoreDesign(nodes: Node<ComponentNodeData>[], edges: Edge[]): Sc
   const graph = buildScoringGraph(nodes, edges);
 
   const categories = [
-    scoreScalability(nodes, edges, graph),
-    scoreAvailability(nodes, edges, graph),
-    scoreLatency(nodes, edges, graph),
-    scoreCost(nodes, edges, graph),
+    scoreScalability(nodes, edges, graph, m),
+    scoreAvailability(nodes, edges, graph, m),
+    scoreLatency(nodes, edges, graph, m),
+    scoreCost(nodes, edges, graph, m),
     scoreTradeoffs(nodes, edges, graph),
   ];
 

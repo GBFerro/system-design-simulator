@@ -4,7 +4,8 @@ import { getComponentById } from "@/data/components";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useAppStore } from "@/store/appStore";
 import { createComponentNode } from "@/lib/nodeFactory";
-import { defaultEdgeRule } from "@/domain/graph/edgeRules";
+import { defaultEdgeRule, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
+import { sanitizeParams } from "@/domain/components/registry";
 
 /**
  * Build canvas nodes + edges for a problem's reference solution.
@@ -32,7 +33,11 @@ export function buildReferenceGraph(problem: Problem): {
     list.push(nodeId);
     instancesByComponent.set(ref.componentId, list);
 
-    refNodes.push({ ...createComponentNode(comp, { x: ref.x, y: ref.y }), id: nodeId });
+    const created = createComponentNode(comp, { x: ref.x, y: ref.y });
+    const params = ref.params
+      ? sanitizeParams(comp.id, { ...created.data.params, ...ref.params })
+      : created.data.params;
+    refNodes.push({ ...created, id: nodeId, data: { ...created.data, params } });
   });
 
   // Round-robin counters, keyed by `${componentId}#${role}`
@@ -51,6 +56,7 @@ export function buildReferenceGraph(problem: Problem): {
     const sourceId = nextInstance(ref.source, "source");
     const targetId = nextInstance(ref.target, "target");
     if (sourceId && targetId) {
+      const fallbackRule = defaultEdgeRule(ref.source, ref.target, "http");
       refEdges.push({
         id: `e-${sourceId}-${targetId}`,
         source: sourceId,
@@ -59,8 +65,10 @@ export function buildReferenceGraph(problem: Problem): {
         data: {
           label: "",
           protocol: "http",
-          async: false,
-          rule: defaultEdgeRule(ref.source, ref.target, "http"),
+          async: ref.async === true,
+          rule: ref.rule
+            ? sanitizeEdgeRule({ ...fallbackRule, ...ref.rule }, fallbackRule)
+            : fallbackRule,
         },
       });
     }

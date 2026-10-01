@@ -67,22 +67,25 @@ export function setTrafficPattern(p: TrafficPattern): void {
 
 /**
  * Start a fault in the live run (Spec 08). Only while a run exists (running
- * or paused); the error comes back as a toast. Returns whether it started.
+ * or paused); the error comes back as a toast. Returns the fault's id, or null.
  */
-export async function injectFault(spec: FaultSpec): Promise<boolean> {
+export async function injectFault(spec: FaultSpec): Promise<FaultId | null> {
   const toast = useAppStore.getState().showToast;
   if (!controller || useRuntimeStore.getState().playback === "idle") {
     toast("Play the simulation first: faults act on a live run", "info");
-    return false;
+    return null;
   }
   try {
     const r = await controller.inject(spec);
-    if (!r.ok) toast(r.error, "error");
-    return r.ok;
+    if (!r.ok) {
+      toast(r.error, "error");
+      return null;
+    }
+    return r.id;
   } catch (err) {
     console.error("Fault injection failed", err);
     toast("Fault injection failed — see console for details", "error");
-    return false;
+    return null;
   }
 }
 

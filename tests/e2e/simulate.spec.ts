@@ -15,8 +15,7 @@ test("Simulate analyzes a reference solution in a Web Worker", async ({ page }) 
   // The worker is lazy: nothing is spawned before the first simulation.
   expect(workers).toEqual([]);
 
-  // The top bar title can overlap this button at 1280px; dispatch the click directly.
-  await page.getByTitle("Load reference solution").dispatchEvent("click");
+  await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Simulate", exact: true }).click();
