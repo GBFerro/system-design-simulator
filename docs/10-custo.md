@@ -44,13 +44,13 @@ interface PricingSpec {
 (730 h/mês; λ em req/s × 2.592.000 s/mês = requests/mês, que dividido por 10⁶ dá o fator 2,592.) O λ usado é o do `analyze()` na carga atual do slider.
 
 - Os preços são aproximações de lista on-demand de uma região de referência, documentadas por tipo em `assumptions`. A UI deixa claro que são estimativas educativas, não cotação
-- Uma única tabela de preços versionada, revisada a cada release; nada buscado ao vivo (sem backend)
+- Uma única tabela de preços versionada, revisada a cada release (o `asOf` e as fontes em `PRICE_TABLE.sources`, links para as páginas oficiais de preço, que a aba Cost mostra no rodapé); nada buscado ao vivo (sem backend)
 
 Implementação: a tabela fica em `domain/components/pricing.ts` (`PRICE_TABLE`: versão, data dos preços e região, AWS us-east-1 on-demand, 2025-09) e entra em todo schema por `defineSchema`/`genericSchema`; componentes customizados usam o preço de uma m5.large. `cost/estimate.ts` aplica a fórmula com o λ de cada nó (no painel, o `rpsIn` do último snapshot; no score, o `offeredRps` do `analyze()` no pico). O DNS só paga as consultas sem cache (`lookupShare`), como no motor. `perGbMonth` fica no tipo, mas nenhum tipo tem parâmetro de tamanho ainda: storage e transferência de dados aparecem nas premissas como "não modelados".
 
 ### Painel de custo
 
-- Total $/mês e $/1M requests na TopBar, atualizados a cada `analyze()` ou a 1 Hz durante o play (o chip só aparece a partir de 2xl, ≥ 1536 px: abaixo disso o seletor de problema precisa do espaço; a aba Cost tem os mesmos números)
+- Total $/mês na TopBar ($/1M requests no tooltip), atualizado a cada `analyze()` ou a 1 Hz durante o play. O chip só aparece a partir de 1680 px: abaixo disso o seletor de problema fica com menos de 100 px (`smoke.spec.ts` mede a TopBar de 768 a 1920 px); a aba Cost tem os mesmos números
 - Breakdown por componente e por área (compute, dados, rede, mensageria), com as premissas ao clicar
 
 ### Right-size (CST-03)

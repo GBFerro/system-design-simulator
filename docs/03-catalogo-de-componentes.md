@@ -39,7 +39,7 @@ interface ParamSpec {
   step?: number;
   unit?: string; // "ms", "rps", "s", "GB"
   options?: { value: string; label: string }[]; // kind = "enum"
-  group?: "capacity" | "latency" | "resilience" | "cost" | "advanced";
+  group?: "capacity" | "latency" | "resilience" | "advanced"; // preço não é param: fica no PricingSpec (Spec 10)
   help?: string; // uma linha, aparece como tooltip
   visibleIf?: (p: Record<string, ParamValue>) => boolean;
 }
@@ -47,7 +47,7 @@ interface ParamSpec {
 interface ComponentSchema {
   id: string; // mesmo id de components.ts
   params: ParamSpec[];
-  pricing?: PricingSpec; // ver Spec 10
+  pricing: PricingSpec; // ver Spec 10 (tabela em domain/components/pricing.ts)
   routing: RoutingKind; // ver Spec 04: "lb" | "service" | "cache" | "queue" | "rate-limiter" | "breaker" | "fixed"
 }
 ```
