@@ -20,6 +20,9 @@ test("app loads with an empty canvas and no runtime errors", async ({ page }) =>
 // The top bar overflowed between 768 and 1536 px once (a156ffb), and a new
 // item squeezed the problem selector to 60 px at 1280 (Spec 10's cost chip).
 // Measured with a reference loaded and simulated, so every live item shows.
+// 80 px: font metrics differ by OS (the selector is 116 px at 1536 on Windows,
+// 98 px on the Linux CI runner); the regressions to catch were 22 and 60 px.
+const MIN_SELECTOR_PX = 80;
 test("top bar groups never overlap and the problem selector stays readable", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 800 });
   await page.goto("/");
@@ -40,7 +43,7 @@ test("top bar groups never overlap and the problem selector stays readable", asy
       const r = (await right.boundingBox())!;
       const s = (await selector.boundingBox())!;
       expect(l.x + l.width, `${width}px: groups overlap`).toBeLessThanOrEqual(r.x);
-      expect(s.width, `${width}px: problem selector`).toBeGreaterThanOrEqual(100);
+      expect(s.width, `${width}px: problem selector`).toBeGreaterThanOrEqual(MIN_SELECTOR_PX);
     }).toPass({ timeout: 2000 });
   }
 });

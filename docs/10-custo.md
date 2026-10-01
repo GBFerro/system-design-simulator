@@ -50,7 +50,7 @@ Implementação: a tabela fica em `domain/components/pricing.ts` (`PRICE_TABLE`:
 
 ### Painel de custo
 
-- Total $/mês na TopBar ($/1M requests no tooltip), atualizado a cada `analyze()` ou a 1 Hz durante o play. O chip só aparece a partir de 1680 px: abaixo disso o seletor de problema fica com menos de 100 px (`smoke.spec.ts` mede a TopBar de 768 a 1920 px); a aba Cost tem os mesmos números
+- Total $/mês na TopBar ($/1M requests no tooltip), atualizado a cada `analyze()` ou a 1 Hz durante o play. O chip só aparece a partir de 1680 px: abaixo disso o seletor de problema fica com menos de 80 px (`smoke.spec.ts` mede a TopBar de 768 a 1920 px); a aba Cost tem os mesmos números
 - Breakdown por componente e por área (compute, dados, rede, mensageria), com as premissas ao clicar
 
 ### Right-size (CST-03)
