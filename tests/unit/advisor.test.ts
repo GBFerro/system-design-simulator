@@ -1,7 +1,8 @@
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { applyAllFixes, applyFix, computeFindings, readRatioFor } from "@/advisor/advisor";
-import { applyDiff, ruleOf } from "@/advisor/graph";
+import { applyDiff } from "@/advisor/graph";
+import { edgeRuleOf } from "@/domain/graph/edgeRules";
 import { structureFindings } from "@/advisor/structure";
 import type { AdvisorContext } from "@/advisor/types";
 import { suggestedInstances } from "@/cost/rightSize";
@@ -113,7 +114,7 @@ const ofType = (g: Graph, componentId: string) =>
   g.nodes.find((n) => (n.data as { componentId?: string }).componentId === componentId)!;
 const ruleKind = (g: Graph, source: string, target: string) => {
   const e = g.edges.find((x) => x.source === source && x.target === target);
-  return e ? ruleOf(g, e).kind : undefined;
+  return e ? edgeRuleOf(g, e).kind : undefined;
 };
 
 /** Client → App → (rest). */

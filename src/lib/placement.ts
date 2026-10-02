@@ -1,4 +1,4 @@
-import type { Node, XYPosition } from "@xyflow/react";
+import type { FitViewOptions, Node, XYPosition } from "@xyflow/react";
 
 export interface Size {
   width: number;
@@ -82,4 +82,25 @@ export function visibleCanvasCenter(
     x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
     y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
   });
+}
+
+/** Marks the mobile right panel: a bottom sheet laid over the lower part of the canvas. */
+export const BOTTOM_SHEET_ATTR = "data-bottom-sheet";
+
+/**
+ * `fitView` padding for framing nodes from inside a panel: when `from` sits
+ * in the mobile bottom sheet (`[data-bottom-sheet]`), the canvas strip above
+ * the sheet; otherwise `fallback`. Every panel that frames nodes goes through
+ * this, or on a phone it frames them under the sheet.
+ */
+export function paddingAboveSheet(
+  from: Element | null | undefined,
+  fallback: number,
+): NonNullable<FitViewOptions["padding"]> {
+  const sheet = from?.closest(`[${BOTTOM_SHEET_ATTR}]`)?.getBoundingClientRect();
+  const canvas = document.querySelector(".react-flow")?.getBoundingClientRect();
+  const covered = sheet && canvas ? Math.max(0, canvas.bottom - sheet.top) : 0;
+  return covered > 0
+    ? { top: "10%", left: "10%", right: "10%", bottom: `${Math.round(covered) + 16}px` }
+    : fallback;
 }

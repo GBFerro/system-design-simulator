@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Download, type Page } from "@playwright/test";
+import { open } from "./helpers";
 
 // Spec 05: export → fresh storage → import, and a real v1 localStorage opening in v2.
 
@@ -13,11 +14,6 @@ test.use({ viewport: { width: 1600, height: 900 } });
 
 const nodes = (page: Page) => page.locator(".react-flow__node");
 const edges = (page: Page) => page.locator(".react-flow__edge");
-
-async function open(page: Page) {
-  await page.goto("/");
-  await expect(page.locator(".react-flow")).toBeVisible();
-}
 
 async function readJson(download: Download) {
   const path = await download.path();

@@ -31,7 +31,3 @@ export function viewOf(graph: CanvasGraph): DesignView {
     path: syncPath(comps, graph.edges, scoring),
   };
 }
-
-export function isAsyncEdge(edge: { data?: unknown }): boolean {
-  return (edge.data as { async?: unknown } | undefined)?.async === true;
-}

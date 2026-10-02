@@ -1,14 +1,10 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { center } from "./helpers";
 
 // Spec 08 (CHS-01/02/04): faults injected into the live run, blast radius and
 // timeline. Spec 12 (ADV-03): structure hints in the Advisor tab.
 
 const nodes = (page: Page) => page.locator(".react-flow__node");
-
-async function center(locator: Locator) {
-  const box = (await locator.boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
 
 async function loadReferenceAndPlay(page: Page) {
   await page.goto("/");

@@ -22,6 +22,7 @@ import {
 } from "@/store/advisorStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
+import { paddingAboveSheet } from "@/lib/placement";
 import { SECTION_TITLE } from "./styles";
 
 export const SEVERITY_META: Record<
@@ -84,15 +85,10 @@ export function AdvisorPanel() {
 
   const frame = (ids: string[]) => {
     if (ids.length === 0) return;
-    // On mobile the panel is a bottom sheet over the canvas: frame above it.
-    const sheet = sectionRef.current?.closest("[data-bottom-sheet]")?.getBoundingClientRect();
-    const canvas = document.querySelector(".react-flow")?.getBoundingClientRect();
-    const covered = sheet && canvas ? Math.max(0, canvas.bottom - sheet.top) : 0;
     void fitView({
       nodes: ids.map((id) => ({ id })),
       duration: 300,
-      padding:
-        covered > 0 ? { top: "10%", left: "10%", right: "10%", bottom: `${covered + 16}px` } : 0.6,
+      padding: paddingAboveSheet(sectionRef.current, 0.6),
       maxZoom: 1.2,
     });
   };

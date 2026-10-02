@@ -14,9 +14,10 @@ import {
 } from "@/domain/components/registry";
 import { freePositionNear, nodeRect } from "@/lib/placement";
 import { ms, pct, rps } from "@/scoring/steady";
-import { emptyDiff, insertBetween, newComponentNode, newEdge, ruleOf, uniqueId } from "./graph";
+import { edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
+import { emptyDiff, insertBetween, newComponentNode, newEdge, uniqueId } from "./graph";
 import type { AdvisorContext, CanvasGraph, Finding, GraphDiff } from "./types";
-import { isAsyncEdge, type DesignView } from "./view";
+import type { DesignView } from "./view";
 
 /** Read share above which a database's reads deserve a cache. */
 export const READ_HEAVY_RATIO = 0.7;
@@ -59,7 +60,7 @@ function readCacheFindings(view: DesignView, ctx: AdvisorContext): Finding[] {
     const readers = into.filter((e) => {
       if (isAsyncEdge(e) || !path.onPath.has(e.source)) return false;
       if (routingFor(componentOf(e.source)) !== "service") return false;
-      const kind = ruleOf(graph, e).kind;
+      const kind = edgeRuleOf(graph, e).kind;
       return kind === "always" || kind === "reads";
     });
     if (readers.length === 0) continue;
@@ -127,7 +128,7 @@ function readCacheDiff(
 
   const added: Edge[] = [];
   for (const e of readers) {
-    const rule = ruleOf(graph, e);
+    const rule = edgeRuleOf(graph, e);
     if (rule.kind === "reads") diff.removeEdgeIds.push(e.id);
     else diff.edgeRules[e.id] = { kind: "writes" };
     added.push(

@@ -4,7 +4,12 @@ import { getComponentById } from "@/data/components";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useAppStore } from "@/store/appStore";
 import { createComponentNode } from "@/lib/nodeFactory";
-import { defaultEdgeRule, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
+import {
+  canvasRuleGraph,
+  defaultEdgeRule,
+  newEdgeData,
+  sanitizeEdgeRule,
+} from "@/domain/graph/edgeRules";
 import { sanitizeParams } from "@/domain/components/registry";
 
 /**
@@ -62,14 +67,13 @@ export function buildReferenceGraph(problem: Problem): {
         source: sourceId,
         target: targetId,
         type: "animated",
-        data: {
-          label: "",
-          protocol: "http",
+        // The reference states its async flag; its rules default by component ids alone.
+        data: newEdgeData(sourceId, targetId, canvasRuleGraph(refNodes, refEdges), {
           async: ref.async === true,
           rule: ref.rule
             ? sanitizeEdgeRule({ ...fallbackRule, ...ref.rule }, fallbackRule)
             : fallbackRule,
-        },
+        }),
       });
     }
   }

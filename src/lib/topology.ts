@@ -1,5 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import { instancesOf } from "@/domain/components/registry";
+import { isAsyncEdge } from "@/domain/graph/edgeRules";
 import type { ComponentNodeData } from "@/store/canvasStore";
 
 /**
@@ -18,8 +19,7 @@ export function topologySignature(nodes: readonly Node[], edges: readonly Edge[]
   }
   sig += "#";
   for (const e of edges) {
-    const async = (e.data as { async?: unknown } | undefined)?.async === true;
-    sig += `${e.id}|${e.source}>${e.target}|${async ? 1 : 0};`;
+    sig += `${e.id}|${e.source}>${e.target}|${isAsyncEdge(e) ? 1 : 0};`;
   }
   return sig;
 }

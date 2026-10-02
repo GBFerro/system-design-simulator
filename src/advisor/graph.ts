@@ -11,10 +11,11 @@ import { instancesOf, PARAM, resolvedParams, sanitizeParams } from "@/domain/com
 import type { EdgeRule, Params } from "@/domain/components/types";
 import {
   applyEdgeRulePatch,
+  canvasRuleGraph,
   connectEdgeRule,
-  defaultEdgeAsync,
-  sanitizeEdgeRule,
-  type RuleGraph,
+  edgeRuleOf,
+  newEdgeData,
+  type EdgeProtocol,
 } from "@/domain/graph/edgeRules";
 import { componentNodeWithId } from "@/lib/nodeFactory";
 import { freePositionNear, nodeRect } from "@/lib/placement";
@@ -41,22 +42,6 @@ function center(node: Node): XYPosition {
   return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
 }
 
-function ruleGraph(nodes: readonly Node[], edges: readonly Edge[]): RuleGraph<Edge> {
-  const ids = new Map(
-    nodes.map((n) => [n.id, (n.data as Partial<ComponentNodeData>).componentId] as const),
-  );
-  return { componentIdOf: (id) => ids.get(id), edges };
-}
-
-/** An edge's rule, normalized (edges saved before v2 get their connect default). */
-export function ruleOf(graph: CanvasGraph, edge: Edge): EdgeRule {
-  const data = (edge.data ?? {}) as CustomEdgeData;
-  return sanitizeEdgeRule(
-    data.rule,
-    connectEdgeRule(edge.source, edge.target, ruleGraph(graph.nodes, graph.edges), data.protocol),
-  );
-}
-
 /** A component node of `componentId`, its params = schema defaults + `params`. */
 export function newComponentNode(
   componentId: string,
@@ -74,9 +59,8 @@ export function newComponentNode(
 }
 
 /**
- * An edge as `onConnect` creates it (label, protocol, async default, connect
- * rule), with `rule` merged over the connect default. `nodes` must include
- * nodes the diff adds.
+ * An edge as `onConnect` creates it (`newEdgeData`), with `rule` merged over
+ * the connect default. `nodes` must include nodes the diff adds.
  */
 export function newEdge(
   nodes: readonly Node[],
@@ -85,16 +69,14 @@ export function newEdge(
   source: string,
   target: string,
   rule: Partial<EdgeRule> = {},
-  protocol: CustomEdgeData["protocol"] = "http",
+  protocol: EdgeProtocol = "http",
 ): Edge {
-  const graph = ruleGraph(nodes, edges);
+  const graph = canvasRuleGraph(nodes, edges);
   const fallback = connectEdgeRule(source, target, graph, protocol);
-  const data: CustomEdgeData = {
-    label: "",
+  const data = newEdgeData(source, target, graph, {
     protocol,
-    async: defaultEdgeAsync(graph.componentIdOf(source), graph.componentIdOf(target)),
     rule: applyEdgeRulePatch(fallback, rule, fallback),
-  };
+  });
   return { id, source, target, type: "animated", data };
 }
 
@@ -128,7 +110,7 @@ export function insertBetween(
   const node = newComponentNode(componentId, uniqueId(idBase, graph), position, params);
   const nodes = [...graph.nodes, node];
   const edges = graph.edges.filter((e) => e.id !== edge.id);
-  const { kind, callsPerRequest, fraction } = ruleOf(graph, edge);
+  const { kind, callsPerRequest, fraction } = edgeRuleOf(graph, edge);
   const protocol = ((edge.data ?? {}) as CustomEdgeData).protocol ?? "http";
   const inId = uniqueId(`e-${a.id}-${node.id}`, graph);
   const into = newEdge(
@@ -173,7 +155,7 @@ export function applyDiff(graph: CanvasGraph, diff: GraphDiff): CanvasGraph {
   const edges = kept.map((e) => {
     const patch = diff.edgeRules[e.id];
     if (!patch) return e;
-    const current = ruleOf(graph, e);
+    const current = edgeRuleOf(graph, e);
     return { ...e, data: { ...e.data, rule: applyEdgeRulePatch(current, patch, current) } };
   });
   return { nodes: [...nodes, ...diff.addNodes], edges: [...edges, ...diff.addEdges] };

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { open } from "./helpers";
 
 // Spec 07 (OBS-01..04): runtime metrics on nodes, in the Sim panel, and the
 // particle overlay — all read from runtimeStore, never from node.data.
@@ -17,12 +18,6 @@ interface RuntimeHandle {
     setPlayback(p: string): void;
     clear(): void;
   };
-}
-
-async function open(page: Page) {
-  // `?e2e` installs window.__runtimeStore in production builds too (CI).
-  await page.goto("/?e2e=1");
-  await expect(page.locator(".react-flow")).toBeVisible();
 }
 
 async function loadReferenceAndSimulate(page: Page) {
@@ -61,7 +56,7 @@ test("Simulate: node badges, global + per-node panel metrics, particles", async 
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
 
-  await open(page);
+  await open(page, "/?e2e=1");
   await loadReferenceAndSimulate(page);
 
   // OBS-01 badge: RPS in > 0 and a p99 on at least one node, status icon labelled.
@@ -104,7 +99,7 @@ test("Simulate: node badges, global + per-node panel metrics, particles", async 
 });
 
 test("hovering a node badge shows a sparkline of the recent run", async ({ page }) => {
-  await open(page);
+  await open(page, "/?e2e=1");
   await loadReferenceAndSimulate(page);
   await pushSyntheticRun(page, 40);
 
@@ -123,7 +118,7 @@ test("hovering a node badge shows a sparkline of the recent run", async ({ page 
 
 test("prefers-reduced-motion: no particles, edges still show status and load", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await open(page);
+  await open(page, "/?e2e=1");
   await loadReferenceAndSimulate(page);
 
   const overlay = page.getByTestId("flow-particles");
@@ -153,7 +148,7 @@ test("pushing snapshots never rewrites the persisted canvas", async ({ page }) =
       return original.call(this, key, value);
     };
   });
-  await open(page);
+  await open(page, "/?e2e=1");
   await loadReferenceAndSimulate(page);
 
   const canvasWrites = () =>
@@ -177,7 +172,7 @@ test("pushing snapshots never rewrites the persisted canvas", async ({ page }) =
 });
 
 test("tab switch clears runtime metrics", async ({ page }) => {
-  await open(page);
+  await open(page, "/?e2e=1");
   await loadReferenceAndSimulate(page);
   await expect(page.getByTestId("node-metrics").first()).toBeVisible();
 
@@ -237,7 +232,7 @@ test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", as
       }),
     );
   });
-  await open(page);
+  await open(page, "/?e2e=1");
   await expect(page.locator(".react-flow__edge")).toHaveCount(100);
 
   await page.evaluate(() => {

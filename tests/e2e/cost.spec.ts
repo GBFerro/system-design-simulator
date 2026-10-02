@@ -1,8 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { MOD } from "./helpers";
 
 // Spec 10: live cost, its breakdown, the budget and right-size with one undo step.
-
-const MOD = process.platform === "darwin" ? "Meta" : "Control";
 
 type RuntimeHandle = {
   getState(): { pushSnapshot(s: unknown): void };

@@ -7,6 +7,7 @@
  */
 import type { Edge, Node } from "@xyflow/react";
 import { instancesOf, routingFor } from "@/domain/components/registry";
+import { isAsyncEdge } from "@/domain/graph/edgeRules";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { ScoringGraph } from "@/types/scoring";
 
@@ -53,7 +54,7 @@ export function syncPath(
     if (!parents.has(e.target)) parents.set(e.target, new Set());
     parents.get(e.target)!.add(e.source);
     const key = `${e.source}->${e.target}`;
-    if (seen.has(key) || (e.data as { async?: unknown } | undefined)?.async === true) continue;
+    if (seen.has(key) || isAsyncEdge(e)) continue;
     seen.add(key);
     const list = syncOut.get(e.source);
     if (list) list.push(e.target);

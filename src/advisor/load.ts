@@ -16,7 +16,8 @@ import { pct, rps } from "@/scoring/steady";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { emptyDiff, insertBetween } from "./graph";
 import type { AdvisorContext, Finding } from "./types";
-import { isAsyncEdge, type DesignView } from "./view";
+import { isAsyncEdge } from "@/domain/graph/edgeRules";
+import type { DesignView } from "./view";
 
 /**
  * Tiers in front of the application that a rate limiter goes behind: the

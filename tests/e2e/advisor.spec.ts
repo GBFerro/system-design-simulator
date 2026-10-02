@@ -1,33 +1,9 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { MOD, connect, quickAdd } from "./helpers";
 
 // Spec 12 (ADV-01/02): findings with quick fixes, previewed as ghosts on the
 // canvas and applied — one or all — as a single undo step. The structure
 // hints of ADV-03 are covered in chaos.spec.ts.
-
-const MOD = process.platform === "darwin" ? "Meta" : "Control";
-
-async function quickAdd(page: Page, label: string) {
-  await page
-    .getByRole("button", { name: `Add ${label} to canvas` })
-    .first()
-    .click();
-}
-
-async function center(locator: Locator) {
-  const box = (await locator.boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
-/** Drag from one node's source handle to another node's target handle. */
-async function connect(page: Page, from: string, to: string) {
-  const a = await center(page.locator(`.react-flow__node[data-id^="${from}-"] .source`));
-  const b = await center(page.locator(`.react-flow__node[data-id^="${to}-"] .target`));
-  await page.mouse.move(a.x, a.y);
-  await page.mouse.down();
-  await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 5 });
-  await page.mouse.move(b.x, b.y, { steps: 5 });
-  await page.mouse.up();
-}
 
 test("quick fixes: ghost preview, apply in one undo step, apply all", async ({ page }) => {
   await page.goto("/");
