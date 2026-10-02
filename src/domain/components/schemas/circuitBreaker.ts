@@ -1,8 +1,16 @@
-import { PARAM } from "../params";
+import { PARAM, timeoutSpec } from "../params";
 import { defineSchema } from "./define";
 
-/** Circuit breaker. Defaults follow Resilience4j's CircuitBreakerConfig. */
+/**
+ * Circuit breaker. Defaults follow Resilience4j's CircuitBreakerConfig (and
+ * TimeLimiter for the timeout). The tick loop runs the closed → open →
+ * half-open machine (`engine/core/breaker.ts`); `analyze()` sees it closed.
+ */
 export const circuitBreakerSchema = defineSchema("circuit-breaker", "breaker", [
+  timeoutSpec(
+    1000,
+    "Calls slower than this are cut off and count as failures, so a slow dependency trips the breaker too.",
+  ),
   {
     key: PARAM.errorThreshold,
     label: "Failure threshold",

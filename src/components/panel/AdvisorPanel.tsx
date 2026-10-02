@@ -1,19 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useReactFlow } from "@xyflow/react";
-import {
-  CircleCheck,
-  Eye,
-  EyeOff,
-  Info,
-  OctagonAlert,
-  TriangleAlert,
-  Wand2,
-  type LucideIcon,
-} from "lucide-react";
+import { useRef } from "react";
+import { CircleCheck, Info, OctagonAlert, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { Finding, Severity } from "@/advisor/types";
-import { GHOST_PREFIX } from "@/components/canvas/previewGraph";
 import {
   applyAllFindings,
   applyFinding,
@@ -22,7 +11,14 @@ import {
 } from "@/store/advisorStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
-import { paddingAboveSheet } from "@/lib/placement";
+import {
+  FIX_BUTTON,
+  FixActions,
+  FixPreviewBanner,
+  READ_ONLY_TITLE,
+  useEndPreviewOnLeave,
+  useFrameNodes,
+} from "./FixPreview";
 import { SECTION_TITLE } from "./styles";
 
 export const SEVERITY_META: Record<
@@ -49,9 +45,6 @@ export const SEVERITY_META: Record<
   },
 };
 
-const FIX_BUTTON =
-  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
-
 /**
  * Advisor (Spec 12): structure hints recomputed as you edit (ADV-03),
  * findings from the last run's load and the last score (ADV-01), and quick
@@ -65,33 +58,15 @@ export function AdvisorPanel() {
   const hasRun = useRuntimeStore((s) => s.latest !== null);
   const selectOnly = useCanvasStore((s) => s.selectOnly);
   const readOnly = useIsActiveTabReadOnly();
-  const { fitView } = useReactFlow();
   const sectionRef = useRef<HTMLElement>(null);
+  const { frame, framePreview } = useFrameNodes(sectionRef);
 
   const design = findings.filter((f) => f.source !== "scoring");
   const score = findings.filter((f) => f.source === "scoring");
   const fixable = design.filter((f) => f.fix);
 
   // The preview belongs to this tab: leaving it (or Escape) ends it.
-  useEffect(() => () => setAdvisorPreview(null), []);
-  useEffect(() => {
-    if (!preview) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setAdvisorPreview(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [preview]);
-
-  const frame = (ids: string[]) => {
-    if (ids.length === 0) return;
-    void fitView({
-      nodes: ids.map((id) => ({ id })),
-      duration: 300,
-      padding: paddingAboveSheet(sectionRef.current, 0.6),
-      maxZoom: 1.2,
-    });
-  };
+  useEndPreviewOnLeave();
 
   const focus = (f: Finding) => {
     if (f.targetIds.length === 0) return;
@@ -99,14 +74,11 @@ export function AdvisorPanel() {
     frame(f.targetIds);
   };
 
+  const previewingId = preview?.fromFinding ? preview.key : null;
   const togglePreview = (f: Finding) => {
-    if (preview?.findingId === f.id) return setAdvisorPreview(null);
+    if (previewingId === f.id) return setAdvisorPreview(null);
     setAdvisorPreview(f.id);
-    const ghosts = (useAdvisorStore.getState().preview?.diff.addNodes ?? []).map(
-      (n) => GHOST_PREFIX + n.id,
-    );
-    // Ghost nodes mount on the next render: frame them after it.
-    requestAnimationFrame(() => frame([...f.targetIds, ...ghosts]));
+    framePreview(f.targetIds);
   };
 
   return (
@@ -126,7 +98,7 @@ export function AdvisorPanel() {
               disabled={readOnly}
               title={
                 readOnly
-                  ? "Reference designs are read-only"
+                  ? READ_ONLY_TITLE
                   : "Apply every fix in order of severity, as one undo step"
               }
               data-testid="advisor-apply-all"
@@ -143,33 +115,7 @@ export function AdvisorPanel() {
         </p>
       </div>
 
-      {preview && (
-        <div
-          className="flex items-start gap-2 rounded-md border border-violet-500/40 bg-violet-950/30 px-2.5 py-2"
-          role="status"
-          data-testid="advisor-preview"
-        >
-          <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" aria-hidden />
-          <p className="min-w-0 flex-1 text-[11px] leading-snug text-violet-100">
-            Previewing: {preview.label}. Dashed violet is new or changed, dashed rose goes away.
-          </p>
-          <button
-            type="button"
-            onClick={() => applyFinding(preview.findingId)}
-            disabled={readOnly}
-            className={`${FIX_BUTTON} bg-violet-500 text-white hover:bg-violet-400`}
-          >
-            Apply
-          </button>
-          <button
-            type="button"
-            onClick={() => setAdvisorPreview(null)}
-            className={`${FIX_BUTTON} text-zinc-300 hover:bg-zinc-700`}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
+      <FixPreviewBanner readOnly={readOnly} />
 
       {design.length === 0 ? (
         <div className="flex items-center gap-2 rounded-md border border-emerald-500/25 bg-emerald-950/20 px-2.5 py-2">
@@ -188,7 +134,7 @@ export function AdvisorPanel() {
             <FindingCard
               key={f.id}
               finding={f}
-              previewing={preview?.findingId === f.id}
+              previewing={previewingId === f.id}
               readOnly={readOnly}
               onFocus={() => focus(f)}
               onPreview={() => togglePreview(f)}
@@ -258,39 +204,14 @@ function FindingCard({
         </span>
       </button>
       {f.fix && (
-        <div className="flex items-center gap-1.5 border-t border-zinc-700/50 px-2.5 py-1.5">
-          <Wand2 className="h-3 w-3 shrink-0 text-violet-300" aria-hidden />
-          <span className="min-w-0 flex-1 text-[11px] leading-snug text-zinc-300">
-            {f.fix.label}
-          </span>
-          <button
-            type="button"
-            onClick={onPreview}
-            aria-pressed={previewing}
-            aria-label={`${previewing ? "Hide preview" : "Preview"}: ${f.fix.label}`}
-            className={`${FIX_BUTTON} flex items-center gap-1 ${
-              previewing
-                ? "bg-violet-500/30 text-violet-100"
-                : "text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
-            }`}
-          >
-            {previewing ? (
-              <EyeOff className="h-3 w-3" aria-hidden />
-            ) : (
-              <Eye className="h-3 w-3" aria-hidden />
-            )}
-            {previewing ? "Hide" : "Preview"}
-          </button>
-          <button
-            type="button"
-            onClick={() => applyFinding(f.id)}
-            disabled={readOnly}
-            title={readOnly ? "Reference designs are read-only" : undefined}
-            aria-label={`Apply: ${f.fix.label}`}
-            className={`${FIX_BUTTON} bg-violet-500/20 text-violet-200 hover:bg-violet-500/30`}
-          >
-            Apply
-          </button>
+        <div className="border-t border-zinc-700/50 px-2.5 py-1.5">
+          <FixActions
+            fix={f.fix}
+            previewing={previewing}
+            readOnly={readOnly}
+            onPreview={onPreview}
+            onApply={() => applyFinding(f.id)}
+          />
         </div>
       )}
     </li>

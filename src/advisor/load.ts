@@ -15,7 +15,7 @@ import { OVERPROVISIONED_UTILIZATION, PEAK_UTILIZATION, SURGE_FACTOR } from "@/s
 import { pct, rps } from "@/scoring/steady";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { emptyDiff, insertBetween } from "./graph";
-import type { AdvisorContext, Finding } from "./types";
+import type { AdvisorContext, Finding, QuickFix } from "./types";
 import { isAsyncEdge } from "@/domain/graph/edgeRules";
 import type { DesignView } from "./view";
 
@@ -146,35 +146,33 @@ function frontierEdges(view: DesignView): Edge[] {
   return out;
 }
 
-/** Info: live traffic and nothing that caps it (a rate limiter, or a gateway's throttling). */
-function rateLimiterFinding(
+/** Something already caps incoming traffic: a rate limiter, or an API gateway with throttling on. */
+export function hasRateLimit(view: DesignView): boolean {
+  return view.comps.some(
+    (n) =>
+      view.scoring.reachable.has(n.id) &&
+      (n.data.componentId === "rate-limiter" ||
+        (n.data.componentId === "api-gateway" && n.data.params?.[PARAM.rateLimitEnabled] === true)),
+  );
+}
+
+/**
+ * The fix that caps incoming traffic at SURGE_FACTOR × `load`: turn on the
+ * busiest API gateway's throttling, else insert a rate limiter where requests
+ * leave the edge tiers (when that's one edge). `targetIds` = where it acts;
+ * no fix when neither fits. Shared with the traffic-spike mitigation (CHS-06).
+ */
+export function rateLimitFix(
   view: DesignView,
   load: Readonly<Record<string, number>>,
-): Finding | null {
+): { fix?: QuickFix; targetIds: string[] } {
   const reachable = view.comps.filter((n) => view.scoring.reachable.has(n.id));
-  if (!reachable.some((n) => (load[n.id] ?? 0) > 0)) return null;
-  const caps = (n: Node<ComponentNodeData>) =>
-    n.data.componentId === "rate-limiter" ||
-    (n.data.componentId === "api-gateway" && n.data.params?.[PARAM.rateLimitEnabled] === true);
-  if (reachable.some(caps)) return null;
-
-  const base: Omit<Finding, "targetIds" | "fix"> = {
-    id: "rate-limit",
-    severity: "info",
-    title: "Nothing limits incoming traffic",
-    detail:
-      "A burst, a retry storm or a scraper beyond what the tiers can serve overloads all of them at once. A rate limiter at the edge rejects the excess early (HTTP 429) and keeps everyone else fast.",
-    source: "metrics",
-  };
-
-  // An API gateway on the path: turn its throttling on.
   const gateway = reachable
     .filter((n) => n.data.componentId === "api-gateway")
     .sort((a, b) => (load[b.id] ?? 0) - (load[a.id] ?? 0))[0];
   if (gateway) {
     const limit = limitFor(load[gateway.id] ?? 0);
     return {
-      ...base,
       targetIds: [gateway.id],
       fix: {
         label: `Turn on throttling at ${gateway.data.label} (limit ${rps(limit)} rps, ${SURGE_FACTOR}× the current load)`,
@@ -188,11 +186,8 @@ function rateLimiterFinding(
     };
   }
 
-  // Else a limiter where requests leave the edge tiers, when that's one edge.
   const frontier = frontierEdges(view);
-  if (frontier.length !== 1) {
-    return { ...base, targetIds: [...new Set(frontier.map((e) => e.target))] };
-  }
+  if (frontier.length !== 1) return { targetIds: [...new Set(frontier.map((e) => e.target))] };
   const edge = frontier[0];
   const from = view.byId.get(edge.source)!;
   const to = view.byId.get(edge.target)!;
@@ -200,7 +195,6 @@ function rateLimiterFinding(
   const limit = limitFor(entering);
   const capacity = capacityPerInstanceOf({ params: {}, componentId: "rate-limiter" });
   return {
-    ...base,
     targetIds: [from.id, to.id],
     fix: {
       label: `Add a rate limiter between ${from.data.label} and ${to.data.label} (limit ${rps(limit)} rps, ${SURGE_FACTOR}× the current load)`,
@@ -216,5 +210,23 @@ function rateLimiterFinding(
         });
       },
     },
+  };
+}
+
+/** Info: live traffic and nothing that caps it. */
+function rateLimiterFinding(
+  view: DesignView,
+  load: Readonly<Record<string, number>>,
+): Finding | null {
+  const live = view.comps.some((n) => view.scoring.reachable.has(n.id) && (load[n.id] ?? 0) > 0);
+  if (!live || hasRateLimit(view)) return null;
+  return {
+    id: "rate-limit",
+    severity: "info",
+    title: "Nothing limits incoming traffic",
+    detail:
+      "A burst, a retry storm or a scraper beyond what the tiers can serve overloads all of them at once. A rate limiter at the edge rejects the excess early (HTTP 429) and keeps everyone else fast.",
+    source: "metrics",
+    ...rateLimitFix(view, load),
   };
 }

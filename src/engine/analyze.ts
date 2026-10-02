@@ -220,10 +220,11 @@ export function analyze(
         rejected = adm.rejected;
         capacityPerInstance = Math.min(capacityPerInstance, adm.capacityLimit / node.instances);
       }
-      // Dead instances still in rotation fail their share (fault, Spec 08).
-      if (fx && fx.errorRate > 0) admitted -= admitted * fx.errorRate;
       // A resolver only works on its uncached lookups; cached answers pass straight through.
       const bypass = admitted * (1 - lookupShareOf(node));
+      // Dead instances still in rotation fail their share (fault, Spec 08) — of
+      // the lookups only, for a resolver: cached answers never reach it.
+      if (fx && fx.errorRate > 0) admitted -= (admitted - bypass) * fx.errorRate;
 
       const st = station({
         lambda: admitted - bypass,
