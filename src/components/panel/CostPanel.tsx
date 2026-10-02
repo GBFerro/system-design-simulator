@@ -18,8 +18,7 @@ import { SURGE_FACTOR } from "@/scoring/budget";
 import { rps as formatRps, pct } from "@/scoring/steady";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
-
-const SECTION_TITLE = "text-xs font-semibold uppercase tracking-wider text-zinc-400";
+import { SECTION_TITLE } from "./styles";
 
 /**
  * Cost (Spec 10): estimated $/month and $/1M requests at the latest simulated

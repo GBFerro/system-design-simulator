@@ -20,6 +20,7 @@ import { topologySignature } from "@/lib/topology";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
+import { SECTION_TITLE } from "./styles";
 
 const inputClass =
   "h-8 w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 text-xs text-zinc-200 focus:border-cyan-500 focus:outline-none disabled:opacity-50";
@@ -137,7 +138,7 @@ export function ChaosPanel() {
   return (
     <section aria-label="Chaos engineering" className="space-y-4" data-testid="chaos-panel">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Chaos</p>
+        <p className={SECTION_TITLE}>Chaos</p>
         <p className="mt-1 text-[11px] leading-snug text-zinc-400">
           Break the running system and watch the blast radius. Faults change the simulation only —
           never your design.
@@ -302,9 +303,7 @@ function FaultList() {
     <div className="space-y-3">
       {active.length > 0 && (
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Active ({active.length})
-          </p>
+          <p className={`mb-1.5 ${SECTION_TITLE}`}>Active ({active.length})</p>
           <ul className="space-y-1.5" data-testid="chaos-active">
             {active.map((f) => (
               <FaultRow key={f.id} fault={f} now={simTime} />
@@ -314,9 +313,7 @@ function FaultList() {
       )}
       {ended.length > 0 && (
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            This run
-          </p>
+          <p className={`mb-1.5 ${SECTION_TITLE}`}>This run</p>
           <ul className="space-y-1">
             {ended.map((f) => (
               <li

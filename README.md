@@ -130,13 +130,13 @@ SystemForge scores the **wired request path**, not a parts bin. Drop a cache on 
 
 Five categories, each capped at exactly **20 points**:
 
-| Category            | What it checks (the first four by simulating the design at the peak)   |
-| ------------------- | ---------------------------------------------------------------------- |
-| **Scalability**     | Holds the peak with headroom and a 2× surge; stateless tiers scale out |
-| **Availability**    | No single point of failure; survives the problem's failure scenarios   |
-| **Latency**         | p99 within the SLA, p50, no unnecessary synchronous hops               |
-| **Cost Efficiency** | Monthly cost at the peak vs. the problem's budget; no idle tiers       |
-| **Trade-offs**      | Read/write separation, defense in depth, architecture breadth          |
+| Category            | What it checks (the first four by simulating the design at the peak)          |
+| ------------------- | ----------------------------------------------------------------------------- |
+| **Scalability**     | Holds the peak with headroom and a 2× surge; stateless tiers scale out        |
+| **Availability**    | No single point of failure; each failure scenario fits the SLO's error budget |
+| **Latency**         | The SLO's percentile within its threshold, p50, no unnecessary sync hops      |
+| **Cost Efficiency** | Monthly cost at the peak vs. the problem's budget; no idle tiers              |
+| **Trade-offs**      | Read/write separation, defense in depth, architecture breadth                 |
 
 **Verdicts:** Needs Work `<31` · Decent `<51` · Good `<71` · Excellent `<86` · Architect Level `86+`
 
@@ -304,10 +304,10 @@ No backend, no database, no telemetry — the entire app ships as a static bundl
 
 The full, per-file map lives in [`CLAUDE.md`](CLAUDE.md#architecture-map) (a unit test keeps it in sync with `src/`). In short:
 
-- `src/components/` — the editor UI: ReactFlow canvas, sidebar, right panel (Props, Simulate, Chaos, Score, Advisor, Cost, Capacity, Trade-offs), interview mode, dialogs
+- `src/components/` — the editor UI: ReactFlow canvas, sidebar, right panel (Props, Simulate, Chaos, SLO, Score, Advisor, Cost, Capacity, Trade-offs), interview mode, dialogs
 - `src/domain/` — component schemas and prices, edge rules, the canvas → simulation graph compiler, persistence
 - `src/engine/` — the simulation engine in a Web Worker: steady-state queueing analysis, live tick loop, fault injection
-- `src/scoring/`, `src/advisor/`, `src/cost/`, `src/interview/` — measured scoring, structural hints, cost model, interview grading and report
+- `src/scoring/`, `src/advisor/`, `src/cost/`, `src/slo/`, `src/interview/` — measured scoring, structural hints, cost model, SLOs and error budget, interview grading and report
 - `src/data/` — the component catalog, problems with reference solutions, concept library, interview scripts, trade-off cards, learning path
 - `src/store/` — Zustand stores (persisted to `localStorage`, saved designs and attempts in IndexedDB)
 

@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { parseParamInput, rangeText, toDisplay } from "@/domain/components/paramInput";
 import type { ParamGroup, ParamSpec, ParamValue, Params } from "@/domain/components/types";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
+import { INPUT } from "./styles";
 
 /**
  * Generic form for a list of `ParamSpec`s (Spec 03, CMP-01): the Props panel
@@ -28,9 +29,6 @@ const GROUP_LABEL: Record<ParamGroup | "general", string> = {
   resilience: "Resilience",
   advanced: "Advanced",
 };
-
-const INPUT =
-  "w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/50 disabled:cursor-not-allowed disabled:opacity-60";
 
 interface FieldProps {
   spec: ParamSpec;

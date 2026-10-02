@@ -57,3 +57,22 @@ export function usePrefersReducedMotion(): boolean {
 
   return reduce;
 }
+
+/**
+ * Returns `true` when the viewport is at least `px` wide. Use it instead of a
+ * CSS breakpoint when a hidden component would still do work (e.g. re-render
+ * on every snapshot). SSR-safe: returns `false` on the server; updates after mount.
+ */
+export function useMinWidth(px: number): boolean {
+  const [wide, setWide] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${px}px)`);
+    const update = () => setWide(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [px]);
+
+  return wide;
+}

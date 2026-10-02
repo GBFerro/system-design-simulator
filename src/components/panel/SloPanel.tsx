@@ -28,10 +28,7 @@ import { useChaosStore } from "@/store/chaosStore";
 import { useInterviewStore } from "@/store/interviewStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { baseSloOf, useEffectiveSlo, useSloStore } from "@/store/sloStore";
-
-const SECTION_TITLE = "text-xs font-semibold uppercase tracking-wider text-zinc-400";
-const INPUT =
-  "w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/50 disabled:cursor-not-allowed disabled:opacity-60";
+import { INPUT, SECTION_TITLE } from "./styles";
 
 const AVAILABILITY_OPTIONS = [0.99, 0.995, 0.999, 0.9995, 0.9999, 0.99999];
 const WINDOW_OPTIONS = [60, 120, 300];

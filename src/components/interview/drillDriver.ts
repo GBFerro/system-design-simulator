@@ -25,6 +25,7 @@ import { useInterviewStore } from "@/store/interviewStore";
 import { effectivePeak } from "@/interview/checks";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { problemSlo } from "@/slo/slo";
+import { isComponentNode } from "@/lib/nodeFactory";
 import {
   injectFault,
   playSimulation,
@@ -52,7 +53,8 @@ function drillSlo(problem: Problem): DrillSlo {
   const scopeNodeIds = latency.scope
     ? useCanvasStore
         .getState()
-        .nodes.filter((n) => (n.data as { componentId?: string }).componentId === latency.scope)
+        .nodes.filter(isComponentNode)
+        .filter((n) => n.data.componentId === latency.scope)
         .map((n) => n.id)
     : [];
   return {

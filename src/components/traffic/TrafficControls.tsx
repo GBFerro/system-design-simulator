@@ -10,6 +10,7 @@ import { formatClock, formatMs, formatPercent, formatRps } from "./format";
 import { PatternEditor } from "./PatternEditor";
 import { SpeedToggle } from "./SpeedToggle";
 import { resetSimulation, setTrafficPattern, togglePlayback } from "./simActions";
+import { SECTION_TITLE } from "@/components/panel/styles";
 
 const SLIDER_STEPS = 1000;
 
@@ -148,7 +149,7 @@ export function TrafficControls() {
   return (
     <section aria-label="Live traffic" className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Live traffic</p>
+        <p className={SECTION_TITLE}>Live traffic</p>
         <SimClock />
       </div>
       <PlaybackBar />

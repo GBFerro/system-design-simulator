@@ -23,6 +23,10 @@ test("app loads with an empty canvas and no runtime errors", async ({ page }) =>
 // 80 px: font metrics differ by OS (the selector is 116 px at 1536 on Windows,
 // 98 px on the Linux CI runner); the regressions to catch were 22 and 60 px.
 const MIN_SELECTOR_PX = 80;
+// Text renders ~20 px wider on Windows/macOS than on the Linux runner, so a
+// local run that only clears 80 px fails in CI (d573871; 16d3e92: 91 px local,
+// 68 px in CI). Off Linux, demand the margin too.
+const LOCAL_MARGIN_PX = process.platform === "linux" ? 0 : 25;
 test("top bar groups never overlap and the problem selector stays readable", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 800 });
   await page.goto("/");
@@ -47,7 +51,9 @@ test("top bar groups never overlap and the problem selector stays readable", asy
       const r = (await right.boundingBox())!;
       const s = (await selector.boundingBox())!;
       expect(l.x + l.width, `${width}px: groups overlap`).toBeLessThanOrEqual(r.x);
-      expect(s.width, `${width}px: problem selector`).toBeGreaterThanOrEqual(MIN_SELECTOR_PX);
+      expect(s.width, `${width}px: problem selector`).toBeGreaterThanOrEqual(
+        MIN_SELECTOR_PX + LOCAL_MARGIN_PX,
+      );
     }).toPass({ timeout: 2000 });
   }
 });

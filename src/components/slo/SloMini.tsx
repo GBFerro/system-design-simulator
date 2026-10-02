@@ -1,6 +1,7 @@
 "use client";
 
 import { Flame, Gauge } from "lucide-react";
+import { useMinWidth } from "@/hooks/useBreakpoint";
 import { formatBurn } from "@/slo/slo";
 import { FAST_BURN_RATE, type Slo } from "@/slo/types";
 import { useAppStore } from "@/store/appStore";
@@ -12,12 +13,14 @@ import { useSloEvaluation } from "./useSloEvaluation";
  * Error budget left, compact, for the top bar while a run exists (Spec 11,
  * SLO-02); opens the SLO tab. Only from 1920 px: with the cost chip also on,
  * at 1680 px it left the problem selector 68 px on the Linux CI runner
- * (smoke.spec.ts measures it).
+ * (smoke.spec.ts measures it). Gated in JS, not CSS: hidden, it would still
+ * re-evaluate the budget on every snapshot.
  */
 export function SloMini() {
   const live = useRuntimeStore((s) => s.playback !== "idle");
   const slo = useEffectiveSlo();
-  if (!live || !slo) return null;
+  const wide = useMinWidth(1920);
+  if (!live || !slo || !wide) return null;
   return <SloChip slo={slo} />;
 }
 
@@ -45,7 +48,7 @@ function SloChip({ slo }: { slo: Slo }) {
       type="button"
       onClick={open}
       data-testid="slo-mini"
-      className={`hidden h-7 shrink-0 items-center gap-1 rounded-md border border-zinc-700 px-2 font-mono text-[11px] tabular-nums transition-colors hover:bg-zinc-800 min-[1920px]:flex ${tone}`}
+      className={`flex h-7 shrink-0 items-center gap-1 rounded-md border border-zinc-700 px-2 font-mono text-[11px] tabular-nums transition-colors hover:bg-zinc-800 ${tone}`}
       title={`${label} (open the SLO tab)`}
       aria-label={label}
     >
