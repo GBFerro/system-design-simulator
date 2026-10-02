@@ -28,6 +28,7 @@ interface AppState {
     | "properties"
     | "simulation"
     | "chaos"
+    | "slo"
     | "score"
     | "advisor"
     | "cost"

@@ -158,7 +158,7 @@ describe("cost rule (CST-05)", () => {
     const g = compileGraph(nodes, edges);
     return {
       peakRps: rps,
-      sla: { p99Ms: 1000 },
+      slo: { latency: { percentile: 99, thresholdMs: 1000 }, availability: 0.999, windowSec: 300 },
       atPeak: analyze(g, rps, { samples: 200 }),
       atDoublePeak: analyze(g, 2 * rps, { samples: 200 }),
       underFaults: [],
@@ -199,7 +199,7 @@ describe("cost rule (CST-05)", () => {
     const g = compileGraph(lone, []);
     const m: Measurements = {
       peakRps: 1000,
-      sla: { p99Ms: 1000 },
+      slo: { latency: { percentile: 99, thresholdMs: 1000 }, availability: 0.999, windowSec: 300 },
       atPeak: analyze(g, 1000, { samples: 50 }),
       atDoublePeak: analyze(g, 2000, { samples: 50 }),
       underFaults: [],

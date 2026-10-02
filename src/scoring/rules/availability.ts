@@ -1,15 +1,17 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
-import { CATEGORY_MAX_SCORE, SLO_ERROR_RATE } from "../budget";
+import { faultErrorAllowance, formatAvailability, formatWindow } from "@/slo/slo";
+import { CATEGORY_MAX_SCORE } from "../budget";
 import { findSpofs, syncPath } from "../paths";
-import { NO_TRAFFIC_FEEDBACK, noTraffic, pct } from "../steady";
+import { NO_TRAFFIC_FEEDBACK, noTraffic, pctFine } from "../steady";
 
 /**
  * Measured (Spec 09): no single point of failure on the request path, the
- * system keeps its SLO under the problem's drill faults, and it degrades
- * gracefully. Max points per check; sums to CATEGORY_MAX_SCORE (checked in
- * tests/unit/scoring.test.ts).
+ * system keeps its SLO under the problem's drill faults (each fault's errors
+ * fit in one window of the availability SLO's error budget, Spec 11), and it
+ * degrades gracefully. Max points per check; sums to CATEGORY_MAX_SCORE
+ * (checked in tests/unit/scoring.test.ts).
  */
 export const BUDGET = {
   noSpof: 6,
@@ -67,17 +69,27 @@ export function scoreAvailability(
       }`,
     );
   } else if (m && m.underFaults.length > 0) {
-    const held = m.underFaults.filter((f) => f.errorRate <= SLO_ERROR_RATE);
-    score += Math.round((BUDGET.underFaults * held.length) / m.underFaults.length);
-    if (held.length === m.underFaults.length) {
+    // Spec 11: a fault's errors must fit in the SLO's error budget for one window.
+    const slo = m.slo;
+    const target = `${formatAvailability(slo.availability)} availability SLO`;
+    const judged = m.underFaults.map((f) => ({
+      ...f,
+      allowed: faultErrorAllowance(slo, f.durationSec),
+    }));
+    const held = judged.filter((f) => f.errorRate <= f.allowed);
+    score += Math.round((BUDGET.underFaults * held.length) / judged.length);
+    if (held.length === judged.length) {
       passed.push(
-        `Keeps errors under ${pct(SLO_ERROR_RATE)} under each of the problem's failure scenarios (${m.underFaults.map((f) => f.label).join("; ")}).`,
+        `Each of the problem's failure scenarios fits in the ${target}'s error budget for a ${formatWindow(slo.windowSec)} window (${judged.map((f) => f.label).join("; ")}).`,
       );
     } else {
       feedback.push(
-        `Under the problem's failure scenarios it breaks the ${pct(SLO_ERROR_RATE)} error budget in ${m.underFaults.length - held.length} of ${m.underFaults.length}: ${m.underFaults
-          .filter((f) => f.errorRate > SLO_ERROR_RATE)
-          .map((f) => `${f.label} → ${pct(f.errorRate)} errors`)
+        `${judged.length - held.length} of the problem's ${judged.length} failure scenarios burn more than the ${target}'s error budget for a ${formatWindow(slo.windowSec)} window: ${judged
+          .filter((f) => f.errorRate > f.allowed)
+          .map(
+            (f) =>
+              `${f.label} → ${pctFine(f.errorRate)} errors for ${f.durationSec} s (fits: ≤ ${pctFine(f.allowed)})`,
+          )
           .join(
             "; ",
           )}. Redundancy with headroom (so survivors absorb the load), timeouts, retries and fallbacks keep it up.`,

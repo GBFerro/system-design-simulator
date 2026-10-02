@@ -1,4 +1,6 @@
 import type { Stroke } from "@/store/penStore";
+import { sanitizeSloOverrides } from "@/slo/slo";
+import type { SloOverrides } from "@/slo/types";
 import { migrateGraphV1toV2, type MigrateOptions } from "./migrate";
 import { SCHEMA_VERSION } from "./version";
 import {
@@ -15,14 +17,14 @@ import {
  *
  *   { schemaVersion: 2, name, problemId, nodes, edges, strokes, chaosScript?, slo? }
  *
- * Nodes carry `params`; edges carry `data` (label/protocol/async/rule).
+ * Nodes carry `params`; edges carry `data` (label/protocol/async/rule);
+ * `slo` is the design's SLO override (Spec 11), sanitized on import.
  * Import accepts schemaVersion 1 and 2 (missing = 1) and migrates.
  */
 
 /** Placeholder until Spec 08 defines it; preserved verbatim on import/export. */
 export type ChaosScript = Record<string, unknown> | unknown[];
-/** Placeholder until Spec 11 defines it; preserved verbatim on import/export. */
-export type SloOverrides = Record<string, unknown>;
+export type { SloOverrides };
 
 export interface DesignEnvelope {
   schemaVersion: typeof SCHEMA_VERSION;
@@ -153,7 +155,7 @@ export function parseEnvelope(
     typeof parsed.chaosScript === "object" && parsed.chaosScript !== null
       ? (parsed.chaosScript as ChaosScript)
       : undefined;
-  const slo = isRecord(parsed.slo) ? (parsed.slo as SloOverrides) : undefined;
+  const slo = sanitizeSloOverrides(parsed.slo);
 
   return {
     ok: true,

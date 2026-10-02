@@ -10,6 +10,7 @@ import type {
   FaultId,
   FaultRecord,
   FaultSpec,
+  LatencySlo,
   SimConfig,
   SimSpeed,
   SteadyState,
@@ -83,6 +84,7 @@ export class FlowEngine implements Engine {
   private pattern: TrafficPattern = DEFAULT_TRAFFIC;
   private patternStart = 0;
   private speed: SimSpeed = 1;
+  private latencySlo: LatencySlo | null = null;
   private timer: unknown = null;
   private anchorWall = 0;
   private anchorTick = 0;
@@ -177,6 +179,16 @@ export class FlowEngine implements Engine {
     this.pattern = next;
   }
 
+  /**
+   * Latency SLO that decides goodput (Spec 11), from the next tick. Kept
+   * across load()/reset(); it never changes the random stream, so the rest
+   * of the snapshot stays bit-identical.
+   */
+  setLatencySlo(slo: LatencySlo | null): void {
+    this.latencySlo = slo;
+    this.sim?.setLatencySlo(slo);
+  }
+
   /** λ the next tick will use. */
   currentRate(): number {
     return rateAt(this.pattern, this.patternTime);
@@ -232,8 +244,10 @@ export class FlowEngine implements Engine {
   /* ---------- internals ---------- */
 
   private ensureSim(): TickSimulator {
-    if (!this.sim)
+    if (!this.sim) {
       this.sim = new TickSimulator(this.graph!, { ...this.config, ...this.tickOptions });
+      this.sim.setLatencySlo(this.latencySlo);
+    }
     return this.sim;
   }
 

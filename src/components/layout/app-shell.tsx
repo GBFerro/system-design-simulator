@@ -148,15 +148,14 @@ export function AppShell() {
     // The engine (and its worker) load on first use: not in the initial bundle.
     void (async () => {
       try {
-        const [{ simulateCanvas }, { steadyStateToSnapshot }] = await Promise.all([
-          import("@/engine/client"),
-          import("@/engine/snapshot"),
-        ]);
+        const [{ simulateCanvas, currentLatencySlo }, { steadyStateToSnapshot }] =
+          await Promise.all([import("@/engine/client"), import("@/engine/snapshot")]);
+        const latencySlo = currentLatencySlo();
         const { steady, result, graph } = await simulateCanvas(
           nodes,
           edges,
           config.requestsPerSec,
-          { horizonSec: config.durationSec },
+          { horizonSec: config.durationSec, ...(latencySlo ? { latencySlo } : {}) },
         );
 
         // Metrics live in runtimeStore (Spec 07), never in node.data.

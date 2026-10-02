@@ -42,6 +42,7 @@ import { exportAsPng, exportAsSvg, exportAsJSON } from "@/lib/exportCanvas";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
 import { PlaybackMini } from "@/components/traffic/PlaybackMini";
 import { CostMini } from "@/components/cost/CostMini";
+import { SloMini } from "@/components/slo/SloMini";
 
 interface TopBarProps {
   onSimulate: () => void;
@@ -546,6 +547,7 @@ export function TopBar({
           </button>
 
           <PlaybackMini />
+          <SloMini />
           <CostMini />
 
           <Button

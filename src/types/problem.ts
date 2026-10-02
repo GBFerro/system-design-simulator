@@ -13,6 +13,16 @@ export interface ProblemRequirements {
    */
   slaScope?: string;
   /**
+   * Percentile the latency SLA is stated at (Spec 11): `latencyMs` is a p99
+   * target unless the statement says otherwise (e.g. "start time < 1 s at p95").
+   */
+  latencyPercentile?: 50 | 95 | 99;
+  /**
+   * Availability target of the SLO (Spec 11), e.g. 0.999. Every built-in
+   * problem declares one (`data.test.ts`); a custom problem gets 99.9%.
+   */
+  availability?: number;
+  /**
    * Monthly budget in USD for the cost score (Spec 10, CST-05). Built-in
    * problems set it from their reference solution's cost at the peak × 1.3
    * (`data.test.ts` checks it); a custom problem may leave it out.

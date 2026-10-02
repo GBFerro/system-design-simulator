@@ -17,6 +17,7 @@ import { steadyStateToSnapshot } from "@/engine/snapshot";
 import type { SimConfig, SteadyState } from "@/engine/types";
 import { resolveDrillStep } from "@/interview/drill";
 import { buildReferenceGraph } from "@/lib/loadReference";
+import { problemSlo } from "@/slo/slo";
 import { isComponentNode } from "@/lib/nodeFactory";
 import type { Measurements } from "@/types/scoring";
 import { SURGE_FACTOR } from "./budget";
@@ -85,18 +86,21 @@ export async function measureDesign(
       return true;
     });
   const underFaults: Measurements["underFaults"] = [];
-  for (const r of await Promise.all(
+  const results = await Promise.all(
     faults.map((f) => api.analyzeUnderFault(graph, peakRps, f.spec, config)),
-  )) {
-    if (r.ok) underFaults.push({ label: r.label, errorRate: r.steady.errorRate });
-  }
+  );
+  results.forEach((r, i) => {
+    if (r.ok)
+      underFaults.push({
+        label: r.label,
+        errorRate: r.steady.errorRate,
+        durationSec: faults[i].spec.durationSec ?? 0,
+      });
+  });
 
   return {
     peakRps,
-    sla: {
-      p99Ms: problem.requirements.latencyMs,
-      ...(problem.requirements.slaScope ? { scope: problem.requirements.slaScope } : {}),
-    },
+    slo: problemSlo(problem.requirements),
     atPeak,
     atDoublePeak,
     underFaults,

@@ -41,6 +41,7 @@ import {
 } from "./core/routing";
 import { sampleLatency } from "./core/sampler";
 import { sampleNodesFor, settle, type Topology } from "./core/settle";
+import { sanitizeLatencySlo, slowShareOf } from "./core/slo";
 import { drainShares, entryShares, withEffects } from "./core/faultView";
 import type { TickEffects } from "./faults/effects";
 import type { EdgeSteadyState, NodeSteadyState, SimConfig, SteadyState } from "./types";
@@ -383,11 +384,14 @@ export function analyze(
   const throughputRps = Math.min(offeredRps, offeredRps * successRate);
 
   const sampleNodes = sampleNodesFor(topo, pass.flows, pass.shares);
+  const latencySlo = sanitizeLatencySlo(config?.latencySlo);
   const sampled = sampleLatency(
     { nodes: sampleNodes, entries, readRatio: cfg.readRatio },
     cfg.samples,
     mulberry32(cfg.seed),
+    latencySlo?.thresholdMs,
   );
+  const slowShare = slowShareOf(latencySlo, sampled.slowShare, byId.values(), pass.flows);
   if (sampled.truncated) {
     warnings.push("Very large fan-out: latency sampling was truncated for some requests.");
   }
@@ -405,6 +409,7 @@ export function analyze(
     requestedRps,
     offeredRps,
     throughputRps: finite(throughputRps),
+    goodputRps: finite(throughputRps * (1 - slowShare)),
     errorRate: offeredRps > 0 ? clamp01(1 - throughputRps / offeredRps) : 0,
     availability: entries.length > 0 ? clamp01(mean(settled.avail)) : 0,
     latency: {

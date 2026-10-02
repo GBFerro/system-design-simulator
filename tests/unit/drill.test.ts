@@ -162,7 +162,7 @@ describe("resolveDrillStep", () => {
 });
 
 describe("evaluateDrillStep", () => {
-  const slo: DrillSlo = { p99Ms: 100, errorRate: 0.01 };
+  const slo: DrillSlo = { percentile: 99, thresholdMs: 100, scopeNodeIds: [], errorRate: 0.01 };
   /** 10 Hz from `from` to `to`, with `bad(t)` deciding the breach. */
   const run = (from: number, to: number, bad: (t: number) => Partial<TickSnapshot["global"]>) => {
     const out: TickSnapshot[] = [];

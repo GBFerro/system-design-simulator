@@ -53,6 +53,7 @@ import { TradeoffLog } from "./TradeoffLog";
 import { TradeoffCards } from "./TradeoffCards";
 import { ChaosPanel } from "./ChaosPanel";
 import { AdvisorPanel } from "./AdvisorPanel";
+import { SloPanel } from "./SloPanel";
 import { useAdvisorStore } from "@/store/advisorStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useInterviewStore } from "@/store/interviewStore";
@@ -120,6 +121,9 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
               label={`${activeFaults} active faults`}
             />
           </TabsTrigger>
+          <TabsTrigger value="slo" className={TAB_TRIGGER}>
+            SLO
+          </TabsTrigger>
           <TabsTrigger
             value="score"
             className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
@@ -176,6 +180,14 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
         <ScrollArea className="h-full">
           <div className={TAB_BODY}>
             <ChaosPanel />
+          </div>
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="slo" className="mt-0 flex-1 overflow-hidden min-h-0">
+        <ScrollArea className="h-full">
+          <div className={TAB_BODY}>
+            <SloPanel />
           </div>
         </ScrollArea>
       </TabsContent>

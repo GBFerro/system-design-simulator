@@ -125,7 +125,7 @@ export function steadyStateToSnapshot(
     edges,
     global: {
       throughput: steady.throughputRps,
-      goodput: steady.throughputRps,
+      goodput: steady.goodputRps,
       errorRate: steady.errorRate,
       p50: steady.latency.p50Ms,
       p95: steady.latency.p95Ms,

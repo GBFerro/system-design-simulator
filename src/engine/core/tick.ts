@@ -54,6 +54,7 @@ import type {
   EdgeRuntimeMetrics,
   NodeRuntimeMetrics,
   RuntimeNodeStatus,
+  LatencySlo,
   SimConfig,
   TickSnapshot,
 } from "../types";
@@ -72,6 +73,7 @@ import {
 } from "./routing";
 import { sampleLatency } from "./sampler";
 import { sampleNodesFor, settle, type FlowView, type Settled, type Topology } from "./settle";
+import { sanitizeLatencySlo, slowShareOf } from "./slo";
 
 /** Synthetic requests per tick for end-to-end percentiles (Spec 04: 1000). */
 export const TICK_SAMPLES = 1000;
@@ -131,12 +133,14 @@ export class TickSimulator {
   private readonly samples: number;
   private readonly options: TickOptions;
   private horizonSec = 10;
+  private latencySlo: LatencySlo | null;
 
   constructor(graph: SimGraph, options: TickOptions = {}) {
     this.options = { ...options };
     const s = options.tickSamples;
     this.samples = Number.isFinite(s) && s! >= 1 ? Math.min(20_000, Math.floor(s!)) : TICK_SAMPLES;
     this.rng = mulberry32(0);
+    this.latencySlo = sanitizeLatencySlo(options.latencySlo);
     this.setGraph(graph);
     this.reset();
   }
@@ -156,6 +160,11 @@ export class TickSimulator {
     this.nodeState.clear();
     this.pending.clear();
     this.rng = mulberry32(resolveConfig(this.graph, this.topo.byId, this.options).seed);
+  }
+
+  /** Latency SLO for goodput (Spec 11), from the next tick; null = none. Never touches the PRNG. */
+  setLatencySlo(slo: LatencySlo | null): void {
+    this.latencySlo = sanitizeLatencySlo(slo);
   }
 
   /**
@@ -405,10 +414,12 @@ export class TickSimulator {
       { nodes: sampleNodesFor(topo, flows, shares), entries, readRatio },
       this.samples,
       this.rng,
+      this.latencySlo?.thresholdMs,
     );
+    const slowShare = slowShareOf(this.latencySlo, sampled.slowShare, byId.values(), flows);
 
     this.ticks++;
-    return this.snapshot(topo, offered, flows, load, settled, sampled.latency);
+    return this.snapshot(topo, offered, flows, load, settled, sampled.latency, slowShare);
   }
 
   /* ---------- stations ---------- */
@@ -473,6 +484,7 @@ export class TickSimulator {
     load: Map<string, number>,
     settled: Settled,
     latency: { p50Ms: number; p95Ms: number; p99Ms: number },
+    slowShare: number,
   ): TickSnapshot {
     const { entries } = this.topo;
     const nodes: Record<string, NodeRuntimeMetrics> = {};
@@ -538,7 +550,7 @@ export class TickSimulator {
       edges,
       global: {
         throughput: finite(throughput),
-        goodput: finite(throughput),
+        goodput: finite(throughput * (1 - slowShare)),
         errorRate: offered > 0 ? clamp01(1 - throughput / offered) : 0,
         p50: finite(latency.p50Ms),
         p95: finite(latency.p95Ms),

@@ -19,7 +19,7 @@ test("app loads with an empty canvas and no runtime errors", async ({ page }) =>
 
 // The top bar overflowed between 768 and 1536 px once (a156ffb), and a new
 // item squeezed the problem selector to 60 px at 1280 (Spec 10's cost chip).
-// Measured with a reference loaded and simulated, so every live item shows.
+// Measured with a reference loaded, simulated and a paused live run, so every live item shows.
 // 80 px: font metrics differ by OS (the selector is 116 px at 1536 on Windows,
 // 98 px on the Linux CI runner); the regressions to catch were 22 and 60 px.
 const MIN_SELECTOR_PX = 80;
@@ -31,6 +31,10 @@ test("top bar groups never overlap and the problem selector stays readable", asy
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await page.getByRole("button", { name: "Simulate", exact: true }).click();
   await expect(page.getByText("Simulation complete!")).toBeVisible();
+  // A live run (paused) adds the SLO chip (Spec 11).
+  await page.getByRole("button", { name: "Play live traffic" }).first().click();
+  await expect(page.getByTestId("slo-mini")).toBeVisible();
+  await page.getByRole("button", { name: "Pause live traffic" }).first().click();
 
   const left = page.getByTestId("topbar-left");
   const right = page.getByTestId("topbar-right");

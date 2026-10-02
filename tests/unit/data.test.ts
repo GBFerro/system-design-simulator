@@ -10,6 +10,8 @@ import { resolveDrillStep } from "@/interview/drill";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import { analyze } from "@/engine/analyze";
 import { estimateCost } from "@/cost/estimate";
+import { budgetFraction, latencySloOf, problemSlo } from "@/slo/slo";
+import { AVAILABILITY_RANGE } from "@/slo/types";
 
 // Ids, duplicates and learning-path coverage are in catalog.test.ts; this file
 // checks the "Data conventions" of CLAUDE.md that are about order and wiring.
@@ -75,6 +77,32 @@ describe("budgets (Spec 10)", () => {
       const cost = estimateCost(nodes, (id) => offered.get(id) ?? 0).monthly;
       expect(cost * 1.3).toBeLessThanOrEqual(budget!);
       expect(cost * 1.5).toBeGreaterThanOrEqual(budget!);
+    },
+  );
+});
+
+describe("SLOs (Spec 11)", () => {
+  it.each(PROBLEMS.map((p) => [p.id, p] as const))(
+    "%s: declares its SLO, and its reference holds it at the peak",
+    (_id, p) => {
+      const { availability, latencyMs } = p.requirements;
+      expect(availability).toBeGreaterThanOrEqual(AVAILABILITY_RANGE.min);
+      expect(availability).toBeLessThanOrEqual(AVAILABILITY_RANGE.max);
+      const slo = problemSlo(p.requirements);
+      // Declared values are used as written (no fallback).
+      expect(slo.availability).toBe(availability);
+      expect(slo.latency.thresholdMs).toBe(latencyMs);
+
+      const { readsPerSec, writesPerSec } = p.requirements;
+      const peak = readsPerSec + writesPerSec;
+      const { nodes, edges } = buildReferenceGraph(p);
+      const steady = analyze(compileGraph(nodes, edges), peak, {
+        readRatio: readsPerSec / peak,
+        latencySlo: latencySloOf(slo),
+      });
+      expect(steady.errorRate).toBeLessThanOrEqual(budgetFraction(slo, "availability"));
+      const slow = 1 - steady.goodputRps / steady.throughputRps;
+      expect(slow).toBeLessThanOrEqual(budgetFraction(slo, "latency"));
     },
   );
 });

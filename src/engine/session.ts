@@ -11,6 +11,7 @@ import type {
   FaultId,
   FaultRecord,
   FaultSpec,
+  LatencySlo,
   SimConfig,
   SimSpeed,
   TickSnapshot,
@@ -45,6 +46,8 @@ export interface SimSession {
   reset(generation: number): void;
   setSpeed(x: SimSpeed): void;
   setTraffic(p: TrafficPattern): void;
+  /** Latency SLO for goodput (Spec 11), from the next tick. */
+  setLatencySlo(slo: LatencySlo | null): void;
   /** Starts a fault now (Spec 08); applies from the next tick. Needs a loaded graph. */
   inject(fault: FaultSpec): InjectResult;
   /** Ends a fault now; returns the run's faults. */
@@ -105,6 +108,7 @@ export function createSimSession(options: FlowEngineOptions = {}): SimSession {
     },
     setSpeed: (x) => engine.setSpeed(x),
     setTraffic: (p) => engine.setTraffic(p),
+    setLatencySlo: (slo) => engine.setLatencySlo(slo),
     inject: (fault) => {
       if (!loaded) return { ok: false, error: "Start the simulation before injecting faults." };
       try {

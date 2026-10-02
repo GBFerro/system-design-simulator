@@ -15,6 +15,8 @@ import { compileGraph } from "@/domain/graph/compile";
 import { useCanvasStore } from "@/store/canvasStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore, type PlaybackStatus } from "@/store/runtimeStore";
+import { getEffectiveSlo, subscribeEffectiveSlo } from "@/store/sloStore";
+import { latencySloOf } from "@/slo/slo";
 import type { SimulationResult } from "@/types/simulation";
 import type { SteadyUnderFault } from "./faults/steady";
 import type { FrameListener, InjectResult, SimFrame } from "./session";
@@ -23,6 +25,7 @@ import type {
   FaultId,
   FaultRecord,
   FaultSpec,
+  LatencySlo,
   SimConfig,
   SimGraph,
   SimSpeed,
@@ -142,6 +145,7 @@ interface SimBackend {
   reset(generation: number): MaybePromise;
   setSpeed(x: SimSpeed): MaybePromise;
   setTraffic(p: TrafficPattern): MaybePromise;
+  setLatencySlo(slo: LatencySlo | null): MaybePromise;
   inject(fault: FaultSpec): InjectResult | Promise<InjectResult>;
   heal(id: FaultId): FaultState | Promise<FaultState>;
   subscribe(listener: FrameListener): MaybePromise;
@@ -160,6 +164,7 @@ function workerBackend(h: WorkerHandle): SimBackend {
     reset: (gen) => h.api.simReset(gen),
     setSpeed: (x) => h.api.simSetSpeed(x),
     setTraffic: (p) => h.api.simSetTraffic(p),
+    setLatencySlo: (slo) => h.api.simSetLatencySlo(slo),
     inject: (fault) => h.api.simInject(fault),
     heal: (id) => h.api.simHeal(id),
     subscribe: (listener) => h.api.simSubscribe(proxy(listener)),
@@ -169,6 +174,12 @@ function workerBackend(h: WorkerHandle): SimBackend {
 async function localBackend(): Promise<SimBackend> {
   const { createSimSession } = await import("./session");
   return createSimSession();
+}
+
+/** The latency part of the SLO in force, for goodput (Spec 11). */
+export function currentLatencySlo(): LatencySlo | null {
+  const slo = getEffectiveSlo();
+  return slo ? latencySloOf(slo) : null;
 }
 
 /** Debounce for reloading the graph after canvas edits during a run. */
@@ -200,6 +211,7 @@ export class SimController {
   private reloadTimer: ReturnType<typeof setTimeout> | null = null;
   private unsubCanvas: (() => void) | null = null;
   private readonly unsubRuntime: () => void;
+  private readonly unsubSlo: () => void;
 
   constructor() {
     this.unsubRuntime = useRuntimeStore.subscribe((s, prev) => {
@@ -207,6 +219,10 @@ export class SimController {
         void this.reset({ clearStore: false });
       }
     });
+    // Goodput counts against the SLO in force (Spec 11): follow its changes live.
+    this.unsubSlo = subscribeEffectiveSlo(
+      () => void this.backend?.setLatencySlo(currentLatencySlo()),
+    );
   }
 
   get playback(): PlaybackStatus {
@@ -241,6 +257,7 @@ export class SimController {
     const { speed, pattern } = useRuntimeStore.getState();
     await backend.setSpeed(speed);
     await backend.setTraffic(pattern);
+    await backend.setLatencySlo(currentLatencySlo());
     if (this.status !== "running") return true; // paused or reset meanwhile
     await backend.play();
     this.watchCanvas();
@@ -318,6 +335,7 @@ export class SimController {
   dispose(): void {
     this.stopWatchingCanvas();
     this.unsubRuntime();
+    this.unsubSlo();
   }
 
   private onFrame = (frame: SimFrame): void => {

@@ -6,7 +6,10 @@
  */
 import { INTERVIEW_DATA } from "@/data/interviewData";
 import { getProblemById } from "@/data/problems";
-import { buildReport, type DrillSummaryStep } from "@/interview/report";
+import { buildReport, sloSummary, type DrillSummaryStep } from "@/interview/report";
+import { evaluateSlo } from "@/slo/budget";
+import { problemSlo } from "@/slo/slo";
+import { useRuntimeStore } from "@/store/runtimeStore";
 import { scoreDesign } from "@/scoring/scorer";
 import { useAppStore } from "@/store/appStore";
 import { useDrillStore } from "@/store/drillStore";
@@ -44,6 +47,10 @@ export async function finishInterview(): Promise<void> {
     return;
   }
 
+  // The live run (drill included) against the problem's SLO, before scoring touches anything.
+  const slo = problemSlo(problem.requirements);
+  const sloResult = sloSummary(evaluateSlo(useRuntimeStore.getState().history.toArray(), slo), slo);
+
   const scored = await measureAndScore();
   const score = scored?.result ?? scoreDesign([], []);
   if (scored) useSimulationStore.getState().setScoreResult(score);
@@ -57,6 +64,7 @@ export async function finishInterview(): Promise<void> {
     score,
     measured: scored?.measured ?? false,
     drill: drillSummary(problemId),
+    ...(sloResult ? { slo: sloResult } : {}),
     now: new Date(),
   });
 

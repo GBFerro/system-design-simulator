@@ -34,17 +34,17 @@ const inThread: MeasureApi = {
 };
 
 /**
- * Measurements of a fixture at a light load with a loose SLA and one fault
+ * Measurements of a fixture at a light load with a loose SLO and one fault
  * it survives: what a healthy design would get.
  */
 function measured({ nodes, edges }: Graph, rps = 100, samples = 500): Measurements {
   const g = compileGraph(nodes, edges);
   return {
     peakRps: rps,
-    sla: { p99Ms: 1000 },
+    slo: { latency: { percentile: 99, thresholdMs: 1000 }, availability: 0.999, windowSec: 300 },
     atPeak: analyze(g, rps, { samples }),
     atDoublePeak: analyze(g, 2 * rps, { samples }),
-    underFaults: [{ label: "Kill instances · App Server", errorRate: 0 }],
+    underFaults: [{ label: "Kill instances · App Server", errorRate: 0, durationSec: 60 }],
     budgetMonthlyUsd: 1_000_000,
   };
 }
@@ -291,6 +291,41 @@ describe("scoring rules", () => {
   });
 });
 
+describe("SLO-driven checks (Spec 11)", () => {
+  const full = RULES.availability.full;
+  const g = () => buildScoringGraph(full.nodes, full.edges);
+  const faultPts = (availabilityTarget: number, errorRate: number, durationSec = 60) => {
+    const m = measured(full);
+    m.slo = { ...m.slo, availability: availabilityTarget };
+    m.underFaults = [{ label: "Kill instances · App Server", errorRate, durationSec }];
+    return availability.scoreAvailability(full.nodes, full.edges, g(), m);
+  };
+
+  it("a fault's errors must fit in one window of the availability budget", () => {
+    // 0.4% errors for 60 s: fits 99.9% over 5 min (≤ 0.5%), not 99.99% (≤ 0.05%).
+    const loose = faultPts(0.999, 0.004);
+    const strict = faultPts(0.9999, 0.004);
+    expect(loose.score - strict.score).toBe(availability.BUDGET.underFaults);
+    expect(strict.feedback.join(" ")).toMatch(/99.99% availability SLO/);
+    // A shorter fault may burn faster.
+    expect(faultPts(0.9999, 0.004, 5).score).toBe(loose.score);
+  });
+
+  it("latency is judged at the SLO's percentile", () => {
+    const m = measured(full);
+    const { p95Ms, p99Ms } = m.atPeak.latency;
+    expect(p95Ms).toBeLessThan(p99Ms);
+    const between = (p95Ms + p99Ms) / 2;
+    const at = (percentile: 95 | 99) =>
+      latency.scoreLatency(full.nodes, full.edges, g(), {
+        ...m,
+        slo: { ...m.slo, latency: { percentile, thresholdMs: between } },
+      });
+    expect(at(95).score).toBeGreaterThan(at(99).score);
+    expect(at(95).passed.join(" ")).toMatch(/p95 at the peak/);
+  });
+});
+
 describe("measured checks without traffic", () => {
   it("a design no request reaches scores 0 in scalability, availability and latency", () => {
     // A lone node is "reachable" for presence checks, but the engine sends it nothing.
@@ -363,16 +398,18 @@ describe("measured rubric vs the reference solutions (Spec 09)", () => {
     expect(m.peakRps).toBe(p.requirements.readsPerSec + p.requirements.writesPerSec);
     expect(m.atPeak.offeredRps).toBe(m.peakRps);
     expect(m.atDoublePeak.offeredRps).toBe(2 * m.peakRps);
-    expect(m.sla).toEqual({ p99Ms: p.requirements.latencyMs });
+    expect(m.slo.latency).toEqual({ percentile: 99, thresholdMs: p.requirements.latencyMs });
+    expect(m.slo.availability).toBe(p.requirements.availability);
     expect(m.underFaults).toHaveLength(3);
+    expect(m.underFaults.map((f) => f.durationSec)).toEqual([60, 60, 30]);
     expect(m.referenceSyncDepth).toBeGreaterThan(0);
   });
 
-  it("uses the SLA scope when the problem has one", async () => {
+  it("uses the SLO scope when the problem has one", async () => {
     const p = PROBLEMS.find((x) => x.id === "distributed-cache")!;
     const { nodes, edges } = buildReferenceGraph(p);
     const m = (await measureDesign(nodes, edges, p.id, inThread))!;
-    expect(m.sla).toEqual({ p99Ms: 2, scope: "cache" });
+    expect(m.slo.latency).toEqual({ percentile: 99, thresholdMs: 2, scope: "cache" });
   });
 
   it("is null for an unknown problem or a canvas without components", async () => {

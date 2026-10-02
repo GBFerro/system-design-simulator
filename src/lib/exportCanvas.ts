@@ -13,6 +13,7 @@ import { useAppStore } from "@/store/appStore";
 import { usePenStore, type Stroke } from "@/store/penStore";
 import { serializeEdges, serializeNodes } from "@/domain/persistence/serialize";
 import { stringifyEnvelope } from "@/domain/persistence/envelope";
+import { useSloStore } from "@/store/sloStore";
 
 function getTimestamp(): string {
   const d = new Date();
@@ -262,12 +263,15 @@ export function exportAsJSON(
 ): void {
   const filename = `${slugify(problemName)}-hld-${getTimestamp()}.json`;
   // Same v2 envelope as savedDesignsStore.exportDesign (Spec 05, PER-02).
+  const problemId = useAppStore.getState().selectedProblemId ?? null;
+  const slo = problemId ? useSloStore.getState().overrides[problemId] : undefined;
   const payload = stringifyEnvelope({
     name: problemName,
-    problemId: useAppStore.getState().selectedProblemId ?? null,
+    problemId,
     nodes: serializeNodes(nodes),
     edges: serializeEdges(edges),
     strokes,
+    ...(slo ? { slo } : {}),
   });
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);

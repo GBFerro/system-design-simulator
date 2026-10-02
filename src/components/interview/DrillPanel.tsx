@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { INTERVIEW_DATA } from "@/data/interviewData";
 import type { Problem } from "@/types/problem";
-import { breaches } from "@/interview/drill";
+import { breaches, sloLatencyMs } from "@/interview/drill";
 import { effectivePeak } from "@/interview/checks";
 import { useInterviewStore } from "@/store/interviewStore";
 import { useDrillStore, type DrillStepState } from "@/store/drillStore";
@@ -118,10 +118,12 @@ function RestartButton({ problemId }: { problemId: string }) {
 
 /** Live SLO state, clock and speed while the drill runs. */
 function LiveStatus() {
-  const global = useRuntimeStore((s) => s.latest?.global);
+  const latest = useRuntimeStore((s) => s.latest);
+  const global = latest?.global;
   const simTime = useRuntimeStore((s) => s.simTimeSec);
   const slo = useDrillStore((s) => s.slo);
-  const broken = global && slo ? breaches({ global }, slo) : false;
+  const broken = latest && slo ? breaches(latest, slo) : false;
+  const latency = latest && slo ? sloLatencyMs(latest, slo) : 0;
   return (
     <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-900/60 px-2.5 py-2">
       <div className="flex items-center justify-between gap-2">
@@ -137,7 +139,7 @@ function LiveStatus() {
           SLO {broken ? "broken" : "OK"}
         </span>
         <span className="font-mono text-[11px] text-zinc-300">
-          p99 {formatMs(global?.p99 ?? 0)} · err {formatPercent(global?.errorRate ?? 0)}
+          p{slo?.percentile ?? 99} {formatMs(latency)} · err {formatPercent(global?.errorRate ?? 0)}
         </span>
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -267,7 +269,7 @@ function StepResult({ step }: { step: DrillStepState }) {
           value={r.firstBreachT === undefined ? "never broke" : rel(r.recoveredT)}
         />
         <Metric label="Error budget" value={formatBudget(r.budgetUsed)} bad={r.budgetUsed > 1} />
-        <Metric label="Worst p99" value={formatMs(r.worstP99Ms)} />
+        <Metric label="Worst latency" value={formatMs(r.worstLatencyMs)} />
         <Metric label="Worst errors" value={formatPercent(r.worstErrorRate)} />
       </dl>
       {incident.length > 1 && (

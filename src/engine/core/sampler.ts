@@ -53,6 +53,11 @@ export interface SampleResult {
   latency: LatencySummary;
   /** Fraction of sampled requests that succeeded. */
   successRate: number;
+  /**
+   * Share of the successful sampled requests slower than `slowerThanMs` (the
+   * latency SLO's threshold, Spec 11); 0 without one.
+   */
+  slowShare: number;
   /** Some requests hit the per-request hop budget (huge fan-out). */
   truncated: boolean;
 }
@@ -72,10 +77,16 @@ export function percentile(sorted: readonly number[], p: number): number {
   return sorted[rank - 1];
 }
 
-export function sampleLatency(model: SampleModel, samples: number, rng: Rng): SampleResult {
+export function sampleLatency(
+  model: SampleModel,
+  samples: number,
+  rng: Rng,
+  slowerThanMs?: number,
+): SampleResult {
   const empty: SampleResult = {
     latency: { meanMs: 0, p50Ms: 0, p95Ms: 0, p99Ms: 0 },
     successRate: 0,
+    slowShare: 0,
     truncated: false,
   };
   const entries = model.entries.filter((id) => model.nodes.has(id));
@@ -183,6 +194,11 @@ export function sampleLatency(model: SampleModel, samples: number, rng: Rng): Sa
 
   latencies.sort((a, b) => a - b);
   const mean = latencies.reduce((s, v) => s + v, 0) / latencies.length;
+  // Counted after sampling: the threshold never changes the random stream.
+  let slow = 0;
+  if (slowerThanMs !== undefined && slowerThanMs >= 0) {
+    while (slow < latencies.length && latencies[latencies.length - 1 - slow] > slowerThanMs) slow++;
+  }
   return {
     latency: {
       meanMs: mean,
@@ -191,6 +207,7 @@ export function sampleLatency(model: SampleModel, samples: number, rng: Rng): Sa
       p99Ms: percentile(latencies, 0.99),
     },
     successRate: latencies.length / n,
+    slowShare: slow / latencies.length,
     truncated,
   };
 }

@@ -6,6 +6,7 @@ import { formatClock } from "@/components/traffic/format";
 import { getProblemById } from "@/data/problems";
 import type { InterviewReport } from "@/interview/report";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
+import { formatBurn } from "@/slo/slo";
 import { useReportStore } from "@/store/reportStore";
 
 /**
@@ -200,6 +201,24 @@ export function ReportDialog() {
                   error budget {Math.round(d.budgetUsed * 100)}%
                 </Line>
               ))}
+            </ul>
+          </Block>
+        )}
+
+        {report.slo && (
+          <Block title="SLO">
+            <ul className="space-y-1 text-[11px]" data-testid="report-slo">
+              <Line ok={report.slo.verdict === "met"}>
+                {report.slo.verdict === "met" ? "SLO met" : "SLO violated"} over{" "}
+                {Math.round(report.slo.runSec)} simulated seconds ({report.slo.target})
+                {report.slo.breachT !== undefined && report.slo.breachSli
+                  ? ` · the ${report.slo.breachSli} budget ran out at ${Math.round(report.slo.breachT)} s`
+                  : ""}
+              </Line>
+              <Line ok={report.slo.budgetUsed < 1}>
+                Error budget used at the end: {Math.round(report.slo.budgetUsed * 100)}% · worst
+                burn rate {formatBurn(report.slo.worstBurn)}
+              </Line>
             </ul>
           </Block>
         )}
