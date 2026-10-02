@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { MOD } from "./helpers";
+import { analyze, MOD } from "./helpers";
 
 // Spec 10: live cost, its breakdown, the budget and right-size with one undo step.
 
@@ -100,8 +100,7 @@ test("the reference shows its budget and right-size is read-only there", async (
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("button", { name: "Simulate", exact: true }).click();
-  await expect(page.getByText("Simulation complete!")).toBeVisible();
+  await analyze(page);
 
   await page.getByRole("tab", { name: "Cost" }).click();
   const panel = page.getByTestId("cost-panel");

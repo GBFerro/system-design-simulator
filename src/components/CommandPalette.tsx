@@ -19,6 +19,7 @@ import {
   Puzzle,
   CornerDownLeft,
   HelpCircle,
+  Gauge,
 } from "lucide-react";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import type { SystemComponent } from "@/types/component";
@@ -45,6 +46,7 @@ interface CommandPaletteProps {
   onClose: () => void;
   actions: {
     onSimulate: () => void;
+    onAnalyze: () => void;
     onScore: () => void;
     onSave: () => void;
     onLoad: () => void;
@@ -129,10 +131,17 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
       {
         id: "act-sim",
         group: "Actions",
-        label: "Run simulation",
+        label: "Simulate (start / pause live traffic)",
         hint: "⌘↵",
         icon: Play,
         run: a.onSimulate,
+      },
+      {
+        id: "act-analyze",
+        group: "Actions",
+        label: "Analyze steady state",
+        icon: Gauge,
+        run: a.onAnalyze,
       },
       {
         id: "act-score",

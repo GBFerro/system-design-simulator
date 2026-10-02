@@ -34,3 +34,10 @@ export async function connect(page: Page, from: string, to: string) {
   await page.mouse.move(b.x, b.y, { steps: 5 });
   await page.mouse.up();
 }
+
+/** Instant steady-state analysis: the Sim panel's Analyze button (the top bar's Simulate starts the live run). */
+export async function analyze(page: Page) {
+  await page.getByRole("tab", { name: "Simulate" }).click();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page.getByText("Analysis complete!")).toBeVisible();
+}

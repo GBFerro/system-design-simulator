@@ -57,7 +57,7 @@ test("inject a fault from the Chaos tab: blast radius, timeline, then heal", asy
   await page.getByRole("tab", { name: "Simulate" }).click();
   await page
     .getByRole("region", { name: "Live traffic" })
-    .getByRole("button", { name: "Reset simulation" })
+    .getByRole("button", { name: "Stop simulation" })
     .click();
   await expect(timeline).toHaveCount(0);
   expect(errors).toEqual([]);

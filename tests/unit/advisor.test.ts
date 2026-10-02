@@ -424,7 +424,7 @@ describe("recentLoad", () => {
     global: {} as GlobalRuntimeMetrics,
   });
 
-  it("averages the live run's last seconds; a Simulate snapshot stands alone", () => {
+  it("averages the live run's last seconds; an Analyze snapshot stands alone", () => {
     expect(recentLoad([], null)).toBeUndefined();
     const run = [snap(0, 999), snap(1, 100), snap(4, 200), snap(7, 300)];
     expect(recentLoad(run, run[3])).toEqual({ a: 250 }); // t ∈ [2, 7]

@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Play,
   Trophy,
   ChevronDown,
   PanelLeft,
@@ -23,13 +22,11 @@ import {
   Coffee,
   Undo2,
   Redo2,
-  Loader2,
   Sun,
   Moon,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
-import { useSimulationStore } from "@/store/simulationStore";
 import { usePenStore } from "@/store/penStore";
 import { PROBLEMS } from "@/data/problems";
 import { useCustomProblemsStore } from "@/store/customProblemsStore";
@@ -45,7 +42,6 @@ import { CostMini } from "@/components/cost/CostMini";
 import { SloMini } from "@/components/slo/SloMini";
 
 interface TopBarProps {
-  onSimulate: () => void;
   onScore: () => void;
   onClearCanvas: () => void;
   onSave: () => void;
@@ -67,7 +63,6 @@ interface TopBarProps {
 const WIDE_LABEL = "hidden 2xl:inline";
 
 export function TopBar({
-  onSimulate,
   onScore,
   onClearCanvas,
   onSave,
@@ -84,7 +79,6 @@ export function TopBar({
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const { screenToFlowPosition } = useReactFlow();
   const placeNode = useCanvasStore((s) => s.placeNode);
-  const isSimulating = useSimulationStore((s) => s.isRunning);
 
   // Undo/redo — subscribe to stack lengths so the buttons enable/disable reactively
   const canUndo = useCanvasStore((s) => s.history.length > 0);
@@ -546,29 +540,10 @@ export function TopBar({
             <Trash2 className="h-3.5 w-3.5" />
           </button>
 
-          <PlaybackMini />
           <SloMini />
           <CostMini />
+          <PlaybackMini />
 
-          <Button
-            size="sm"
-            onClick={onSimulate}
-            disabled={isSimulating}
-            className="h-7 gap-1.5 bg-cyan-500 px-3 text-xs font-medium text-white transition-colors hover:bg-cyan-400 disabled:opacity-80"
-            aria-label={isSimulating ? "Simulating…" : "Simulate"}
-          >
-            {isSimulating ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span className="hidden sm:inline">Simulating…</span>
-              </>
-            ) : (
-              <>
-                <Play className="h-3 w-3" />
-                <span className="hidden sm:inline">Simulate</span>
-              </>
-            )}
-          </Button>
           <Button
             size="sm"
             variant="ghost"

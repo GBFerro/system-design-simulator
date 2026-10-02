@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { open } from "./helpers";
+import { analyze, open } from "./helpers";
 
 // Spec 07 (OBS-01..04): runtime metrics on nodes, in the Sim panel, and the
 // particle overlay — all read from runtimeStore, never from node.data.
@@ -23,8 +23,7 @@ interface RuntimeHandle {
 async function loadReferenceAndSimulate(page: Page) {
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("button", { name: "Simulate", exact: true }).click();
-  await expect(page.getByText("Simulation complete!")).toBeVisible();
+  await analyze(page);
 }
 
 const particleCount = (page: Page) =>

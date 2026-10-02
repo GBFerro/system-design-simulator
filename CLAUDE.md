@@ -64,8 +64,8 @@ src/
                   DrillPanel + drillDriver (phase 6 failure drill, Spec 09), scoreNow (measure + score),
                   finishInterview + ReportDialog (final report and attempt history, lazy)
     dialogs/      ModalShell (shared modal: focus trap/Escape/scroll) + Save/Load/Confirm/Support/Create*
-    traffic/      live traffic (Spec 06): TrafficControls (Sim panel: play/pause/reset, speed, clock,
-                  log RPS slider, PatternEditor + PatternPreview), PlaybackMini (top bar),
+    traffic/      live traffic (Spec 06): TrafficControls (Sim panel: play/pause/stop, speed, clock,
+                  log RPS slider, PatternEditor + PatternPreview), PlaybackMini (top bar Simulate: starts the live run, then Pause/Resume + Stop),
                   simActions.ts (UI → controller via dynamic import; used by the `P` shortcut)
     ui/           shadcn-style primitives, Toast
   data/           components.ts (42 specs), problems.ts (35), conceptLibrary.ts,

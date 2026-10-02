@@ -3,7 +3,8 @@
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Play, Loader2 } from "lucide-react";
+import { Gauge, Loader2 } from "lucide-react";
+import { useRuntimeStore } from "@/store/runtimeStore";
 import { useSimulationStore } from "@/store/simulationStore";
 
 const PRESETS = [
@@ -14,19 +15,26 @@ const PRESETS = [
 ];
 
 interface SimulationControlsProps {
-  onSimulate: () => void;
+  onAnalyze: () => void;
 }
 
-export function SimulationControls({ onSimulate }: SimulationControlsProps) {
+export function SimulationControls({ onAnalyze }: SimulationControlsProps) {
   const config = useSimulationStore((s) => s.config);
   const setConfig = useSimulationStore((s) => s.setConfig);
   const isRunning = useSimulationStore((s) => s.isRunning);
+  // A live run owns the metrics: analyzing on top of it would overwrite them.
+  const liveRun = useRuntimeStore((s) => s.playback !== "idle");
 
   return (
     <div className="space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        Simulation Config
-      </p>
+      <div className="space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          Steady-state analysis
+        </p>
+        <p className="text-[11px] text-zinc-400">
+          Instant snapshot of the design at a fixed load, without running time.
+        </p>
+      </div>
 
       {/* Presets */}
       <div className="flex gap-1.5">
@@ -70,23 +78,24 @@ export function SimulationControls({ onSimulate }: SimulationControlsProps) {
       <Separator className="bg-zinc-800" />
 
       <Button
-        onClick={onSimulate}
-        disabled={isRunning}
-        className="w-full gap-2 bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50"
+        onClick={onAnalyze}
+        disabled={isRunning || liveRun}
+        className="w-full gap-2 border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 disabled:opacity-50"
         size="sm"
       >
         {isRunning ? (
           <>
             <Loader2 className="h-3 w-3 animate-spin" />
-            Simulating...
+            Analyzing…
           </>
         ) : (
           <>
-            <Play className="h-3 w-3" />
-            Run Simulation
+            <Gauge className="h-3 w-3" />
+            Analyze
           </>
         )}
       </Button>
+      {liveRun && <p className="text-[11px] text-zinc-400">Stop the live simulation to analyze.</p>}
     </div>
   );
 }

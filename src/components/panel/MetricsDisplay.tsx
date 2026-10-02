@@ -17,7 +17,7 @@ const PANEL_MAX_POINTS = 150;
 
 /**
  * Sim tab metrics (Spec 07, OBS-01/02/03). Everything numeric comes from
- * `runtimeStore` (latest snapshot + history), fed by the Simulate button and
+ * `runtimeStore` (latest snapshot + history), fed by the Analyze button and
  * by the tick loop. Analysis-only notes (warnings, bottleneck count) still
  * come from `simulationStore.result`.
  */
@@ -33,8 +33,8 @@ export function MetricsDisplay() {
         <div>
           <p className="text-xs font-medium text-zinc-300">No simulation data</p>
           <p className="mt-1 max-w-[200px] text-xs text-zinc-500">
-            Configure load above and click <span className="text-cyan-500">Run Simulation</span> to
-            see metrics
+            Press <span className="text-cyan-500">Simulate</span> for live traffic or{" "}
+            <span className="text-zinc-300">Analyze</span> for an instant snapshot
           </p>
         </div>
       </div>
@@ -151,7 +151,7 @@ function GlobalCharts() {
   );
 }
 
-/** Engine warnings and bottlenecks from the last analysis (Simulate button). */
+/** Engine warnings and bottlenecks from the last analysis (Analyze button). */
 function AnalysisNotes() {
   const result = useSimulationStore((s) => s.result);
   if (!result) return null;

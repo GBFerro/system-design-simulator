@@ -134,10 +134,15 @@ export function AppShell() {
 
   const handleSave = useCallback(() => setSaveDialogOpen(true), []);
   const handleLoad = useCallback(() => setLoadDialogOpen(true), []);
-  const handleSimulate = useCallback(() => {
+  /** Instant steady-state analysis (Sim panel); the top bar's Simulate is the live run. */
+  const handleAnalyze = useCallback(() => {
     const { nodes, edges } = useCanvasStore.getState();
     const { config, isRunning } = useSimulationStore.getState();
     if (isRunning) return;
+    if (useRuntimeStore.getState().playback !== "idle") {
+      useAppStore.getState().showToast("Stop the live simulation to analyze", "info");
+      return;
+    }
 
     if (!nodes.some((n) => n.type !== "text")) {
       useAppStore.getState().showToast("No components to simulate", "info");
@@ -162,10 +167,10 @@ export function AppShell() {
         // Metrics live in runtimeStore (Spec 07), never in node.data.
         useSimulationStore.getState().setResult(result);
         useRuntimeStore.getState().pushSnapshot(steadyStateToSnapshot(steady, 0, graph));
-        useAppStore.getState().showToast("Simulation complete!", "success");
+        useAppStore.getState().showToast("Analysis complete!", "success");
       } catch (err) {
-        console.error("Simulation failed", err);
-        useAppStore.getState().showToast("Simulation failed — see console for details", "error");
+        console.error("Analysis failed", err);
+        useAppStore.getState().showToast("Analysis failed — see console for details", "error");
       } finally {
         useSimulationStore.getState().setRunning(false);
       }
@@ -281,7 +286,7 @@ export function AppShell() {
 
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        handleSimulate();
+        togglePlayback();
       }
 
       if (key === "s" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
@@ -308,7 +313,7 @@ export function AppShell() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSimulate, handleScore, mobileSidebarOpen, mobileRightOpen]);
+  }, [handleScore, mobileSidebarOpen, mobileRightOpen]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -324,7 +329,6 @@ export function AppShell() {
         <div className="flex h-full flex-col">
           {interviewMode === "interview" && <InterviewBar />}
           <TopBar
-            onSimulate={handleSimulate}
             onScore={handleScore}
             onClearCanvas={handleClearCanvas}
             onSave={handleSave}
@@ -353,7 +357,7 @@ export function AppShell() {
             />
 
             {/* Desktop inline right panel (hidden on mobile) */}
-            <RightPanel open={rightPanelOpen} onSimulate={handleSimulate} variant="desktop" />
+            <RightPanel open={rightPanelOpen} onAnalyze={handleAnalyze} variant="desktop" />
 
             {/* Mobile: sidebar drawer from left */}
             {isMobile && (
@@ -431,7 +435,7 @@ export function AppShell() {
                     </div>
                   </div>
                   <div className="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">
-                    <RightPanel onSimulate={handleSimulate} variant="mobile" />
+                    <RightPanel onAnalyze={handleAnalyze} variant="mobile" />
                   </div>
                 </div>
               </>
@@ -466,7 +470,8 @@ export function AppShell() {
             open={commandOpen}
             onClose={() => setCommandOpen(false)}
             actions={{
-              onSimulate: handleSimulate,
+              onSimulate: togglePlayback,
+              onAnalyze: handleAnalyze,
               onScore: handleScore,
               onSave: handleSave,
               onLoad: handleLoad,

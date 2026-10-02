@@ -1,6 +1,6 @@
 /**
  * Map an `analyze()` steady state to the runtime snapshot shape (Spec 07), so
- * the "Simulate" button and the tick loop feed the same `runtimeStore`.
+ * the "Analyze" button and the tick loop feed the same `runtimeStore`.
  */
 import { PARAM } from "@/domain/components/params";
 import type { NodeStatus } from "@/types/simulation";

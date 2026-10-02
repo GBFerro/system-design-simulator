@@ -37,7 +37,7 @@ interface RuntimeState {
   /**
    * Live run clock (Spec 06), set by the sim controller with each tick frame:
    * simulated seconds since reset, and since the current pattern was applied
-   * (the pattern preview's playhead). 0 after `clear`. The "Simulate" button
+   * (the pattern preview's playhead). 0 after `clear`. The "Analyze" button
    * does not move it.
    */
   simTimeSec: number;

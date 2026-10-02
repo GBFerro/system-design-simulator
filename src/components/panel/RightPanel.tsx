@@ -61,7 +61,7 @@ import { InterviewPhasePanel } from "@/components/interview/InterviewPhasePanel"
 
 interface RightPanelProps {
   open?: boolean;
-  onSimulate: () => void;
+  onAnalyze: () => void;
   variant?: "desktop" | "mobile";
 }
 
@@ -87,7 +87,7 @@ function TabCount({ n, tone, label }: { n: number; tone: string; label: string }
   );
 }
 
-function RightTabs({ onSimulate }: { onSimulate: () => void }) {
+function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
   const activeRightTab = useAppStore((s) => s.activeRightTab);
   const setActiveRightTab = useAppStore((s) => s.setActiveRightTab);
   const activeFaults = useChaosStore((s) => s.faults.filter((f) => f.active).length);
@@ -170,7 +170,7 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
           <div className={`${TAB_BODY} space-y-4`}>
             <TrafficControls />
             <Separator className="bg-zinc-800" />
-            <SimulationControls onSimulate={onSimulate} />
+            <SimulationControls onAnalyze={onAnalyze} />
             <Separator className="bg-zinc-800" />
             <MetricsDisplay />
           </div>
@@ -236,7 +236,7 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
   );
 }
 
-export function RightPanel({ open = true, onSimulate, variant = "desktop" }: RightPanelProps) {
+export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: RightPanelProps) {
   const interviewMode = useInterviewStore((s) => s.mode);
   const currentPhase = useInterviewStore((s) => s.currentPhase);
 
@@ -246,7 +246,7 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
   if (variant === "mobile") {
     return (
       <div className="flex h-full w-full flex-col bg-zinc-900">
-        {showInterviewPhasePanel ? <InterviewPhasePanel /> : <RightTabs onSimulate={onSimulate} />}
+        {showInterviewPhasePanel ? <InterviewPhasePanel /> : <RightTabs onAnalyze={onAnalyze} />}
       </div>
     );
   }
@@ -263,7 +263,7 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
         <InterviewPhasePanel />
       ) : (
         <div className="flex w-[300px] flex-1 flex-col min-h-0">
-          <RightTabs onSimulate={onSimulate} />
+          <RightTabs onAnalyze={onAnalyze} />
         </div>
       )}
     </aside>

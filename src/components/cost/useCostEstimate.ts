@@ -52,7 +52,7 @@ export interface LiveCost {
 }
 
 /**
- * Cost of the active canvas at the latest simulated load (the Simulate
+ * Cost of the active canvas at the latest simulated load (the Analyze
  * button's `analyze()` or the live run, refreshed at 1 Hz). Without a
  * snapshot only the fixed costs (instances, monthly fees) count.
  */

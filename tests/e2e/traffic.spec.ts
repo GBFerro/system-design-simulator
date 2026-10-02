@@ -55,7 +55,7 @@ test("play advances the simulated clock and streams metrics; pause stops it", as
   expect(await readClock(clock)).toBe(paused);
 
   // Reset rewinds and clears the live numbers
-  await panel.getByRole("button", { name: "Reset simulation" }).click();
+  await panel.getByRole("button", { name: "Stop simulation" }).click();
   await expect(clock).toHaveText("00:00");
   await expect(panel.getByTestId("live-offered")).toHaveCount(0);
   expect(errors).toEqual([]);
