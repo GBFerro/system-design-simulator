@@ -4,7 +4,7 @@ import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { useCanvasStore } from "@/store/canvasStore";
-import { Server, TriangleAlert, OctagonAlert } from "lucide-react";
+import { ChevronDown, Server, TriangleAlert, OctagonAlert } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import { NodeActionsToolbar } from "./NodeActionsToolbar";
@@ -13,6 +13,7 @@ import { RUNTIME_STATUS_META } from "./runtimeStatus";
 import { useNodeBlast, useNodeStatus } from "@/store/runtimeStore";
 import { useNodeFindingSeverity, useNodePreviewChange } from "@/store/advisorStore";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
+import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
 
@@ -198,11 +199,22 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
         {(capacity / 1000).toFixed(0)}k qps
       </span>
 
-      {/* Replicas badge */}
+      {/* Instances: the ×N badge opens the node into one card per instance (a view setting) */}
       {replicas > 1 && (
-        <span className="absolute -left-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-600 px-1 text-[8px] font-bold text-white">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            useExpandedNodesStore.getState().toggle(id);
+          }}
+          aria-expanded={false}
+          aria-label={`Show the ${replicas} instances`}
+          title="Open into one card per instance, to see how traffic is split"
+          className="nodrag nopan absolute -left-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center gap-px rounded-full bg-cyan-600 px-1 text-[8px] font-bold text-white transition-colors hover:bg-cyan-500"
+        >
           ×{replicas}
-        </span>
+          <ChevronDown className="h-2 w-2" aria-hidden />
+        </button>
       )}
 
       {/* Runtime metrics (OBS-01): RPS in, utilization, p99, status icon */}

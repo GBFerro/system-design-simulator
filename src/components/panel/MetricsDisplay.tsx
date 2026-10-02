@@ -97,7 +97,7 @@ function GlobalSummary({ snapshot }: { snapshot: TickSnapshot }) {
   );
 }
 
-function SmallStat({ label, value, tone }: { label: string; value: string; tone?: "bad" }) {
+export function SmallStat({ label, value, tone }: { label: string; value: string; tone?: "bad" }) {
   return (
     <div className="rounded-lg bg-zinc-800/70 px-2.5 py-2">
       <p className="metric-label text-[10px]">{label}</p>
@@ -202,7 +202,7 @@ function useNodeLabels(): Map<string, string> {
 }
 
 /** The single selected component node, if exactly one node is selected. */
-function useSelectedComponentId(): string | null {
+export function useSelectedComponentId(): string | null {
   return useCanvasStore((s) => {
     let found: string | null = null;
     for (const n of s.nodes) {
@@ -246,7 +246,7 @@ function SelectedNodeMetrics({ snapshot }: { snapshot: TickSnapshot }) {
   );
 }
 
-function StatusIcon({ status }: { status: NodeRuntimeMetrics["status"] }) {
+export function StatusIcon({ status }: { status: NodeRuntimeMetrics["status"] }) {
   const meta = RUNTIME_STATUS_META[status];
   return (
     <span
@@ -260,18 +260,31 @@ function StatusIcon({ status }: { status: NodeRuntimeMetrics["status"] }) {
   );
 }
 
-function NodeMetricGrid({ m }: { m: NodeRuntimeMetrics }) {
+/**
+ * Utilization bar and the node's numbers (OBS-01/03). `summarized`: the caller
+ * already shows the rates, latencies and errors (the canvas card), so only the
+ * rest is listed.
+ */
+export function NodeMetricGrid({
+  m,
+  summarized = false,
+}: {
+  m: NodeRuntimeMetrics;
+  summarized?: boolean;
+}) {
   const util = Math.max(0, m.utilization);
-  const cells: { label: string; value: string; bad?: boolean }[] = [
-    { label: "RPS in", value: `${abbrev(m.rpsIn)}/s` },
-    { label: "RPS out", value: `${abbrev(m.rpsOut)}/s` },
-    { label: "Queue", value: abbrev(m.queueDepth) },
-    { label: "p50", value: fmtMs(m.p50) },
-    { label: "p95", value: fmtMs(m.p95) },
-    { label: "p99", value: fmtMs(m.p99) },
-    { label: "Errors", value: fmtPct(m.errorRate), bad: m.errorRate > 0.01 },
-    { label: "Drops", value: `${abbrev(m.drops)}/s`, bad: m.drops > 0 },
-  ];
+  const cells: { label: string; value: string; bad?: boolean }[] = summarized
+    ? [{ label: "Queue", value: abbrev(m.queueDepth) }]
+    : [
+        { label: "RPS in", value: `${abbrev(m.rpsIn)}/s` },
+        { label: "RPS out", value: `${abbrev(m.rpsOut)}/s` },
+        { label: "Queue", value: abbrev(m.queueDepth) },
+        { label: "p50", value: fmtMs(m.p50) },
+        { label: "p95", value: fmtMs(m.p95) },
+        { label: "p99", value: fmtMs(m.p99) },
+        { label: "Errors", value: fmtPct(m.errorRate), bad: m.errorRate > 0.01 },
+        { label: "Drops", value: `${abbrev(m.drops)}/s`, bad: m.drops > 0 },
+      ];
   const x = m.extra;
   if (x?.hitRatio !== undefined) cells.push({ label: "Hit ratio", value: fmtPct(x.hitRatio) });
   if (x?.queueLagSec !== undefined)
@@ -317,7 +330,7 @@ function NodeMetricGrid({ m }: { m: NodeRuntimeMetrics }) {
   );
 }
 
-function NodeCharts({ nodeId }: { nodeId: string }) {
+export function NodeCharts({ nodeId }: { nodeId: string }) {
   const recent = useRecentHistory(PANEL_WINDOW_SEC, PANEL_MAX_POINTS);
   const times = recent.map((s) => s.t);
   return (

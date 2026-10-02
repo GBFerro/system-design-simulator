@@ -128,11 +128,16 @@ export function isActiveTabReadOnly(state: { tabs: CanvasTab[]; activeTabId: str
 
 /**
  * ReactFlow changes that only touch view state (selection, measured size) and
- * so still apply on a read-only tab; moves, removals, additions and
- * replacements are dropped there.
+ * so still apply on a read-only tab; removals, additions and replacements are
+ * dropped there.
  */
 function isViewChange(change: NodeChange | EdgeChange): boolean {
   return change.type === "select" || change.type === "dimensions";
+}
+
+/** On a read-only tab nodes can also be moved: layout only, never an undo entry. */
+function isReadOnlyNodeChange(change: NodeChange): boolean {
+  return isViewChange(change) || change.type === "position";
 }
 
 interface Clipboard {
@@ -421,7 +426,7 @@ export const useCanvasStore = create<CanvasState>()(
       onNodesChange: (changes) => {
         set((state) => {
           if (isActiveTabReadOnly(state)) {
-            const view = changes.filter(isViewChange);
+            const view = changes.filter(isReadOnlyNodeChange);
             return view.length === 0 ? state : { nodes: applyNodeChanges(view, state.nodes) };
           }
           const dragStart = changes.some((c) => c.type === "position" && c.dragging === true);

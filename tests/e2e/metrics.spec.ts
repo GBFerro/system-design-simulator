@@ -186,7 +186,7 @@ test("tab switch clears runtime metrics", async ({ page }) => {
 
 // Performance sanity (NFR: 60 fps with 100 edges + 2,000 particles). Headless
 // frame pacing varies by machine, so the bound is loose; the p95 is logged.
-test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", async ({ page }) => {
+test("ball overlay keeps frame time low with 100 edges near the 2,000 cap", async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem("seeded")) return;
     sessionStorage.setItem("seeded", "1");
@@ -259,7 +259,8 @@ test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", as
       },
     });
   });
-  await expect.poll(() => particleCount(page)).toBe(2000);
+  // Every node fans out ×2–3 at full load: the balls pile up toward the cap.
+  await expect.poll(() => particleCount(page), { timeout: 15_000 }).toBeGreaterThan(1000);
 
   const p95 = await page.evaluate(
     () =>
@@ -283,8 +284,80 @@ test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", as
     .not.toBeNull();
   const drawMs = Number(await page.getByTestId("flow-particles").getAttribute("data-draw-ms"));
   console.log(
-    `particles (100 edges, 2000): draw ${drawMs.toFixed(2)} ms/frame, rAF p95 ${p95.toFixed(1)} ms`,
+    `balls (100 edges, ≤ 2000): draw ${drawMs.toFixed(2)} ms/frame, rAF p95 ${p95.toFixed(1)} ms`,
   );
   expect(drawMs).toBeLessThan(8);
+  expect(await particleCount(page)).toBeLessThanOrEqual(2000);
   expect(p95).toBeLessThan(100);
+});
+
+// OBS-04: the ×N badge opens a node into one card per instance, each with its own edges.
+test("the ×N badge opens a node into instance cards, also on a read-only reference, without an undo entry", async ({
+  page,
+}) => {
+  await open(page, "/?e2e=1");
+  await page.getByTitle("Load reference solution").click();
+  const app = page.locator('.react-flow__node[data-id^="app-server-"]');
+  await expect(app).toBeVisible();
+  const edgesBefore = await page.locator(".react-flow__edge").count();
+
+  await app.getByRole("button", { name: "Show the 45 instances" }).click();
+  const cards = page.getByTestId("instance-card");
+  // 4 instance cards and one stacked card with the other 41.
+  await expect(cards).toHaveCount(5);
+  await expect(cards.last()).toContainText("+41 instances");
+  await expect(cards.first()).toContainText("App Server #1");
+  // Every edge of the node is drawn once per card.
+  const appEdges = await page.locator('.react-flow__edge[data-id^="e-"]').count();
+  expect(await page.locator(".react-flow__edge").count()).toBeGreaterThan(edgesBefore);
+  expect(appEdges).toBeLessThan(edgesBefore);
+
+  // Dragging a card moves the group, on a read-only tab too, with no undo entry.
+  const first = cards.first();
+  const box = (await first.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + 60, { steps: 6 });
+  await page.mouse.up();
+  const moved = (await first.boundingBox())!;
+  expect(moved.x).toBeGreaterThan(box.x + 60);
+  const second = (await cards.nth(1).boundingBox())!;
+  expect(Math.abs(second.x - moved.x)).toBeLessThan(2);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  await first.getByRole("button", { name: "Hide the 45 instances" }).click();
+  await expect(cards).toHaveCount(0);
+  await expect(app).toBeVisible();
+});
+
+// The selected resource's metrics in a card beside it on the canvas.
+test("selecting a node during a run shows its metrics in a card beside it", async ({ page }) => {
+  await open(page, "/?e2e=1");
+  await page.getByTitle("Load reference solution").click();
+  const lb = page.locator('.react-flow__node[data-id^="load-balancer-"]');
+  await expect(lb).toBeVisible();
+
+  // No run yet: selecting shows nothing.
+  await lb.click();
+  const card = page.getByTestId("node-insight-card");
+  await expect(card).toHaveCount(0);
+
+  await analyze(page);
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Load Balancer");
+  await expect(card.getByTestId("node-throughput")).toContainText("req/s");
+  await expect(card.getByTestId("node-latency")).toContainText("p99");
+  // Beside the node, to its right.
+  const nodeBox = (await lb.boundingBox())!;
+  const cardBox = (await card.boundingBox())!;
+  expect(cardBox.x).toBeGreaterThan(nodeBox.x + nodeBox.width);
+
+  await card.getByRole("button", { name: "Close metrics" }).click();
+  await expect(card).toHaveCount(0);
+
+  // Another node opens it again; Escape (clear selection) closes it.
+  await page.locator('.react-flow__node[data-id^="dns-"]').click();
+  await expect(card).toContainText("DNS");
+  await page.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
 });

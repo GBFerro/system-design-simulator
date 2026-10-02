@@ -167,7 +167,6 @@ describe("canvas store editing", () => {
   const EDIT_CALLS: { [K in MutatingAction]: Parameters<Store[K]> } = {
     onNodesChange: [
       [
-        { type: "position", id: "a", position: { x: 50, y: 50 }, dragging: true },
         { type: "remove", id: "b" },
         { type: "add", item: node("x", 900, 0) },
       ],
@@ -212,6 +211,15 @@ describe("canvas store editing", () => {
     expect(s().nodes[0].selected).toBe(true);
     expect(s().nodes[1].measured).toEqual({ width: 200, height: 80 });
     expect(s().edges[0].selected).toBe(true);
+    expect(s().history).toHaveLength(0);
+  });
+
+  it("read-only tabs let nodes be moved (layout), with no undo entry", () => {
+    setCanvas([node("a", 0, 0), node("b", 300, 0)], [edge("a", "b")], true);
+    s().onNodesChange([{ type: "position", id: "a", position: { x: 40, y: 60 }, dragging: true }]);
+    s().onNodesChange([{ type: "position", id: "a", position: { x: 50, y: 70 }, dragging: false }]);
+    expect(s().nodes[0].position).toEqual({ x: 50, y: 70 });
+    expect(s().edges).toHaveLength(1);
     expect(s().history).toHaveLength(0);
   });
 

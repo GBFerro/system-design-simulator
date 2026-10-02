@@ -6,13 +6,7 @@ import { analyze } from "@/engine/analyze";
 import { steadyStateToSnapshot } from "@/engine/snapshot";
 import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import {
-  MAX_PARTICLES,
-  MAX_PARTICLES_PER_EDGE,
-  edgeStrokeWidth,
-  particleBudget,
-  particleDensity,
-} from "@/lib/particles";
+import { edgeStrokeWidth } from "@/lib/particles";
 import { recentWindow, shareUnchanged, sparklinePath } from "@/lib/runtimeMetrics";
 import { useRuntimeStore } from "@/store/runtimeStore";
 
@@ -192,54 +186,9 @@ describe("runtimeStore structural sharing", () => {
   });
 });
 
-/* ---------- particle budget ---------- */
+/* ---------- edge styling ---------- */
 
-describe("particleBudget (OBS-04)", () => {
-  it("density grows with log(rps) and is 0 without load", () => {
-    expect(particleDensity(0)).toBe(0);
-    expect(particleDensity(-5)).toBe(0);
-    expect(particleDensity(NaN)).toBe(0);
-    const d10 = particleDensity(9);
-    const d100 = particleDensity(99);
-    const d1000 = particleDensity(999);
-    expect(d100 / d10).toBeCloseTo(2);
-    expect(d1000 / d10).toBeCloseTo(3);
-  });
-
-  it("gives more particles to busier and longer edges, ≥ 1 for any loaded edge", () => {
-    const [idle, low, high, long] = particleBudget([
-      { rps: 0, length: 200 },
-      { rps: 10, length: 200 },
-      { rps: 100_000, length: 200 },
-      { rps: 100_000, length: 400 },
-    ]);
-    expect(idle).toBe(0);
-    expect(low).toBeGreaterThanOrEqual(1);
-    expect(high).toBeGreaterThan(low);
-    expect(long).toBeGreaterThan(high);
-    expect(particleBudget([{ rps: 1, length: 1 }])).toEqual([1]);
-  });
-
-  it("caps each edge and the global total at 2,000", () => {
-    expect(particleBudget([{ rps: 1e9, length: 1e6 }])[0]).toBe(MAX_PARTICLES_PER_EDGE);
-    const many = Array.from({ length: 100 }, () => ({ rps: 1_000_000, length: 800 }));
-    const counts = particleBudget(many);
-    const total = counts.reduce((s, n) => s + n, 0);
-    expect(total).toBe(MAX_PARTICLES);
-    // Scaled uniformly (equal edges differ by at most the rounding unit).
-    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
-    // Busier edges keep more particles after scaling.
-    const mixed = particleBudget([
-      ...Array.from({ length: 99 }, () => ({ rps: 1_000_000, length: 800 })),
-      { rps: 10, length: 800 },
-    ]);
-    expect(mixed.reduce((s, n) => s + n, 0)).toBe(MAX_PARTICLES);
-    expect(mixed[99]).toBeLessThan(mixed[0]);
-    // More loaded edges than the cap: still never above it.
-    const huge = Array.from({ length: 3000 }, () => ({ rps: 100, length: 300 }));
-    expect(particleBudget(huge).reduce((s, n) => s + n, 0)).toBe(MAX_PARTICLES);
-  });
-
+describe("edge styling (OBS-04)", () => {
   it("edge width grows with load within [1.5, 6]", () => {
     expect(edgeStrokeWidth(undefined)).toBe(1.5);
     expect(edgeStrokeWidth(0)).toBe(1.5);

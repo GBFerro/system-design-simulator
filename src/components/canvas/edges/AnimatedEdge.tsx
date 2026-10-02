@@ -31,7 +31,11 @@ function AnimatedEdgeInner({
 }: EdgeProps) {
   // Per-edge runtime metrics (Spec 07): thickness ∝ load, color by status.
   // Moving tokens are drawn by the single <FlowParticles> canvas, not here.
-  const runtime = useEdgeRuntime(id);
+  // A copy drawn to an expanded node's instance card reads its edge's metrics
+  // and carries its share of the load (`instanceGraph.ts`).
+  const copy = data as { instanceOf?: string; share?: number; hideLabel?: boolean } | undefined;
+  const runtime = useEdgeRuntime(copy?.instanceOf ?? id);
+  const rps = runtime ? runtime.rps * (copy?.share ?? 1) : undefined;
   const flowing = runtime !== undefined && runtime.rps > 0;
   const isDark = useAppStore((s) => s.theme) === "dark";
   const idleStroke = isDark ? "rgba(150, 165, 195, 0.32)" : "rgba(90, 105, 130, 0.45)";
@@ -54,7 +58,7 @@ function AnimatedEdgeInner({
   const blast = runtime?.blast;
   const badge = protocol ? protocolBadge[protocol] : null;
   const ruleBadge = edgeRuleBadge(edgeData.rule);
-  const showLabel = label || badge || ruleBadge;
+  const showLabel = !copy?.hideLabel && (label || badge || ruleBadge);
 
   return (
     <g
@@ -67,7 +71,7 @@ function AnimatedEdgeInner({
           d={edgePath}
           fill="none"
           stroke="#fb923c"
-          strokeWidth={edgeStrokeWidth(runtime?.rps) + 5}
+          strokeWidth={edgeStrokeWidth(rps) + 5}
           strokeLinecap="round"
           strokeOpacity={blast === "target" ? 0.75 : 0.5}
           strokeDasharray={blast === "target" ? "3 7" : undefined}
@@ -84,7 +88,7 @@ function AnimatedEdgeInner({
           ...style,
           stroke: flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke,
           strokeOpacity: flowing ? 0.6 : 1,
-          strokeWidth: edgeStrokeWidth(runtime?.rps),
+          strokeWidth: edgeStrokeWidth(rps),
           ...(isAsync ? { strokeDasharray: "6 4" } : {}),
         }}
       />
