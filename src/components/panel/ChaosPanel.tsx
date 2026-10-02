@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState, type RefObject } from "react";
 import { Bomb, HeartPulse, Play, Zap } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { compileGraph } from "@/domain/graph/compile";
@@ -17,9 +17,11 @@ import type { FaultRecord, FaultSpec, FaultType } from "@/engine/faults/types";
 import { formatClock } from "@/components/traffic/format";
 import { healFault, injectFault, togglePlayback } from "@/components/traffic/simActions";
 import { topologySignature } from "@/lib/topology";
-import { useCanvasStore } from "@/store/canvasStore";
+import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
+import { FixPreviewBanner, useEndPreviewOnLeave } from "./FixPreview";
+import { Mitigations } from "./Mitigations";
 import { SECTION_TITLE } from "./styles";
 
 const inputClass =
@@ -63,9 +65,14 @@ function useSelectedTargetKey(): string | null {
 /**
  * Chaos panel (Spec 08, CHS-01): pick a fault from the catalog, a target,
  * intensity and duration, inject it into the live run, and heal it. Faults
- * never edit the graph; they only exist while a simulation is loaded.
+ * never edit the graph; they only exist while a simulation is loaded. Each
+ * fault shows how to mitigate it (CHS-06), with quick fixes that do edit the
+ * graph — previewed first, one undo step each.
  */
 export function ChaosPanel() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const readOnly = useIsActiveTabReadOnly();
+  useEndPreviewOnLeave();
   const playback = useRuntimeStore((s) => s.playback);
   const live = playback !== "idle";
   const graph = useCanvasGraph();
@@ -117,10 +124,10 @@ export function ChaosPanel() {
   const validDuration =
     durationSec === undefined || (Number.isFinite(durationSec) && durationSec > 0);
 
-  const inject = async () => {
-    if (!targetKey) return;
+  const draft = useMemo((): FaultSpec | null => {
+    if (!targetKey) return null;
     const [kind, ...rest] = targetKey.split(":");
-    const fault: FaultSpec = {
+    return {
       type,
       target:
         kind === "global"
@@ -130,20 +137,32 @@ export function ChaosPanel() {
       ...(autoHeal && durationSec !== undefined ? { durationSec } : {}),
       ...(!autoHeal ? { autoHeal: false } : {}),
     };
+  }, [targetKey, type, spec.intensity, value, autoHeal, durationSec]);
+
+  const inject = async () => {
+    const fault = draft;
+    if (!fault) return;
     setBusy(true);
     await injectFault(fault);
     setBusy(false);
   };
 
   return (
-    <section aria-label="Chaos engineering" className="space-y-4" data-testid="chaos-panel">
+    <section
+      ref={sectionRef}
+      aria-label="Chaos engineering"
+      className="space-y-4"
+      data-testid="chaos-panel"
+    >
       <div>
         <p className={SECTION_TITLE}>Chaos</p>
         <p className="mt-1 text-[11px] leading-snug text-zinc-400">
           Break the running system and watch the blast radius. Faults change the simulation only —
-          never your design.
+          never your design; each one says how to mitigate it.
         </p>
       </div>
+
+      <FixPreviewBanner readOnly={readOnly} />
 
       {!live && (
         <div className="flex items-center gap-2 rounded-md border border-amber-500/25 bg-amber-950/20 px-2.5 py-2">
@@ -187,6 +206,7 @@ export function ChaosPanel() {
 
       <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5">
         <p className="text-[11px] leading-snug text-zinc-300">{spec.description}</p>
+        {draft && <Mitigations fault={draft} frameFrom={sectionRef} />}
 
         <div className="space-y-1">
           <label htmlFor={ids.target} className="block text-[11px] text-zinc-400">
@@ -287,12 +307,12 @@ export function ChaosPanel() {
         </button>
       </div>
 
-      <FaultList />
+      <FaultList frameFrom={sectionRef} />
     </section>
   );
 }
 
-function FaultList() {
+function FaultList({ frameFrom }: { frameFrom: RefObject<Element | null> }) {
   const faults = useChaosStore((s) => s.faults);
   const simTime = useRuntimeStore((s) => s.simTimeSec);
   const active = faults.filter((f) => f.active);
@@ -306,7 +326,7 @@ function FaultList() {
           <p className={`mb-1.5 ${SECTION_TITLE}`}>Active ({active.length})</p>
           <ul className="space-y-1.5" data-testid="chaos-active">
             {active.map((f) => (
-              <FaultRow key={f.id} fault={f} now={simTime} />
+              <FaultRow key={f.id} fault={f} now={simTime} frameFrom={frameFrom} />
             ))}
           </ul>
         </div>
@@ -335,7 +355,15 @@ function FaultList() {
   );
 }
 
-function FaultRow({ fault, now }: { fault: FaultRecord; now: number }) {
+function FaultRow({
+  fault,
+  now,
+  frameFrom,
+}: {
+  fault: FaultRecord;
+  now: number;
+  frameFrom: RefObject<Element | null>;
+}) {
   const remaining = fault.endT !== undefined ? Math.max(0, fault.endT - now) : undefined;
   return (
     <li className="rounded-md border border-orange-500/30 bg-orange-950/20 px-2.5 py-2">
@@ -366,6 +394,9 @@ function FaultRow({ fault, now }: { fault: FaultRecord; now: number }) {
           ))}
         </ul>
       )}
+      <div className="mt-1.5 pl-5">
+        <Mitigations fault={fault.spec} frameFrom={frameFrom} />
+      </div>
     </li>
   );
 }

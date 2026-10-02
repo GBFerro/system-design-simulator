@@ -7,17 +7,13 @@
  */
 import type { Edge, Node } from "@xyflow/react";
 import { instancesOf, routingFor } from "@/domain/components/registry";
+import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
 import { isAsyncEdge } from "@/domain/graph/edgeRules";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { ScoringGraph } from "@/types/scoring";
 
-/**
- * Tiers where "one instance" isn't a single point of failure: the traffic
- * source itself, and managed services redundant by construction (DNS is
- * anycast over several name servers, a CDN serves from many edge locations,
- * object storage replicates across availability zones).
- */
-export const INHERENTLY_REDUNDANT = new Set(["client", "dns", "cdn", "object-storage"]);
+/** Tiers where "one instance" isn't a single point of failure (`domain/components/traits.ts`). */
+export const INHERENTLY_REDUNDANT = MANAGED_MULTI_ZONE;
 
 /** A SQL primary is backed by a read replica that can be promoted. */
 const STANDBY_FOR: Record<string, string> = { "sql-db": "read-replica" };

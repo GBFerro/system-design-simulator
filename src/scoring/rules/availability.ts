@@ -1,4 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
+import { DATABASES } from "@/domain/components/traits";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
 import { faultErrorAllowance, formatAvailability, formatWindow } from "@/slo/slo";
@@ -23,8 +24,6 @@ export const BUDGET = {
 export const PARTIAL = {
   gracefulDegradation: 2,
 } as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
-
-const DATABASES = new Set(["sql-db", "nosql-db"]);
 
 export function scoreAvailability(
   nodes: Node<ComponentNodeData>[],

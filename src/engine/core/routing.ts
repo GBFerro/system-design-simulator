@@ -8,7 +8,7 @@
  * | cache         | same, and `on_miss` edges get λ × (1 − hitRate)                     |
  * | queue         | decoupled: each consumer edge drains min(demand, consumer capacity) |
  * | rate-limiter  | admits min(λ, limit); the excess is rejected (429) or queued        |
- * | breaker       | closed passes everything (open/half-open: Spec 08)                  |
+ * | breaker       | passes all, or fails fast while open (`core/breaker.ts`)           |
  */
 import { PARAM } from "@/domain/components/registry";
 import type { EdgeRule } from "@/domain/components/types";

@@ -4,7 +4,7 @@
  * active at each tick. There is no fault-specific code in the loop.
  */
 
-/** Catalog id (Spec 08, CHS-02 MVP). */
+/** Catalog id (Spec 08: CHS-02 MVP, then the CHS-03 additions). */
 export type FaultType =
   | "kill-instances"
   | "kill-node"
@@ -15,7 +15,18 @@ export type FaultType =
   | "partition"
   | "cache-flush"
   | "db-primary-failure"
-  | "consumer-stopped";
+  | "consumer-stopped"
+  // CHS-03
+  | "zone-failure"
+  | "memory-leak"
+  | "thread-pool-exhausted"
+  | "transient-errors"
+  | "disk-full"
+  | "iops-throttle"
+  | "deadlock"
+  | "tls-expired"
+  | "dns-outage"
+  | "health-check-flapping";
 
 export type FaultCategory = "compute" | "network" | "data" | "traffic";
 

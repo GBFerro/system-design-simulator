@@ -61,6 +61,13 @@ import type {
 import { clamp01, hopPercentileMs, station, type StationState } from "./queueing";
 import { mulberry32, samplePoisson, type Rng } from "./rng";
 import {
+  advanceBreaker,
+  breakerAdmits,
+  breakerParams,
+  closedBreaker,
+  type Breaker,
+} from "./breaker";
+import {
   consumerCapacity,
   forwardEdges,
   hitRateOf,
@@ -91,6 +98,8 @@ interface NodeState {
   backlog: number;
   /** Queue/stream: undelivered messages per consumer edge. */
   lag: Map<string, number>;
+  /** Circuit breaker nodes: closed / open / half-open (`core/breaker.ts`). */
+  breaker?: Breaker;
 }
 
 interface TickFlow extends FlowView {
@@ -275,14 +284,22 @@ export class TickSimulator {
         rejected = adm.rejected;
         capacityPerInstance = Math.min(capacityPerInstance, adm.capacityLimit / node.instances);
       }
-      // Dead instances still in rotation fail their share fast (no capacity used).
-      const refused = fx && fx.errorRate > 0 ? admitted * fx.errorRate : 0;
-      admitted -= refused;
-      const capacity = node.instances * capacityPerInstance;
       // A resolver only works on its uncached lookups; cached answers pass straight through.
       const share = lookupShareOf(node);
       const bypass = admitted * (1 - share);
       admitted -= bypass;
+      // Dead instances still in rotation fail their share fast (no capacity
+      // used) — of the lookups only, for a resolver.
+      let refused = fx && fx.errorRate > 0 ? admitted * fx.errorRate : 0;
+      admitted -= refused;
+      if (node.routing === "breaker") {
+        // Open (or half-open past its probes): fail fast, nothing reaches the dependency.
+        state.breaker ??= closedBreaker(this.time);
+        const pass = breakerAdmits(state.breaker, breakerParams(node), admitted, dt);
+        refused += admitted - pass;
+        admitted = pass;
+      }
+      const capacity = node.instances * capacityPerInstance;
 
       let completed: number;
       let overflow = 0;
@@ -392,6 +409,7 @@ export class TickSimulator {
 
     // reverse pass: timeouts, call failure, success, availability
     const settled = settle(topo, flows, shares);
+    this.advanceBreakers(topo, flows, load, settled, dt);
 
     // schedule next tick's retries from this tick's failed attempts
     const nextPending = new Map<string, number[]>();
@@ -420,6 +438,37 @@ export class TickSimulator {
 
     this.ticks++;
     return this.snapshot(topo, offered, flows, load, settled, sampled.latency, slowShare);
+  }
+
+  /**
+   * Each breaker sees the calls it forwarded this tick fail at the rate its
+   * outgoing edges did (downstream errors, timeouts), weighted by load.
+   */
+  private advanceBreakers(
+    topo: Topology,
+    flows: ReadonlyMap<string, TickFlow>,
+    load: ReadonlyMap<string, number>,
+    settled: Settled,
+    dt: number,
+  ): void {
+    const now = round6((this.ticks + 1) * TICK_SEC);
+    for (const id of topo.order) {
+      const node = topo.byId.get(id)!;
+      const state = this.nodeState.get(id);
+      if (node.routing !== "breaker" || !state?.breaker) continue;
+      const flow = flows.get(id)!;
+      let weight = 0;
+      let failed = 0;
+      for (const e of topo.out.get(id) ?? []) {
+        if (e.async) continue;
+        const l = load.get(e.id) ?? 0;
+        weight += l;
+        failed += l * (settled.failure.get(e.id) ?? 0);
+      }
+      const failure = weight > 0 ? failed / weight : 0;
+      const passed = flow.down ? 0 : flow.served;
+      state.breaker = advanceBreaker(state.breaker, breakerParams(node), passed, failure, now, dt);
+    }
   }
 
   /* ---------- stations ---------- */
@@ -516,7 +565,7 @@ export class TickSimulator {
       } else if (n.routing === "cache") {
         m.extra = { hitRatio: hitRateOf(topo.byId.get(n.id) ?? n) };
       } else if (n.routing === "breaker") {
-        m.extra = { breakerState: "closed" };
+        m.extra = { breakerState: this.nodeState.get(n.id)?.breaker?.state ?? "closed" };
       }
       nodes[n.id] = m;
     }

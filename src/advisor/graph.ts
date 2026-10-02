@@ -88,6 +88,12 @@ export interface InsertOptions {
   inRule?: Partial<EdgeRule>;
   /** Rule of the edge out of it; default: the connect default. */
   outRule?: Partial<EdgeRule>;
+  /**
+   * The edge out of the new node keeps the replaced edge's id, protocol and
+   * link (network latency, loss): a fault on that link stays on it. Used when
+   * a fix wraps a link a fault is acting on (a circuit breaker on a slow link).
+   */
+  keepLinkOnOut?: boolean;
 }
 
 /**
@@ -98,7 +104,7 @@ export function insertBetween(
   graph: CanvasGraph,
   edge: Edge,
   componentId: string,
-  { idBase, params, inRule, outRule }: InsertOptions,
+  { idBase, params, inRule, outRule, keepLinkOnOut }: InsertOptions,
 ): GraphDiff {
   const a = graph.nodes.find((n) => n.id === edge.source);
   const b = graph.nodes.find((n) => n.id === edge.target);
@@ -110,7 +116,7 @@ export function insertBetween(
   const node = newComponentNode(componentId, uniqueId(idBase, graph), position, params);
   const nodes = [...graph.nodes, node];
   const edges = graph.edges.filter((e) => e.id !== edge.id);
-  const { kind, callsPerRequest, fraction } = edgeRuleOf(graph, edge);
+  const { kind, callsPerRequest, fraction, networkLatencyMs, packetLoss } = edgeRuleOf(graph, edge);
   const protocol = ((edge.data ?? {}) as CustomEdgeData).protocol ?? "http";
   const inId = uniqueId(`e-${a.id}-${node.id}`, graph);
   const into = newEdge(
@@ -125,10 +131,11 @@ export function insertBetween(
   const out = newEdge(
     nodes,
     [...edges, into],
-    uniqueId(`e-${node.id}-${b.id}`, graph, [inId]),
+    keepLinkOnOut ? edge.id : uniqueId(`e-${node.id}-${b.id}`, graph, [inId]),
     node.id,
     b.id,
-    outRule,
+    { ...(keepLinkOnOut ? { networkLatencyMs, packetLoss } : {}), ...outRule },
+    keepLinkOnOut ? protocol : "http",
   );
   diff.addNodes.push(node);
   diff.addEdges.push(into, out);

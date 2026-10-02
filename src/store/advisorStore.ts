@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import type { Edge, Node } from "@xyflow/react";
 import { applyAllFixes, applyFix, computeFindings, readRatioFor } from "@/advisor/advisor";
-import { describeParamPatch } from "@/advisor/graph";
+import { applyDiff, describeParamPatch, isEmptyDiff } from "@/advisor/graph";
 import {
   SEVERITY_RANK,
   type AdvisorContext,
   type Finding,
   type GraphDiff,
+  type QuickFix,
   type Severity,
 } from "@/advisor/types";
 import { getProblemById } from "@/data/problems";
@@ -25,10 +26,15 @@ import { useSimulationStore } from "./simulationStore";
  * still describes the design. Recomputed only when one of those changes —
  * never on a drag. Nodes read their own worst severity with
  * `useNodeFindingSeverity(id)`; the canvas draws the previewed fix from
- * `preview` (ghost nodes/edges) and `useNodePreviewChange(id)`.
+ * `preview` (ghost nodes/edges) and `useNodePreviewChange(id)` — a finding's
+ * fix, or any other quick fix (a fault's mitigation, Spec 08 CHS-06).
  */
 export interface AdvisorPreview {
-  findingId: string;
+  /** A finding id, or the caller's key for another fix (a mitigation). */
+  key: string;
+  /** True when `key` is a finding: its fix is looked up again as findings change. */
+  fromFinding: boolean;
+  fix: QuickFix;
   label: string;
   diff: GraphDiff;
   /** What the fix changes on existing nodes, by node id ("×1 → ×3"). */
@@ -41,12 +47,18 @@ interface AdvisorState {
   byNode: Record<string, Severity>;
   /** The fix drawn on the canvas before it's applied (ADV-02). */
   preview: AdvisorPreview | null;
+  /**
+   * Bumped whenever an input of `advisorContext()` or the design changes:
+   * what anything computed from the context (mitigations) depends on.
+   */
+  contextVersion: number;
 }
 
 export const useAdvisorStore = create<AdvisorState>(() => ({
   findings: [],
   byNode: {},
   preview: null,
+  contextVersion: 0,
 }));
 
 function worstByNode(findings: Finding[]): Record<string, Severity> {
@@ -130,6 +142,12 @@ function currentContext(nodes: readonly Node[], signature: string): AdvisorConte
   };
 }
 
+/** What the advisor reads right now (the run's load, the read mix, the score): for mitigations. */
+export function advisorContext(): AdvisorContext {
+  const { nodes, edges } = useCanvasStore.getState();
+  return currentContext(nodes, designSignature(nodes, edges));
+}
+
 let lastKey: string | null = null;
 
 /** Recompute when an input changed (idempotent otherwise). */
@@ -143,29 +161,72 @@ export function refreshAdvisor(): void {
   if (key === lastKey) return;
   lastKey = key;
   const findings = computeFindings({ nodes, edges }, currentContext(nodes, signature));
-  useAdvisorStore.setState({
+  useAdvisorStore.setState((s) => ({
     findings,
     byNode: worstByNode(findings),
-    preview: previewFor(useAdvisorStore.getState().preview?.findingId ?? null, findings),
-  });
+    preview: refreshedPreview(s.preview, findings),
+    contextVersion: s.contextVersion + 1,
+  }));
 }
 
-function previewFor(findingId: string | null, findings: Finding[]): AdvisorPreview | null {
-  const fix = findingId ? findings.find((f) => f.id === findingId)?.fix : undefined;
-  if (!findingId || !fix) return null;
+/** Hide the previewed fix. */
+export function clearPreview(): void {
+  useAdvisorStore.setState({ preview: null });
+}
+
+/** The preview against the current graph; null when the fix no longer changes anything. */
+function previewOf(
+  key: string,
+  fix: QuickFix | undefined,
+  fromFinding: boolean,
+): AdvisorPreview | null {
+  if (!fix) return null;
   const { nodes, edges } = useCanvasStore.getState();
   const diff = fix.preview({ nodes, edges });
+  if (isEmptyDiff(diff)) return null;
   const changes: Record<string, string> = {};
   for (const [id, patch] of Object.entries(diff.nodeParams)) {
     const node = nodes.find((n) => n.id === id);
     if (node) changes[id] = describeParamPatch(node.data as ComponentNodeData, patch);
   }
-  return { findingId, label: fix.label, diff, changes };
+  return { key, fromFinding, fix, label: fix.label, diff, changes };
+}
+
+function refreshedPreview(prev: AdvisorPreview | null, findings: Finding[]): AdvisorPreview | null {
+  if (!prev) return null;
+  return prev.fromFinding
+    ? previewOf(prev.key, findings.find((f) => f.id === prev.key)?.fix, true)
+    : previewOf(prev.key, prev.fix, false);
 }
 
 /** Draw a finding's fix on the canvas (null hides it). */
 export function setAdvisorPreview(findingId: string | null): void {
-  useAdvisorStore.setState({ preview: previewFor(findingId, useAdvisorStore.getState().findings) });
+  const fix = findingId
+    ? useAdvisorStore.getState().findings.find((f) => f.id === findingId)?.fix
+    : undefined;
+  useAdvisorStore.setState({ preview: findingId ? previewOf(findingId, fix, true) : null });
+}
+
+/** Draw any quick fix on the canvas under `key` (a fault's mitigation); null hides it. */
+export function setFixPreview(key: string, fix: QuickFix | null): void {
+  useAdvisorStore.setState({ preview: fix ? previewOf(key, fix, false) : null });
+}
+
+/** Apply a quick fix as one undo step, recomputed on the current graph (no-op on a read-only tab). */
+export function applyQuickFix(fix: QuickFix): void {
+  useAdvisorStore.setState({ preview: null });
+  useCanvasStore.getState().applyGraphEdit((graph) => {
+    const diff = fix.preview(graph);
+    return isEmptyDiff(diff) ? null : applyDiff(graph, diff);
+  });
+}
+
+/** Apply what's previewed. */
+export function applyPreview(): void {
+  const preview = useAdvisorStore.getState().preview;
+  if (!preview) return;
+  if (preview.fromFinding) applyFinding(preview.key);
+  else applyQuickFix(preview.fix);
 }
 
 /** Apply one finding's fix as one undo step (no-op on a read-only tab). */

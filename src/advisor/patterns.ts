@@ -12,6 +12,7 @@ import {
   routingFor,
   serviceTimeMsOf,
 } from "@/domain/components/registry";
+import { DATABASES } from "@/domain/components/traits";
 import { freePositionNear, nodeRect } from "@/lib/placement";
 import { ms, pct, rps } from "@/scoring/steady";
 import { edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
@@ -23,8 +24,6 @@ import type { DesignView } from "./view";
 export const READ_HEAVY_RATIO = 0.7;
 /** A synchronous hop at least this slow (service time) on deferrable work. */
 export const SLOW_WORK_MS = 50;
-
-const DATABASES = new Set(["sql-db", "nosql-db"]);
 
 /** Work a user request rarely needs the result of: it can be queued and done later. */
 const DEFERRABLE = new Set([

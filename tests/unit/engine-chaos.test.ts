@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GENERIC_DRILL_QA } from "@/data/interviewData";
 import { compileGraph, type SimGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { FlowEngine } from "@/engine/engine";
@@ -52,6 +53,23 @@ function shop(dbInstances = 2): SimGraph {
   );
 }
 
+/**
+ * DNS (10% fresh lookups) → LB (health check 5 s × 2) → App A, App B → DB:
+ * what `shop()` lacks for the CHS-03 faults (a resolver, an LB with two targets).
+ */
+function wide(): SimGraph {
+  return compileGraph(
+    [
+      comp("dns", "dns", { lookupShare: 0.1, capacityPerInstance: 100_000 }),
+      comp("lb", "load-balancer", { healthCheckIntervalSec: 5, unhealthyThreshold: 2 }),
+      comp("a", "app-server", { instances: 2, capacityPerInstance: 1000, maxRetries: 0 }),
+      comp("b", "app-server", { instances: 2, capacityPerInstance: 1000, maxRetries: 0 }),
+      comp("db", "sql-db", { instances: 2, capacityPerInstance: 5000 }),
+    ],
+    [wire("dns", "lb"), wire("lb", "a"), wire("lb", "b"), wire("a", "db"), wire("b", "db")],
+  );
+}
+
 function engineFor(graph: SimGraph = shop()): FlowEngine {
   const engine = new FlowEngine({ tickSamples: 200 });
   engine.load(graph, { seed: 11 });
@@ -79,23 +97,12 @@ function baseline(engine: FlowEngine, metric: (s: TickSnapshot) => number): numb
 const errorRate = (s: TickSnapshot) => s.global.errorRate;
 
 describe("fault catalog", () => {
-  it("covers the CHS-02 MVP with unique types and valid intensity ranges", () => {
+  it("has one entry per FaultType (the drill's Record<FaultType> is the full list), valid ranges", () => {
     const types = FAULT_CATALOG.map((f) => f.type);
     expect(new Set(types).size).toBe(types.length);
-    expect(types).toEqual(
-      expect.arrayContaining([
-        "kill-instances",
-        "kill-node",
-        "slow-node",
-        "traffic-spike",
-        "edge-latency",
-        "packet-loss",
-        "partition",
-        "cache-flush",
-        "db-primary-failure",
-        "consumer-stopped",
-      ]),
-    );
+    // GENERIC_DRILL_QA must cover every FaultType to compile: a type added
+    // without a catalog entry (or an entry left behind) fails here.
+    expect(new Set(types)).toEqual(new Set(Object.keys(GENERIC_DRILL_QA)));
     for (const f of FAULT_CATALOG) {
       expect(f.targets.length).toBeGreaterThan(0);
       if (f.intensity) {
@@ -123,14 +130,20 @@ describe("compileFault", () => {
 
   it("is pure: same spec + graph + start → same modifiers", () => {
     for (const f of FAULT_CATALOG) {
+      const hasTarget = (g: SimGraph) =>
+        f.targets.includes("global") ||
+        nodeTargets(f, g).length > 0 ||
+        edgeTargets(f, g).length > 0;
+      const make = hasTarget(shop()) ? shop : wide;
+      const graph = make();
       const target: FaultSpec["target"] = f.targets.includes("global")
         ? { kind: "global" }
         : f.targets.includes("edge")
-          ? { kind: "edge", id: edgeTargets(f, ctx.graph)[0].id }
-          : { kind: "node", id: nodeTargets(f, ctx.graph)[0].id };
+          ? { kind: "edge", id: edgeTargets(f, graph)[0].id }
+          : { kind: "node", id: nodeTargets(f, graph)[0].id };
       const spec: FaultSpec = { type: f.type, target, durationSec: 30 };
-      const a = compileFault(spec, 12.5, ctx);
-      const b = compileFault(structuredClone(spec), 12.5, { ...ctx, graph: shop() });
+      const a = compileFault(spec, 12.5, { ...ctx, graph });
+      const b = compileFault(structuredClone(spec), 12.5, { ...ctx, graph: make() });
       expect(a.ok, f.type).toBe(true);
       expect(a).toEqual(b);
     }
@@ -552,5 +565,264 @@ describe("DNS resolver (lookupShare)", () => {
     const snaps = run(engine, 3);
     expect(mean(snaps, (s) => s.nodes.app.rpsIn)).toBeGreaterThan(9_000);
     expect(mean(snaps, (s) => s.nodes.dns.utilization)).toBeLessThan(0.2);
+  });
+});
+
+describe("CHS-03 faults in the tick loop (baseline → inject → heal → baseline)", () => {
+  it("zone outage: every tier loses ⌈n/zones⌉ instances; a single-instance tier is down", () => {
+    const g = compileGraph(
+      [
+        comp("lb", "load-balancer", { healthCheckIntervalSec: 1, unhealthyThreshold: 1 }),
+        comp("app", "app-server", { instances: 3, capacityPerInstance: 1000, maxRetries: 0 }),
+        comp("db", "sql-db", { instances: 1, capacityPerInstance: 5000 }),
+      ],
+      [wire("lb", "app"), wire("app", "db")],
+    );
+    const engine = engineFor(g);
+    const util = baseline(engine, (s) => s.nodes.app.utilization);
+    const id = engine.inject({ type: "zone-failure", target: { kind: "global" }, intensity: 3 });
+    const during = run(engine, 3);
+    expect(during.at(-1)!.nodes.db.status).toBe("down");
+    expect(mean(during, errorRate)).toBeGreaterThan(0.99);
+    expect(engine.faults[0].notes.join(" ")).toContain("db");
+    engine.heal(id);
+    run(engine, 3);
+    expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
+    expect(mean(run(engine, 2), (s) => s.nodes.app.utilization)).toBeCloseTo(util, 1);
+  });
+
+  it("zone outage with redundant tiers: survivors carry it after the health check", () => {
+    const g = compileGraph(
+      [
+        comp("lb", "load-balancer", {
+          instances: 2,
+          healthCheckIntervalSec: 5,
+          unhealthyThreshold: 2,
+        }),
+        comp("app", "app-server", { instances: 4, capacityPerInstance: 1000, maxRetries: 0 }),
+        comp("db", "sql-db", { instances: 2, capacityPerInstance: 5000 }),
+      ],
+      [wire("lb", "app"), wire("app", "db")],
+    );
+    const engine = engineFor(g);
+    const util = baseline(engine, (s) => s.nodes.app.utilization);
+    engine.inject({ type: "zone-failure", target: { kind: "global" }, intensity: 2 });
+    run(engine, 12); // the LB's health check (5 s × 2) routes around the dead half
+    const after = run(engine, 2);
+    expect(mean(after, errorRate)).toBeLessThan(0.01);
+    // App 4 → 2 instances: twice the utilization.
+    expect(mean(after, (s) => s.nodes.app.utilization)).toBeGreaterThan(util * 1.8);
+  });
+
+  it("memory leak: latency climbs in steps, then the node crashes until healed", () => {
+    const engine = engineFor();
+    const p99 = baseline(engine, (s) => s.nodes.app.p99);
+    const id = engine.inject({
+      type: "memory-leak",
+      target: { kind: "node", id: "app" },
+      intensity: 20,
+    });
+    const early = run(engine, 4);
+    const late = run(engine, 14);
+    expect(mean(late, (s) => s.nodes.app.p99)).toBeGreaterThan(mean(early, (s) => s.nodes.app.p99));
+    expect(mean(late, (s) => s.nodes.app.p99)).toBeGreaterThan(p99 * 1.5);
+    const crashed = run(engine, 3);
+    expect(crashed.at(-1)!.nodes.app.status).toBe("down");
+    engine.heal(id);
+    run(engine, 3);
+    expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
+  });
+
+  it("thread pool exhausted: the node queues without errors from health checks", () => {
+    const engine = engineFor();
+    const util = baseline(engine, (s) => s.nodes.app.utilization);
+    const id = engine.inject({
+      type: "thread-pool-exhausted",
+      target: { kind: "node", id: "app" },
+      intensity: 0.75,
+    });
+    const during = run(engine, 2);
+    expect(mean(during, (s) => s.nodes.app.utilization)).toBeGreaterThan(util * 3.5);
+    engine.heal(id);
+    run(engine, 8);
+    expect(mean(run(engine, 2), (s) => s.nodes.app.utilization)).toBeCloseTo(util, 1);
+  });
+
+  it("transient errors: the share fails; a caller's retries multiply the load on it", () => {
+    const engine = engineFor();
+    baseline(engine, errorRate);
+    const id = engine.inject({
+      type: "transient-errors",
+      target: { kind: "node", id: "app" },
+      intensity: 0.3,
+    });
+    expect(mean(run(engine, 2), errorRate)).toBeCloseTo(0.3, 1);
+    engine.heal(id);
+    expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
+
+    // With 3 retries on the caller, the target sees λ(1 − f⁴)/(1 − f) ≈ 1.42 λ.
+    const g = compileGraph(
+      [
+        comp("api", "api-gateway", { instances: 4, capacityPerInstance: 10_000, maxRetries: 3 }),
+        comp("app", "app-server", { instances: 4, capacityPerInstance: 1000 }),
+      ],
+      [wire("api", "app")],
+    );
+    const retrying = engineFor(g);
+    const load = baseline(retrying, (s) => s.nodes.app.rpsIn);
+    retrying.inject({
+      type: "transient-errors",
+      target: { kind: "node", id: "app" },
+      intensity: 0.3,
+    });
+    run(retrying, 1);
+    expect(mean(run(retrying, 2), (s) => s.nodes.app.rpsIn) / load).toBeCloseTo(1.42, 1);
+  });
+
+  it("disk full: writes fail, reads are served", () => {
+    const engine = engineFor();
+    baseline(engine, errorRate);
+    const id = engine.inject({ type: "disk-full", target: { kind: "node", id: "db" } });
+    const during = mean(run(engine, 2), errorRate);
+    // Writes are 10% of requests; the cache's misses (reads) still work.
+    expect(during).toBeGreaterThan(0.08);
+    expect(during).toBeLessThan(0.12);
+    engine.heal(id);
+    expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
+  });
+
+  it("IOPS throttled: the node does a fraction of its work", () => {
+    const engine = engineFor();
+    const util = baseline(engine, (s) => s.nodes.db.utilization);
+    const id = engine.inject({
+      type: "iops-throttle",
+      target: { kind: "node", id: "db" },
+      intensity: 0.25,
+    });
+    expect(mean(run(engine, 2), (s) => s.nodes.db.utilization)).toBeCloseTo(util * 4, 1);
+    engine.heal(id);
+    run(engine, 2);
+    expect(mean(run(engine, 2), (s) => s.nodes.db.utilization)).toBeCloseTo(util, 2);
+  });
+
+  it("deadlocks: a share of the writes is aborted", () => {
+    const engine = engineFor();
+    baseline(engine, errorRate);
+    const id = engine.inject({
+      type: "deadlock",
+      target: { kind: "node", id: "db" },
+      intensity: 0.5,
+    });
+    // Half of the writes (10% of requests) fail.
+    expect(mean(run(engine, 2), errorRate)).toBeCloseTo(0.05, 1);
+    engine.heal(id);
+    expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
+  });
+
+  it("TLS certificate expired: every call to the node fails", () => {
+    const engine = engineFor();
+    baseline(engine, errorRate);
+    const id = engine.inject({ type: "tls-expired", target: { kind: "node", id: "app" } });
+    expect(mean(run(engine, 2), errorRate)).toBeGreaterThan(0.99);
+    engine.heal(id);
+    expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
+  });
+
+  it("DNS outage: only requests that need a fresh lookup fail", () => {
+    const engine = engineFor(wide());
+    baseline(engine, errorRate);
+    const id = engine.inject({ type: "dns-outage", target: { kind: "node", id: "dns" } });
+    expect(mean(run(engine, 2), errorRate)).toBeCloseTo(0.1, 1);
+    engine.heal(id);
+    expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
+    // Same in steady state (`analyze()` under the fault).
+    const steady = analyzeUnderFault(wide(), RPS, {
+      type: "dns-outage",
+      target: { kind: "node", id: "dns" },
+    });
+    expect(steady.ok && steady.steady.errorRate).toBeCloseTo(0.1, 2);
+  });
+
+  it("health check flapping: the target drops in and out of rotation", () => {
+    const engine = engineFor(wide());
+    baseline(engine, errorRate);
+    engine.inject({
+      type: "health-check-flapping",
+      target: { kind: "edge", id: "e-lb-a" },
+      intensity: 4,
+      durationSec: 8,
+    });
+    const snaps = run(engine, 8);
+    const aIn = snaps.map((s) => s.nodes.a.rpsIn);
+    // In rotation for the first half of each 4 s period, out for the second.
+    expect(mean(snaps.slice(0, 30), (s) => s.nodes.a.rpsIn)).toBeGreaterThan(RPS * 0.4);
+    expect(mean(snaps.slice(50, 70), (s) => s.nodes.a.rpsIn)).toBe(0);
+    expect(Math.max(...aIn)).toBeGreaterThan(0);
+    expect(mean(run(engine, 2), (s) => s.nodes.a.rpsIn)).toBeGreaterThan(RPS * 0.4);
+  });
+});
+
+describe("circuit breaker (tick loop)", () => {
+  /** Client → App (no retries) → Breaker → Payments. */
+  const guarded = (breaker: Record<string, number> = {}) =>
+    compileGraph(
+      [
+        comp("app", "app-server", { instances: 4, capacityPerInstance: 1000, maxRetries: 0 }),
+        comp("cb", "circuit-breaker", {
+          instances: 2,
+          capacityPerInstance: 50_000,
+          openDurationSec: 5,
+          minimumCalls: 100,
+          ...breaker,
+        }),
+        comp("pay", "app-server", { instances: 4, capacityPerInstance: 1000 }),
+      ],
+      [wire("app", "cb"), wire("cb", "pay")],
+    );
+  const state = (s: TickSnapshot) => s.nodes.cb.extra?.breakerState;
+
+  it("stays closed (and changes nothing) while the dependency is healthy", () => {
+    const engine = engineFor(guarded());
+    const snaps = run(engine, 5);
+    expect(snaps.every((s) => state(s) === "closed")).toBe(true);
+    expect(mean(snaps.slice(20), errorRate)).toBe(0);
+  });
+
+  it("opens on failures (nothing reaches the dependency), probes half-open, closes after the heal", () => {
+    const engine = engineFor(guarded());
+    run(engine, 3);
+    const id = engine.inject({ type: "kill-node", target: { kind: "node", id: "pay" } });
+    const failing = run(engine, 2);
+    expect(failing.some((s) => state(s) === "open")).toBe(true);
+    // Open: the dependency gets nothing and callers fail fast (from the tick
+    // after the one whose failures tripped it).
+    const open = failing.filter((s) => state(s) === "open").slice(1);
+    expect(mean(open, (s) => s.nodes.pay.rpsIn)).toBe(0);
+    expect(mean(open, errorRate)).toBeGreaterThan(0.99);
+
+    engine.heal(id);
+    // After the open duration (5 s) the probes succeed and it closes.
+    const recovering = run(engine, 7);
+    expect(recovering.some((s) => state(s) === "half-open")).toBe(true);
+    expect(state(recovering.at(-1)!)).toBe("closed");
+    expect(mean(run(engine, 2), errorRate)).toBe(0);
+  });
+
+  it("a slow dependency trips it through its own timeout", () => {
+    const engine = engineFor(guarded({ timeoutMs: 50 }));
+    run(engine, 3);
+    engine.inject({ type: "slow-node", target: { kind: "node", id: "pay" }, intensity: 10 });
+    const snaps = run(engine, 3);
+    expect(snaps.some((s) => state(s) === "open")).toBe(true);
+  });
+
+  it("is bit-identical across runs (no random numbers)", () => {
+    const go = () => {
+      const engine = engineFor(guarded());
+      run(engine, 2);
+      engine.inject({ type: "kill-node", target: { kind: "node", id: "pay" } });
+      return run(engine, 8).map((s) => [state(s), s.global.errorRate, s.nodes.pay.rpsIn]);
+    };
+    expect(go()).toEqual(go());
   });
 });
