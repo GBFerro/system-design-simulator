@@ -1,6 +1,6 @@
 # Spec 09: Modo entrevista v2
 
-Parte da [v2](00-visao-geral.md) · Fase 4 · Tamanho M · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Fase 4 · Tamanho M · Status: implementada (Fase 4; as regras de cost, latency e availability ganharam orçamento e SLO com as Specs 10 e 11 na Fase 5)
 
 | Campo               | Valor                                                                                                                   |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |

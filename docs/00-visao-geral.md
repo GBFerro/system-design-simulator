@@ -1,6 +1,6 @@
 # Spec 00: Visão geral do System Design Simulator v2
 
-Sep 25, 2026 · @Giovani · Status: rascunho
+Sep 25, 2026 · @Giovani · Status: em andamento (Fases 0 a 4 concluídas, Fase 5 em curso)
 
 Este documento é o índice da v2. A spec original foi dividida em specs menores (01 a 14), cada uma com escopo, requisitos, design e critérios de aceite próprios. Os ids de requisito (CAN-01, TRF-02, etc.) são os mesmos da spec original e valem em todas as specs.
 
@@ -101,6 +101,8 @@ São sete fases (0 a 6) em ordem de dependência, e cada uma termina com algo us
 | 4. Entrevista v2        | Failure drill, rubrica medida, score de processo, relatório         | 09                 | M       | Os 35 problemas têm roteiro de drill; cada regra soma exatamente 20                                                    |
 | 5. Custo, SLO e advisor | CST-01 a 05, SLO-01 a 03, ADV-01/02, CHS-03, 05, 06, OBS-05 a 07    | 07, 08, 10, 11, 12 | G       | Right-size aplica e mostra a economia; SLO violado aparece no relatório; quick fix tem undo                            |
 | 6. Polimento            | CAN-07 a 11, LRN-02 a 04, PER-03, TRF-04 a 06, CMP-03/04            | 03, 05, 06, 13, 14 | M       | Link compartilhado abre o mesmo design em outro browser                                                                |
+
+**Andamento.** As Fases 0 a 4 estão concluídas. Da Fase 5 estão implementados CST-01 a 05 ([Spec 10](10-custo.md)), SLO-01 a 03 ([Spec 11](11-slo-e-error-budget.md)), ADV-01/02 ([Spec 12](12-advisor.md)) e CHS-03/06 ([Spec 08](08-chaos-engineering.md)). Faltam OBS-05 a 07 ([Spec 07](07-metricas-e-observabilidade.md)) e os game days (CHS-05), cujo roteiro usa a trilha de eventos do TRF-06 ([Spec 06](06-controles-de-trafego.md)): o CHS-05 traz o mínimo dela para a Fase 5 ou espera o TRF-06. A Fase 6 ainda não começou.
 
 Depois da Fase 6, e fora desta spec: backend para a galeria da comunidade (PER-04), contas e colaboração em tempo real.
 

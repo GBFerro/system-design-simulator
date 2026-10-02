@@ -127,7 +127,7 @@ O componente `custom` ganha um editor de schema simples: o usuário escolhe o `r
 - [x] Todo id de `components.ts` tem schema com defaults válidos
 - [x] O painel Props é gerado pelo schema; nenhum formulário por tipo escrito à mão
 - [x] Os ids referenciados em `problems.ts`, `conceptLibrary.ts` e `learningPath.ts` continuam existindo
-- [ ] Toda aresta tem `EdgeRule` depois da migração ([Spec 05](05-persistencia-e-compartilhamento.md))
+- [x] Toda aresta tem `EdgeRule` depois da migração ([Spec 05](05-persistencia-e-compartilhamento.md))
 - [x] Cache → DB criado pela UI nasce com `on_miss`
 - [x] Os 6 componentes novos aparecem na paleta com entrada na Concept Library
 
