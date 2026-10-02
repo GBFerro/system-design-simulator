@@ -1,6 +1,6 @@
 # Spec 12: Advisor
 
-Parte da [v2](00-visao-geral.md) · Fase 3 (ADV-03) e Fase 5 (ADV-01/02) · Status: rascunho
+Parte da [v2](00-visao-geral.md) · Fase 3 (ADV-03) e Fase 5 (ADV-01/02) · Status: implementada (ADV-03 na Fase 3; ADV-01/02 na Fase 5, PR 3)
 
 | Campo               | Valor                                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -65,10 +65,23 @@ Exemplos:
 - Utilização < 15% → info, fix "right-size" ([Spec 10](10-custo.md))
 - Cada ponto perdido no score vira um finding com a mesma explicação do relatório ([Spec 09](09-modo-entrevista-v2.md))
 
+Implementação (`advisor/`, tudo puro; `store/advisorStore.ts` junta as entradas):
+
+| Finding (id)            | Fonte     | Severidade                  | Regra                                                                                                                                             | Quick fix                                                                                                       |
+| ----------------------- | --------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `hot:<nó>`              | metrics   | aviso ≥ 80%, crítico ≥ 100% | carga da execução ÷ capacidade ATUAL (instâncias × capacidade por instância; DNS só as consultas sem cache), o `PEAK_UTILIZATION` do scorer       | stateless: escalar para o right-size (~45% nessa carga); stateful: sem fix (move dados), o texto explica        |
+| `idle:<nó>`             | metrics   | info                        | a checagem de over-provisioning do scorer (≥ 3 instâncias e ociosa abaixo de 15% mesmo com uma a menos)                                           | stateless: reduzir para o right-size                                                                            |
+| `rate-limit`            | metrics   | info                        | há tráfego e nada o limita (sem rate limiter, sem gateway com throttling)                                                                         | ligar o throttling do API gateway, ou inserir um rate limiter onde o tráfego sai da borda (limite = 2× a carga) |
+| `read-cache:<db>`       | structure | aviso                       | leitura ≥ 70% (mix do problema, senão o `readRatio` do Client), SQL/NoSQL no caminho síncrono, nenhum cache em linha nem look-aside               | cache look-aside: chamador → cache (`reads`), cache → DB (`on_miss`), chamador → DB vira `writes`               |
+| `async:<aresta>`        | structure | aviso                       | aresta síncrona no caminho para trabalho adiável (worker pool, notificação, scheduler, stream processor, data warehouse) com service time ≥ 50 ms | inserir uma fila entre os dois                                                                                  |
+| `score:<categoria>:<i>` | scoring   | info                        | cada feedback do último score, enquanto o design for o mesmo que foi pontuado                                                                     | —                                                                                                               |
+
+A carga é a média do `rpsIn` por nó nos últimos 5 s simulados da execução (lida no máximo 1×/s), ou o snapshot do Simulate sozinho. Como a utilização usa a capacidade atual, aplicar um fix de instâncias some com o finding na hora; os que mudam o roteamento (cache, fila) somem pela estrutura. Os limiares são os do scorer e o dimensionamento é o do right-size ([Spec 10](10-custo.md)), então Advisor, Score e Cost concordam. O badge da aba conta só avisos e críticos.
+
 ### Quick fix (ADV-02)
 
-- `preview` devolve um `GraphDiff` (nós/arestas a adicionar, remover e alterar) que a UI desenha em modo fantasma sobre o canvas
-- Aplicar = uma action do `canvasStore` que aplica o diff com **um** push no histórico
+- `preview` devolve um `GraphDiff` (nós/arestas a adicionar, remover e alterar) que a UI desenha em modo fantasma sobre o canvas. Na implementação os ids vêm do finding e do grafo (nunca aleatórios), então o preview é exatamente o que será aplicado; os fantasmas (`components/canvas/previewGraph.ts`) só existem no que o ReactFlow desenha, nunca no `canvasStore`: nós e arestas novos tracejados em violeta, arestas removidas tracejadas em rosa, nós alterados com um chip ("×1 → ×2") fora da caixa. Esc ou sair da aba encerram o preview
+- Aplicar = uma action do `canvasStore` que aplica o diff com **um** push no histórico (`applyGraphEdit`: a edição é calculada dentro do `set`, a partir do grafo atual)
 - "Aplicar todos" aplica os fixes em sequência, sem conflito (fixes que tocam os mesmos nós são aplicados em ordem de severidade e recalculados), também como um único passo de undo
 - Inserir entre A e B: remove a aresta A → B, cria o nó novo posicionado entre os dois (busca em espiral da [Spec 02](02-editor-confiavel.md)) e cria A → novo → B com as regras default da [Spec 03](03-catalogo-de-componentes.md)
 - Bloqueado em tabs read-only
@@ -76,12 +89,14 @@ Exemplos:
 ## Critérios de aceite
 
 - [x] (Fase 3) Os três hints de estrutura aparecem e somem quando corrigidos
-- [ ] Quick fix mostra preview antes de aplicar
-- [ ] Quick fix e "aplicar todos" são desfeitos com um único ⌘Z
-- [ ] Aplicar o fix de um finding faz o finding sumir na próxima análise
-- [ ] Nenhum finding aparece para a solução de referência que não seja `info`
+- [x] Quick fix mostra preview antes de aplicar
+- [x] Quick fix e "aplicar todos" são desfeitos com um único ⌘Z
+- [x] Aplicar o fix de um finding faz o finding sumir na próxima análise
+- [x] Nenhum finding aparece para a solução de referência que não seja `info`
 
 ## Testes
 
 - Vitest: hints de estrutura para grafos vazio, desconectado, com SPOF e referência
 - Vitest: `preview` é puro e o grafo resultante passa na validação do `compile`
+- Vitest: cada finding com fix some depois de aplicado (o cache reduz a carga do DB, a fila tira o worker do p99); "aplicar todos" não deixa fix pendente; as 35 referências só têm findings `info` no pico e seus fixes compilam
+- Playwright (`advisor.spec.ts`): preview com fantasmas, aplicar e desfazer em um passo, "aplicar todos" e desfazer
