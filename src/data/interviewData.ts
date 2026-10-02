@@ -112,6 +112,63 @@ export const GENERIC_DRILL_QA: Record<FaultType, { question: string; answer: str
     answer:
       "Producers keep succeeding and the queue absorbs the work: nothing is lost, but consumer lag grows and the results arrive late. Alert on lag, move messages that keep failing to a dead-letter queue after N attempts, and scale consumers out to drain the backlog after recovery.",
   },
+  "zone-failure": {
+    question: "A whole availability zone goes dark. Which parts of your design go down with it?",
+    answer:
+      "Every tier loses the instances it had there, and a tier with a single instance (or all its instances in one zone) is gone. Spread each tier over at least two zones and provision for the loss (static stability): with three zones, each running ≤ 2/3 of its capacity, the other two absorb the load without scaling up first. Use multi-AZ databases with automatic failover.",
+  },
+  "memory-leak": {
+    question:
+      "Your service slowly gets slower and then all its instances crash at the same time. What's going on and how do you limit the damage?",
+    answer:
+      "A memory leak: as the heap fills, garbage-collection pauses grow, then the process runs out of memory. Instances started together leak at the same rate and crash together. Set memory limits with automatic restarts (liveness checks), alert on heap growth, keep N+1 instances and stagger restarts and deploys so they don't all fail at once — then find the leak with a heap dump.",
+  },
+  "thread-pool-exhausted": {
+    question:
+      "Your service's thread pool is exhausted: health checks pass but requests hang. Why, and what prevents it?",
+    answer:
+      "Threads are blocked on a slow downstream call without a timeout, so the few free threads can't keep up and requests queue. Put timeouts on every outbound call, isolate dependencies with bulkheads (a separate pool or concurrency limit per dependency) so one slow dependency can't take every thread, and add a circuit breaker to stop calling it while it's sick.",
+  },
+  "transient-errors": {
+    question:
+      "A dependency starts failing 30% of requests, and your callers retry. Why can that make things worse?",
+    answer:
+      "Every layer that retries multiplies the load on the struggling dependency — a retry storm that keeps it down after the original cause is gone. Retry only idempotent calls, at one layer, with exponential backoff and jitter, and cap retries with a budget (for example, retries ≤ 10% of requests). A circuit breaker stops retrying once failures are sustained.",
+  },
+  "disk-full": {
+    question: "The disk of your database fills up. What fails and how do you prevent it?",
+    answer:
+      "Writes fail (the database can't append to its log or data files) while reads keep working. Alert well before it's full (e.g. at 80%), rotate and expire logs, set retention on data, keep logs and data on separate volumes, and use storage that grows automatically (managed databases offer storage autoscaling).",
+  },
+  "iops-throttle": {
+    question:
+      "Your database volume runs out of IOPS (or burst credits). What do users see and what are the fixes?",
+    answer:
+      "The disk does a fraction of its usual work, so queries queue and latency climbs until requests time out. Monitor IOPS and burst balance (burstable volumes such as gp2 earn 3 IOPS per GB and spend credits above that), provision IOPS for the peak (gp3 or io2), cache hot reads and batch writes to need fewer IOPS.",
+  },
+  deadlock: {
+    question:
+      "Under load your database starts reporting deadlocks. What happens to those transactions and how do you avoid them?",
+    answer:
+      "The database detects the cycle and aborts one transaction (the victim) so the others proceed; the victim's write fails. Acquire locks in a consistent order, keep transactions short, index the rows you update so fewer rows are locked, and retry aborted transactions with backoff — they're safe to retry because they were rolled back.",
+  },
+  "tls-expired": {
+    question:
+      "The TLS certificate of one of your services expires. What fails and why didn't monitoring catch it?",
+    answer:
+      "Every TLS handshake to it fails, so all its callers fail at once — while health checks on a plain HTTP port keep passing. Automate renewal (ACME/Let's Encrypt certificates last 90 days and are renewed with about 30 days left), alert on expiry dates well ahead, and make health checks go through TLS.",
+  },
+  "dns-outage": {
+    question: "Your DNS provider goes down. Which requests fail and how do you reduce the impact?",
+    answer:
+      "Clients with a cached answer keep working until its TTL expires; every request that needs a fresh lookup fails, so the outage spreads as caches expire (as in the 2016 DDoS against Dyn, which took down many major sites). Use more than one DNS provider, sensible TTLs (longer means more cached answers in an outage but slower changes), and resolvers that serve stale answers when upstream is down (RFC 8767).",
+  },
+  "health-check-flapping": {
+    question:
+      "A load balancer keeps marking one target healthy and unhealthy. What does that do and how do you stop it?",
+    answer:
+      "The target drops in and out of rotation, so the others absorb its share in bursts, connections reset and latency gets jittery. Add hysteresis (several consecutive failures to mark it unhealthy and several successes to bring it back), keep health endpoints shallow and fast (local health, not every dependency), and use slow start when a target rejoins.",
+  },
 };
 
 export interface ProblemInterviewData {

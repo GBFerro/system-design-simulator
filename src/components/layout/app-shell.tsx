@@ -14,6 +14,7 @@ import { useSimulationStore } from "@/store/simulationStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { PROBLEMS } from "@/data/problems";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
+import { BOTTOM_SHEET_ATTR } from "@/lib/placement";
 import { Toast } from "@/components/ui/Toast";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { LoadDialog } from "@/components/dialogs/LoadDialog";
@@ -413,6 +414,8 @@ export function AppShell() {
                   }`}
                   aria-hidden={!mobileRightOpen}
                   inert={!mobileRightOpen || undefined}
+                  // Covers the canvas: panels frame nodes above it (`paddingAboveSheet`).
+                  {...{ [BOTTOM_SHEET_ATTR]: "" }}
                 >
                   <div className="flex shrink-0 items-center justify-between pt-2">
                     <div className="flex-1" />

@@ -135,6 +135,74 @@ export function connectEdgeRule(
   return defaultEdgeRule(source, target, protocol, { targetHasReadReplica });
 }
 
+/** A canvas (nodes carrying `data.componentId`) as the connect defaults read it. */
+export function canvasRuleGraph<E extends GraphEdge>(
+  nodes: readonly { id: string; data?: unknown }[],
+  edges: readonly E[],
+): RuleGraph<E> {
+  const ids = new Map<string, string>();
+  for (const n of nodes) {
+    const id = (n.data as { componentId?: unknown } | undefined)?.componentId;
+    if (typeof id === "string") ids.set(n.id, id);
+  }
+  return { componentIdOf: (nodeId) => ids.get(nodeId), edges };
+}
+
+/** An edge's current rule, normalized (edges saved before v2 get their connect default). */
+export function edgeRuleOf<E extends GraphEdge>(
+  graph: { nodes: readonly { id: string; data?: unknown }[]; edges: readonly E[] },
+  edge: GraphEdge,
+): EdgeRule {
+  const data = edge.data ?? {};
+  return sanitizeEdgeRule(
+    data.rule,
+    connectEdgeRule(
+      edge.source,
+      edge.target,
+      canvasRuleGraph(graph.nodes, graph.edges),
+      data.protocol,
+    ),
+  );
+}
+
+/** True for an edge marked async (replication, fire-and-forget): off the user's request path. */
+export function isAsyncEdge(edge: { data?: unknown }): boolean {
+  return (edge.data as { async?: unknown } | undefined)?.async === true;
+}
+
+export type EdgeProtocol = "http" | "grpc" | "websocket" | "pubsub" | "tcp" | "custom";
+
+/** The `data` every new canvas edge starts with. */
+export interface NewEdgeData {
+  label: string;
+  protocol: EdgeProtocol;
+  async: boolean;
+  rule: EdgeRule;
+  [key: string]: unknown;
+}
+
+/**
+ * `data` of a new edge, the one shape the editor (connect), the advisor's
+ * quick fixes and the reference loader create: no label, HTTP, the default
+ * async flag and the connect rule for `source` → `target` in `graph`.
+ * `overrides` win (a reference's own async flag and rule).
+ */
+export function newEdgeData(
+  source: string,
+  target: string,
+  graph: RuleGraph,
+  overrides: Partial<Pick<NewEdgeData, "protocol" | "async" | "rule">> = {},
+): NewEdgeData {
+  const protocol = overrides.protocol ?? "http";
+  return {
+    label: "",
+    protocol,
+    async:
+      overrides.async ?? defaultEdgeAsync(graph.componentIdOf(source), graph.componentIdOf(target)),
+    rule: overrides.rule ?? connectEdgeRule(source, target, graph, protocol),
+  };
+}
+
 /**
  * When a caller gets its first edge to a Read Replica, its existing
  * `always` edges to SQL DBs become `writes` (reads now go to the replica).

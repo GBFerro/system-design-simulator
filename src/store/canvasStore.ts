@@ -30,12 +30,15 @@ import {
 import type { EdgeRule, Params } from "@/domain/components/types";
 import {
   applyEdgeRulePatch,
+  canvasRuleGraph,
   connectEdgeRule,
-  defaultEdgeAsync,
+  newEdgeData,
   sanitizeEdgeRule,
   splitReadsOnReplicaConnect,
-  type RuleGraph,
+  type EdgeProtocol,
 } from "@/domain/graph/edgeRules";
+
+export { edgeRuleOf } from "@/domain/graph/edgeRules";
 
 export interface ComponentNodeData {
   componentId: string;
@@ -59,7 +62,7 @@ export interface TextNodeData {
 
 export interface CustomEdgeData {
   label?: string;
-  protocol?: "http" | "grpc" | "websocket" | "pubsub" | "tcp" | "custom";
+  protocol?: EdgeProtocol;
   async?: boolean;
   /** Call rule (Spec 03). Edges saved before v2 get one on migration. */
   rule?: EdgeRule;
@@ -209,31 +212,16 @@ function withClones(state: CanvasState, clones: Clipboard): Partial<CanvasState>
   };
 }
 
-function ruleGraph(state: { nodes: Node[]; edges: Edge[] }): RuleGraph<Edge> {
-  return {
-    componentIdOf: (id) => {
-      const data = state.nodes.find((n) => n.id === id)?.data;
-      return typeof data?.componentId === "string" ? data.componentId : undefined;
-    },
-    edges: state.edges,
-  };
-}
-
-/** An edge's current rule, normalized (edges saved before v2 get their connect default). */
-export function edgeRuleOf(state: { nodes: Node[]; edges: Edge[] }, edge: Edge): EdgeRule {
-  const data = (edge.data ?? {}) as CustomEdgeData;
-  const graph = ruleGraph(state);
-  return sanitizeEdgeRule(
-    data.rule,
-    connectEdgeRule(edge.source, edge.target, graph, data.protocol),
-  );
-}
+const ruleGraph = (state: { nodes: Node[]; edges: Edge[] }) =>
+  canvasRuleGraph(state.nodes, state.edges);
 
 function resetSimulation(): void {
   // Metrics/score refer to nodes that just changed out from under them.
   useSimulationStore.getState().reset();
   useRuntimeStore.getState().clear();
 }
+
+type GraphEditResult = { nodes: Node[]; edges: Edge[] } | null;
 
 interface CanvasState {
   nodes: Node[];
@@ -281,6 +269,11 @@ interface CanvasState {
   changeReplicas: (nodeId: string, delta: number) => void;
   /** Set several nodes' instance counts (right-size, Spec 10) in one undo step. */
   setInstanceCounts: (counts: Record<string, number>) => void;
+  /**
+   * Replace the graph with `edit(current)` in one undo step (the advisor's
+   * quick fixes, Spec 12); `edit` returns null for "nothing to change".
+   */
+  applyGraphEdit: (edit: (graph: { nodes: Node[]; edges: Edge[] }) => GraphEditResult) => void;
   /** Merge a params edit (validated by the node's schema) in one undo step. */
   updateNodeParams: (nodeId: string, patch: Params) => void;
   /** Merge an edge rule edit (normalized) in one undo step. */
@@ -476,15 +469,7 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           if (isActiveTabReadOnly(state)) return state;
           const graph = ruleGraph(state);
-          const data: CustomEdgeData = {
-            label: "",
-            protocol: "http",
-            async: defaultEdgeAsync(
-              graph.componentIdOf(connection.source),
-              graph.componentIdOf(connection.target),
-            ),
-            rule: connectEdgeRule(connection.source, connection.target, graph, "http"),
-          };
+          const data: CustomEdgeData = newEdgeData(connection.source, connection.target, graph);
           // Service → Read Replica: the service's `always` edges to SQL DBs become `writes`
           const edges = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
           return {
@@ -612,6 +597,19 @@ export const useCanvasStore = create<CanvasState>()(
           });
           if (!changed) return state;
           return { history: pushedHistory(state), future: [], nodes };
+        });
+      },
+      applyGraphEdit: (edit) => {
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          const next = edit({ nodes: state.nodes, edges: state.edges });
+          if (!next) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            nodes: next.nodes,
+            edges: next.edges,
+          };
         });
       },
       updateNodeParams: (nodeId, patch) => {
@@ -772,6 +770,7 @@ export const MUTATING_ACTIONS = [
   "nudgeSelection",
   "changeReplicas",
   "setInstanceCounts",
+  "applyGraphEdit",
   "updateNodeParams",
   "updateEdgeRule",
   "updateNodeData",

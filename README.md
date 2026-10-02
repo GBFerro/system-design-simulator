@@ -307,7 +307,7 @@ The full, per-file map lives in [`CLAUDE.md`](CLAUDE.md#architecture-map) (a uni
 - `src/components/` — the editor UI: ReactFlow canvas, sidebar, right panel (Props, Simulate, Chaos, SLO, Score, Advisor, Cost, Capacity, Trade-offs), interview mode, dialogs
 - `src/domain/` — component schemas and prices, edge rules, the canvas → simulation graph compiler, persistence
 - `src/engine/` — the simulation engine in a Web Worker: steady-state queueing analysis, live tick loop, fault injection
-- `src/scoring/`, `src/advisor/`, `src/cost/`, `src/slo/`, `src/interview/` — measured scoring, structural hints, cost model, SLOs and error budget, interview grading and report
+- `src/scoring/`, `src/advisor/`, `src/cost/`, `src/slo/`, `src/interview/` — measured scoring, advisor findings and quick fixes, cost model, SLOs and error budget, interview grading and report
 - `src/data/` — the component catalog, problems with reference solutions, concept library, interview scripts, trade-off cards, learning path
 - `src/store/` — Zustand stores (persisted to `localStorage`, saved designs and attempts in IndexedDB)
 

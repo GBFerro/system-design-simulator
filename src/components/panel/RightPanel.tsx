@@ -91,7 +91,8 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
   const activeRightTab = useAppStore((s) => s.activeRightTab);
   const setActiveRightTab = useAppStore((s) => s.setActiveRightTab);
   const activeFaults = useChaosStore((s) => s.faults.filter((f) => f.active).length);
-  const findings = useAdvisorStore((s) => s.findings.length);
+  // Info findings (over-provisioning, the score's notes) don't count toward the badge.
+  const findings = useAdvisorStore((s) => s.findings.filter((f) => f.severity !== "info").length);
 
   return (
     <Tabs

@@ -26,8 +26,17 @@ export function createComponentNode(
   component: SystemComponent,
   position: XYPosition,
 ): Node<ComponentNodeData> {
+  return componentNodeWithId(component, `${component.id}-${randomId()}`, position);
+}
+
+/** `createComponentNode` with a given id (pure: the advisor's quick fixes build nodes this way). */
+export function componentNodeWithId(
+  component: SystemComponent,
+  id: string,
+  position: XYPosition,
+): Node<ComponentNodeData> {
   return {
-    id: `${component.id}-${randomId()}`,
+    id,
     type: "component",
     position,
     data: {

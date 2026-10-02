@@ -181,6 +181,7 @@ describe("canvas store editing", () => {
     nudgeSelection: [16, 0],
     changeReplicas: ["a", 1],
     setInstanceCounts: [{ a: 4, b: 3 }],
+    applyGraphEdit: [(g) => ({ nodes: [], edges: g.edges })],
     updateNodeParams: ["a", { instances: 5 }],
     updateEdgeRule: ["a->b", { kind: "reads" }],
     updateNodeData: ["a", { label: "Renamed" }],

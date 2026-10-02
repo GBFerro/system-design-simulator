@@ -1,20 +1,9 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { MOD, center, open, quickAdd } from "./helpers";
 
 // Spec 02: one test per editor bug from the diagnosis (B1–B6) plus the CAN-05 shortcuts.
 
 const nodes = (page: Page) => page.locator(".react-flow__node");
-const MOD = process.platform === "darwin" ? "Meta" : "Control";
-
-async function open(page: Page) {
-  await page.goto("/");
-  await expect(page.locator(".react-flow")).toBeVisible();
-}
-
-async function center(locator: Locator) {
-  const box = (await locator.boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
 /** Mouse drag with intermediate moves (dnd-kit needs > 6px of movement to start). */
 async function mouseDrag(
   page: Page,
@@ -37,13 +26,6 @@ async function dragFromPalette(page: Page, componentId: string, to: { x: number;
     await center(page.locator(`[data-palette-item="${componentId}"]`).first()),
     to,
   );
-}
-
-async function quickAdd(page: Page, label: string) {
-  await page
-    .getByRole("button", { name: `Add ${label} to canvas` })
-    .first()
-    .click();
 }
 
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a) {

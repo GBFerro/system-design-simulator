@@ -22,6 +22,8 @@ import { nodeTypes } from "./nodes/nodeTypes";
 import { ChaosTimeline } from "./ChaosTimeline";
 import { edgeTypes } from "./edges/edgeTypes";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
+import { useAdvisorStore } from "@/store/advisorStore";
+import { isGhostId, withoutGhostChanges, withPreview } from "./previewGraph";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
 import { useAppStore } from "@/store/appStore";
@@ -95,6 +97,26 @@ export function DesignCanvas({
   const edges = useCanvasStore((s) => s.edges);
   const onNodesChange = useCanvasStore((s) => s.onNodesChange);
   const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
+  // Advisor quick-fix preview (Spec 12): ghosts drawn over the graph, never stored.
+  const previewDiff = useAdvisorStore((s) => s.preview?.diff);
+  const rendered = useMemo(
+    () => withPreview(nodes, edges, previewDiff),
+    [nodes, edges, previewDiff],
+  );
+  const handleNodesChange = useCallback<typeof onNodesChange>(
+    (changes) => {
+      const real = previewDiff ? withoutGhostChanges(changes) : changes;
+      if (real.length > 0) onNodesChange(real);
+    },
+    [onNodesChange, previewDiff],
+  );
+  const handleEdgesChange = useCallback<typeof onEdgesChange>(
+    (changes) => {
+      const real = previewDiff ? withoutGhostChanges(changes) : changes;
+      if (real.length > 0) onEdgesChange(real);
+    },
+    [onEdgesChange, previewDiff],
+  );
   const onConnect = useCanvasStore((s) => s.onConnect);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const activeTabId = useCanvasStore((s) => s.activeTabId);
@@ -145,7 +167,7 @@ export function DesignCanvas({
   const closeMenu = useCallback(() => setMenu(null), []);
   const openMenu = useCallback(
     (target: ContextTarget, x: number, y: number) => {
-      if (penActive) return;
+      if (penActive || ("id" in target && isGhostId(target.id))) return;
       const s = useCanvasStore.getState();
       // Acting on something outside the selection selects just that thing
       if (target.kind === "node" && !s.nodes.find((n) => n.id === target.id)?.selected) {
@@ -246,10 +268,10 @@ export function DesignCanvas({
       >
         <ReactFlow
           className="sf-canvas h-full w-full"
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          nodes={rendered.nodes}
+          edges={rendered.edges}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={isReadOnly ? undefined : onConnect}
           multiSelectionKeyCode={["Shift", "Meta", "Control"]}
           selectionOnDrag={!penActive}
