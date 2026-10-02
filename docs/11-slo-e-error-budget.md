@@ -60,7 +60,7 @@ Contar os lentos contra o budget de disponibilidade, como a primeira versão des
 ### UI
 
 - Aba **SLO** no painel direito: metas (editáveis fora da entrevista, com "voltar ao SLO do problema"), budget restante da janela com a parcela de cada indicador, burn rate atual, gráfico de burn rate em escala log com as linhas de 1× e 10× e os faults como faixas, e o veredito ("SLO met so far" / "SLO violated at mm:ss")
-- Chip compacto na TopBar enquanto há uma execução (a partir de 1680 px, como o de custo), que abre a aba SLO
+- Chip compacto na TopBar enquanto há uma execução, que abre a aba SLO. Só a partir de 1920 px: junto com o chip de custo, a 1680 px ele deixava o seletor de problema com 68 px no runner Linux do CI
 - Relatório da entrevista: bloco SLO com o veredito da execução ao vivo (drill incluído) contra o SLO do problema, o momento da quebra, o budget usado e o pior burn rate
 
 ### Scoring (SLO-03)

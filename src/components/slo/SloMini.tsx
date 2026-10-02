@@ -10,8 +10,9 @@ import { useSloEvaluation } from "./useSloEvaluation";
 
 /**
  * Error budget left, compact, for the top bar while a run exists (Spec 11,
- * SLO-02); opens the SLO tab. Only from 1680 px, like the cost chip: below
- * that the problem selector needs the room (smoke.spec.ts measures it).
+ * SLO-02); opens the SLO tab. Only from 1920 px: with the cost chip also on,
+ * at 1680 px it left the problem selector 68 px on the Linux CI runner
+ * (smoke.spec.ts measures it).
  */
 export function SloMini() {
   const live = useRuntimeStore((s) => s.playback !== "idle");
@@ -44,7 +45,7 @@ function SloChip({ slo }: { slo: Slo }) {
       type="button"
       onClick={open}
       data-testid="slo-mini"
-      className={`hidden h-7 shrink-0 items-center gap-1 rounded-md border border-zinc-700 px-2 font-mono text-[11px] tabular-nums transition-colors hover:bg-zinc-800 min-[1680px]:flex ${tone}`}
+      className={`hidden h-7 shrink-0 items-center gap-1 rounded-md border border-zinc-700 px-2 font-mono text-[11px] tabular-nums transition-colors hover:bg-zinc-800 min-[1920px]:flex ${tone}`}
       title={`${label} (open the SLO tab)`}
       aria-label={label}
     >
