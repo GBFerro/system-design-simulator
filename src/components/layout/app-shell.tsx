@@ -413,6 +413,8 @@ export function AppShell() {
                   }`}
                   aria-hidden={!mobileRightOpen}
                   inert={!mobileRightOpen || undefined}
+                  // Covers the canvas: the advisor frames its preview above it.
+                  data-bottom-sheet=""
                 >
                   <div className="flex shrink-0 items-center justify-between pt-2">
                     <div className="flex-1" />

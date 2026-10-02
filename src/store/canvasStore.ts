@@ -235,6 +235,8 @@ function resetSimulation(): void {
   useRuntimeStore.getState().clear();
 }
 
+type GraphEditResult = { nodes: Node[]; edges: Edge[] } | null;
+
 interface CanvasState {
   nodes: Node[];
   edges: Edge[];
@@ -281,6 +283,11 @@ interface CanvasState {
   changeReplicas: (nodeId: string, delta: number) => void;
   /** Set several nodes' instance counts (right-size, Spec 10) in one undo step. */
   setInstanceCounts: (counts: Record<string, number>) => void;
+  /**
+   * Replace the graph with `edit(current)` in one undo step (the advisor's
+   * quick fixes, Spec 12); `edit` returns null for "nothing to change".
+   */
+  applyGraphEdit: (edit: (graph: { nodes: Node[]; edges: Edge[] }) => GraphEditResult) => void;
   /** Merge a params edit (validated by the node's schema) in one undo step. */
   updateNodeParams: (nodeId: string, patch: Params) => void;
   /** Merge an edge rule edit (normalized) in one undo step. */
@@ -614,6 +621,19 @@ export const useCanvasStore = create<CanvasState>()(
           return { history: pushedHistory(state), future: [], nodes };
         });
       },
+      applyGraphEdit: (edit) => {
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          const next = edit({ nodes: state.nodes, edges: state.edges });
+          if (!next) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            nodes: next.nodes,
+            edges: next.edges,
+          };
+        });
+      },
       updateNodeParams: (nodeId, patch) => {
         set((state) => {
           const node = state.nodes.find((n) => n.id === nodeId);
@@ -772,6 +792,7 @@ export const MUTATING_ACTIONS = [
   "nudgeSelection",
   "changeReplicas",
   "setInstanceCounts",
+  "applyGraphEdit",
   "updateNodeParams",
   "updateEdgeRule",
   "updateNodeData",

@@ -5,23 +5,25 @@
  * so they agree with the Score tab and cost O(nodes + edges).
  */
 import type { Edge, Node } from "@xyflow/react";
-import { findSpofs, syncPath } from "@/scoring/paths";
-import { buildScoringGraph } from "@/scoring/scorer";
-import { isComponentNode } from "@/lib/nodeFactory";
-import { SEVERITY_RANK, type Finding } from "./types";
+import { PARAM } from "@/domain/components/registry";
+import { findSpofs } from "@/scoring/paths";
+import { emptyDiff } from "./graph";
+import { byPriority, type Finding } from "./types";
+import { viewOf, type DesignView } from "./view";
+
+/** A SPOF's fix: a second instance to fail over to (what the scorer counts as redundancy). */
+const STANDBY_INSTANCES = 2;
 
 export function structureFindings(nodes: readonly Node[], edges: readonly Edge[]): Finding[] {
-  const comps = nodes.filter(isComponentNode);
+  return structureHints(viewOf({ nodes: [...nodes], edges: [...edges] })).sort(byPriority);
+}
+
+export function structureHints({ comps, byId, scoring, path }: DesignView): Finding[] {
   if (comps.length === 0) return [];
-  const byId = new Map(comps.map((n) => [n.id, n]));
   const label = (id: string) => byId.get(id)?.data.label ?? id;
-  const graph = buildScoringGraph(comps, edges as Edge[]);
   const findings: Finding[] = [];
 
-  const path = syncPath(comps, edges, graph);
-  const entries = path.entries;
-
-  if (entries.length === 0) {
+  if (path.entries.length === 0) {
     findings.push({
       id: "no-entry",
       severity: "critical",
@@ -35,7 +37,7 @@ export function structureFindings(nodes: readonly Node[], edges: readonly Edge[]
   }
 
   for (const n of comps) {
-    if (graph.reachable.has(n.id)) continue;
+    if (scoring.reachable.has(n.id)) continue;
     findings.push({
       id: `disconnected:${n.id}`,
       severity: "warning",
@@ -47,7 +49,7 @@ export function structureFindings(nodes: readonly Node[], edges: readonly Edge[]
     });
   }
 
-  for (const n of findSpofs(comps, path, graph)) {
+  for (const n of findSpofs(comps, path, scoring)) {
     findings.push({
       id: `spof:${n.id}`,
       severity: "warning",
@@ -56,8 +58,15 @@ export function structureFindings(nodes: readonly Node[], edges: readonly Edge[]
         "It's on the request path with one instance and no replica: if it fails, every request that needs it fails. Add instances (a standby to fail over to) or a replica in parallel.",
       targetIds: [n.id],
       source: "structure",
+      fix: {
+        label: `Run ${STANDBY_INSTANCES} instances of ${label(n.id)} (a standby to fail over to)`,
+        preview: () => ({
+          ...emptyDiff(),
+          nodeParams: { [n.id]: { [PARAM.instances]: STANDBY_INSTANCES } },
+        }),
+      },
     });
   }
 
-  return findings.sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);
+  return findings;
 }

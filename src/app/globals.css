@@ -435,6 +435,17 @@ button:not([disabled]):active {
 .blast-pulse {
   animation: blast-pulse 1.4s ease-in-out infinite;
 }
+/* Advisor quick-fix preview (Spec 12): edges the fix removes fade out dashed
+   in rose, edges whose rule it changes turn violet. New ones are ghost edges. */
+.react-flow__edge.sf-preview-removed .react-flow__edge-path {
+  stroke: #fb7185 !important;
+  stroke-dasharray: 4 5 !important;
+  stroke-opacity: 0.7 !important;
+}
+.react-flow__edge.sf-preview-changed .react-flow__edge-path {
+  stroke: #a78bfa !important;
+  stroke-opacity: 0.9 !important;
+}
 @keyframes spin {
   from {
     transform: rotate(0deg);

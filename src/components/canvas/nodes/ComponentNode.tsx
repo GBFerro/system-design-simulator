@@ -11,7 +11,7 @@ import { NodeActionsToolbar } from "./NodeActionsToolbar";
 import { NodeMetricsBadge } from "./NodeMetricsBadge";
 import { RUNTIME_STATUS_META } from "./runtimeStatus";
 import { useNodeBlast, useNodeStatus } from "@/store/runtimeStore";
-import { useNodeFindingSeverity } from "@/store/advisorStore";
+import { useNodeFindingSeverity, useNodePreviewChange } from "@/store/advisorStore";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
@@ -41,6 +41,7 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   // degrades pulse. Advisor (Spec 12): a discreet marker for structure hints.
   const blast = useNodeBlast(id);
   const finding = useNodeFindingSeverity(id);
+  const previewChange = useNodePreviewChange(id);
   const replicas = instancesOf(nodeData);
   const capacity = capacityPerInstanceOf(nodeData);
 
@@ -115,6 +116,22 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
         <span className="sr-only">
           {blast === "target" ? "Fault target" : "Affected by the active faults"}
         </span>
+      )}
+
+      {/* Advisor quick-fix preview: what the fix changes here, outside the box */}
+      {previewChange && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-1.5 rounded-[14px] border-2 border-dashed border-violet-400/80"
+          />
+          <span
+            data-preview-change={previewChange}
+            className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-violet-500 px-2 font-mono text-[10px] leading-4 text-white"
+          >
+            {previewChange}
+          </span>
+        </>
       )}
 
       {/* Advisor marker (structure hint) */}
