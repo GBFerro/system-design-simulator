@@ -18,6 +18,9 @@ import {
   type RequirementsCheck,
 } from "./checks";
 import type { InterviewAnswers } from "@/store/interviewStore";
+import type { SloEvaluation } from "@/slo/budget";
+import { formatAvailability, formatWindow } from "@/slo/slo";
+import type { Sli, Slo } from "@/slo/types";
 
 export interface DrillSummaryStep {
   label: string;
@@ -26,6 +29,35 @@ export interface DrillSummaryStep {
   reactionSec?: number;
   /** Share of the step's error budget used (1 = all of it). */
   budgetUsed: number;
+}
+
+/** The problem's SLO over the interview's live run (Spec 11, SLO-02). */
+export interface SloSummary {
+  /** "p99 ≤ 100 ms · 99.99% availability · 5-minute window". */
+  target: string;
+  verdict: "met" | "violated";
+  /** Simulated time the first error budget ran out, and which. */
+  breachT?: number;
+  breachSli?: Sli;
+  /** Budget used over the window at the end of the run (1 = all of it). */
+  budgetUsed: number;
+  worstBurn: number;
+  /** Simulated seconds the run covered. */
+  runSec: number;
+}
+
+/** The report's SLO block; undefined when nothing ran live (no traffic over time). */
+export function sloSummary(ev: SloEvaluation, slo: Slo): SloSummary | undefined {
+  if (!ev.hasData) return undefined;
+  const ms = slo.latency.thresholdMs;
+  return {
+    target: `p${slo.latency.percentile} ≤ ${ms < 10 ? ms : Math.round(ms)} ms · ${formatAvailability(slo.availability)} availability · ${formatWindow(slo.windowSec)} window`,
+    verdict: ev.verdict,
+    ...(ev.breach ? { breachT: ev.breach.t, breachSli: ev.breach.sli } : {}),
+    budgetUsed: ev.budgetUsed,
+    worstBurn: ev.worstBurn,
+    runSec: ev.t,
+  };
 }
 
 export interface InterviewReport {
@@ -61,6 +93,7 @@ export interface InterviewReport {
     }[];
   };
   drill?: DrillSummaryStep[];
+  slo?: SloSummary;
 }
 
 export interface ReportInput {
@@ -72,6 +105,7 @@ export interface ReportInput {
   score: ScoreResult;
   measured: boolean;
   drill?: DrillSummaryStep[];
+  slo?: SloSummary;
   now: Date;
 }
 
@@ -130,5 +164,6 @@ export function buildReport(input: ReportInput): InterviewReport {
       })),
     },
     ...(input.drill ? { drill: input.drill } : {}),
+    ...(input.slo ? { slo: input.slo } : {}),
   };
 }

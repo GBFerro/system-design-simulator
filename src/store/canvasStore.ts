@@ -279,6 +279,8 @@ interface CanvasState {
   /** Move selected nodes by (dx, dy); consecutive nudges share one undo step. */
   nudgeSelection: (dx: number, dy: number) => void;
   changeReplicas: (nodeId: string, delta: number) => void;
+  /** Set several nodes' instance counts (right-size, Spec 10) in one undo step. */
+  setInstanceCounts: (counts: Record<string, number>) => void;
   /** Merge a params edit (validated by the node's schema) in one undo step. */
   updateNodeParams: (nodeId: string, patch: Params) => void;
   /** Merge an edge rule edit (normalized) in one undo step. */
@@ -592,6 +594,26 @@ export const useCanvasStore = create<CanvasState>()(
           };
         });
       },
+      setInstanceCounts: (counts) => {
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          let changed = false;
+          const nodes = state.nodes.map((n) => {
+            const want = counts[n.id];
+            if (want === undefined || n.type !== "component" || !Number.isFinite(want)) return n;
+            const data = n.data as ComponentNodeData;
+            const instances = Math.min(MAX_INSTANCES, Math.max(1, Math.round(want)));
+            if (instances === instancesOf(data)) return n;
+            changed = true;
+            return {
+              ...n,
+              data: { ...n.data, params: { ...data.params, [PARAM.instances]: instances } },
+            };
+          });
+          if (!changed) return state;
+          return { history: pushedHistory(state), future: [], nodes };
+        });
+      },
       updateNodeParams: (nodeId, patch) => {
         set((state) => {
           const node = state.nodes.find((n) => n.id === nodeId);
@@ -749,6 +771,7 @@ export const MUTATING_ACTIONS = [
   "duplicateSelection",
   "nudgeSelection",
   "changeReplicas",
+  "setInstanceCounts",
   "updateNodeParams",
   "updateEdgeRule",
   "updateNodeData",

@@ -7,6 +7,7 @@ import { useCustomProblemsStore } from "./customProblemsStore";
 import { useCustomComponentsStore } from "./customComponentsStore";
 import { useTradeoffStore } from "./tradeoffStore";
 import { useInterviewStore } from "./interviewStore";
+import { useSloStore } from "./sloStore";
 
 /**
  * All persisted stores use `skipHydration: true` so that the server render
@@ -43,6 +44,7 @@ export function rehydrateAllStores(): Promise<void> {
     useCustomProblemsStore.persist.rehydrate(),
     useTradeoffStore.persist.rehydrate(),
     useInterviewStore.persist.rehydrate(),
+    useSloStore.persist.rehydrate(),
   ];
   return Promise.all(results.map((r) => Promise.resolve(r))).then(() => {
     hasHydrated = true;

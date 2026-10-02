@@ -9,6 +9,7 @@ import { useInterviewStore } from "@/store/interviewStore";
 import { STORE_VERSION } from "@/store/persistVersion";
 import { usePenStore } from "@/store/penStore";
 import { useSavedDesignsStore } from "@/store/savedDesignsStore";
+import { useSloStore } from "@/store/sloStore";
 import { useTradeoffStore } from "@/store/tradeoffStore";
 
 // CLAUDE.md: every persisted store uses STORE_VERSION, deferred hydration and a
@@ -21,6 +22,7 @@ const STORES = {
   "interviewStore.ts": useInterviewStore,
   "penStore.ts": usePenStore,
   "savedDesignsStore.ts": useSavedDesignsStore,
+  "sloStore.ts": useSloStore,
   "tradeoffStore.ts": useTradeoffStore,
 };
 

@@ -134,6 +134,22 @@ describe("canvas store editing", () => {
     expect((s().nodes[0].data.params as Record<string, unknown>).instances).toBe(2);
   });
 
+  it("setInstanceCounts resizes several nodes in one undo step, clamped and rounded", () => {
+    setCanvas([node("a", 0, 0), node("b", 300, 0), node("c", 600, 0)]);
+    s().setInstanceCounts({ a: 3, b: 2.6, c: 1, missing: 9 });
+    const instances = () =>
+      s().nodes.map((n) => (n.data.params as Record<string, unknown>).instances);
+    expect(instances()).toEqual([3, 3, 1]);
+    expect(s().history).toHaveLength(1);
+    s().setInstanceCounts({ a: 3, c: 0 }); // a unchanged, c clamps to 1: nothing to do
+    expect(s().history).toHaveLength(1);
+    s().setInstanceCounts({ a: 5_000 });
+    expect(instances()[0]).toBe(1000);
+    s().undo();
+    s().undo();
+    expect(instances()).toEqual([1, 1, 1]);
+  });
+
   it("selectAll / selectOnly / clearSelection drive node.selected and edge.selected", () => {
     setCanvas([node("a", 0, 0), node("b", 300, 0)], [edge("a", "b")]);
     s().selectAll();
@@ -164,6 +180,7 @@ describe("canvas store editing", () => {
     duplicateSelection: [],
     nudgeSelection: [16, 0],
     changeReplicas: ["a", 1],
+    setInstanceCounts: [{ a: 4, b: 3 }],
     updateNodeParams: ["a", { instances: 5 }],
     updateEdgeRule: ["a->b", { kind: "reads" }],
     updateNodeData: ["a", { label: "Renamed" }],

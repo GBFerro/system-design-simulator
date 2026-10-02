@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
 import { passThroughMigration, STORE_VERSION } from "./persistVersion";
+import { isCurrency, type Currency } from "@/cost/currency";
 
 export type ToastType = "success" | "error" | "info";
 export type Theme = "dark" | "light";
@@ -27,10 +28,14 @@ interface AppState {
     | "properties"
     | "simulation"
     | "chaos"
+    | "slo"
     | "score"
     | "advisor"
+    | "cost"
     | "capacity"
     | "tradeoffs";
+  /** Display currency of the cost estimates (Spec 10, CST-04). */
+  currency: Currency;
   toast: ToastData | null;
 
   setSelectedProblem: (id: string) => void;
@@ -41,6 +46,7 @@ interface AppState {
   setLeftSidebarOpen: (open: boolean) => void;
   setActiveLeftTab: (tab: AppState["activeLeftTab"]) => void;
   setActiveRightTab: (tab: AppState["activeRightTab"]) => void;
+  setCurrency: (currency: Currency) => void;
   showToast: (message: string, type: ToastType) => void;
   clearToast: () => void;
 }
@@ -58,6 +64,7 @@ export const useAppStore = create<AppState>()(
       rightPanelOpen: true,
       activeLeftTab: "components",
       activeRightTab: "properties",
+      currency: "USD",
       toast: null,
 
       setSelectedProblem: (id) => set({ selectedProblemId: id }),
@@ -76,6 +83,7 @@ export const useAppStore = create<AppState>()(
       setLeftSidebarOpen: (open) => set({ leftSidebarOpen: open }),
       setActiveLeftTab: (tab) => set({ activeLeftTab: tab }),
       setActiveRightTab: (tab) => set({ activeRightTab: tab }),
+      setCurrency: (currency) => set({ currency: isCurrency(currency) ? currency : "USD" }),
       showToast: (message, type) => {
         if (toastTimeoutId !== null) {
           clearTimeout(toastTimeoutId);
@@ -99,12 +107,22 @@ export const useAppStore = create<AppState>()(
       version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),
-      // Shape unchanged in v2.
+      // Shape unchanged in v2 (`currency` is optional: the default fills it in).
       migrate: passThroughMigration,
       partialize: (state) => ({
         selectedProblemId: state.selectedProblemId,
         theme: state.theme,
+        currency: state.currency,
       }),
+      // A stored currency this build doesn't know falls back to the default.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AppState>;
+        return {
+          ...current,
+          ...p,
+          currency: isCurrency(p.currency) ? p.currency : current.currency,
+        };
+      },
       // Apply the persisted theme to <html> as soon as the store rehydrates.
       onRehydrateStorage: () => (state) => {
         if (state?.theme) applyThemeClass(state.theme);

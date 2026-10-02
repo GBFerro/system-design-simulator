@@ -5,6 +5,7 @@ import { CircleCheck, Info, OctagonAlert, TriangleAlert, type LucideIcon } from 
 import type { Finding, Severity } from "@/advisor/types";
 import { useAdvisorStore } from "@/store/advisorStore";
 import { useCanvasStore } from "@/store/canvasStore";
+import { SECTION_TITLE } from "./styles";
 
 export const SEVERITY_META: Record<
   Severity,
@@ -55,7 +56,7 @@ export function AdvisorPanel() {
   return (
     <section aria-label="Advisor" className="space-y-3" data-testid="advisor-panel">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Advisor</p>
+        <p className={SECTION_TITLE}>Advisor</p>
         <p className="mt-1 text-[11px] leading-snug text-zinc-400">
           Structural problems in the design, updated as you edit. Click one to find it on the
           canvas.

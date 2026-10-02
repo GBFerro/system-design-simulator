@@ -37,6 +37,8 @@ import {
 import type { EdgeRule } from "@/domain/components/types";
 import { EDGE_RULE_SPECS, edgeRuleValues } from "@/domain/graph/edgeRules";
 import { ParamsForm } from "./ParamsForm";
+import { CostPanel } from "./CostPanel";
+import { formatMoney } from "@/cost/currency";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
 import { getConceptByComponentId } from "@/data/conceptLibrary";
@@ -51,6 +53,7 @@ import { TradeoffLog } from "./TradeoffLog";
 import { TradeoffCards } from "./TradeoffCards";
 import { ChaosPanel } from "./ChaosPanel";
 import { AdvisorPanel } from "./AdvisorPanel";
+import { SloPanel } from "./SloPanel";
 import { useAdvisorStore } from "@/store/advisorStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useInterviewStore } from "@/store/interviewStore";
@@ -118,6 +121,9 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
               label={`${activeFaults} active faults`}
             />
           </TabsTrigger>
+          <TabsTrigger value="slo" className={TAB_TRIGGER}>
+            SLO
+          </TabsTrigger>
           <TabsTrigger
             value="score"
             className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
@@ -131,6 +137,9 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
               tone="bg-amber-500/20 text-amber-300"
               label={`${findings} findings`}
             />
+          </TabsTrigger>
+          <TabsTrigger value="cost" className={TAB_TRIGGER}>
+            Cost
           </TabsTrigger>
           <TabsTrigger
             value="capacity"
@@ -175,6 +184,14 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
         </ScrollArea>
       </TabsContent>
 
+      <TabsContent value="slo" className="mt-0 flex-1 overflow-hidden min-h-0">
+        <ScrollArea className="h-full">
+          <div className={TAB_BODY}>
+            <SloPanel />
+          </div>
+        </ScrollArea>
+      </TabsContent>
+
       <TabsContent value="advisor" className="mt-0 flex-1 overflow-hidden min-h-0">
         <ScrollArea className="h-full">
           <div className={TAB_BODY}>
@@ -187,6 +204,14 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
         <div className={`h-full ${TAB_BODY}`}>
           <ScoreReport />
         </div>
+      </TabsContent>
+
+      <TabsContent value="cost" className="mt-0 flex-1 overflow-hidden min-h-0">
+        <ScrollArea className="h-full">
+          <div className={TAB_BODY}>
+            <CostPanel />
+          </div>
+        </ScrollArea>
       </TabsContent>
 
       <TabsContent value="capacity" className="mt-0 flex-1 overflow-hidden min-h-0">
@@ -423,6 +448,7 @@ function PropertiesTab() {
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
   const readOnly = useIsActiveTabReadOnly();
   const selectedProblemId = useAppStore((s) => s.selectedProblemId);
+  const currency = useAppStore((s) => s.currency);
 
   // Selection has one source of truth: node.selected / edge.selected
   const selectedNodes = nodes.filter((n) => n.selected);
@@ -478,6 +504,14 @@ function PropertiesTab() {
               },
               { label: "Latency SLA", value: `< ${problem.requirements.latencyMs}ms` },
               { label: "Users", value: problem.requirements.users },
+              ...(problem.requirements.budgetMonthlyUsd
+                ? [
+                    {
+                      label: "Budget",
+                      value: `${formatMoney(problem.requirements.budgetMonthlyUsd, currency)}/mo`,
+                    },
+                  ]
+                : []),
             ].map((item) => (
               <div
                 key={item.label}

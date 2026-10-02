@@ -26,6 +26,8 @@ export interface CustomProblem {
     storageGB: number;
     latencyMs: number;
     users: string;
+    /** Monthly budget in USD (Spec 10); problems created before it have none. */
+    budgetMonthlyUsd?: number;
   };
   constraints: string[];
   tags: string[];

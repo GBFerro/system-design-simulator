@@ -3,12 +3,12 @@
  * the end of an interview both go through here. The measuring code and the
  * engine load on demand; the analyses run in the engine worker.
  */
-import type { Node } from "@xyflow/react";
 import { getProblemById } from "@/data/problems";
 import { effectivePeak } from "@/interview/checks";
 import { scoreDesign } from "@/scoring/scorer";
 import { useAppStore } from "@/store/appStore";
-import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { isComponentNode } from "@/lib/nodeFactory";
+import { useCanvasStore } from "@/store/canvasStore";
 import { useDrillStore } from "@/store/drillStore";
 import { useInterviewStore } from "@/store/interviewStore";
 import type { Measurements, ScoreResult } from "@/types/scoring";
@@ -39,7 +39,7 @@ export async function measureAndScore(): Promise<{
   measured: boolean;
 } | null> {
   const { nodes, edges } = useCanvasStore.getState();
-  const components = nodes.filter((n) => n.type !== "text") as Node<ComponentNodeData>[];
+  const components = nodes.filter(isComponentNode);
   if (components.length === 0) return null;
   const problemId = useAppStore.getState().selectedProblemId;
 

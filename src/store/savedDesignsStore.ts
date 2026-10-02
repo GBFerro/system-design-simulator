@@ -5,6 +5,7 @@ import { useAppStore } from "./appStore";
 import { usePenStore, type Stroke } from "./penStore";
 import { useSimulationStore } from "./simulationStore";
 import { useCustomProblemsStore } from "./customProblemsStore";
+import { useSloStore } from "./sloStore";
 import { durableStorage } from "./durableStorage";
 import { migrateSavedDesignsState } from "./migrations";
 import { STORE_VERSION } from "./persistVersion";
@@ -42,7 +43,7 @@ export interface SavedDesign {
   strokes: Stroke[];
   /** Spec 08 placeholder, kept from imported files. */
   chaosScript?: ChaosScript;
-  /** Spec 11 placeholder, kept from imported files. */
+  /** The design's SLO override for its problem (Spec 11). */
   slo?: SloOverrides;
   createdAt: string;
   updatedAt: string;
@@ -72,6 +73,7 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
         const now = new Date().toISOString();
         const id = `design-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+        const slo = useSloStore.getState().overrides[problemId];
         const design: SavedDesign = {
           id,
           name,
@@ -80,6 +82,7 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
           edges: serializeEdges(edges),
           annotations: [],
           strokes,
+          ...(slo ? { slo } : {}),
           createdAt: now,
           updatedAt: now,
         };
@@ -110,9 +113,11 @@ export const useSavedDesignsStore = create<SavedDesignsState>()(
 
         usePenStore.getState().setStrokes(design.strokes ?? []);
 
-        // Restore problem selection if it exists
+        // Restore problem selection if it exists, and the design's SLO for it
+        // (a design saved without an override uses the problem's SLO).
         if (design.problemId) {
           useAppStore.getState().setSelectedProblem(design.problemId);
+          useSloStore.getState().setOverrides(design.problemId, design.slo);
         }
 
         useAppStore.getState().showToast(`Loaded "${design.name}"`, "success");

@@ -1,6 +1,7 @@
 import { getComponentById } from "@/data/components";
 import type { SystemComponent } from "@/types/component";
 import { coreParams, finitePositive, MAX_INSTANCES, PARAM, routingParams } from "./params";
+import { pricingFor } from "./pricing";
 import { CATALOG_SCHEMAS } from "./schemas";
 import {
   type ComponentSchema,
@@ -62,6 +63,7 @@ export function genericSchema(component: SystemComponent): ComponentSchema {
     id: component.id,
     routing,
     params: [...coreParams(component), ...routingParams(routing)],
+    pricing: pricingFor(component.id),
   };
 }
 

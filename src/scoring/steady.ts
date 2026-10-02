@@ -52,3 +52,5 @@ export const rps = (v: number) =>
     : v >= 1e3
       ? `${Math.round(v / 100) / 10}k`
       : `${Math.round(v)}`;
+/** Two significant digits, for small error budgets: "0.05%", "0.5%", "26%". */
+export const pctFine = (v: number) => `${Number((v * 100).toPrecision(2))}%`;

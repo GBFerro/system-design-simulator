@@ -17,8 +17,10 @@ import { steadyStateToSnapshot } from "@/engine/snapshot";
 import type { SimConfig, SteadyState } from "@/engine/types";
 import { resolveDrillStep } from "@/interview/drill";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import type { ComponentNodeData } from "@/store/canvasStore";
+import { problemSlo } from "@/slo/slo";
+import { isComponentNode } from "@/lib/nodeFactory";
 import type { Measurements } from "@/types/scoring";
+import { SURGE_FACTOR } from "./budget";
 import { syncPath } from "./paths";
 import { buildScoringGraph } from "./scorer";
 
@@ -32,8 +34,7 @@ export interface MeasureApi {
   ): Promise<SteadyUnderFault> | SteadyUnderFault;
 }
 
-const components = (nodes: readonly Node[]) =>
-  nodes.filter((n) => n.type !== "text") as Node<ComponentNodeData>[];
+const components = (nodes: readonly Node[]) => nodes.filter(isComponentNode);
 
 /** Deepest synchronous path of the problem's reference solution (undefined without one). */
 export function referenceSyncDepth(problemId: string): number | undefined {
@@ -68,7 +69,7 @@ export async function measureDesign(
   const config: SimConfig = referencePeak > 0 ? { readRatio: readsPerSec / referencePeak } : {};
   const [atPeak, atDoublePeak] = await Promise.all([
     api.analyze(graph, peakRps, config),
-    api.analyze(graph, 2 * peakRps, config),
+    api.analyze(graph, SURGE_FACTOR * peakRps, config),
   ]);
 
   const script = INTERVIEW_DATA.find((d) => d.problemId === problemId);
@@ -85,18 +86,21 @@ export async function measureDesign(
       return true;
     });
   const underFaults: Measurements["underFaults"] = [];
-  for (const r of await Promise.all(
+  const results = await Promise.all(
     faults.map((f) => api.analyzeUnderFault(graph, peakRps, f.spec, config)),
-  )) {
-    if (r.ok) underFaults.push({ label: r.label, errorRate: r.steady.errorRate });
-  }
+  );
+  results.forEach((r, i) => {
+    if (r.ok)
+      underFaults.push({
+        label: r.label,
+        errorRate: r.steady.errorRate,
+        durationSec: faults[i].spec.durationSec ?? 0,
+      });
+  });
 
   return {
     peakRps,
-    sla: {
-      p99Ms: problem.requirements.latencyMs,
-      ...(problem.requirements.slaScope ? { scope: problem.requirements.slaScope } : {}),
-    },
+    slo: problemSlo(problem.requirements),
     atPeak,
     atDoublePeak,
     underFaults,
@@ -104,6 +108,13 @@ export async function measureDesign(
     ...(() => {
       const depth = referenceSyncDepth(problemId);
       return depth !== undefined ? { referenceSyncDepth: depth } : {};
+    })(),
+    ...(() => {
+      const budget = problem.requirements.budgetMonthlyUsd;
+      if (budget === undefined || !(budget > 0)) return {};
+      // A design measured above the reference peak (an interview's estimate) needs more.
+      const scale = referencePeak > 0 ? Math.max(1, peakRps / referencePeak) : 1;
+      return { budgetMonthlyUsd: budget * scale };
     })(),
   };
 }

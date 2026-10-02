@@ -9,6 +9,8 @@ export const CATEGORY_MAX_SCORE = 20;
 
 /** Error rate the design must stay under to "hold" a load or a fault (the drill SLO too). */
 export const SLO_ERROR_RATE = 0.01;
+/** The surge every design must hold below saturation: measured at this × the peak. */
+export const SURGE_FACTOR = 2;
 /** Utilization every tier must stay under at the peak (headroom). */
 export const PEAK_UTILIZATION = 0.8;
 /** Removing one instance keeps utilization under this → over-provisioned. */

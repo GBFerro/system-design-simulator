@@ -54,7 +54,7 @@ O timer continua baseado em timestamp (`startedAt`/`accumulatedMs`), como exige 
 - O alvo do fault é um **tipo de componente**, não um `FaultSpec` com id de nó, porque os ids mudam a cada design (`DrillTarget`: tipos de nó, link entre tipos, tier mais ocupado ou global). `resolveDrillStep` escolhe o nó ou link mais carregado do tipo no design do candidato.
 - Se o design não tem o alvo, o drill mata uma instância do tier mais ocupado e avisa.
 - Passos sem `followUpId` usam a pergunta e a resposta genéricas do tipo de fault (`GENERIC_DRILL_QA`).
-- A carga do drill é o pico estimado na fase 2 (`effectivePeak`, PR 3). O SLO é p99 ≤ SLA do problema e erros ≤ 1%, até a [Spec 11](11-slo-e-error-budget.md).
+- A carga do drill é o pico estimado na fase 2 (`effectivePeak`, PR 3). O SLO quebrado a cada momento é a latência do SLO do problema ([Spec 11](11-slo-e-error-budget.md): seu percentil e limite, no nó do escopo quando há) acima do limite, ou erros acima de 1%.
 
 **Edição ao vivo:** mudanças no grafo durante o play recompilam o `SimGraph` e recarregam o motor mantendo o tempo, as filas dos nós que continuam existindo e os faults ativos.
 
@@ -66,14 +66,14 @@ O total continua 100 (5 × 20), para não quebrar o histórico nem a invariante 
 | ------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
 | Scalability  | 20     | Aguenta 1× e 2× o pico (8 + 8) e escala horizontalmente nos tiers stateless (4)                                              |
 | Availability | 20     | Sem SPOF alcançável (6), disponibilidade medida no drill ≥ SLO (10), degradação graciosa com circuit breaker ou fallback (4) |
-| Latency      | 20     | p99 medido no pico ≤ SLA (12), p50 (4), caminho síncrono sem hops desnecessários (4)                                         |
+| Latency      | 20     | Percentil do SLO medido no pico ≤ limite (12), p50 (4), caminho síncrono sem hops desnecessários (4)                         |
 | Cost         | 20     | $/mês ≤ orçamento do problema (12), sem over-provisioning com utilização < 15% (8)                                           |
 | Trade-offs   | 20     | Decisões-chave do problema registradas no trade-off log com justificativa (mantido)                                          |
 
 - As regras continuam recebendo o `ScoringGraph` compartilhado, agora junto com o `SteadyState` do `analyze()` e, quando houver, o resultado do drill
 - Presença continua exigindo alcançabilidade a partir do entry point
 - **Fora do modo entrevista** (sem drill), o item "disponibilidade medida no drill" usa `analyze()` com os faults do roteiro aplicados em steady state
-- Até a Fase 5, cost e SLA usam os valores atuais como fallback; a [Spec 10](10-custo.md) e a [Spec 11](11-slo-e-error-budget.md) trocam pelos valores medidos
+- Cost usa o orçamento do problema ([Spec 10](10-custo.md)); latency e availability usam o SLO do problema ([Spec 11](11-slo-e-error-budget.md)): latência no percentil e limite do SLO, e cada fault do roteiro precisa caber no error budget de disponibilidade de uma janela
 
 **Implementação (PR 2 da Spec 09):**
 

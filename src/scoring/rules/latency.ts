@@ -7,24 +7,25 @@ import { syncPath } from "../paths";
 import { metricsOf, ms, NO_TRAFFIC_FEEDBACK, noTraffic, pct } from "../steady";
 
 /**
- * Measured (Spec 09): p99 at the peak within the problem's SLA, a p50 well
- * under it, and no unnecessary hops on the synchronous path. Max points per
+ * Measured (Spec 09): the latency at the peak within the problem's SLO (its
+ * percentile and threshold, Spec 11), a p50 well under the threshold, and no
+ * unnecessary hops on the synchronous path. Max points per
  * check; sums to CATEGORY_MAX_SCORE (checked in tests/unit/scoring.test.ts).
  */
 export const BUDGET = {
-  p99: 12,
+  target: 12,
   p50: 4,
   hops: 4,
 } as const;
 
 /** Partial credit for a check that is only half met (always below its BUDGET). */
 export const PARTIAL = {
-  p99: 6,
+  target: 6,
   hops: 2,
 } as const satisfies Partial<Record<keyof typeof BUDGET, number>>;
 
-/** p99 within this × SLA earns partial credit. */
-const P99_PARTIAL_FACTOR = 1.5;
+/** The SLO percentile within this × its threshold earns partial credit. */
+const TARGET_PARTIAL_FACTOR = 1.5;
 /** Latency of the few requests that succeed says little when most fail. */
 const MEASURABLE_ERROR_RATE = 0.5;
 /** Without a reference solution, a sync chain deeper than this is suspect. */
@@ -55,8 +56,10 @@ export function scoreLatency(
       `At the peak ${pct(m.atPeak.errorRate)} of requests fail, so there's no meaningful latency to measure. Make the design hold its load first (see Scalability).`,
     );
   } else {
-    // What the SLA is about: one component's hop, or the whole request.
-    const scope = m.sla.scope;
+    // What the SLO is about: one component's hop, or the whole request, at its percentile (Spec 11).
+    const { scope, percentile, thresholdMs: sla } = m.slo.latency;
+    const at = (x: { p50Ms: number; p95Ms: number; p99Ms: number }) =>
+      percentile === 50 ? x.p50Ms : percentile === 95 ? x.p95Ms : x.p99Ms;
     const scoped = scope
       ? metricsOf(
           m.atPeak,
@@ -64,40 +67,40 @@ export function scoreLatency(
         )
       : [];
     const scopeLabel = scope ? (getComponentById(scope)?.label ?? scope) : "";
-    let p99 = m.atPeak.latency.p99Ms;
+    let tail = at(m.atPeak.latency);
     let p50 = m.atPeak.latency.p50Ms;
     let what = "End-to-end";
     if (scoped.length > 0) {
-      p99 = Math.max(...scoped.map((x) => x.m.p99Ms));
+      tail = Math.max(...scoped.map((x) => at(x.m)));
       p50 = Math.max(...scoped.map((x) => x.m.p50Ms));
       what = scopeLabel;
     } else if (scope) {
       feedback.push(
-        `This problem's SLA is about the ${scopeLabel}, and the design has none on the request path; measuring the whole request instead.`,
+        `This problem's SLO is about the ${scopeLabel}, and the design has none on the request path; measuring the whole request instead.`,
       );
     }
-    const sla = m.sla.p99Ms;
+    const p = `p${percentile}`;
 
-    if (p99 <= sla) {
-      score += BUDGET.p99;
-      passed.push(`${what} p99 at the peak is ${ms(p99)}, within the ${ms(sla)} SLA.`);
-    } else if (p99 <= sla * P99_PARTIAL_FACTOR) {
-      score += PARTIAL.p99;
+    if (tail <= sla) {
+      score += BUDGET.target;
+      passed.push(`${what} ${p} at the peak is ${ms(tail)}, within the ${ms(sla)} SLO.`);
+    } else if (tail <= sla * TARGET_PARTIAL_FACTOR) {
+      score += PARTIAL.target;
       feedback.push(
-        `${what} p99 at the peak is ${ms(p99)}, just over the ${ms(sla)} SLA. Trim the slowest hop on the path: cache hot reads, move work off the request (async), or add capacity where requests queue.`,
+        `${what} ${p} at the peak is ${ms(tail)}, just over the ${ms(sla)} SLO. Trim the slowest hop on the path: cache hot reads, move work off the request (async), or add capacity where requests queue.`,
       );
     } else {
       feedback.push(
-        `${what} p99 at the peak is ${ms(p99)}, far over the ${ms(sla)} SLA. Tail latency adds up across synchronous hops and grows fast near saturation — shorten the path, cache, go async, and keep tiers well under full load.`,
+        `${what} ${p} at the peak is ${ms(tail)}, far over the ${ms(sla)} SLO. Tail latency adds up across synchronous hops and grows fast near saturation — shorten the path, cache, go async, and keep tiers well under full load.`,
       );
     }
 
     if (p50 <= sla / 2) {
       score += BUDGET.p50;
-      passed.push(`The typical request (p50 ${ms(p50)}) stays well under the SLA.`);
+      passed.push(`The typical request (p50 ${ms(p50)}) stays well under the SLO.`);
     } else {
       feedback.push(
-        `Even the typical request (p50 ${ms(p50)}) uses more than half of the ${ms(sla)} SLA, so the tail has no room. Cut the per-request work on the common path.`,
+        `Even the typical request (p50 ${ms(p50)}) uses more than half of the ${ms(sla)} SLO, so the tail has no room. Cut the per-request work on the common path.`,
       );
     }
   }

@@ -16,10 +16,15 @@ import { edgeTargets, getFaultType, nodeTargets } from "@/engine/faults/catalog"
 import type { FaultSpec } from "@/engine/faults/types";
 import type { TickSnapshot } from "@/engine/types";
 import { SLO_ERROR_RATE } from "@/scoring/budget";
+import type { SloPercentile } from "@/slo/types";
 
 /** Simulated seconds of fault-free warm-up before the first fault (the baseline). */
 export const DRILL_WARMUP_SEC = 15;
-/** The drill's SLO until Spec 11 defines real ones: p99 within the problem's SLA, ≤ 1% errors. */
+/**
+ * Error rate that counts as "broken" at a given moment of the drill. The
+ * latency side is the problem's SLO (Spec 11); the availability target is
+ * over a whole window, so the drill's moment-to-moment check stays at 1%.
+ */
 export const DRILL_ERROR_SLO = SLO_ERROR_RATE;
 /** Simulated seconds watched after a fault heals (recovery) before the next one. */
 export const DRILL_RECOVERY_SEC = 20;
@@ -29,7 +34,14 @@ export const DRILL_SUSTAIN_SEC = 3;
 export const DRILL_MITIGATED_TAIL_SEC = 5;
 
 export interface DrillSlo {
-  p99Ms: number;
+  /** Latency target of the problem's SLO (Spec 11). */
+  percentile: SloPercentile;
+  thresholdMs: number;
+  /**
+   * Nodes of the SLO's scope component in the design: their worst hop is
+   * measured instead of the end-to-end latency. Empty = end to end.
+   */
+  scopeNodeIds: string[];
   errorRate: number;
 }
 
@@ -217,12 +229,24 @@ export interface DrillStepResult {
   budgetUsed: number;
   /** SLO held over the last DRILL_MITIGATED_TAIL_SEC of the fault window. */
   mitigated: boolean;
-  worstP99Ms: number;
+  /** Worst latency at the SLO's percentile (scoped like the SLO). */
+  worstLatencyMs: number;
   worstErrorRate: number;
 }
 
-export function breaches(s: Pick<TickSnapshot, "global">, slo: DrillSlo): boolean {
-  return s.global.p99 > slo.p99Ms || s.global.errorRate > slo.errorRate;
+/** The SLO's latency in a snapshot: the scoped nodes' worst hop, else end to end. */
+export function sloLatencyMs(s: Pick<TickSnapshot, "global" | "nodes">, slo: DrillSlo): number {
+  const key = slo.percentile === 50 ? "p50" : slo.percentile === 95 ? "p95" : "p99";
+  let worst = -1;
+  for (const id of slo.scopeNodeIds) {
+    const n = s.nodes[id];
+    if (n && n.rpsIn > 0) worst = Math.max(worst, n[key]);
+  }
+  return worst >= 0 ? worst : s.global[key];
+}
+
+export function breaches(s: Pick<TickSnapshot, "global" | "nodes">, slo: DrillSlo): boolean {
+  return sloLatencyMs(s, slo) > slo.thresholdMs || s.global.errorRate > slo.errorRate;
 }
 
 /**
@@ -247,7 +271,7 @@ export function evaluateDrillStep(
   let badSec = 0;
   let failed = 0;
   let total = 0;
-  let worstP99Ms = 0;
+  let worstLatencyMs = 0;
   let worstErrorRate = 0;
   let prevT = startT;
   for (const s of range) {
@@ -265,7 +289,7 @@ export function evaluateDrillStep(
     }
     failed += s.offeredRps * s.global.errorRate * dt;
     total += s.offeredRps * dt;
-    worstP99Ms = Math.max(worstP99Ms, s.global.p99);
+    worstLatencyMs = Math.max(worstLatencyMs, sloLatencyMs(s, slo));
     worstErrorRate = Math.max(worstErrorRate, s.global.errorRate);
   }
   const tail = range.filter((s) => s.t > endT - DRILL_MITIGATED_TAIL_SEC && s.t <= endT);
@@ -280,7 +304,7 @@ export function evaluateDrillStep(
     badSec,
     budgetUsed: total > 0 ? failed / (slo.errorRate * total) : 0,
     mitigated: tail.length > 0 && tail.every((s) => !breaches(s, slo)),
-    worstP99Ms,
+    worstLatencyMs,
     worstErrorRate,
   };
 }

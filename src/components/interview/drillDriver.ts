@@ -9,9 +9,11 @@ import { INTERVIEW_DATA } from "@/data/interviewData";
 import { getProblemById } from "@/data/problems";
 import { compileGraph } from "@/domain/graph/compile";
 import type { TickSnapshot } from "@/engine/types";
+import type { Problem } from "@/types/problem";
 import {
   DRILL_ERROR_SLO,
   DRILL_WARMUP_SEC,
+  type DrillSlo,
   evaluateDrillStep,
   nextDrillAction,
   resolveDrillStep,
@@ -22,6 +24,8 @@ import { useDrillStore, type IncidentPoint } from "@/store/drillStore";
 import { useInterviewStore } from "@/store/interviewStore";
 import { effectivePeak } from "@/interview/checks";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
+import { problemSlo } from "@/slo/slo";
+import { isComponentNode } from "@/lib/nodeFactory";
 import {
   injectFault,
   playSimulation,
@@ -43,6 +47,24 @@ function stopWatching(): void {
   busy = false;
 }
 
+/** The problem's latency SLO (Spec 11), scoped to the matching nodes of the candidate's design. */
+function drillSlo(problem: Problem): DrillSlo {
+  const { latency } = problemSlo(problem.requirements);
+  const scopeNodeIds = latency.scope
+    ? useCanvasStore
+        .getState()
+        .nodes.filter(isComponentNode)
+        .filter((n) => n.data.componentId === latency.scope)
+        .map((n) => n.id)
+    : [];
+  return {
+    percentile: latency.percentile,
+    thresholdMs: latency.thresholdMs,
+    scopeNodeIds,
+    errorRate: DRILL_ERROR_SLO,
+  };
+}
+
 /** Start (or restart) the drill for a problem: fresh run, its peak load, first fault after the warm-up. */
 export async function startDrill(problemId: string): Promise<void> {
   const problem = getProblemById(problemId);
@@ -55,7 +77,7 @@ export async function startDrill(problemId: string): Promise<void> {
   setTrafficPattern({ kind: "constant", rps: loadRps });
   useDrillStore.getState().begin({
     problemId,
-    slo: { p99Ms: problem.requirements.latencyMs, errorRate: DRILL_ERROR_SLO },
+    slo: drillSlo(problem),
     loadRps,
     steps: data.drill.length,
     firstAt: DRILL_WARMUP_SEC,

@@ -8,7 +8,15 @@ import { expose } from "comlink";
 import { createEngine } from "./engine";
 import { analyzeUnderFault } from "./faults/steady";
 import { createSimSession, type FrameListener } from "./session";
-import type { FaultId, FaultSpec, SimConfig, SimGraph, SimSpeed, TrafficPattern } from "./types";
+import type {
+  FaultId,
+  FaultSpec,
+  LatencySlo,
+  SimConfig,
+  SimGraph,
+  SimSpeed,
+  TrafficPattern,
+} from "./types";
 
 const engine = createEngine();
 const session = createSimSession();
@@ -27,6 +35,7 @@ export const workerApi = {
   simReset: (generation: number) => session.reset(generation),
   simSetSpeed: (x: SimSpeed) => session.setSpeed(x),
   simSetTraffic: (p: TrafficPattern) => session.setTraffic(p),
+  simSetLatencySlo: (slo: LatencySlo | null) => session.setLatencySlo(slo),
   simInject: (fault: FaultSpec) => session.inject(fault),
   simHeal: (id: FaultId) => session.heal(id),
   simSubscribe: (listener: FrameListener | null) => session.subscribe(listener),

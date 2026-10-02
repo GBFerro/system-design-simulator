@@ -71,6 +71,10 @@ test("full interview: phase answers, drill, report and attempt history", async (
     report.getByText(/urls: named · store nosql · partition key short_code/),
   ).toBeVisible();
   await expect(report.getByRole("region", { name: "Failure drill" }).locator("li")).toHaveCount(3);
+  // Spec 11: the live run (the drill) against the problem's SLO.
+  await expect(report.getByTestId("report-slo")).toContainText(
+    /SLO (met|violated) over \d+ simulated seconds \(p99 ≤ 100 ms · 99\.99% availability · 5-minute window\)/,
+  );
   await expect(report.getByTestId("report-history").locator("tbody tr")).toHaveCount(1);
   await report.getByRole("button", { name: "Done" }).click();
   await expect(report).toBeHidden();

@@ -15,6 +15,13 @@ export function randomId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
+/** A component node (not a text note): what scoring, cost and the advisor read. */
+export function isComponentNode(n: Node): n is Node<ComponentNodeData> {
+  return (
+    n.type !== "text" && typeof (n.data as { componentId?: unknown })?.componentId === "string"
+  );
+}
+
 export function createComponentNode(
   component: SystemComponent,
   position: XYPosition,

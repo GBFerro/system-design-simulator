@@ -76,7 +76,7 @@ It runs entirely in your browser. No account, no backend, no data leaves your ma
 
 ### 35 Infrastructure Components
 
-A complete toolbox for any architecture — **35 production-grade components** across five categories, each with verified throughput and latency specs, plus a custom block you can rename to anything.
+A complete toolbox for any architecture — **41 production-grade components** across five categories, each with verified throughput and latency specs, plus a custom block you can rename to anything.
 
 | Category           | Components                                                                                                                                                  |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -130,13 +130,13 @@ SystemForge scores the **wired request path**, not a parts bin. Drop a cache on 
 
 Five categories, each capped at exactly **20 points**:
 
-| Category            | What it checks                                                |
-| ------------------- | ------------------------------------------------------------- |
-| **Scalability**     | Load balancing, horizontal scaling, caching, async processing |
-| **Availability**    | No SPOFs, replica redundancy, monitoring, overload protection |
-| **Latency**         | CDN usage, cache-before-DB patterns, minimal hop count        |
-| **Cost Efficiency** | Right-sized components, polyglot persistence, no waste        |
-| **Trade-offs**      | Read/write separation, defense in depth, architecture breadth |
+| Category            | What it checks (the first four by simulating the design at the peak)          |
+| ------------------- | ----------------------------------------------------------------------------- |
+| **Scalability**     | Holds the peak with headroom and a 2× surge; stateless tiers scale out        |
+| **Availability**    | No single point of failure; each failure scenario fits the SLO's error budget |
+| **Latency**         | The SLO's percentile within its threshold, p50, no unnecessary sync hops      |
+| **Cost Efficiency** | Monthly cost at the peak vs. the problem's budget; no idle tiers              |
+| **Trade-offs**      | Read/write separation, defense in depth, architecture breadth                 |
 
 **Verdicts:** Needs Work `<31` · Decent `<51` · Good `<71` · Excellent `<86` · Architect Level `86+`
 
@@ -302,33 +302,14 @@ No backend, no database, no telemetry — the entire app ships as a static bundl
 
 ### Project Structure
 
-```
-src/
-├── app/                  # Next.js App Router — layout, single route, globals.css
-├── components/
-│   ├── canvas/           # ReactFlow host, Component/Text nodes, edges, pen overlay
-│   ├── dialogs/          # ModalShell + Save / Load / Confirm / Support / Create
-│   ├── interview/        # Interview bar, phase guides, start dialog
-│   ├── layout/           # AppShell, TopBar, SupportFAB
-│   ├── panel/            # Right panel: Props · Simulate · Score · Capacity · Trade-offs
-│   ├── sidebar/          # Component palette, problem selector, learning path
-│   └── ui/               # Base UI primitives, Toast
-├── data/
-│   ├── components.ts     # 35 components (+ custom) with verified specs
-│   ├── problems.ts       # 35 design problems with reference architectures
-│   ├── conceptLibrary.ts # Educational content for every component
-│   ├── interviewData.ts  # Requirements, APIs & data models for all 35 problems
-│   ├── tradeoffCards.ts  # 21 trade-off comparisons
-│   └── learningPath.ts   # 4-tier progression with prerequisites
-├── engine/
-│   └── simulator.ts      # Traffic simulation (Kahn's topological sort)
-├── scoring/
-│   ├── scorer.ts         # Orchestrator — builds the shared scoring graph
-│   └── rules/            # 5 rule modules, 20 pts each
-├── store/                # Zustand stores (canvas, app, interview, saved designs, …)
-├── lib/                  # exportCanvas, loadReference, icons, utils
-└── types/                # Shared TypeScript interfaces
-```
+The full, per-file map lives in [`CLAUDE.md`](CLAUDE.md#architecture-map) (a unit test keeps it in sync with `src/`). In short:
+
+- `src/components/` — the editor UI: ReactFlow canvas, sidebar, right panel (Props, Simulate, Chaos, SLO, Score, Advisor, Cost, Capacity, Trade-offs), interview mode, dialogs
+- `src/domain/` — component schemas and prices, edge rules, the canvas → simulation graph compiler, persistence
+- `src/engine/` — the simulation engine in a Web Worker: steady-state queueing analysis, live tick loop, fault injection
+- `src/scoring/`, `src/advisor/`, `src/cost/`, `src/slo/`, `src/interview/` — measured scoring, structural hints, cost model, SLOs and error budget, interview grading and report
+- `src/data/` — the component catalog, problems with reference solutions, concept library, interview scripts, trade-off cards, learning path
+- `src/store/` — Zustand stores (persisted to `localStorage`, saved designs and attempts in IndexedDB)
 
 ---
 

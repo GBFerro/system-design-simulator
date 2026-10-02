@@ -1,4 +1,5 @@
 import type { SteadyState } from "@/engine/types";
+import type { Slo } from "@/slo/types";
 
 /**
  * Connectivity context computed once per scoring run and shared by all rules.
@@ -41,14 +42,23 @@ export interface ScoreResult {
 export interface Measurements {
   /** Load of the problem's peak, req/s (reference peak until phase 2 captures an estimate). */
   peakRps: number;
-  /** Latency SLA; `scope` = component whose hop p99 it refers to (else end to end). */
-  sla: { p99Ms: number; scope?: string };
+  /**
+   * The problem's SLO (Spec 11): the latency target (percentile, threshold,
+   * `scope` = component whose hop it refers to, else end to end) and the
+   * availability whose error budget the failure scenarios must fit in.
+   */
+  slo: Slo;
   atPeak: SteadyState;
   atDoublePeak: SteadyState;
-  /** The drill's faults in steady state (outside an interview). */
-  underFaults: { label: string; errorRate: number }[];
+  /** The drill's faults in steady state (outside an interview), each lasting `durationSec`. */
+  underFaults: { label: string; errorRate: number; durationSec: number }[];
   /** A finished interview drill: faults whose SLO held before they ended. */
   drill?: { held: number; total: number };
   /** Deepest sync path of the problem's reference solution, for the hop check. */
   referenceSyncDepth?: number;
+  /**
+   * Monthly budget in USD at this peak (Spec 10): the problem's, scaled up
+   * when the measured peak is above the reference one. Absent → cost unjudged.
+   */
+  budgetMonthlyUsd?: number;
 }

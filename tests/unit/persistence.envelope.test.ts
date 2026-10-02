@@ -65,7 +65,7 @@ describe("export envelope v2", () => {
       edges: serializeEdges(edges),
       strokes: STROKES,
       chaosScript: { steps: [{ at: 10, fault: "kill", node: "x" }] },
-      slo: { p99Ms: 200 },
+      slo: { percentile: 95, thresholdMs: 200, availability: 0.9999 },
     });
     const exported = JSON.parse(json) as DesignEnvelope;
     expect(exported.schemaVersion).toBe(2);

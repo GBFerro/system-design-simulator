@@ -27,6 +27,19 @@ export interface SimConfig {
   readRatio?: number;
   /** Cap on fixed-point iterations for retry amplification. Default 200. */
   maxIterations?: number;
+  /** Latency SLO (Spec 11): successes slower than it don't count as goodput. */
+  latencySlo?: LatencySlo;
+}
+
+/**
+ * The latency part of an SLO, as the engine needs it (Spec 11): a request
+ * slower than `thresholdMs` end to end — or, with `scope`, at that component
+ * type's hop — isn't "good" even when it succeeds.
+ */
+export interface LatencySlo {
+  thresholdMs: number;
+  /** Component type (catalog id) whose hop latency the SLO is about. */
+  scope?: string;
 }
 
 export interface NodeSteadyState {
@@ -89,6 +102,8 @@ export interface SteadyState {
   offeredRps: number;
   /** Successful end-to-end requests, req/s. Always ≤ offeredRps. */
   throughputRps: number;
+  /** Successful requests within `config.latencySlo`, req/s (= throughput without one). ≤ throughputRps. */
+  goodputRps: number;
   /** 1 − throughput / offered. */
   errorRate: number;
   /** Composed availability of the user-facing path (series × parallel). */
@@ -162,7 +177,7 @@ export interface EdgeRuntimeMetrics {
 /** End-to-end metrics of one tick (OBS-02). Latencies in ms. */
 export interface GlobalRuntimeMetrics {
   throughput: number;
-  /** Successful requests within the SLO (Spec 11); = throughput until SLOs exist. */
+  /** Successful requests within the latency SLO (Spec 11); = throughput without one. */
   goodput: number;
   errorRate: number;
   p50: number;
