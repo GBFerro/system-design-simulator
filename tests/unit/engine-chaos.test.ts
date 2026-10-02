@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GENERIC_DRILL_QA } from "@/data/interviewData";
 import { compileGraph, type SimGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { FlowEngine } from "@/engine/engine";
@@ -96,33 +97,12 @@ function baseline(engine: FlowEngine, metric: (s: TickSnapshot) => number): numb
 const errorRate = (s: TickSnapshot) => s.global.errorRate;
 
 describe("fault catalog", () => {
-  it("covers the CHS-02 MVP and CHS-03 with unique types and valid intensity ranges", () => {
+  it("has one entry per FaultType (the drill's Record<FaultType> is the full list), valid ranges", () => {
     const types = FAULT_CATALOG.map((f) => f.type);
     expect(new Set(types).size).toBe(types.length);
-    expect(types).toEqual(
-      expect.arrayContaining([
-        "kill-instances",
-        "kill-node",
-        "slow-node",
-        "traffic-spike",
-        "edge-latency",
-        "packet-loss",
-        "partition",
-        "cache-flush",
-        "db-primary-failure",
-        "consumer-stopped",
-        "zone-failure",
-        "memory-leak",
-        "thread-pool-exhausted",
-        "transient-errors",
-        "disk-full",
-        "iops-throttle",
-        "deadlock",
-        "tls-expired",
-        "dns-outage",
-        "health-check-flapping",
-      ]),
-    );
+    // GENERIC_DRILL_QA must cover every FaultType to compile: a type added
+    // without a catalog entry (or an entry left behind) fails here.
+    expect(new Set(types)).toEqual(new Set(Object.keys(GENERIC_DRILL_QA)));
     for (const f of FAULT_CATALOG) {
       expect(f.targets.length).toBeGreaterThan(0);
       if (f.intensity) {

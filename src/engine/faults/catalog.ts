@@ -5,6 +5,7 @@
  * inputs are the spec (already sanitized) and the compiled graph.
  */
 import { PARAM } from "@/domain/components/params";
+import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
 import type { SimEdge, SimGraph, SimNode } from "@/domain/graph/compile";
 import { hitRateOf, lookupShareOf, paramNumber } from "../core/routing";
 import type { FaultCategory, FaultSpec, FaultTargetKind, FaultType, ModifierKind } from "./types";
@@ -208,13 +209,6 @@ const DISK_NODES = new Set([
   "dlq",
 ]);
 
-/**
- * Managed services spread over every zone by the provider (and the traffic
- * source): a zone outage doesn't take them down. Same set as the scorer's
- * `INHERENTLY_REDUNDANT` (`scoring/paths.ts`).
- */
-const MULTI_ZONE_MANAGED = new Set(["client", "dns", "cdn", "object-storage"]);
-
 /** How long the health-check flapping fault keeps toggling without an auto-heal. */
 const FLAP_HORIZON_SEC = 900;
 
@@ -312,7 +306,7 @@ export const FAULT_CATALOG: readonly FaultTypeSpec[] = [
       const modifiers: RelativeModifier[] = [];
       const gone: string[] = [];
       for (const n of ctx.graph.nodes) {
-        if (MULTI_ZONE_MANAGED.has(n.componentId)) continue;
+        if (MANAGED_MULTI_ZONE.has(n.componentId)) continue;
         // The lost zone held instances 0, z, 2z, … of every tier.
         const lost = Math.ceil(n.instances / zones);
         if (lost >= n.instances) gone.push(n.label);

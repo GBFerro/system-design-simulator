@@ -6,7 +6,7 @@ import { Eye, EyeOff, Wand2 } from "lucide-react";
 import type { QuickFix } from "@/advisor/types";
 import { GHOST_PREFIX } from "@/components/canvas/previewGraph";
 import { paddingAboveSheet } from "@/lib/placement";
-import { applyPreview, setFixPreview, useAdvisorStore } from "@/store/advisorStore";
+import { applyPreview, clearPreview, useAdvisorStore } from "@/store/advisorStore";
 
 /**
  * Quick-fix preview UI shared by the Advisor (Spec 12) and the Chaos tab's
@@ -53,11 +53,11 @@ export function useFrameNodes(from: RefObject<Element | null>) {
 /** The preview ends when the panel showing it unmounts, and on Escape. */
 export function useEndPreviewOnLeave(): void {
   const previewing = useAdvisorStore((s) => s.preview !== null);
-  useEffect(() => () => setFixPreview("", null), []);
+  useEffect(() => clearPreview, []);
   useEffect(() => {
     if (!previewing) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFixPreview("", null);
+      if (e.key === "Escape") clearPreview();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -89,7 +89,7 @@ export function FixPreviewBanner({ readOnly }: { readOnly: boolean }) {
       </button>
       <button
         type="button"
-        onClick={() => setFixPreview("", null)}
+        onClick={clearPreview}
         className={`${FIX_BUTTON} text-zinc-300 hover:bg-zinc-700`}
       >
         Cancel

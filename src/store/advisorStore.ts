@@ -47,12 +47,18 @@ interface AdvisorState {
   byNode: Record<string, Severity>;
   /** The fix drawn on the canvas before it's applied (ADV-02). */
   preview: AdvisorPreview | null;
+  /**
+   * Bumped whenever an input of `advisorContext()` or the design changes:
+   * what anything computed from the context (mitigations) depends on.
+   */
+  contextVersion: number;
 }
 
 export const useAdvisorStore = create<AdvisorState>(() => ({
   findings: [],
   byNode: {},
   preview: null,
+  contextVersion: 0,
 }));
 
 function worstByNode(findings: Finding[]): Record<string, Severity> {
@@ -155,11 +161,17 @@ export function refreshAdvisor(): void {
   if (key === lastKey) return;
   lastKey = key;
   const findings = computeFindings({ nodes, edges }, currentContext(nodes, signature));
-  useAdvisorStore.setState({
+  useAdvisorStore.setState((s) => ({
     findings,
     byNode: worstByNode(findings),
-    preview: refreshedPreview(useAdvisorStore.getState().preview, findings),
-  });
+    preview: refreshedPreview(s.preview, findings),
+    contextVersion: s.contextVersion + 1,
+  }));
+}
+
+/** Hide the previewed fix. */
+export function clearPreview(): void {
+  useAdvisorStore.setState({ preview: null });
 }
 
 /** The preview against the current graph; null when the fix no longer changes anything. */

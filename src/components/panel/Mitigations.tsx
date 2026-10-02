@@ -37,13 +37,14 @@ export function Mitigations({
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
   const readOnly = useIsActiveTabReadOnly();
-  // Findings change with the run's load and the design: the same inputs the fixes size from.
-  const findings = useAdvisorStore((s) => s.findings);
+  // The run's load, the read mix and the design: what the fixes size from.
+  const contextVersion = useAdvisorStore((s) => s.contextVersion);
   const previewKey = useAdvisorStore((s) => (s.preview?.fromFinding ? null : s.preview?.key));
   const { framePreview } = useFrameNodes(frameFrom);
   const tips = useMemo(
-    () => (findings ? mitigationsFor(fault, { nodes, edges }, advisorContext()) : []),
-    [fault, nodes, edges, findings],
+    // `contextVersion` is the change signal for `advisorContext()`.
+    () => (contextVersion >= 0 ? mitigationsFor(fault, { nodes, edges }, advisorContext()) : []),
+    [fault, nodes, edges, contextVersion],
   );
   if (tips.length === 0) return null;
   const base = faultKey(fault);
