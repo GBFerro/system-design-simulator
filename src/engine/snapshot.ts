@@ -4,7 +4,7 @@
  */
 import { PARAM } from "@/domain/components/params";
 import type { NodeStatus } from "@/types/simulation";
-import { resolveConfig } from "./analyze";
+import { resolveConfig } from "./config";
 import type {
   NodeSteadyState,
   SimConfig,
