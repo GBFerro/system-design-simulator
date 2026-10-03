@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { MOD, center, open, quickAdd } from "./helpers";
+import { MOD, center, connect, edgePoint, open, quickAdd } from "./helpers";
 
 // Spec 02: one test per editor bug from the diagnosis (B1–B6) plus the CAN-05 shortcuts.
 
@@ -212,4 +212,108 @@ test("CAN-05: copy/paste, duplicate, select all and arrow nudges", async ({ page
 
   await page.keyboard.press("?");
   await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+});
+
+// Request-flow (FLW-08/17/25/26/44): the Props panel edits every call an edge carries.
+
+/** App Server → SQL DB, then App Server → Cache: the DB call runs at step 1, the cache's at 2. */
+async function serviceWithDbAndCache(page: Page) {
+  await open(page);
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "Cache / Redis");
+  await quickAdd(page, "SQL Database");
+  await expect(nodes(page)).toHaveCount(3);
+  await connect(page, "app-server", "sql-db");
+  await connect(page, "app-server", "cache");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+}
+
+const edgeTo = (page: Page, target: string) =>
+  page.locator(`.react-flow__edge[data-id*="${target}-"]`);
+
+async function selectEdge(page: Page, target?: string) {
+  const point = await edgePoint(page, target ? edgeTo(page, target) : undefined);
+  await page.mouse.click(point.x, point.y);
+  await expect(page.getByTestId("edge-calls")).toBeVisible();
+}
+
+const call = (page: Page, n: number) => page.getByRole("group", { name: `Call ${n}` });
+
+test("FLW-25: the Props panel edits an edge's calls, one undo step per edit", async ({ page }) => {
+  await serviceWithDbAndCache(page);
+
+  // The cache call: its source calls no other cache, so no "reads after a miss" (FLW-08)
+  await selectEdge(page, "cache");
+  await expect(
+    call(page, 1).getByLabel("Call rule").locator("option", { hasText: "Reads after a miss in" }),
+  ).toHaveCount(0);
+
+  await selectEdge(page, "sql-db");
+  await expect(call(page, 2)).toHaveCount(0);
+  // An edge keeps at least one call (FLW-44)
+  await expect(call(page, 1).getByRole("button", { name: "Remove call 1" })).toBeDisabled();
+  await call(page, 1).getByLabel("Call rule").selectOption("writes");
+
+  await page.getByRole("button", { name: "Add call" }).click();
+  await expect(call(page, 2)).toBeVisible();
+  await expect(call(page, 1).getByRole("button", { name: "Remove call 1" })).toBeEnabled();
+  await call(page, 2).getByLabel("Call rule").selectOption("after_miss");
+  // The look-aside call names the cache the service calls (FLW-08)
+  await expect(call(page, 2).getByLabel("Cache")).toHaveValue(/^cache-/);
+  await expect(call(page, 2).getByLabel("Cache").locator("option:checked")).toHaveText(
+    "Cache / Redis",
+  );
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+
+  // One undo reverts exactly the last edit
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(call(page, 2).getByLabel("Call rule")).toHaveValue("always");
+  await expect(call(page, 2).getByLabel("Cache")).toHaveCount(0);
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(call(page, 2)).toHaveCount(0);
+
+  // At most MAX_EDGE_CALLS (8) calls per edge
+  const add = page.getByRole("button", { name: "Add call" });
+  for (let n = 2; n <= 8; n++) {
+    await add.click();
+    await expect(call(page, n)).toBeVisible();
+  }
+  await expect(add).toBeDisabled();
+});
+
+test("FLW-26: the first explicit step pins the node's other calls where they run", async ({
+  page,
+}) => {
+  await serviceWithDbAndCache(page);
+  await selectEdge(page, "cache");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("2");
+
+  await selectEdge(page, "sql-db");
+  const step = call(page, 1).getByLabel("Step");
+  await expect(step).toHaveValue("1");
+  await step.fill("2");
+  await step.press("Enter");
+  await expect(step).toHaveValue("2");
+  // The cache call keeps step 2 (pinned) instead of moving after the explicit one
+  await selectEdge(page, "cache");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("2");
+
+  // Pinning and the edit are one undo step
+  await page.getByRole("button", { name: "Undo" }).click();
+  await selectEdge(page, "sql-db");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("1");
+  await selectEdge(page, "cache");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("2");
+});
+
+test("FLW-25: on a read-only reference the calls can't be edited", async ({ page }) => {
+  await open(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(nodes(page).first()).toBeVisible();
+  await selectEdge(page);
+  await expect(call(page, 1).getByLabel("Call rule")).toBeDisabled();
+  await expect(call(page, 1).getByLabel("Calls per request")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Add call" })).toBeDisabled();
+  await expect(call(page, 1).getByRole("button", { name: "Remove call 1" })).toBeDisabled();
 });

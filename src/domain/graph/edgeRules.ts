@@ -579,7 +579,7 @@ export const EDGE_CALL_KIND_OPTIONS: readonly { value: EdgeCallKind; label: stri
 export const EDGE_CALL_SPECS: readonly ParamSpec[] = [
   {
     key: "kind",
-    label: "Condition",
+    label: "Call rule",
     kind: "enum",
     default: "always",
     options: [...EDGE_CALL_KIND_OPTIONS],

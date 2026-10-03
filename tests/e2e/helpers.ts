@@ -35,6 +35,25 @@ export async function connect(page: Page, from: string, to: string) {
   await page.mouse.up();
 }
 
+/** A point on an edge's path (default: the first edge) that isn't covered by a node or the label. */
+export async function edgePoint(
+  page: Page,
+  edge: Locator = page.locator(".react-flow__edge").first(),
+) {
+  return edge.locator("path.react-flow__edge-interaction").evaluate((path: SVGPathElement) => {
+    const m = path.getScreenCTM()!;
+    const length = path.getTotalLength();
+    for (let i = 1; i < 20; i++) {
+      const p = path.getPointAtLength((length * i) / 20);
+      const x = p.x * m.a + p.y * m.c + m.e;
+      const y = p.x * m.b + p.y * m.d + m.f;
+      const hit = document.elementFromPoint(x, y)?.closest(".react-flow__edge");
+      if (hit && hit === path.closest(".react-flow__edge")) return { x, y };
+    }
+    throw new Error("edge is fully covered");
+  });
+}
+
 /** Instant steady-state analysis: the Sim panel's Analyze button (the top bar's Simulate starts the live run). */
 export async function analyze(page: Page) {
   await page.getByRole("tab", { name: "Simulate" }).click();

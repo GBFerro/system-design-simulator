@@ -514,16 +514,17 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Plugado no bloco "Call rule" de `RightPanel.tsx`, substituindo o `ParamsForm` da regra
-- [ ] "Adicionar" desabilitado em `MAX_EDGE_CALLS`; "Remover" desabilitado na última chamada
-- [ ] Opção "após miss" ausente quando a fonte não chama nenhum cache
-- [ ] Em aba somente leitura os campos ficam desabilitados
-- [ ] e2e em `tests/e2e/editor.spec.ts`: adicionar "escritas" + "após miss" numa aresta, desfazer com um undo, aba de referência sem edição
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Plugado no bloco "Call rule" de `RightPanel.tsx`, substituindo o `ParamsForm` da regra
+- [x] "Adicionar" desabilitado em `MAX_EDGE_CALLS`; "Remover" desabilitado na última chamada
+- [x] Opção "após miss" ausente quando a fonte não chama nenhum cache
+- [x] Em aba somente leitura os campos ficam desabilitados
+- [x] e2e em `tests/e2e/editor.spec.ts`: adicionar "escritas" + "após miss" numa aresta, desfazer com um undo, aba de referência sem edição
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(panel): editor de chamadas da aresta`
+**Status**: ✅ Complete
 
 ---
 

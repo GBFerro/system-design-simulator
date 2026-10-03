@@ -22,7 +22,6 @@ import {
   CopyPlus,
 } from "lucide-react";
 import {
-  edgeRuleOf,
   useCanvasStore,
   useIsActiveTabReadOnly,
   type ComponentNodeData,
@@ -34,8 +33,8 @@ import {
   instancesOf,
   resolvedParams,
 } from "@/domain/components/registry";
-import { EDGE_RULE_SPECS, edgeRuleValues, type EdgeRulePatch } from "@/domain/graph/edgeRules";
 import { ParamsForm } from "./ParamsForm";
+import { EdgeCallsForm } from "./EdgeCallsForm";
 import { CostPanel } from "./CostPanel";
 import { formatMoney } from "@/cost/currency";
 import { useAppStore } from "@/store/appStore";
@@ -271,11 +270,7 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
 
 function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
-  const updateEdgeRule = useCanvasStore((s) => s.updateEdgeRule);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const edges = useCanvasStore((s) => s.edges);
-  const rule = edgeRuleOf({ nodes, edges }, selectedEdge);
   const readOnly = useIsActiveTabReadOnly();
 
   const data = (selectedEdge.data ?? {}) as CustomEdgeData;
@@ -373,16 +368,8 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           </p>
         </div>
 
-        {/* Call rule (Spec 03): which requests take this edge */}
-        <ParamsForm
-          specs={EDGE_RULE_SPECS}
-          values={edgeRuleValues(rule)}
-          grouped={false}
-          disabled={readOnly}
-          onCommit={(key, value) =>
-            updateEdgeRule(selectedEdge.id, { [key]: value } as EdgeRulePatch)
-          }
-        />
+        {/* Calls (request-flow): which requests make each call over this edge, and in what order */}
+        <EdgeCallsForm edge={selectedEdge} />
 
         {/* Remove connection — clears selection via the store */}
         <Button
