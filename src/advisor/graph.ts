@@ -8,7 +8,7 @@
 import type { Edge, Node, XYPosition } from "@xyflow/react";
 import { getComponentById } from "@/data/components";
 import { instancesOf, PARAM, resolvedParams, sanitizeParams } from "@/domain/components/registry";
-import type { EdgeRule, Params } from "@/domain/components/types";
+import type { Params } from "@/domain/components/types";
 import {
   applyEdgeRulePatch,
   canvasRuleGraph,
@@ -16,6 +16,7 @@ import {
   edgeRuleOf,
   newEdgeData,
   type EdgeProtocol,
+  type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
 import { componentNodeWithId } from "@/lib/nodeFactory";
 import { freePositionNear, nodeRect } from "@/lib/placement";
@@ -68,7 +69,7 @@ export function newEdge(
   id: string,
   source: string,
   target: string,
-  rule: Partial<EdgeRule> = {},
+  rule: EdgeRulePatch = {},
   protocol: EdgeProtocol = "http",
 ): Edge {
   const graph = canvasRuleGraph(nodes, edges);
@@ -85,9 +86,9 @@ export interface InsertOptions {
   idBase: string;
   params?: Params;
   /** Rule of the edge into the new node; default: the replaced edge's rule. */
-  inRule?: Partial<EdgeRule>;
+  inRule?: EdgeRulePatch;
   /** Rule of the edge out of it; default: the connect default. */
-  outRule?: Partial<EdgeRule>;
+  outRule?: EdgeRulePatch;
   /**
    * The edge out of the new node keeps the replaced edge's id, protocol and
    * link (network latency, loss): a fault on that link stays on it. Used when
@@ -116,18 +117,10 @@ export function insertBetween(
   const node = newComponentNode(componentId, uniqueId(idBase, graph), position, params);
   const nodes = [...graph.nodes, node];
   const edges = graph.edges.filter((e) => e.id !== edge.id);
-  const { kind, callsPerRequest, fraction, networkLatencyMs, packetLoss } = edgeRuleOf(graph, edge);
+  const { calls, networkLatencyMs, packetLoss } = edgeRuleOf(graph, edge);
   const protocol = ((edge.data ?? {}) as CustomEdgeData).protocol ?? "http";
   const inId = uniqueId(`e-${a.id}-${node.id}`, graph);
-  const into = newEdge(
-    nodes,
-    edges,
-    inId,
-    a.id,
-    node.id,
-    inRule ?? { kind, callsPerRequest, fraction },
-    protocol,
-  );
+  const into = newEdge(nodes, edges, inId, a.id, node.id, inRule ?? { calls }, protocol);
   const out = newEdge(
     nodes,
     [...edges, into],

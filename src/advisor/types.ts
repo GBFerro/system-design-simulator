@@ -4,7 +4,8 @@
  * graph with a preview and one undo step (ADV-02).
  */
 import type { Edge, Node } from "@xyflow/react";
-import type { EdgeRule, Params } from "@/domain/components/types";
+import type { Params } from "@/domain/components/types";
+import type { EdgeRulePatch } from "@/domain/graph/edgeRules";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { ScoreResult } from "@/types/scoring";
 
@@ -42,7 +43,7 @@ export interface GraphDiff {
   /** Param patches by node id (sanitized by the node's schema). */
   nodeParams: Record<string, Params>;
   /** Rule patches by edge id (normalized). */
-  edgeRules: Record<string, Partial<EdgeRule>>;
+  edgeRules: Record<string, EdgeRulePatch>;
 }
 
 export interface QuickFix {

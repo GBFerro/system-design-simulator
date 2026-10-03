@@ -7,6 +7,7 @@ import { createComponentNode } from "@/lib/nodeFactory";
 import {
   canvasRuleGraph,
   defaultEdgeRule,
+  edgeRuleV2Of,
   newEdgeData,
   sanitizeEdgeRule,
 } from "@/domain/graph/edgeRules";
@@ -71,7 +72,8 @@ export function buildReferenceGraph(problem: Problem): {
         data: newEdgeData(sourceId, targetId, canvasRuleGraph(refNodes, refEdges), {
           async: ref.async === true,
           rule: ref.rule
-            ? sanitizeEdgeRule({ ...fallbackRule, ...ref.rule }, fallbackRule)
+            ? // (reference rules are still written in the v2 flat shape)
+              sanitizeEdgeRule({ ...edgeRuleV2Of(fallbackRule), ...ref.rule }, fallbackRule)
             : fallbackRule,
         }),
       });

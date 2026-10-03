@@ -114,7 +114,10 @@ const ofType = (g: Graph, componentId: string) =>
   g.nodes.find((n) => (n.data as { componentId?: string }).componentId === componentId)!;
 const ruleKind = (g: Graph, source: string, target: string) => {
   const e = g.edges.find((x) => x.source === source && x.target === target);
-  return e ? edgeRuleOf(g, e).kind : undefined;
+  if (!e) return undefined;
+  const { calls } = edgeRuleOf(g, e);
+  expect(calls).toHaveLength(1);
+  return calls[0].kind;
 };
 
 /** Client → App → (rest). */

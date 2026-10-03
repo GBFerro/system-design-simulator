@@ -11,7 +11,7 @@
  * | breaker       | passes all, or fails fast while open (`core/breaker.ts`)           |
  */
 import { PARAM } from "@/domain/components/registry";
-import type { EdgeRule } from "@/domain/components/types";
+import type { EdgeCall, EdgeRule } from "@/domain/components/types";
 import type { SimEdge, SimNode } from "@/domain/graph/compile";
 import { clamp01 } from "./queueing";
 
@@ -66,15 +66,18 @@ export function availabilityOf(node: SimNode): number {
 
 /* ---------- edge rules ---------- */
 
-/** Probability a single request takes this edge (before callsPerRequest). */
-export function ruleProbability(rule: EdgeRule, source: SimNode, readRatio: number): number {
-  switch (rule.kind) {
+/** Probability a single request makes this call (before callsPerRequest). */
+export function ruleProbability(call: EdgeCall, source: SimNode, readRatio: number): number {
+  switch (call.kind) {
+    // after_miss: the reads that missed the source's cache call; without the
+    // cache's hit rate (not known per call here) that is every read.
     case "reads":
+    case "after_miss":
       return clamp01(readRatio);
     case "writes":
       return clamp01(1 - readRatio);
     case "fraction":
-      return clamp01(rule.fraction ?? 1);
+      return clamp01(call.fraction ?? 1);
     case "on_miss":
       return 1 - hitRateOf(source);
     default:
@@ -82,14 +85,21 @@ export function ruleProbability(rule: EdgeRule, source: SimNode, readRatio: numb
   }
 }
 
-export function callsOf(rule: EdgeRule): number {
-  const k = rule.callsPerRequest;
+export function callsOf(call: EdgeCall): number {
+  const k = call.callsPerRequest;
   return Number.isFinite(k) && k > 0 ? k : 0;
 }
 
-/** Flow multiplier of an edge: P(taken) × callsPerRequest. */
+/**
+ * Flow multiplier of an edge: Σ over its calls of P(taken) × callsPerRequest
+ * (summed from the first term, so one call gives exactly that call's factor).
+ */
 export function ruleFactor(rule: EdgeRule, source: SimNode, readRatio: number): number {
-  return ruleProbability(rule, source, readRatio) * callsOf(rule);
+  const [first, ...rest] = rule.calls;
+  if (!first) return 0;
+  let factor = ruleProbability(first, source, readRatio) * callsOf(first);
+  for (const call of rest) factor += ruleProbability(call, source, readRatio) * callsOf(call);
+  return factor;
 }
 
 /* ---------- load balancer ---------- */

@@ -110,7 +110,7 @@ function AnimatedEdgeInner({
             )}
             {ruleBadge && (
               <span
-                data-edge-rule={edgeData.rule?.kind}
+                data-edge-rule={edgeData.rule?.calls[0]?.kind}
                 className="rounded border border-cyan-500/30 bg-cyan-500/10 px-1 py-0.5 text-[10px] font-medium leading-none text-cyan-300"
               >
                 {ruleBadge}

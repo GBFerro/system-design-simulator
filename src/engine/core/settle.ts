@@ -96,10 +96,12 @@ export function settle(
       a *= 1 - down;
     } else {
       for (const e of sync) {
-        const q = ruleProbability(e.rule, node, readRatio);
-        const k = callsOf(e.rule);
-        s *= 1 - q + q * callOk(e) ** k;
-        a *= 1 - q + q * (avail.get(e.target) ?? 1);
+        for (const call of e.rule.calls) {
+          const q = ruleProbability(call, node, readRatio);
+          const k = callsOf(call);
+          s *= 1 - q + q * callOk(e) ** k;
+          a *= 1 - q + q * (avail.get(e.target) ?? 1);
+        }
       }
     }
     success.set(id, clamp01(s));
@@ -119,22 +121,26 @@ export function sampleNodesFor(
   for (const id of order) {
     const node = byId.get(id)!;
     const flow = flows.get(id)!;
-    // LB: keep async targets so their share still counts (the user isn't kept waiting).
+    // LB: keep async targets so their share still counts (the user isn't kept
+    // waiting); one entry per edge (the LB picks a target, rules don't apply).
+    // Other nodes: one entry per call, in edge order then call order.
     const sync: SampleEdge[] =
       node.routing === "queue"
         ? []
         : (out.get(id) ?? [])
             .filter((e) => node.routing === "lb" || !e.async)
-            .map((e) => ({
-              async: e.async,
-              target: e.target,
-              kind: e.rule.kind,
-              fraction: clamp01(e.rule.fraction ?? 1),
-              callsPerRequest: node.routing === "lb" ? 1 : callsOf(e.rule),
-              networkLatencyMs: e.rule.networkLatencyMs,
-              packetLoss: e.rule.packetLoss,
-              share: shares.get(e.id) ?? 0,
-            }));
+            .flatMap((e) =>
+              (node.routing === "lb" ? e.rule.calls.slice(0, 1) : e.rule.calls).map((call) => ({
+                async: e.async,
+                target: e.target,
+                kind: call.kind,
+                fraction: clamp01(call.fraction ?? 1),
+                callsPerRequest: node.routing === "lb" ? 1 : callsOf(call),
+                networkLatencyMs: e.rule.networkLatencyMs,
+                packetLoss: e.rule.packetLoss,
+                share: shares.get(e.id) ?? 0,
+              })),
+            );
     sampleNodes.set(id, {
       station: flow.st,
       dropProbability: flow.offered > 0 ? clamp01(flow.dropped / flow.offered) : 0,

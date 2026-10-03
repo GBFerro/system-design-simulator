@@ -160,13 +160,17 @@ function delayed(modifiers: RelativeModifier[], seconds: number): RelativeModifi
 
 /**
  * Share of the calls on `e` that write to its target: a queue's every
- * publish, a `writes` edge entirely, `always`/`fraction` by the write share,
- * `reads` and `on_miss` (cache misses are reads) none.
+ * publish, an edge whose calls are all `writes` entirely, one whose calls
+ * are all reads (`reads`, `on_miss` and `after_miss`: cache misses are
+ * reads) none, anything else by the write share.
  */
 function writeShareOf(e: SimEdge, target: SimNode, readRatio: number): number {
   if (target.routing === "queue") return 1;
-  if (e.rule.kind === "writes") return 1;
-  if (e.rule.kind === "reads" || e.rule.kind === "on_miss") return 0;
+  const calls = e.rule.calls;
+  if (calls.every((c) => c.kind === "writes")) return 1;
+  if (calls.every((c) => c.kind === "reads" || c.kind === "on_miss" || c.kind === "after_miss")) {
+    return 0;
+  }
   return 1 - readRatio;
 }
 

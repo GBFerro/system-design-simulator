@@ -8,7 +8,7 @@
  * fire-and-forget for the user. The cost is O(N × path length), independent
  * of the RPS. Seeded, so the same model + seed gives the same percentiles.
  */
-import type { EdgeRuleKind } from "@/domain/components/types";
+import type { EdgeCallKind } from "@/domain/components/types";
 import type { LatencySummary } from "../types";
 import { sampleServiceMs, sampleWaitMs, type StationState } from "./queueing";
 import type { Rng } from "./rng";
@@ -17,7 +17,7 @@ export interface SampleEdge {
   target: string;
   /** Only LB edges can be async here: picking one ends the user's wait. */
   async: boolean;
-  kind: EdgeRuleKind;
+  kind: EdgeCallKind;
   /** kind = "fraction": P(taken). */
   fraction: number;
   callsPerRequest: number;
@@ -132,7 +132,9 @@ export function sampleLatency(
     for (const e of node.edges) {
       let taken: boolean;
       switch (e.kind) {
+        // after_miss: every read until the cache call's outcome is sampled
         case "reads":
+        case "after_miss":
           taken = isRead;
           break;
         case "writes":

@@ -91,10 +91,15 @@ export const CORE_PARAM = {
 
 /* ---------- edge rules ---------- */
 
+/** Condition of a schema v2 (flat) edge rule; every one is also an `EdgeCallKind`. */
 export type EdgeRuleKind = "always" | "on_miss" | "reads" | "writes" | "fraction";
 
-/** Call rule carried by every edge (in `edge.data.rule`). Replaces the v1 "fan-out 100%". */
-export interface EdgeRule {
+/**
+ * Edge rule as schema v2 stored it (flat: one condition per edge). Read only
+ * by the v1 → v2 migration and by data still written in that shape (the
+ * reference solutions); everything else uses `EdgeRule`.
+ */
+export interface EdgeRuleV2 {
   kind: EdgeRuleKind;
   /** 0–1, only for kind = "fraction". */
   fraction?: number;
@@ -128,10 +133,15 @@ export interface EdgeCall {
   callsPerRequest: number;
 }
 
-/** The link (network) plus the calls made over it, as stored in `edge.data.rule` from schema v3. */
-export interface EdgeRuleV3 {
+/**
+ * Carried by every edge (in `edge.data.rule`): the link (network) plus the
+ * calls the source makes over it. Replaces the v1 "fan-out 100%".
+ */
+export interface EdgeRule {
   /** 1..MAX_EDGE_CALLS. */
   calls: EdgeCall[];
+  /** Default depends on the protocol. */
   networkLatencyMs: number;
+  /** 0–1, default 0. */
   packetLoss: number;
 }

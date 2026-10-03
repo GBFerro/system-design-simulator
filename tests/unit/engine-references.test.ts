@@ -7,6 +7,7 @@ import { runSimulation } from "@/engine/legacy/simulator";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { SteadyState } from "@/engine/types";
+import type { EdgeRule } from "@/domain/components/types";
 
 function assertFinite(s: SteadyState) {
   const numbers: number[] = [
@@ -74,7 +75,9 @@ describe("reference solutions through analyze()", () => {
       const controlOnly = (id: string) =>
         incoming(id).length > 0 &&
         incoming(id).every(
-          (e) => (e.data as { rule?: { callsPerRequest?: number } }).rule?.callsPerRequest === 0,
+          (e) =>
+            (e.data as { rule?: EdgeRule }).rule?.calls.every((c) => c.callsPerRequest === 0) ===
+            true,
         );
       const legacyReached = [...legacy.nodeMetrics.values()]
         .filter((m) => m.incomingQPS > 0 && !controlOnly(m.nodeId))

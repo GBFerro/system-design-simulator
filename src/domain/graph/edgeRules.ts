@@ -4,6 +4,7 @@ import type {
   EdgeCallKind,
   EdgeRule,
   EdgeRuleKind,
+  EdgeRuleV2,
   ParamSpec,
   Params,
 } from "@/domain/components/types";
@@ -67,9 +68,9 @@ export function defaultEdgeRule(
   protocol?: unknown,
   context: EdgeRuleContext = {},
 ): EdgeRule {
+  const call: EdgeCall = { kind: "always", callsPerRequest: 1 };
   const rule: EdgeRule = {
-    kind: "always",
-    callsPerRequest: 1,
+    calls: [call],
     networkLatencyMs: networkLatencyFor(protocol),
     packetLoss: 0,
   };
@@ -77,17 +78,17 @@ export function defaultEdgeRule(
   const routing = routingFor(sourceComponentId);
 
   if (routing === "cache") {
-    rule.kind = "on_miss";
+    call.kind = "on_miss";
   } else if (sourceComponentId === AUTOSCALER) {
-    rule.callsPerRequest = 0;
+    call.callsPerRequest = 0;
   } else if (routing === "queue" && targetComponentId === DLQ) {
-    rule.kind = "fraction";
-    rule.fraction = DEFAULT_DLQ_FRACTION;
+    call.kind = "fraction";
+    call.fraction = DEFAULT_DLQ_FRACTION;
   } else if (sourceComponentId === SQL_DB && targetComponentId === READ_REPLICA) {
-    rule.kind = "writes";
+    call.kind = "writes";
   } else if (isCaller(sourceComponentId)) {
-    if (targetComponentId === READ_REPLICA) rule.kind = "reads";
-    else if (targetComponentId === SQL_DB && context.targetHasReadReplica) rule.kind = "writes";
+    if (targetComponentId === READ_REPLICA) call.kind = "reads";
+    else if (targetComponentId === SQL_DB && context.targetHasReadReplica) call.kind = "writes";
   }
   return rule;
 }
@@ -229,9 +230,12 @@ export function splitReadsOnReplicaConnect<E extends GraphEdge>(
     if (e.source !== sourceNodeId || graph.componentIdOf(e.target) !== SQL_DB) return e;
     // Edges saved before v2 may lack a rule: their default is `always`
     const rule = sanitizeEdgeRule(e.data?.rule, defaultEdgeRule(source, SQL_DB, e.data?.protocol));
-    if (rule.kind !== "always") return e;
+    if (!rule.calls.some((c) => c.kind === "always")) return e;
     changed = true;
-    return { ...e, data: { ...e.data, rule: { ...rule, kind: "writes" as const } } };
+    const calls = rule.calls.map((c) =>
+      c.kind === "always" ? { ...c, kind: "writes" as const } : c,
+    );
+    return { ...e, data: { ...e.data, rule: { ...rule, calls } } };
   });
   return changed ? edges : graph.edges;
 }
@@ -242,22 +246,58 @@ function clamp(v: unknown, min: number, max: number, fallback: number): number {
 
 /**
  * Normalize a raw rule (from storage, import or UI). Missing/invalid fields
- * take the default for this edge. Never throws.
+ * take the default for this edge. Accepts the v3 shape (`calls`) and, as a
+ * defense beyond the persistence migration, the v2 flat one (`kind` on top),
+ * normalized exactly as schema v2 did and turned into one call. Problems in
+ * the call list go to `onWarning` (`sanitizeEdgeCalls`). Never throws.
  */
-export function sanitizeEdgeRule(raw: unknown, fallback: EdgeRule): EdgeRule {
-  if (typeof raw !== "object" || raw === null) return { ...fallback };
-  const r = raw as Record<string, unknown>;
-  const kind = RULE_KINDS.includes(r.kind as EdgeRuleKind)
-    ? (r.kind as EdgeRuleKind)
-    : fallback.kind;
-  const rule: EdgeRule = {
-    kind,
-    callsPerRequest: clamp(r.callsPerRequest, 0, 100, fallback.callsPerRequest),
+export function sanitizeEdgeRule(
+  raw: unknown,
+  fallback: EdgeRule,
+  onWarning?: (message: string) => void,
+): EdgeRule {
+  const r = asObject(raw);
+  if (!r) return cloneEdgeRule(fallback);
+  const link = {
     networkLatencyMs: clamp(r.networkLatencyMs, 0, 10_000, fallback.networkLatencyMs),
     packetLoss: clamp(r.packetLoss, 0, 1, fallback.packetLoss),
   };
-  if (kind === "fraction") rule.fraction = clamp(r.fraction, 0, 1, fallback.fraction ?? 1);
-  return rule;
+  if ("calls" in r) {
+    return { calls: sanitizeEdgeCalls(r.calls, fallback.calls, onWarning), ...link };
+  }
+  // v2 flat rule: invalid/missing fields take the fallback's (first) call.
+  const base = fallback.calls[0] ?? { kind: "always", callsPerRequest: 1 };
+  const kind = RULE_KINDS.includes(r.kind as EdgeRuleKind) ? (r.kind as EdgeRuleKind) : base.kind;
+  const call: EdgeCall = {
+    kind,
+    callsPerRequest: clamp(r.callsPerRequest, 0, 100, base.callsPerRequest),
+  };
+  if (kind === "fraction") call.fraction = clamp(r.fraction, 0, 1, base.fraction ?? 1);
+  return { calls: [call], ...link };
+}
+
+function cloneEdgeRule(rule: EdgeRule): EdgeRule {
+  return { ...rule, calls: rule.calls.map((c) => ({ ...c })) };
+}
+
+/**
+ * A rule in the v2 flat shape: its first call plus the link. Only for the
+ * v1 → v2 migration, which still produces schema v2 data.
+ */
+export function edgeRuleV2Of(rule: EdgeRule): EdgeRuleV2 {
+  const call = rule.calls[0] ?? { kind: "always", callsPerRequest: 1 };
+  // (`after_miss` has no v2 form: without its cache it is every read)
+  const kind = RULE_KINDS.includes(call.kind as EdgeRuleKind)
+    ? (call.kind as EdgeRuleKind)
+    : "reads";
+  const v2: EdgeRuleV2 = {
+    kind,
+    callsPerRequest: call.callsPerRequest,
+    networkLatencyMs: rule.networkLatencyMs,
+    packetLoss: rule.packetLoss,
+  };
+  if (kind === "fraction") v2.fraction = call.fraction;
+  return v2;
 }
 
 /* ---------- calls (request-flow, schema v3) ---------- */
@@ -441,35 +481,65 @@ export const EDGE_RULE_SPECS: readonly ParamSpec[] = [
   },
 ];
 
-/** A rule as flat form values (fraction shown even while hidden). */
+/**
+ * A rule as flat form values (fraction shown even while hidden): the link
+ * plus the edge's first call, the one the single-call form edits.
+ */
 export function edgeRuleValues(rule: EdgeRule): Params {
+  const call = rule.calls[0];
   return {
-    kind: rule.kind,
-    fraction: rule.fraction ?? DEFAULT_RULE_FRACTION,
-    callsPerRequest: rule.callsPerRequest,
+    kind: call.kind,
+    fraction: call.fraction ?? DEFAULT_RULE_FRACTION,
+    callsPerRequest: call.callsPerRequest,
     networkLatencyMs: rule.networkLatencyMs,
     packetLoss: rule.packetLoss,
   };
 }
 
+/**
+ * An edit to an edge's rule: link fields, a whole call list (`calls`), or
+ * fields of the edge's first call (`kind`/`fraction`/`callsPerRequest`, what
+ * the single-call form and the context menu edit).
+ */
+export type EdgeRulePatch = Partial<EdgeRule> &
+  Partial<Pick<EdgeCall, "kind" | "fraction" | "callsPerRequest">>;
+
 /** Apply a form edit to a rule, then normalize it. */
 export function applyEdgeRulePatch(
   current: EdgeRule,
-  patch: Partial<EdgeRule>,
+  patch: EdgeRulePatch,
   fallback: EdgeRule,
 ): EdgeRule {
-  const merged: EdgeRule = { ...current, ...patch };
-  if (merged.kind === "fraction" && merged.fraction === undefined) {
-    merged.fraction = DEFAULT_RULE_FRACTION;
+  const { kind, fraction, callsPerRequest, calls, ...link } = patch;
+  let nextCalls = calls ?? current.calls;
+  if (kind !== undefined || fraction !== undefined || callsPerRequest !== undefined) {
+    const first: EdgeCall = { ...nextCalls[0] };
+    if (kind !== undefined) first.kind = kind;
+    if (fraction !== undefined) first.fraction = fraction;
+    if (callsPerRequest !== undefined) first.callsPerRequest = callsPerRequest;
+    nextCalls = [first, ...nextCalls.slice(1)];
   }
-  return sanitizeEdgeRule(merged, fallback);
+  nextCalls = nextCalls.map((c) =>
+    c.kind === "fraction" && c.fraction === undefined
+      ? { ...c, fraction: DEFAULT_RULE_FRACTION }
+      : c,
+  );
+  return sanitizeEdgeRule({ ...current, ...link, calls: nextCalls }, fallback);
 }
 
-/** Short label for the canvas edge badge; `null` for the plain `always` × 1 case. */
+/**
+ * Short label for the canvas edge badge: each call's label, joined; `null`
+ * for the plain `always` × 1 case.
+ */
 export function edgeRuleBadge(rule: EdgeRule | undefined): string | null {
   if (!rule) return null;
-  const calls = rule.callsPerRequest === 1 ? "" : ` ×${rule.callsPerRequest}`;
-  switch (rule.kind) {
+  const labels = rule.calls.map(edgeCallBadge).filter((l): l is string => l !== null);
+  return labels.length > 0 ? labels.join(" · ") : null;
+}
+
+function edgeCallBadge(call: EdgeCall): string | null {
+  const calls = call.callsPerRequest === 1 ? "" : ` ×${call.callsPerRequest}`;
+  switch (call.kind) {
     case "on_miss":
       return `miss${calls}`;
     case "reads":
@@ -477,7 +547,7 @@ export function edgeRuleBadge(rule: EdgeRule | undefined): string | null {
     case "writes":
       return `writes${calls}`;
     case "fraction":
-      return `${Math.round((rule.fraction ?? DEFAULT_RULE_FRACTION) * 1000) / 10}%${calls}`;
+      return `${Math.round((call.fraction ?? DEFAULT_RULE_FRACTION) * 1000) / 10}%${calls}`;
     default:
       return calls ? calls.trim() : null;
   }

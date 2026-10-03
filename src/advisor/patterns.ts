@@ -59,8 +59,7 @@ function readCacheFindings(view: DesignView, ctx: AdvisorContext): Finding[] {
     const readers = into.filter((e) => {
       if (isAsyncEdge(e) || !path.onPath.has(e.source)) return false;
       if (routingFor(componentOf(e.source)) !== "service") return false;
-      const kind = edgeRuleOf(graph, e).kind;
-      return kind === "always" || kind === "reads";
+      return edgeRuleOf(graph, e).calls.some((c) => c.kind === "always" || c.kind === "reads");
     });
     if (readers.length === 0) continue;
 
@@ -128,7 +127,7 @@ function readCacheDiff(
   const added: Edge[] = [];
   for (const e of readers) {
     const rule = edgeRuleOf(graph, e);
-    if (rule.kind === "reads") diff.removeEdgeIds.push(e.id);
+    if (rule.calls.every((c) => c.kind === "reads")) diff.removeEdgeIds.push(e.id);
     else diff.edgeRules[e.id] = { kind: "writes" };
     added.push(
       newEdge(
@@ -139,7 +138,7 @@ function readCacheDiff(
         cache.id,
         {
           kind: "reads",
-          callsPerRequest: rule.callsPerRequest,
+          callsPerRequest: rule.calls[0].callsPerRequest,
         },
       ),
     );

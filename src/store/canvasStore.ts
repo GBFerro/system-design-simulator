@@ -36,6 +36,7 @@ import {
   sanitizeEdgeRule,
   splitReadsOnReplicaConnect,
   type EdgeProtocol,
+  type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
 
 export { edgeRuleOf } from "@/domain/graph/edgeRules";
@@ -282,7 +283,7 @@ interface CanvasState {
   /** Merge a params edit (validated by the node's schema) in one undo step. */
   updateNodeParams: (nodeId: string, patch: Params) => void;
   /** Merge an edge rule edit (normalized) in one undo step. */
-  updateEdgeRule: (edgeId: string, patch: Partial<EdgeRule>) => void;
+  updateEdgeRule: (edgeId: string, patch: EdgeRulePatch) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
   clearCanvas: () => void;

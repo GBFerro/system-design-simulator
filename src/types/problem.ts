@@ -1,4 +1,4 @@
-import type { EdgeRule, Params } from "@/domain/components/types";
+import type { EdgeRuleV2, Params } from "@/domain/components/types";
 
 export interface ProblemRequirements {
   readsPerSec: number;
@@ -39,7 +39,7 @@ export interface ReferenceSolution {
   /** `params` override the schema defaults (sized so the reference holds its peak, Spec 09). */
   nodes: Array<{ componentId: string; x: number; y: number; params?: Params }>;
   /** `async`/`rule` override the connect defaults (e.g. metrics shipped asynchronously). */
-  edges: Array<{ source: string; target: string; async?: boolean; rule?: Partial<EdgeRule> }>;
+  edges: Array<{ source: string; target: string; async?: boolean; rule?: Partial<EdgeRuleV2> }>;
 }
 
 export interface Problem {

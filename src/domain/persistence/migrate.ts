@@ -1,6 +1,6 @@
 import { getComponentById } from "@/data/components";
 import { PARAM, sanitizeParams } from "@/domain/components/registry";
-import { defaultEdgeRule, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
+import { defaultEdgeRule, edgeRuleV2Of, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
 
 /**
  * Persistence migrations (Spec 05, PER-01).
@@ -198,10 +198,13 @@ function migrateEdges(
 
     // label / protocol / async (and anything else) are preserved as-is.
     const data = isRecord(raw.data) ? raw.data : {};
-    const rule = sanitizeEdgeRule(
+    // Schema v2 stores the flat rule (one condition per edge); a rule already
+    // in the call-list shape stays in it (never flattened: no call is lost).
+    const sanitized = sanitizeEdgeRule(
       data.rule,
       defaultEdgeRule(componentOf.get(source), componentOf.get(target), data.protocol),
     );
+    const rule = isRecord(data.rule) && "calls" in data.rule ? sanitized : edgeRuleV2Of(sanitized);
     edges.push({ ...raw, id, source, target, data: { ...data, rule } });
   });
   return edges;

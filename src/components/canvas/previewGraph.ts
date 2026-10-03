@@ -1,5 +1,6 @@
 import type { Edge, EdgeChange, Node, NodeChange } from "@xyflow/react";
 import type { GraphDiff } from "@/advisor/types";
+import { applyEdgeRulePatch, defaultEdgeRule, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
 
 /**
  * The advisor's quick-fix preview (Spec 12, ADV-02) as ReactFlow elements:
@@ -40,7 +41,8 @@ export function withPreview(
         const patch = diff.edgeRules[e.id];
         if (!patch) return e;
         // Show the rule the fix gives it (its badge reads "writes", say).
-        const rule = { callsPerRequest: 1, ...(e.data?.rule as object | undefined), ...patch };
+        const current = sanitizeEdgeRule(e.data?.rule, defaultEdgeRule(undefined));
+        const rule = applyEdgeRulePatch(current, patch, current);
         return { ...e, className: "sf-preview-changed", data: { ...e.data, rule } };
       }),
       ...diff.addEdges.map((e) => ({

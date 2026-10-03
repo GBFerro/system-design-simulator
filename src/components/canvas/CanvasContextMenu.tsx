@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
-import type { EdgeRule, ParamSpec, ParamValue } from "@/domain/components/types";
-import { EDGE_RULE_KIND_OPTIONS, EDGE_RULE_SPECS, edgeRuleValues } from "@/domain/graph/edgeRules";
+import type { ParamSpec, ParamValue } from "@/domain/components/types";
+import {
+  EDGE_RULE_KIND_OPTIONS,
+  EDGE_RULE_SPECS,
+  edgeRuleValues,
+  type EdgeRulePatch,
+} from "@/domain/graph/edgeRules";
 import { useReactFlow } from "@xyflow/react";
 import {
   ClipboardPaste,
@@ -176,7 +181,7 @@ function useMenuEntries(
       { heading: "Call rule" },
       ...EDGE_RULE_KIND_OPTIONS.map<MenuEntry>((o) => ({
         label: o.label,
-        checked: rule.kind === o.value,
+        checked: rule.calls[0].kind === o.value,
         onSelect: () => store.updateEdgeRule(edge.id, { kind: o.value }),
       })),
       ...EDGE_RULE_SPECS.filter(
@@ -184,8 +189,7 @@ function useMenuEntries(
       ).map<MenuEntry>((spec) => ({
         field: spec,
         value: ruleValues[spec.key],
-        onCommit: (value) =>
-          store.updateEdgeRule(edge.id, { [spec.key]: value } as Partial<EdgeRule>),
+        onCommit: (value) => store.updateEdgeRule(edge.id, { [spec.key]: value } as EdgeRulePatch),
       })),
       "separator",
       {

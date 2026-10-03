@@ -34,8 +34,7 @@ import {
   instancesOf,
   resolvedParams,
 } from "@/domain/components/registry";
-import type { EdgeRule } from "@/domain/components/types";
-import { EDGE_RULE_SPECS, edgeRuleValues } from "@/domain/graph/edgeRules";
+import { EDGE_RULE_SPECS, edgeRuleValues, type EdgeRulePatch } from "@/domain/graph/edgeRules";
 import { ParamsForm } from "./ParamsForm";
 import { CostPanel } from "./CostPanel";
 import { formatMoney } from "@/cost/currency";
@@ -381,7 +380,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           grouped={false}
           disabled={readOnly}
           onCommit={(key, value) =>
-            updateEdgeRule(selectedEdge.id, { [key]: value } as Partial<EdgeRule>)
+            updateEdgeRule(selectedEdge.id, { [key]: value } as EdgeRulePatch)
           }
         />
 

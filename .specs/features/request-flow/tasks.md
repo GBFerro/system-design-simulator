@@ -207,15 +207,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Leitores adaptados: `routing.ts` (`ruleFactor` = Σ das chamadas), `settle.ts`, `sampler`/`sampleNodesFor` (itera chamadas na ordem atual), `faultView.ts`, `faults/catalog.ts`, `advisor/graph.ts`, `advisor/patterns.ts`, `CanvasContextMenu.tsx`, `RightPanel.tsx`, `AnimatedEdge.tsx`/`GhostEdge.tsx`/`previewGraph.ts`, `loadReference.ts`, `canvasStore.ts`, `migrate.ts`, `serialize.ts`
-- [ ] Nenhum `as any` ou cast para burlar o tipo
-- [ ] O golden da T1 passa sem atualizar o fixture (bit-idêntico)
-- [ ] Todos os testes existentes passam sem mudança de asserção (só ajuste de formato em fixtures de regra)
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Leitores adaptados: `routing.ts` (`ruleFactor` = Σ das chamadas), `settle.ts`, `sampler`/`sampleNodesFor` (itera chamadas na ordem atual), `faultView.ts`, `faults/catalog.ts`, `advisor/graph.ts`, `advisor/patterns.ts`, `CanvasContextMenu.tsx`, `RightPanel.tsx`, `AnimatedEdge.tsx`/`GhostEdge.tsx`/`previewGraph.ts`, `loadReference.ts`, `canvasStore.ts`, `migrate.ts`, `serialize.ts`
+- [x] Nenhum `as any` ou cast para burlar o tipo
+- [x] O golden da T1 passa sem atualizar o fixture (bit-idêntico)
+- [x] Todos os testes existentes passam sem mudança de asserção (só ajuste de formato em fixtures de regra)
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `refactor(graph): regra da aresta vira link com lista de chamadas`
+**Status**: ✅ Complete
 
 ---
 

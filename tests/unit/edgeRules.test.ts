@@ -40,41 +40,50 @@ function setCanvas(nodes: Node[], edges: Edge[] = [], readOnly = false) {
 const connect = (source: string, target: string) =>
   s().onConnect({ source, target, sourceHandle: null, targetHandle: null });
 
-function ruleOf(source: string, target: string): EdgeRule | undefined {
+/** A one-call rule in the flat view these tests read (its call plus the link). */
+function flat(rule: EdgeRule) {
+  expect(rule.calls).toHaveLength(1);
+  return { ...rule.calls[0], networkLatencyMs: rule.networkLatencyMs, packetLoss: rule.packetLoss };
+}
+
+const defaultRule = (...args: Parameters<typeof defaultEdgeRule>) => flat(defaultEdgeRule(...args));
+
+function ruleOf(source: string, target: string) {
   const edge = s().edges.find((e) => e.source === source && e.target === target);
-  return (edge?.data as CustomEdgeData | undefined)?.rule;
+  const rule = (edge?.data as CustomEdgeData | undefined)?.rule;
+  return rule && flat(rule);
 }
 
 describe("defaultEdgeRule", () => {
   it("cache and CDN outputs are on_miss", () => {
-    expect(defaultEdgeRule("cache", "sql-db").kind).toBe("on_miss");
-    expect(defaultEdgeRule("cdn", "object-storage").kind).toBe("on_miss");
-    expect(defaultEdgeRule("origin-shield", "app-server").kind).toBe("on_miss");
+    expect(defaultRule("cache", "sql-db").kind).toBe("on_miss");
+    expect(defaultRule("cdn", "object-storage").kind).toBe("on_miss");
+    expect(defaultRule("origin-shield", "app-server").kind).toBe("on_miss");
   });
 
   it("LB and plain calls are always", () => {
-    expect(defaultEdgeRule("load-balancer", "app-server").kind).toBe("always");
-    expect(defaultEdgeRule("app-server", "sql-db").kind).toBe("always");
-    expect(defaultEdgeRule("load-balancer", "read-replica").kind).toBe("always");
-    expect(defaultEdgeRule(undefined, "sql-db").kind).toBe("always");
+    expect(defaultRule("load-balancer", "app-server").kind).toBe("always");
+    expect(defaultRule("app-server", "sql-db").kind).toBe("always");
+    expect(defaultRule("load-balancer", "read-replica").kind).toBe("always");
+    expect(defaultRule(undefined, "sql-db").kind).toBe("always");
   });
 
   it("service → SQL DB with a replica writes; service → replica reads", () => {
-    expect(
-      defaultEdgeRule("app-server", "sql-db", "http", { targetHasReadReplica: true }).kind,
-    ).toBe("writes");
-    expect(defaultEdgeRule("app-server", "read-replica").kind).toBe("reads");
-    expect(defaultEdgeRule("worker-pool", "read-replica").kind).toBe("reads");
+    expect(defaultRule("app-server", "sql-db", "http", { targetHasReadReplica: true }).kind).toBe(
+      "writes",
+    );
+    expect(defaultRule("app-server", "read-replica").kind).toBe("reads");
+    expect(defaultRule("worker-pool", "read-replica").kind).toBe("reads");
     // A cache in front of the replica still only calls it on a miss
-    expect(defaultEdgeRule("cache", "read-replica").kind).toBe("on_miss");
+    expect(defaultRule("cache", "read-replica").kind).toBe("on_miss");
   });
 
   it("new components get meaningful defaults", () => {
-    expect(defaultEdgeRule("sql-db", "read-replica").kind).toBe("writes");
-    const dlq = defaultEdgeRule("message-queue", "dlq");
+    expect(defaultRule("sql-db", "read-replica").kind).toBe("writes");
+    const dlq = defaultRule("message-queue", "dlq");
     expect(dlq.kind).toBe("fraction");
     expect(dlq.fraction).toBe(DEFAULT_DLQ_FRACTION);
-    expect(defaultEdgeRule("autoscaler", "app-server").callsPerRequest).toBe(0);
+    expect(defaultRule("autoscaler", "app-server").callsPerRequest).toBe(0);
     expect(defaultEdgeAsync("message-queue", "dlq")).toBe(true);
     expect(defaultEdgeAsync("sql-db", "read-replica")).toBe(true);
     expect(defaultEdgeAsync("autoscaler", "app-server")).toBe(true);
