@@ -789,13 +789,14 @@ T28 → T30
 
 **Done when**:
 
-- [ ] e2e em `editor.spec.ts`: duas chamadas no mesmo passo mostram "1∥"; aresta após miss mostra "miss: <cache>"
-- [ ] O badge não muda de tamanho entre ticks (sem re-medição do ReactFlow)
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] e2e em `editor.spec.ts`: duas chamadas no mesmo passo mostram "1∥"; aresta após miss mostra "miss: <cache>"
+- [x] O badge não muda de tamanho entre ticks (sem re-medição do ReactFlow)
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(canvas): badges de passo e de condição nas arestas`
+**Status**: ✅ Complete
 
 ---
 

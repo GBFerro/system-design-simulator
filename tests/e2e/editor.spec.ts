@@ -217,8 +217,8 @@ test("CAN-05: copy/paste, duplicate, select all and arrow nudges", async ({ page
 // Request-flow (FLW-08/17/25/26/44): the Props panel edits every call an edge carries.
 
 /** App Server → SQL DB, then App Server → Cache: the DB call runs at step 1, the cache's at 2. */
-async function serviceWithDbAndCache(page: Page) {
-  await open(page);
+async function serviceWithDbAndCache(page: Page, path = "/") {
+  await open(page, path);
   await quickAdd(page, "App Server");
   await quickAdd(page, "Cache / Redis");
   await quickAdd(page, "SQL Database");
@@ -351,4 +351,98 @@ test("FLW-17: the context menu edits a one-call edge and sends a several-call ed
   await expect(menu).toHaveCount(0);
   await expect(call(page, 2)).toBeVisible();
   await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+});
+
+/* ---------- edge badges: step and condition (FLW-15, FLW-29, FLW-30) ---------- */
+
+/** The badges of the edge into `target` (labels render in a portal, keyed by edge id). */
+const badges = (page: Page, target: string) => page.locator(`[data-edge-label*="${target}-"]`);
+const stepBadge = (page: Page, target: string) => badges(page, target).locator("[data-edge-step]");
+const condBadge = (page: Page, target: string) => badges(page, target).locator("[data-edge-rule]");
+const planWarning = (page: Page, target: string) =>
+  badges(page, target).locator("[data-edge-plan-warning]");
+
+async function setStep(page: Page, target: string, value: string) {
+  await selectEdge(page, target);
+  const step = call(page, 1).getByLabel("Step");
+  await step.fill(value);
+  await step.press("Enter");
+  await expect(step).toHaveValue(value);
+}
+
+test("FLW-30: each call shows its step, with ∥ when another call of the node runs in the same step", async ({
+  page,
+}) => {
+  await serviceWithDbAndCache(page);
+  // Implicit steps: the edges in the order they were drawn, one after another.
+  await expect(stepBadge(page, "sql-db")).toHaveText("1");
+  await expect(stepBadge(page, "cache")).toHaveText("2");
+
+  // Both at step 1: they run in parallel.
+  await setStep(page, "sql-db", "1");
+  await setStep(page, "cache", "1");
+  await expect(stepBadge(page, "sql-db")).toHaveText("1∥");
+  await expect(stepBadge(page, "cache")).toHaveText("1∥");
+});
+
+test("FLW-15/29: a call after a miss names its cache, and the edge warns when the plan moved it", async ({
+  page,
+}) => {
+  // ?e2e: the test pushes metrics through window.__runtimeStore (any build).
+  await serviceWithDbAndCache(page, "/?e2e=1");
+  await selectEdge(page, "sql-db");
+  await call(page, 1).getByLabel("Call rule").selectOption("writes");
+  await page.getByRole("button", { name: "Add call" }).click();
+  await call(page, 2).getByLabel("Call rule").selectOption("after_miss");
+
+  await expect(condBadge(page, "sql-db")).toHaveText("writes · miss: Cache / Redis");
+  // The database edge was drawn before the cache's: the call after the miss
+  // would run before the cache call, so the plan moves it after it and warns.
+  const warning = planWarning(page, "sql-db");
+  await expect(warning).toBeVisible();
+  await expect(warning).toHaveAttribute("title", /after the cache call/);
+  await expect(stepBadge(page, "sql-db")).toHaveText("1,4");
+  await expect(planWarning(page, "cache")).toHaveCount(0);
+
+  // Long labels are truncated inside a fixed maximum width.
+  const box = (await condBadge(page, "sql-db").boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(144);
+
+  // The badges keep their size while metrics stream in (no ReactFlow re-measure).
+  const before = [
+    await condBadge(page, "sql-db").boundingBox(),
+    await stepBadge(page, "sql-db").boundingBox(),
+  ];
+  await page.evaluate(() => {
+    const store = (
+      window as unknown as {
+        __runtimeStore: { getState(): { pushSnapshot(s: unknown): void } };
+      }
+    ).__runtimeStore;
+    const ids = [...document.querySelectorAll(".react-flow__edge[data-id]")].map(
+      (e) => (e as SVGGElement).dataset.id!,
+    );
+    const global = {
+      throughput: 1,
+      goodput: 1,
+      errorRate: 0,
+      p50: 1,
+      p95: 2,
+      p99: 3,
+      availability: 1,
+    };
+    for (const [t, rps, status] of [
+      [0, 10, "ok"],
+      [0.5, 98_765, "error"],
+    ] as const) {
+      const edges = Object.fromEntries(ids.map((id) => [id, { rps, status }]));
+      store.getState().pushSnapshot({ t, offeredRps: rps, nodes: {}, edges, global });
+    }
+  });
+  await expect(page.locator(`[data-edge-status="error"]`).first()).toBeAttached();
+  const after = [
+    await condBadge(page, "sql-db").boundingBox(),
+    await stepBadge(page, "sql-db").boundingBox(),
+  ];
+  expect(after.map((b) => [b!.width, b!.height])).toEqual(before.map((b) => [b!.width, b!.height]));
 });
