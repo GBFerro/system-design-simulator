@@ -3,6 +3,7 @@
  * that turns per-node stations into call failure / end-to-end success /
  * availability, and the model the latency sampler walks.
  */
+import type { PlannedCall } from "@/domain/graph/callPlan";
 import type { SimEdge, SimNode } from "@/domain/graph/compile";
 import { clamp01, probSojournExceeds, type StationState } from "./queueing";
 import {
@@ -136,6 +137,7 @@ export function sampleNodesFor(
         ? edges.map((e) => {
             const call = e.rule.calls[0];
             return {
+              edgeId: e.id,
               async: e.async,
               target: e.target,
               kind: call?.kind ?? "always",
@@ -151,26 +153,30 @@ export function sampleNodesFor(
     // orders them; the link (latency, loss) from the edge as faults left it.
     const plan = node.routing === "lb" || node.routing === "queue" ? undefined : node.plan;
     const link = new Map(edges.map((e) => [e.id, e]));
-    const steps: SampleCall[][] = (plan?.steps ?? []).map((group) =>
-      group.flatMap((p) => {
-        const e = link.get(p.edgeId);
-        if (!e) return [];
-        const call: SampleCall = {
-          edgeId: e.id,
-          target: e.target,
-          kind: p.call.kind,
-          fraction: clamp01(p.call.fraction ?? 1),
-          callsPerRequest: callsOf(p.call),
-          networkLatencyMs: e.rule.networkLatencyMs,
-          packetLoss: e.rule.packetLoss,
-        };
-        if (p.dependsOn !== undefined) {
-          call.dependsOn = p.dependsOn;
-          call.missOf = p.call.missOf;
-        }
-        return [call];
-      }),
-    );
+    const sampleCall = (p: PlannedCall): SampleCall[] => {
+      const e = link.get(p.edgeId);
+      if (!e) return [];
+      const call: SampleCall = {
+        edgeId: e.id,
+        target: e.target,
+        kind: p.call.kind,
+        fraction: clamp01(p.call.fraction ?? 1),
+        callsPerRequest: callsOf(p.call),
+        networkLatencyMs: e.rule.networkLatencyMs,
+        packetLoss: e.rule.packetLoss,
+        step: p.step,
+      };
+      if (p.dependsOn !== undefined) {
+        call.dependsOn = p.dependsOn;
+        call.missOf = p.call.missOf;
+      }
+      return [call];
+    };
+    const steps: SampleCall[][] = (plan?.steps ?? []).map((group) => group.flatMap(sampleCall));
+    // Async calls (the trace only): in step order, as they go out.
+    const asyncCalls = (plan?.async ?? [])
+      .flatMap(sampleCall)
+      .sort((a, b) => (a.step ?? 0) - (b.step ?? 0));
     sampleNodes.set(id, {
       station: flow.st,
       dropProbability: flow.offered > 0 ? clamp01(flow.dropped / flow.offered) : 0,
@@ -182,6 +188,7 @@ export function sampleNodesFor(
       edges: lbEdges,
       steps: steps.filter((group) => group.length > 0),
       absorbed: plan?.absorbed ?? [],
+      asyncCalls,
     });
   }
   return sampleNodes;

@@ -817,15 +817,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Mesmo modelo + seed + índice → mesmo trace; índices diferentes podem divergir
-- [ ] Leitura com miss registra cache `miss`, depois a chamada ao banco; com hit, sem chamada ao banco
-- [ ] Async aparece como evento sem `t1`; o total é igual ao fim da última chamada síncrona da entrada
-- [ ] Sem recorder, o golden da T1 continua inalterado
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Mesmo modelo + seed + índice → mesmo trace; índices diferentes podem divergir
+- [x] Leitura com miss registra cache `miss`, depois a chamada ao banco; com hit, sem chamada ao banco
+- [x] Async aparece como evento sem `t1`; o total é igual ao fim da última chamada síncrona da entrada
+- [x] Sem recorder, o golden da T1 continua inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): trace de uma requisição a partir do sampler`
+**Status**: ✅ Complete
 
 ---
 

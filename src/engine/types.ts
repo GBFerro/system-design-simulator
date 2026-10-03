@@ -193,12 +193,36 @@ export interface GlobalRuntimeMetrics {
   readRatio?: number;
 }
 
-/** One sampled request (OBS-06, Phase 5). */
-export interface Trace {
-  id: string;
+/**
+ * What happened to one sampled request (request-flow, OBS-06: the Flow tab).
+ * Times are ms since the request started. A `call` is one attempt of a sync
+ * call; its response is implied by `t1` (when it got back to the caller).
+ * An `async` call has no response. A `cache` event is a look-aside or
+ * read-through hit or miss (`viaFailure`: the cache call failed, so a miss).
+ */
+export type TraceEvent =
+  | {
+      type: "call";
+      edgeId: string;
+      from: string;
+      to: string;
+      step: number;
+      t0: number;
+      t1: number;
+      ok: boolean;
+      attempt: number;
+    }
+  | { type: "async"; edgeId: string; from: string; to: string; step: number; t0: number }
+  | { type: "cache"; nodeId: string; hit: boolean; viaFailure: boolean };
+
+/** One sampled request, as a sequence of events (`core/trace.ts`). */
+export interface RequestTrace {
+  cls: "read" | "write";
   ok: boolean;
+  /** End to end: when the response got back to the entry. */
   totalMs: number;
-  hops: { nodeId: string; startMs: number; durationMs: number }[];
+  /** In start order; responses are implied by `call.t1`. */
+  events: TraceEvent[];
 }
 
 /**
@@ -213,7 +237,7 @@ export interface TickSnapshot {
   nodes: Record<string, NodeRuntimeMetrics>;
   edges: Record<string, EdgeRuntimeMetrics>;
   global: GlobalRuntimeMetrics;
-  traces?: Trace[];
+  traces?: RequestTrace[];
 }
 
 export type Unsubscribe = () => void;
