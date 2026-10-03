@@ -105,3 +105,33 @@ export interface EdgeRule {
   /** 0–1, default 0. */
   packetLoss: number;
 }
+
+/* ---------- edge calls (request-flow, schema v3) ---------- */
+
+/**
+ * Condition of one call: `on_miss` = read-through (a miss of the calling
+ * cache itself); `after_miss` = reads that missed the source's call to the
+ * cache `missOf` (look-aside).
+ */
+export type EdgeCallKind = "always" | "reads" | "writes" | "fraction" | "on_miss" | "after_miss";
+
+/** One call the edge's source makes to its target. */
+export interface EdgeCall {
+  kind: EdgeCallKind;
+  /** 0–1, only for kind = "fraction". */
+  fraction?: number;
+  /** kind = "after_miss": the cache node (a target of another sync call of the same source). */
+  missOf?: string;
+  /** 1..MAX_CALL_STEP; undefined = implicit (callPlan). */
+  step?: number;
+  /** Default 1. 0 = control link. */
+  callsPerRequest: number;
+}
+
+/** The link (network) plus the calls made over it, as stored in `edge.data.rule` from schema v3. */
+export interface EdgeRuleV3 {
+  /** 1..MAX_EDGE_CALLS. */
+  calls: EdgeCall[];
+  networkLatencyMs: number;
+  packetLoss: number;
+}

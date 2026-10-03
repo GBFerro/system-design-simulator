@@ -1,5 +1,12 @@
 import { routingFor } from "@/domain/components/registry";
-import type { EdgeRule, EdgeRuleKind, ParamSpec, Params } from "@/domain/components/types";
+import type {
+  EdgeCall,
+  EdgeCallKind,
+  EdgeRule,
+  EdgeRuleKind,
+  ParamSpec,
+  Params,
+} from "@/domain/components/types";
 
 /** Default one-way network latency per protocol, in ms. */
 export const PROTOCOL_LATENCY_MS: Record<string, number> = {
@@ -250,6 +257,112 @@ export function sanitizeEdgeRule(raw: unknown, fallback: EdgeRule): EdgeRule {
     packetLoss: clamp(r.packetLoss, 0, 1, fallback.packetLoss),
   };
   if (kind === "fraction") rule.fraction = clamp(r.fraction, 0, 1, fallback.fraction ?? 1);
+  return rule;
+}
+
+/* ---------- calls (request-flow, schema v3) ---------- */
+
+/** Most calls one edge carries (FLW-17, FLW-49: the only place this limit lives). */
+export const MAX_EDGE_CALLS = 8;
+
+/** Highest step a call can take (FLW-26, FLW-49: the only place this limit lives). */
+export const MAX_CALL_STEP = 20;
+
+const CALL_KINDS: readonly EdgeCallKind[] = [
+  "always",
+  "reads",
+  "writes",
+  "fraction",
+  "on_miss",
+  "after_miss",
+];
+
+function asObject(v: unknown): Record<string, unknown> | null {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * Normalize a raw call list (from storage, import or UI). Missing fields take
+ * the matching fallback call's value; an empty or missing list is the
+ * fallback. Never throws. Reports what it had to fix through `onWarning`
+ * (FLW-45): more than `MAX_EDGE_CALLS` calls (keeps the first ones), a step
+ * outside 1..`MAX_CALL_STEP` (brought into range), an unknown condition
+ * (becomes `always`).
+ */
+export function sanitizeEdgeCalls(
+  raw: unknown,
+  fallback: readonly EdgeCall[],
+  onWarning?: (message: string) => void,
+): EdgeCall[] {
+  const base = (i: number): EdgeCall =>
+    fallback[Math.min(i, fallback.length - 1)] ?? { kind: "always", callsPerRequest: 1 };
+  if (!Array.isArray(raw) || raw.length === 0) return fallback.map((c) => ({ ...c }));
+
+  let list: unknown[] = raw;
+  if (list.length > MAX_EDGE_CALLS) {
+    onWarning?.(`An edge had ${list.length} calls; kept the first ${MAX_EDGE_CALLS}.`);
+    list = list.slice(0, MAX_EDGE_CALLS);
+  }
+
+  const calls: EdgeCall[] = [];
+  list.forEach((entry, i) => {
+    const r = asObject(entry);
+    const def = base(i);
+    if (!r) {
+      onWarning?.("Ignored an edge call that is not an object.");
+      return;
+    }
+    let kind: EdgeCallKind = def.kind;
+    if (r.kind !== undefined) {
+      if (CALL_KINDS.includes(r.kind as EdgeCallKind)) kind = r.kind as EdgeCallKind;
+      else {
+        onWarning?.(`Unknown call condition "${String(r.kind)}" replaced by "always".`);
+        kind = "always";
+      }
+    }
+    const call: EdgeCall = {
+      kind,
+      callsPerRequest: clamp(r.callsPerRequest, 0, 100, def.callsPerRequest),
+    };
+    if (kind === "fraction") call.fraction = clamp(r.fraction, 0, 1, def.fraction ?? 1);
+    if (kind === "after_miss" && typeof r.missOf === "string" && r.missOf !== "") {
+      call.missOf = r.missOf;
+    }
+    if (r.step !== undefined) {
+      if (typeof r.step === "number" && Number.isFinite(r.step)) {
+        const step = Math.min(MAX_CALL_STEP, Math.max(1, Math.round(r.step)));
+        if (step !== r.step) {
+          onWarning?.(`Call step ${r.step} is outside 1–${MAX_CALL_STEP}; set to ${step}.`);
+        }
+        call.step = step;
+      } else {
+        onWarning?.("Ignored a call step that is not a number.");
+      }
+    }
+    calls.push(call);
+  });
+  return calls.length > 0 ? calls : fallback.map((c) => ({ ...c }));
+}
+
+/**
+ * Reshape a v2 edge rule (flat `kind`/`fraction`/`callsPerRequest`) into the
+ * v3 link + one call. Values are carried as they are (sanitizing is
+ * `sanitizeEdgeCalls`'s job) and `on_miss` keeps its stored value
+ * (read-through). Pure and idempotent: a rule that already has `calls`, or
+ * anything that isn't an object, comes back unchanged. Never throws.
+ */
+export function migrateEdgeRuleV2toV3(raw: unknown): unknown {
+  const r = asObject(raw);
+  if (!r || "calls" in r) return raw;
+  const call: Record<string, unknown> = {};
+  if (r.kind !== undefined) call.kind = r.kind;
+  if (r.fraction !== undefined) call.fraction = r.fraction;
+  if (r.callsPerRequest !== undefined) call.callsPerRequest = r.callsPerRequest;
+  const rule: Record<string, unknown> = { calls: [call] };
+  if (r.networkLatencyMs !== undefined) rule.networkLatencyMs = r.networkLatencyMs;
+  if (r.packetLoss !== undefined) rule.packetLoss = r.packetLoss;
   return rule;
 }
 

@@ -2,13 +2,17 @@ import type { Edge, Node } from "@xyflow/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { MAX_INSTANCES, PARAM } from "@/domain/components/registry";
-import type { EdgeRule } from "@/domain/components/types";
+import type { EdgeCall, EdgeRule } from "@/domain/components/types";
 import {
   DEFAULT_DLQ_FRACTION,
   DEFAULT_RULE_FRACTION,
+  MAX_CALL_STEP,
+  MAX_EDGE_CALLS,
   defaultEdgeAsync,
   defaultEdgeRule,
   edgeRuleBadge,
+  migrateEdgeRuleV2toV3,
+  sanitizeEdgeCalls,
 } from "@/domain/graph/edgeRules";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
@@ -183,5 +187,125 @@ describe("store edits", () => {
     expect((s().nodes[0].data.params as Record<string, unknown>)[PARAM.instances]).toBe(1);
     expect(ruleOf("a", "c")?.kind).toBe("always");
     expect(s().history).toHaveLength(0);
+  });
+});
+
+describe("edge calls (request-flow, schema v3)", () => {
+  const FALLBACK: EdgeCall[] = [{ kind: "on_miss", callsPerRequest: 1 }];
+
+  function sanitize(raw: unknown, fallback: EdgeCall[] = FALLBACK) {
+    const warnings: string[] = [];
+    const calls = sanitizeEdgeCalls(raw, fallback, (w) => warnings.push(w));
+    return { calls, warnings };
+  }
+
+  describe("migrateEdgeRuleV2toV3", () => {
+    it("turns a flat v2 rule into the link plus one call, keeping on_miss", () => {
+      expect(
+        migrateEdgeRuleV2toV3({
+          kind: "on_miss",
+          callsPerRequest: 2,
+          networkLatencyMs: 1.5,
+          packetLoss: 0.01,
+        }),
+      ).toEqual({
+        calls: [{ kind: "on_miss", callsPerRequest: 2 }],
+        networkLatencyMs: 1.5,
+        packetLoss: 0.01,
+      });
+      expect(
+        migrateEdgeRuleV2toV3({
+          kind: "fraction",
+          fraction: 0.1,
+          callsPerRequest: 1,
+          networkLatencyMs: 1,
+          packetLoss: 0,
+        }),
+      ).toEqual({
+        calls: [{ kind: "fraction", fraction: 0.1, callsPerRequest: 1 }],
+        networkLatencyMs: 1,
+        packetLoss: 0,
+      });
+    });
+
+    it("is idempotent", () => {
+      const inputs: unknown[] = [
+        { kind: "writes", callsPerRequest: 1, networkLatencyMs: 1, packetLoss: 0 },
+        { kind: "on_miss", callsPerRequest: 1, networkLatencyMs: 2, packetLoss: 0 },
+        { packetLoss: 0.2 },
+        {},
+        { calls: [{ kind: "reads", callsPerRequest: 1 }], networkLatencyMs: 1, packetLoss: 0 },
+      ];
+      for (const raw of inputs) {
+        const once = migrateEdgeRuleV2toV3(raw);
+        expect(migrateEdgeRuleV2toV3(once)).toEqual(once);
+      }
+      const v3 = {
+        calls: [{ kind: "reads", callsPerRequest: 1 }],
+        networkLatencyMs: 1,
+        packetLoss: 0,
+      };
+      expect(migrateEdgeRuleV2toV3(v3)).toEqual(v3);
+    });
+
+    it("never throws on invalid input", () => {
+      const garbage: unknown[] = [null, undefined, 42, "rule", [], [1, 2], { calls: 5 }, NaN];
+      for (const raw of garbage) {
+        expect(() => migrateEdgeRuleV2toV3(raw)).not.toThrow();
+        expect(migrateEdgeRuleV2toV3(raw)).toEqual(raw);
+      }
+    });
+  });
+
+  describe("sanitizeEdgeCalls", () => {
+    it("keeps a valid list as it is, without warnings", () => {
+      const raw: EdgeCall[] = [
+        { kind: "writes", callsPerRequest: 1, step: 2 },
+        { kind: "after_miss", missOf: "redis", callsPerRequest: 1, step: 3 },
+        { kind: "fraction", fraction: 0.25, callsPerRequest: 3 },
+      ];
+      expect(sanitize(raw)).toEqual({ calls: raw, warnings: [] });
+    });
+
+    it(`keeps the first MAX_EDGE_CALLS calls and warns`, () => {
+      const raw = Array.from({ length: MAX_EDGE_CALLS + 3 }, (_, i) => ({
+        kind: "always",
+        callsPerRequest: i + 1,
+      }));
+      const { calls, warnings } = sanitize(raw);
+      expect(calls).toHaveLength(MAX_EDGE_CALLS);
+      expect(calls.map((c) => c.callsPerRequest)).toEqual(
+        raw.slice(0, MAX_EDGE_CALLS).map((c) => c.callsPerRequest),
+      );
+      expect(warnings).toHaveLength(1);
+    });
+
+    it("brings a step outside 1..MAX_CALL_STEP into range and warns", () => {
+      const { calls, warnings } = sanitize([
+        { kind: "reads", callsPerRequest: 1, step: 0 },
+        { kind: "writes", callsPerRequest: 1, step: MAX_CALL_STEP + 5 },
+        { kind: "always", callsPerRequest: 1, step: MAX_CALL_STEP },
+      ]);
+      expect(calls.map((c) => c.step)).toEqual([1, MAX_CALL_STEP, MAX_CALL_STEP]);
+      expect(warnings).toHaveLength(2);
+    });
+
+    it("replaces an unknown condition by always and warns", () => {
+      const { calls, warnings } = sanitize([{ kind: "sometimes", callsPerRequest: 2 }]);
+      expect(calls).toEqual([{ kind: "always", callsPerRequest: 2 }]);
+      expect(warnings).toHaveLength(1);
+    });
+
+    it("an empty or missing list is the fallback", () => {
+      const fallback: EdgeCall[] = [
+        { kind: "writes", callsPerRequest: 1 },
+        { kind: "after_miss", missOf: "redis", callsPerRequest: 1 },
+      ];
+      for (const raw of [[], undefined, null, "calls"]) {
+        const { calls } = sanitize(raw, fallback);
+        expect(calls).toEqual(fallback);
+        expect(calls).not.toBe(fallback);
+      }
+    });
   });
 });

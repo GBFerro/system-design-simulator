@@ -145,15 +145,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Tipos em `src/domain/components/types.ts`, constantes exportadas só de `edgeRules.ts`
-- [ ] `migrateEdgeRuleV2toV3` converte o formato achatado em `{ calls: [uma chamada], networkLatencyMs, packetLoss }`, mantém `on_miss`, é idempotente e nunca lança
-- [ ] Sanitização: mais de `MAX_EDGE_CALLS` → corta e avisa; passo fora de 1..`MAX_CALL_STEP` → limita e avisa; condição desconhecida → `always` e avisa; lista vazia → fallback
-- [ ] Testes em `edgeRules.test.ts` importam as constantes (nenhum 8 ou 20 literal)
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Tipos em `src/domain/components/types.ts`, constantes exportadas só de `edgeRules.ts`
+- [x] `migrateEdgeRuleV2toV3` converte o formato achatado em `{ calls: [uma chamada], networkLatencyMs, packetLoss }`, mantém `on_miss`, é idempotente e nunca lança
+- [x] Sanitização: mais de `MAX_EDGE_CALLS` → corta e avisa; passo fora de 1..`MAX_CALL_STEP` → limita e avisa; condição desconhecida → `always` e avisa; lista vazia → fallback
+- [x] Testes em `edgeRules.test.ts` importam as constantes (nenhum 8 ou 20 literal)
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(graph): tipos de chamada por aresta e conversão de regra v2 para v3`
+**Status**: ✅ Complete
 
 ---
 
