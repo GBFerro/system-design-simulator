@@ -43,3 +43,7 @@ Nenhuma: todas as premissas da spec foram confirmadas em 2026-10-03.
 - Estratégias de escrita no cache (write-through, write-back, invalidação).
 - Rever o SPOF de cache look-aside no scorer e no advisor.
 - Exportar o diagrama de sequência.
+- (Lote A) `CLAUDE.md` ainda descreve a persistência em v2: `STORE_VERSION` (2), envelope `{ schemaVersion: 2 }`, "`importDesign` accepts schemaVersion 1 and 2" e a cadeia só `migrateV1toV2`. Desde a T5 são 3, 1–3 e `migrateGraph` (v1 → v2 → v3). Atualizar junto com a T21.
+- (Lote A) `.specs/STATE.md` e `design.md` (já no commit de planejamento) não passam no `npm run format:check`, que o CI roda; basta um `npx oxfmt` neles.
+- (Lote A) `sanitizeEdgeRule` com uma regra v2 achatada de condição inválida ou ausente usa só a 1ª chamada do fallback. Quando a T17 der ao padrão de conexão duas chamadas (`[writes, after_miss]`), decidir se esse caso deve herdar a lista inteira.
+- (Lote A) Regra 5 do `callPlan` em modo implícito: se a aresta do banco vem antes da aresta do cache na ordem do grafo, a `after_miss` sobe para depois do cache com aviso e pode cair no mesmo passo da chamada implícita seguinte (paralelo não pedido). O fix "add cache" (T18) e o padrão de conexão (T17) devem criar a aresta do cache antes da do banco.
