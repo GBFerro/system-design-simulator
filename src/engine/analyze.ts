@@ -39,7 +39,7 @@ import {
   edgeFactor,
   type CallContext,
 } from "./core/routing";
-import { sampleLatency } from "./core/sampler";
+import { sampleLatency, type SampleModel } from "./core/sampler";
 import { sampleNodesFor, settle, type Topology } from "./core/settle";
 import { sanitizeLatencySlo, slowShareOf } from "./core/slo";
 import { drainShares, entryShares, withEffects } from "./core/faultView";
@@ -102,6 +102,20 @@ export function analyze(
   config?: SimConfig,
   effects: TickEffects | null = null,
 ): SteadyState {
+  return analyzeWithModel(graph, rps, config, effects).steady;
+}
+
+/**
+ * `analyze()` plus the sampler's model at that steady state (the stations,
+ * drops and call plans its percentiles were sampled from), so one request
+ * can be traced through the same model (`core/trace.ts`, request-flow).
+ */
+export function analyzeWithModel(
+  graph: SimGraph,
+  rps: number,
+  config?: SimConfig,
+  effects: TickEffects | null = null,
+): { steady: SteadyState; model: SampleModel } {
   const graphById = new Map(graph.nodes.map((n) => [n.id, n]));
   const cfg = resolveConfig(graph, graphById, config);
   const requestedRps = Number.isFinite(rps) && rps > 0 ? rps : 0;
@@ -356,12 +370,8 @@ export function analyze(
 
   const sampleNodes = sampleNodesFor(topo, pass.flows, pass.shares);
   const latencySlo = sanitizeLatencySlo(config?.latencySlo);
-  const sampled = sampleLatency(
-    { nodes: sampleNodes, entries, readRatio: cfg.readRatio },
-    cfg.samples,
-    mulberry32(cfg.seed),
-    latencySlo?.thresholdMs,
-  );
+  const model: SampleModel = { nodes: sampleNodes, entries, readRatio: cfg.readRatio };
+  const sampled = sampleLatency(model, cfg.samples, mulberry32(cfg.seed), latencySlo?.thresholdMs);
   const slowShare = slowShareOf(latencySlo, sampled.slowShare, byId.values(), pass.flows);
   if (sampled.truncated) {
     warnings.push("Very large fan-out: latency sampling was truncated for some requests.");
@@ -376,7 +386,7 @@ export function analyze(
     }
   }
 
-  return {
+  const steady: SteadyState = {
     requestedRps,
     offeredRps,
     throughputRps: finite(throughputRps),
@@ -397,4 +407,5 @@ export function analyze(
     seed: cfg.seed,
     iterations,
   };
+  return { steady, model };
 }

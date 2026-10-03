@@ -18,6 +18,7 @@ import { useRuntimeStore, type PlaybackStatus } from "@/store/runtimeStore";
 import { getEffectiveSlo, subscribeEffectiveSlo } from "@/store/sloStore";
 import { latencySloOf } from "@/slo/slo";
 import type { SimulationResult } from "@/types/simulation";
+import type { GraphTrace, TraceOptions } from "./core/trace";
 import type { SteadyUnderFault } from "./faults/steady";
 import type { FrameListener, InjectResult, SimFrame } from "./session";
 import { toSimulationResult } from "./toSimulationResult";
@@ -131,6 +132,34 @@ export async function simulateCanvas(
   const graph = compileGraph(nodes, edges);
   const steady = await analyzeGraph(graph, rps, config);
   return { steady, result: toSimulationResult(steady), graph };
+}
+
+/** One request through a compiled graph (request-flow) — in the worker when possible. */
+export async function traceGraph(graph: SimGraph, options: TraceOptions): Promise<GraphTrace> {
+  const h = getWorker();
+  if (h) {
+    try {
+      return await Promise.race([h.api.traceGraph(graph, options), h.failed]);
+    } catch (err) {
+      disableWorker(err);
+    }
+  }
+  const { traceGraph: trace } = await import("./core/trace");
+  return trace(graph, options);
+}
+
+/**
+ * Compile the canvas and trace one request through it (the Flow tab,
+ * request-flow): `analyze()` at `options.rps` (the latest snapshot's offered
+ * load; 1 req/s without one), then request `options.index` of the sequence
+ * as a read or a write. No entry → no events and a warning.
+ */
+export async function traceCanvas(
+  nodes: readonly unknown[],
+  edges: readonly unknown[],
+  options: TraceOptions,
+): Promise<GraphTrace> {
+  return traceGraph(compileGraph(nodes, edges), options);
 }
 
 /* ---------- live tick loop (Spec 04 Phase 2 / Spec 06) ---------- */

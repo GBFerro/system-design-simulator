@@ -845,14 +845,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Sem entrada → `events: []` + aviso
-- [ ] Teste no `sim-controller.test.ts` (fallback sem `Worker`)
-- [ ] `bundle:check` não acusa o motor no chunk inicial
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Sem entrada → `events: []` + aviso
+- [x] Teste no `sim-controller.test.ts` (fallback sem `Worker`)
+- [x] `bundle:check` não acusa o motor no chunk inicial
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): traceCanvas no worker`
+**Status**: ✅ Complete
 
 ---
 

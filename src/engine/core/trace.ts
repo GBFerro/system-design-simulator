@@ -8,7 +8,10 @@
  * so the same model + seed + index always gives the same trace and "another
  * request" is just the next index.
  */
-import type { RequestTrace, TraceEvent } from "../types";
+import type { SimGraph } from "@/domain/graph/compile";
+import { analyzeWithModel } from "../analyze";
+import { NO_ENTRY_WARNING } from "../constants";
+import type { RequestTrace, SimConfig, TraceEvent } from "../types";
 import { mulberry32, type Rng } from "./rng";
 import { sampleLatency, type Recorder, type SampleModel, type TracedCall } from "./sampler";
 
@@ -99,4 +102,39 @@ export function traceRequest(
     0,
   );
   return { cls, ok, totalMs: ok ? result.latency.meanMs : lastEnd, events };
+}
+
+/** What `traceGraph` (and `traceCanvas`) traces. */
+export interface TraceOptions {
+  /** Load of the steady state the request is sampled at; missing or invalid = 1 req/s. */
+  rps?: number;
+  config?: SimConfig;
+  cls: "read" | "write";
+  /** Request number in the sequence ("Another request" = the next one). */
+  index: number;
+}
+
+/** A trace plus the warnings of the design it ran on. */
+export type GraphTrace = RequestTrace & { warnings: string[] };
+
+/**
+ * One request through a compiled graph: `analyze()` at the given load, then
+ * `traceRequest` on its sampler model with the run's seed. Without an entry
+ * there's nothing to trace: no events and `NO_ENTRY_WARNING`.
+ */
+export function traceGraph(graph: SimGraph, options: TraceOptions): GraphTrace {
+  const rps =
+    options.rps !== undefined && Number.isFinite(options.rps) && options.rps > 0 ? options.rps : 1;
+  const { steady, model } = analyzeWithModel(graph, rps, options.config);
+  if (model.entries.length === 0) {
+    return {
+      cls: options.cls,
+      ok: false,
+      totalMs: 0,
+      events: [],
+      warnings: [...steady.warnings, NO_ENTRY_WARNING],
+    };
+  }
+  const trace = traceRequest(model, steady.seed, options.index, options.cls);
+  return { ...trace, warnings: steady.warnings };
 }

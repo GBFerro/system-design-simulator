@@ -6,6 +6,7 @@
  */
 import { expose } from "comlink";
 import { createEngine } from "./engine";
+import { traceGraph, type TraceOptions } from "./core/trace";
 import { analyzeUnderFault } from "./faults/steady";
 import { createSimSession, type FrameListener } from "./session";
 import type {
@@ -21,13 +22,17 @@ import type {
 const engine = createEngine();
 const session = createSimSession();
 
-/** What the worker exposes: `analyze()` (Phase 1), the live tick loop (Phase 2) and faults (Spec 08). */
+/**
+ * What the worker exposes: `analyze()` (Phase 1), the live tick loop (Phase 2),
+ * faults (Spec 08) and the trace of one request (request-flow).
+ */
 export const workerApi = {
   load: engine.load.bind(engine),
   analyze: engine.analyze.bind(engine),
   analyzeGraph: engine.analyzeGraph.bind(engine),
   analyzeUnderFault: (graph: SimGraph, rps: number, fault: FaultSpec, config?: SimConfig) =>
     analyzeUnderFault(graph, rps, fault, config),
+  traceGraph: (graph: SimGraph, options: TraceOptions) => traceGraph(graph, options),
 
   simLoad: (graph: SimGraph, config?: SimConfig) => session.load(graph, config),
   simPlay: () => session.play(),
