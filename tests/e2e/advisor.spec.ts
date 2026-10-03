@@ -23,13 +23,17 @@ test("quick fixes: ghost preview, apply in one undo step, apply all", async ({ p
   await expect(spof).toBeVisible();
   await expect(readCache).toBeVisible();
 
-  // Preview the cache: a ghost node and two ghost edges; the App → DB edge keeps the writes.
+  // Preview the cache (look-aside, FLW-23): a ghost node and two ghost edges, App → Cache
+  // "reads" and App → DB "writes" + reads after a miss, which replaces the old App → DB edge
+  // (it moves after the cache edge so the cache is called first).
   await readCache.getByRole("button", { name: /^Preview/ }).click();
   await expect(page.getByTestId("advisor-preview")).toBeVisible();
   await expect(page.locator('[data-ghost-node="cache"]')).toBeVisible();
   await expect(page.locator("[data-ghost-edge]")).toHaveCount(2);
-  await expect(page.locator(".react-flow__edge.sf-preview-changed")).toHaveCount(1);
-  await expect(page.locator('[data-edge-rule="writes"]')).toHaveCount(1);
+  await expect(page.locator(".react-flow__edge.sf-preview-removed")).toHaveCount(1);
+  await expect(page.locator(".react-flow__edge.sf-preview-changed")).toHaveCount(0);
+  await expect(page.getByText("reads", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("writes", { exact: true })).toHaveCount(1);
   // Ghosts aren't part of the design.
   await expect(page.locator('.react-flow__node[data-id^="cache-"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
