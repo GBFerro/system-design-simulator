@@ -11,6 +11,8 @@ import { BLAST_TAIL_SEC, FaultError } from "@/engine/faults/runner";
 import type { CompiledModifier, FaultSpec } from "@/engine/faults/types";
 import { TICK_SEC } from "@/engine/traffic/types";
 import type { TickSnapshot } from "@/engine/types";
+import type { Edge } from "@xyflow/react";
+import type { EdgeCall } from "@/domain/components/types";
 import { comp, wire } from "./engineFixtures";
 
 const TICKS_PER_SEC = Math.round(1 / TICK_SEC);
@@ -475,6 +477,70 @@ describe("FlowEngine faults", () => {
     expect(() =>
       engine.inject({ type: "cache-flush", target: { kind: "node", id: "app" } }),
     ).toThrow(FaultError);
+  });
+});
+
+describe("faults that fail writes: write share per call (request-flow)", () => {
+  const callWire = (source: string, target: string, calls: EdgeCall[]): Edge => ({
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    data: { protocol: "http", async: false, rule: { calls, networkLatencyMs: 1, packetLoss: 0 } },
+  });
+  const call = (kind: EdgeCall["kind"], extra: Partial<EdgeCall> = {}): EdgeCall => ({
+    kind,
+    callsPerRequest: 1,
+    ...extra,
+  });
+  /** The error rate disk-full puts on each edge into the database, by edge source. */
+  function diskFullShares(edges: Edge[]): Record<string, number> {
+    const graph = compileGraph(
+      [
+        comp("client", "client"),
+        comp("svc", "app-server", { instances: 10 }),
+        comp("redis", "cache", { hitRate: 0.9 }),
+        comp("worker", "worker-pool"),
+        comp("db", "sql-db", { instances: 2 }),
+      ],
+      edges,
+    );
+    const fault = compileFault({ type: "disk-full", target: { kind: "node", id: "db" } }, 0, {
+      graph,
+      readRatio: 0.9,
+    });
+    if (!fault.ok) throw new Error(fault.error);
+    const out: Record<string, number> = {};
+    for (const m of fault.modifiers) {
+      if (m.kind !== "errorRate" || !m.onEdges) continue;
+      for (const id of m.targetIds) {
+        out[graph.edges.find((e) => e.id === id)!.source] = m.value;
+      }
+    }
+    return out;
+  }
+
+  it("writes + reads after a miss: (1 − r) / ((1 − r) + P(after miss))", () => {
+    const shares = diskFullShares([
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+    ]);
+    // P(after miss) = r × (1 − h) = 0.9 × 0.1
+    expect(shares.svc).toBeCloseTo(0.1 / (0.1 + 0.09), 12);
+  });
+
+  it("an edge with one call keeps the write share it had (writes 1, reads 0, always 1 − r)", () => {
+    const shares = diskFullShares([
+      wire("client", "svc"),
+      callWire("svc", "db", [call("writes")]),
+      callWire("worker", "db", [call("always")]),
+      callWire("redis", "db", [call("on_miss")]),
+    ]);
+    expect(shares.svc).toBe(1);
+    expect(shares.worker).toBe(1 - 0.9);
+    expect(shares.redis).toBeUndefined(); // read-through misses are reads: no error
+    const reads = diskFullShares([wire("client", "svc"), callWire("svc", "db", [call("reads")])]);
+    expect(reads.svc).toBeUndefined();
   });
 });
 

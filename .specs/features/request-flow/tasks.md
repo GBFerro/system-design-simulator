@@ -459,13 +459,14 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Aresta `[writes, after_miss]` → parcela de escrita = (1 − r) / ((1 − r) + P(after_miss))
-- [ ] Aresta de uma chamada → valor de hoje; `engine-chaos.test.ts` passa
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Aresta `[writes, after_miss]` → parcela de escrita = (1 − r) / ((1 − r) + P(after_miss))
+- [x] Aresta de uma chamada → valor de hoje; `engine-chaos.test.ts` passa
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `fix(chaos): parcela de escrita das faults considera cada chamada`
+**Status**: ✅ Complete
 
 ---
 
