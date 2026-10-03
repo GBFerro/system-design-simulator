@@ -2,14 +2,21 @@ import type { Edge, Node } from "@xyflow/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { MAX_INSTANCES, PARAM } from "@/domain/components/registry";
-import type { EdgeCall, EdgeRule } from "@/domain/components/types";
+import { parseParamInput } from "@/domain/components/paramInput";
+import type { EdgeCall, EdgeRule, ParamSpec } from "@/domain/components/types";
 import {
   DEFAULT_DLQ_FRACTION,
   DEFAULT_RULE_FRACTION,
+  EDGE_CALL_KIND_OPTIONS,
+  EDGE_CALL_SPECS,
+  EDGE_LINK_SPECS,
   MAX_CALL_STEP,
   MAX_EDGE_CALLS,
   defaultEdgeAsync,
   defaultEdgeRule,
+  edgeCallSpecsFor,
+  edgeCallValues,
+  edgeCallsBadge,
   edgeRuleBadge,
   migrateEdgeRuleV2toV3,
   sanitizeEdgeCalls,
@@ -316,5 +323,100 @@ describe("edge calls (request-flow, schema v3)", () => {
         expect(calls).not.toBe(fallback);
       }
     });
+  });
+});
+
+describe("call form and badge (T14)", () => {
+  const specOf = (specs: readonly ParamSpec[], key: string) => specs.find((s) => s.key === key)!;
+  const kindValues = (specs: readonly ParamSpec[]) =>
+    specOf(specs, "kind").options!.map((o) => o.value);
+  const rule = (...calls: EdgeCall[]): EdgeRule => ({
+    calls,
+    networkLatencyMs: 1,
+    packetLoss: 0,
+  });
+  const labelOf = (id: string) => ({ redis: "Redis" })[id] ?? id;
+
+  it("edits condition, fraction, step and calls per request per call; latency and loss per link", () => {
+    expect(EDGE_CALL_SPECS.map((s) => s.key)).toEqual(
+      expect.arrayContaining(["kind", "fraction", "step", "callsPerRequest"]),
+    );
+    expect(EDGE_CALL_SPECS.map((s) => s.key)).not.toContain("networkLatencyMs");
+    expect(EDGE_LINK_SPECS.map((s) => s.key)).toEqual(["networkLatencyMs", "packetLoss"]);
+  });
+
+  it("bounds the step by MAX_CALL_STEP (FLW-26, FLW-49)", () => {
+    const step = specOf(EDGE_CALL_SPECS, "step");
+    expect(step).toMatchObject({ kind: "number", min: 1, max: MAX_CALL_STEP, step: 1 });
+    expect(parseParamInput(step, String(MAX_CALL_STEP)).value).toBe(MAX_CALL_STEP);
+    expect(parseParamInput(step, String(MAX_CALL_STEP + 1)).rejected).toBe(true);
+    expect(parseParamInput(step, "0").rejected).toBe(true);
+  });
+
+  it("labels read-through and the look-aside condition, keeping on_miss as the stored value (FLW-14)", () => {
+    const label = (v: string) => EDGE_CALL_KIND_OPTIONS.find((o) => o.value === v)?.label;
+    expect(label("on_miss")).toBe("Read-through (cache's own miss)");
+    expect(label("after_miss")).toBe("Reads after a miss in…");
+  });
+
+  it("offers reads-after-a-miss only when the source calls a cache, listing those caches (FLW-08)", () => {
+    const plain = edgeCallSpecsFor(
+      { caches: [], readThrough: false },
+      { kind: "writes", callsPerRequest: 1 },
+    );
+    expect(kindValues(plain)).not.toContain("after_miss");
+
+    const withCache = edgeCallSpecsFor(
+      { caches: [{ id: "redis", label: "Redis" }], readThrough: false },
+      { kind: "writes", callsPerRequest: 1 },
+    );
+    expect(kindValues(withCache)).toContain("after_miss");
+    expect(specOf(withCache, "missOf").options).toEqual([{ value: "redis", label: "Redis" }]);
+    const missOf = specOf(withCache, "missOf");
+    expect(missOf.visibleIf!({ kind: "after_miss" })).toBe(true);
+    expect(missOf.visibleIf!({ kind: "writes" })).toBe(false);
+  });
+
+  it("offers read-through only out of a node with a hit rate, unless the call already uses it (FLW-14)", () => {
+    const writes = { kind: "writes", callsPerRequest: 1 } as const;
+    expect(kindValues(edgeCallSpecsFor({ caches: [], readThrough: false }, writes))).not.toContain(
+      "on_miss",
+    );
+    expect(kindValues(edgeCallSpecsFor({ caches: [], readThrough: true }, writes))).toContain(
+      "on_miss",
+    );
+    expect(
+      kindValues(
+        edgeCallSpecsFor(
+          { caches: [], readThrough: false },
+          { kind: "on_miss", callsPerRequest: 1 },
+        ),
+      ),
+    ).toContain("on_miss");
+  });
+
+  it("form values carry the call's fields and the step it runs at", () => {
+    expect(edgeCallValues({ kind: "after_miss", missOf: "redis", callsPerRequest: 2 }, 3)).toEqual({
+      kind: "after_miss",
+      missOf: "redis",
+      fraction: DEFAULT_RULE_FRACTION,
+      step: 3,
+      callsPerRequest: 2,
+    });
+  });
+
+  it("badges the calls with the cache's name (FLW-15)", () => {
+    expect(
+      edgeCallsBadge(
+        rule(
+          { kind: "writes", callsPerRequest: 1 },
+          { kind: "after_miss", missOf: "redis", callsPerRequest: 1 },
+        ),
+        labelOf,
+      ),
+    ).toBe("writes · miss: Redis");
+    expect(edgeCallsBadge(rule({ kind: "reads", callsPerRequest: 1 }), labelOf)).toBe("reads");
+    expect(edgeCallsBadge(rule({ kind: "always", callsPerRequest: 3 }), labelOf)).toBe("×3");
+    expect(edgeCallsBadge(rule({ kind: "always", callsPerRequest: 1 }), labelOf)).toBeNull();
   });
 });

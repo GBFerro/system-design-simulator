@@ -487,14 +487,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Passo limitado por `MAX_CALL_STEP` importado
-- [ ] Badge: `"writes · miss: Redis"`, `"reads"`, `"×3"`; `null` para `always` × 1
-- [ ] Testes em `edgeRules.test.ts`
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Passo limitado por `MAX_CALL_STEP` importado
+- [x] Badge: `"writes · miss: Redis"`, `"reads"`, `"×3"`; `null` para `always` × 1
+- [x] Testes em `edgeRules.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(graph): formulário e badge das chamadas da aresta`
+**Status**: ✅ Complete
 
 ---
 

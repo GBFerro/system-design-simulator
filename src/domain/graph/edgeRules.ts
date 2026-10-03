@@ -552,3 +552,142 @@ function edgeCallBadge(call: EdgeCall): string | null {
       return calls ? calls.trim() : null;
   }
 }
+
+/* ---------- call form (Props panel) and badge, request-flow ---------- */
+
+// SPEC_DEVIATION: the spec quotes these labels in Portuguese ("Read-through
+// (miss do próprio cache)", "Leituras após miss em…").
+// Reason: the whole app UI is in English; the labels keep the spec's meaning.
+const CALL_KIND_LABEL: Record<EdgeCallKind, string> = {
+  always: "Always",
+  reads: "Reads only",
+  writes: "Writes only",
+  fraction: "Fraction",
+  on_miss: "Read-through (cache's own miss)",
+  after_miss: "Reads after a miss in…",
+};
+
+/** Condition options of one call; `on_miss` keeps its stored value (read-through). */
+export const EDGE_CALL_KIND_OPTIONS: readonly { value: EdgeCallKind; label: string }[] =
+  CALL_KINDS.map((value) => ({ value, label: CALL_KIND_LABEL[value] }));
+
+/**
+ * The editable fields of one `EdgeCall` as `ParamSpec`s (bounds match
+ * `sanitizeEdgeCalls`). `missOf` has no options here: `edgeCallSpecsFor`
+ * fills them with the caches the edge's source calls.
+ */
+export const EDGE_CALL_SPECS: readonly ParamSpec[] = [
+  {
+    key: "kind",
+    label: "Condition",
+    kind: "enum",
+    default: "always",
+    options: [...EDGE_CALL_KIND_OPTIONS],
+    help: "Which requests make this call: all, reads, writes, a fixed share, a miss of this cache (read-through) or reads that missed another call to a cache (look-aside).",
+  },
+  {
+    key: "missOf",
+    label: "Cache",
+    kind: "enum",
+    default: "",
+    options: [],
+    help: "The cache call this one follows: it runs only when that call misses or fails.",
+    visibleIf: (p) => p.kind === "after_miss",
+  },
+  {
+    key: "fraction",
+    label: "Fraction",
+    kind: "percent",
+    default: DEFAULT_RULE_FRACTION,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    help: "Share of the source's requests that make this call.",
+    visibleIf: (p) => p.kind === "fraction",
+  },
+  {
+    key: "step",
+    label: "Step",
+    kind: "number",
+    default: 1,
+    min: 1,
+    max: MAX_CALL_STEP,
+    step: 1,
+    help: "Order of the call among the source's calls: steps run one after another, calls in the same step run in parallel.",
+  },
+  {
+    key: "callsPerRequest",
+    label: "Calls per request",
+    kind: "number",
+    default: 1,
+    min: 0,
+    max: 100,
+    step: 0.5,
+    help: "Calls per incoming request (e.g. 3 for an N+1 lookup); 0 for a control link.",
+  },
+];
+
+/** The link fields of an edge (network), shared by every call over it. */
+export const EDGE_LINK_SPECS: readonly ParamSpec[] = EDGE_RULE_SPECS.filter(
+  (s) => s.key === "networkLatencyMs" || s.key === "packetLoss",
+);
+
+/** What the call form needs to know about the edge's source. */
+export interface CallFormContext {
+  /** Caches (nodes with a hit rate) the source calls synchronously over its other edges. */
+  caches: readonly { id: string; label: string }[];
+  /** The source itself has a hit rate (read-through makes sense out of it). */
+  readThrough: boolean;
+}
+
+/**
+ * `EDGE_CALL_SPECS` for one call of an edge: "reads after a miss" only when
+ * the source calls a cache (FLW-08), listing those caches; read-through only
+ * out of a node with a hit rate (FLW-14). A call already using a condition
+ * keeps it among the options.
+ */
+export function edgeCallSpecsFor(ctx: CallFormContext, call: EdgeCall): ParamSpec[] {
+  const offered = (kind: EdgeCallKind) =>
+    kind === call.kind ||
+    (kind === "after_miss" ? ctx.caches.length > 0 : kind === "on_miss" ? ctx.readThrough : true);
+  return EDGE_CALL_SPECS.map((spec) => {
+    if (spec.key === "kind") {
+      return { ...spec, options: EDGE_CALL_KIND_OPTIONS.filter((o) => offered(o.value)) };
+    }
+    if (spec.key === "missOf") {
+      return { ...spec, options: ctx.caches.map((c) => ({ value: c.id, label: c.label })) };
+    }
+    return spec;
+  });
+}
+
+/** A call as form values: its fields (fraction shown even while hidden) and the step it runs at. */
+export function edgeCallValues(call: EdgeCall, step: number): Params {
+  return {
+    kind: call.kind,
+    missOf: call.missOf ?? "",
+    fraction: call.fraction ?? DEFAULT_RULE_FRACTION,
+    step,
+    callsPerRequest: call.callsPerRequest,
+  };
+}
+
+/**
+ * Short label of an edge's calls for the canvas badge, e.g.
+ * `"writes · miss: Redis"` (FLW-15); `null` for a plain `always` × 1.
+ * `labelOf` names the cache a look-aside call depends on.
+ */
+export function edgeCallsBadge(
+  rule: EdgeRule | undefined,
+  labelOf: (nodeId: string) => string,
+): string | null {
+  if (!rule) return null;
+  const labels = rule.calls
+    .map((call) => {
+      if (call.kind !== "after_miss") return edgeCallBadge(call);
+      const times = call.callsPerRequest === 1 ? "" : ` ×${call.callsPerRequest}`;
+      return `miss: ${call.missOf ? labelOf(call.missOf) : "?"}${times}`;
+    })
+    .filter((l): l is string => l !== null);
+  return labels.length > 0 ? labels.join(" · ") : null;
+}
