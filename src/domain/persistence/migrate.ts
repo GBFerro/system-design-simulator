@@ -1,6 +1,11 @@
 import { getComponentById } from "@/data/components";
 import { PARAM, sanitizeParams } from "@/domain/components/registry";
-import { defaultEdgeRule, edgeRuleV2Of, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
+import {
+  defaultEdgeRule,
+  edgeRuleV2Of,
+  migrateEdgeRuleV2toV3,
+  sanitizeEdgeRule,
+} from "@/domain/graph/edgeRules";
 
 /**
  * Persistence migrations (Spec 05, PER-01).
@@ -9,6 +14,11 @@ import { defaultEdgeRule, edgeRuleV2Of, sanitizeEdgeRule } from "@/domain/graph/
  * runtime `utilization` / `status` / `isBottleneck`) directly in `node.data`,
  * and edges had no call rule. v2 moves the numbers into schema-validated
  * `params` and gives every edge an `EdgeRule` in `edge.data.rule`.
+ *
+ * v3 (request-flow) turns each edge rule into the link plus a list of calls
+ * (`migrateGraphV2toV3`): one call with the same condition, `on_miss` kept
+ * (read-through); no edge is created, removed or moved. `migrateGraph` runs
+ * the whole chain v1 → v2 → v3 and is what every entry path uses.
  *
  * `migrateV1toV2` is pure, idempotent (`migrate(migrate(x))` deep-equals
  * `migrate(x)`) and never throws. It works on both shapes that hold a graph:
@@ -198,13 +208,18 @@ function migrateEdges(
 
     // label / protocol / async (and anything else) are preserved as-is.
     const data = isRecord(raw.data) ? raw.data : {};
-    // Schema v2 stores the flat rule (one condition per edge); a rule already
-    // in the call-list shape stays in it (never flattened: no call is lost).
-    const sanitized = sanitizeEdgeRule(
-      data.rule,
-      defaultEdgeRule(componentOf.get(source), componentOf.get(target), data.protocol),
-    );
-    const rule = isRecord(data.rule) && "calls" in data.rule ? sanitized : edgeRuleV2Of(sanitized);
+    // Schema v2 stores the flat rule (one condition per edge). A rule already
+    // in the v3 call-list shape is left to the v2 → v3 step (never flattened:
+    // no call is lost, and its warnings are reported once).
+    const rule =
+      isRecord(data.rule) && "calls" in data.rule
+        ? data.rule
+        : edgeRuleV2Of(
+            sanitizeEdgeRule(
+              data.rule,
+              defaultEdgeRule(componentOf.get(source), componentOf.get(target), data.protocol),
+            ),
+          );
     edges.push({ ...raw, id, source, target, data: { ...data, rule } });
   });
   return edges;
@@ -230,6 +245,48 @@ export function migrateGraphV1toV2(
       edges: (Array.isArray(edges) ? edges : []) as MigratedEdge[],
     };
   }
+}
+
+/**
+ * v2 → v3: every edge rule becomes `{ calls, networkLatencyMs, packetLoss }`
+ * (`migrateEdgeRuleV2toV3`), normalized against the edge's connect default;
+ * what the normalization fixes in a v3 list (too many calls, a step out of
+ * range, an unknown condition) is reported per edge. Nodes, edge ids and
+ * endpoints are untouched. Pure, idempotent, never throws.
+ */
+export function migrateGraphV2toV3(
+  graph: MigratedGraph,
+  options: MigrateOptions = {},
+): MigratedGraph {
+  const warn = options.onWarning ?? (() => {});
+  try {
+    const componentOf = new Map<string, string>();
+    for (const n of graph.nodes) {
+      if (typeof n.data?.componentId === "string") componentOf.set(n.id, n.data.componentId);
+    }
+    const edges = graph.edges.map((e) => {
+      const data = isRecord(e.data) ? e.data : {};
+      const rule = sanitizeEdgeRule(
+        migrateEdgeRuleV2toV3(data.rule),
+        defaultEdgeRule(componentOf.get(e.source), componentOf.get(e.target), data.protocol),
+        (m) => warn(`Edge "${e.id}": ${m}`),
+      );
+      return { ...e, data: { ...data, rule } };
+    });
+    return { nodes: graph.nodes, edges };
+  } catch (err) {
+    warn(`Migration failed: ${err instanceof Error ? err.message : String(err)}`);
+    return graph;
+  }
+}
+
+/** The whole chain, v1 → v2 → v3, on a node/edge list pair. Never throws. */
+export function migrateGraph(
+  nodes: unknown,
+  edges: unknown,
+  options: MigrateOptions = {},
+): MigratedGraph {
+  return migrateGraphV2toV3(migrateGraphV1toV2(nodes, edges, options), options);
 }
 
 /**

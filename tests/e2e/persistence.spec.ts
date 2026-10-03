@@ -56,7 +56,7 @@ test("export JSON → clear storage → import restores the design", async ({ pa
   expect(edgeCount).toBeGreaterThan(0);
 
   const exported = await readJson(await exportMenu(page, "Export as JSON"));
-  expect(exported.schemaVersion).toBe(2);
+  expect(exported.schemaVersion).toBe(3);
   expect(exported.nodes).toHaveLength(nodeCount);
   expect(exported.nodes[0].data.params).toBeDefined();
   expect(exported.edges[0].data.rule).toBeDefined();
@@ -90,7 +90,7 @@ test("export JSON → clear storage → import restores the design", async ({ pa
   // Saved designs live in IndexedDB now, not localStorage
   expect(await fresh.evaluate(() => localStorage.getItem("systemsim-saved-designs"))).toBeNull();
   const stored = JSON.parse((await readIdb(fresh, "systemsim-saved-designs")) as string);
-  expect(stored.version).toBe(2);
+  expect(stored.version).toBe(3);
   expect(stored.state.designs).toHaveLength(1);
   await context.close();
 });
@@ -115,7 +115,7 @@ test("a v1 localStorage opens in v2 and saved designs move to IndexedDB", async 
   const canvas = JSON.parse(
     (await page.evaluate(() => localStorage.getItem("systemsim-canvas"))) as string,
   );
-  expect(canvas.version).toBe(2);
+  expect(canvas.version).toBe(3);
   expect(canvas.state.nodes[1].data.params.instances).toBe(4);
   expect(canvas.state.nodes[1].data).not.toHaveProperty("replicas");
 
@@ -127,7 +127,7 @@ test("a v1 localStorage opens in v2 and saved designs move to IndexedDB", async 
     .poll(() => page.evaluate(() => localStorage.getItem("systemsim-saved-designs")))
     .toBeNull();
   const stored = JSON.parse((await readIdb(page, "systemsim-saved-designs")) as string);
-  expect(stored.version).toBe(2);
+  expect(stored.version).toBe(3);
   expect(stored.state.designs.map((d: { name: string }) => d.name)).toEqual([
     "URL shortener v3",
     "Old custom idea",

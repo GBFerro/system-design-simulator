@@ -1,7 +1,7 @@
 import type { Stroke } from "@/store/penStore";
 import { sanitizeSloOverrides } from "@/slo/slo";
 import type { SloOverrides } from "@/slo/types";
-import { migrateGraphV1toV2, type MigrateOptions } from "./migrate";
+import { migrateGraph, type MigrateOptions } from "./migrate";
 import { SCHEMA_VERSION } from "./version";
 import {
   serializeEdges,
@@ -15,11 +15,12 @@ import {
  * app writes — the top-bar "Export as JSON", the Load dialog's per-design
  * export and (Phase 6) the share link:
  *
- *   { schemaVersion: 2, name, problemId, nodes, edges, strokes, chaosScript?, slo? }
+ *   { schemaVersion: 3, name, problemId, nodes, edges, strokes, chaosScript?, slo? }
  *
- * Nodes carry `params`; edges carry `data` (label/protocol/async/rule);
- * `slo` is the design's SLO override (Spec 11), sanitized on import.
- * Import accepts schemaVersion 1 and 2 (missing = 1) and migrates.
+ * Nodes carry `params`; edges carry `data` (label/protocol/async/rule, the
+ * rule as the link plus its list of calls); `slo` is the design's SLO
+ * override (Spec 11), sanitized on import. Import accepts schemaVersion 1, 2
+ * and 3 (missing = 1) and migrates.
  */
 
 /** Placeholder until Spec 08 defines it; preserved verbatim on import/export. */
@@ -143,10 +144,10 @@ export function parseEnvelope(
   const error = structuralError(parsed);
   if (error) return { ok: false, error };
 
-  // v1 needs the migration; for v2 the same (idempotent) pass validates
-  // params and rules and drops dangling edges.
+  // v1 and v2 need the migration; for v3 the same (idempotent) pass
+  // validates params and rules and drops dangling edges.
   const warnings: string[] = [];
-  const graph = migrateGraphV1toV2(parsed.nodes, parsed.edges, {
+  const graph = migrateGraph(parsed.nodes, parsed.edges, {
     ...options,
     onWarning: (m) => warnings.push(m),
   });

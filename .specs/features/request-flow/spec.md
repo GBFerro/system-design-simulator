@@ -16,38 +16,38 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 
 ## Out of Scope
 
-| Feature | Reason |
-| ------- | ------ |
-| Estratégias de escrita no cache (write-through, write-back, invalidação explícita) | É outro padrão, com outra carga; vira spec própria depois deste modelo. |
-| Métricas por chamada dentro de uma aresta (quebra de req/s por condição no NodeInsightCard) | A aresta continua com uma métrica agregada; a quebra por chamada aparece só no trace. |
-| Tamanho de payload, banda e custo de transferência da resposta | O motor não modela bytes; a resposta conta só como tempo (o RTT que já existe). |
-| Conexões de longa duração (WebSocket, streaming) como fluxo contínuo | Seguem como chamadas comuns; um modelo de sessão é outro trabalho. |
-| Rever o SPOF de cache look-aside no scorer e no advisor (`scoring/paths.ts`) | Com fallback para o banco, um cache único deixa de derrubar a requisição; a mudança de rubrica vai para `docs/backlog-produto.md`. |
-| Editar a ordem das chamadas arrastando no diagrama de trace | O trace é só leitura; a ordem se edita no painel Props da aresta. |
-| Exportar o diagrama de sequência (PNG/SVG/Mermaid) | Desejável, mas fora do MVP. |
-| Mix de leitura/escrita do problema na simulação ao vivo | Já é o item P1 de `docs/backlog-produto.md`; esta spec usa o read ratio que o motor já resolve. |
+| Feature                                                                                     | Reason                                                                                                                             |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Estratégias de escrita no cache (write-through, write-back, invalidação explícita)          | É outro padrão, com outra carga; vira spec própria depois deste modelo.                                                            |
+| Métricas por chamada dentro de uma aresta (quebra de req/s por condição no NodeInsightCard) | A aresta continua com uma métrica agregada; a quebra por chamada aparece só no trace.                                              |
+| Tamanho de payload, banda e custo de transferência da resposta                              | O motor não modela bytes; a resposta conta só como tempo (o RTT que já existe).                                                    |
+| Conexões de longa duração (WebSocket, streaming) como fluxo contínuo                        | Seguem como chamadas comuns; um modelo de sessão é outro trabalho.                                                                 |
+| Rever o SPOF de cache look-aside no scorer e no advisor (`scoring/paths.ts`)                | Com fallback para o banco, um cache único deixa de derrubar a requisição; a mudança de rubrica vai para `docs/backlog-produto.md`. |
+| Editar a ordem das chamadas arrastando no diagrama de trace                                 | O trace é só leitura; a ordem se edita no painel Props da aresta.                                                                  |
+| Exportar o diagrama de sequência (PNG/SVG/Mermaid)                                          | Desejável, mas fora do MVP.                                                                                                        |
+| Mix de leitura/escrita do problema na simulação ao vivo                                     | Já é o item P1 de `docs/backlog-produto.md`; esta spec usa o read ratio que o motor já resolve.                                    |
 
 ---
 
 ## Assumptions & Open Questions
 
-| Assumption / decision | Chosen default | Rationale | Confirmed? |
-| --------------------- | -------------- | --------- | ---------- |
-| Escopo | Visual e modelo de chamadas juntos, na mesma spec | Decisão do usuário (ver `context.md`). | y |
-| Forma de visualizar | Bolas de ida e volta no canvas e painel de trace com diagrama de sequência | Decisão do usuário (ver `context.md`). | y |
-| Onde mora a condição "se C não tem" | Na chamada de quem chama: App → Cache e, se a chamada ao cache der miss ou falhar, App → Banco ("leituras após miss na chamada App → Cache"); nada sai do cache para o banco | É o look-aside real: o cache não conhece o banco; o App decide. | y |
-| Read-through continua existindo | A condição "miss do próprio nó" (`on_miss` de hoje) continua válida para chamadas que saem de um cache ou CDN e passa a se chamar "read-through" no editor | CDN → origem e caches read-through (ex.: DAX) existem de verdade; apagar quebraria designs salvos. | y |
-| Migração de designs do usuário | v2 → v3 converte só o formato da regra; nenhuma aresta é criada, removida ou movida, e um `cache → DB on_miss` vira read-through | Migrar a topologia de um design salvo surpreende o usuário; a semântica de hoje fica preservada. | y |
-| Referências e quick fixes | Os 30 pares `cache → DB` das referências viram look-aside (serviço → cache `reads`, serviço → DB "escritas + leituras após miss"); o fix "add cache" do advisor e o padrão de conexão constroem o mesmo formato | O material de estudo precisa ensinar o padrão certo. | y |
-| Várias chamadas na mesma linha | Uma aresta A → B carrega uma lista de chamadas (ex.: "escritas" e "leituras após miss"), cada uma com condição, passo e chamadas por requisição | O compilador deduplica arestas paralelas; duas linhas A → B seriam ilegíveis. | y |
-| Falha do cache no look-aside | Erro, timeout ou nó fora na chamada ao cache conta como miss: a chamada condicional ao banco acontece e a requisição não falha por causa do cache | É o comportamento real do cache-aside e ensina o efeito manada no banco quando o cache cai. | y |
-| Ordem padrão | Sem passo definido, as chamadas síncronas de um nó rodam em sequência, na ordem atual das arestas (passos 1, 2, 3…), e a chamada condicional fica depois da chamada de que depende | Mantém a latência de hoje bit-idêntica para designs existentes. | y |
-| Chamadas async e passos | A chamada async sai no seu passo, nunca soma latência e nunca tem volta | É fire-and-forget; o passo só posiciona o disparo no trace e no canvas. | y |
-| Velocidade das bolas | As bolas andam à velocidade constante de hoje (`BALL_SPEED`); o tempo real de cada passo aparece só no trace | Bolas proporcionais à latência ficariam paradas em hops de 1 ms e lentas demais em hops de 500 ms. | y |
-| Tempos do trace | Sem simulação ou Analyze, o trace mostra só a estrutura (passos, hit/miss); com um snapshot, cada passo mostra o tempo amostrado com o mesmo modelo do sampler | Sem métricas não há fila nem utilização para calcular o tempo. | y |
-| Onde fica o trace | Uma aba nova "Fluxo" no RightPanel, carregada sob demanda (lazy) | Segue o padrão das abas; não pesa no bundle inicial (`bundle:check`). | y |
-| Limites de edição | Até 8 chamadas por aresta, passo de 1 a 20, definidos como duas constantes exportadas de um único módulo (`MAX_EDGE_CALLS = 8`, `MAX_CALL_STEP = 20`, em `domain/graph/edgeRules.ts`) e lidos dali pelo editor, pela sanitização, pelos badges e pelos testes | Cobrem qualquer design de entrevista; mudar o limite é trocar um número num lugar só. O nome evita conflito com `MAX_CALLS_PER_EDGE` de `lib/flowBalls.ts`, que é outra coisa (cópias de bola por aresta). | y |
-| Prefixo dos requisitos | `FLW` | Segue o padrão de três letras das specs (CAN, TRF, OBS, CHS). | y |
+| Assumption / decision               | Chosen default                                                                                                                                                                                                                                                | Rationale                                                                                                                                                                                                  | Confirmed? |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Escopo                              | Visual e modelo de chamadas juntos, na mesma spec                                                                                                                                                                                                             | Decisão do usuário (ver `context.md`).                                                                                                                                                                     | y          |
+| Forma de visualizar                 | Bolas de ida e volta no canvas e painel de trace com diagrama de sequência                                                                                                                                                                                    | Decisão do usuário (ver `context.md`).                                                                                                                                                                     | y          |
+| Onde mora a condição "se C não tem" | Na chamada de quem chama: App → Cache e, se a chamada ao cache der miss ou falhar, App → Banco ("leituras após miss na chamada App → Cache"); nada sai do cache para o banco                                                                                  | É o look-aside real: o cache não conhece o banco; o App decide.                                                                                                                                            | y          |
+| Read-through continua existindo     | A condição "miss do próprio nó" (`on_miss` de hoje) continua válida para chamadas que saem de um cache ou CDN e passa a se chamar "read-through" no editor                                                                                                    | CDN → origem e caches read-through (ex.: DAX) existem de verdade; apagar quebraria designs salvos.                                                                                                         | y          |
+| Migração de designs do usuário      | v2 → v3 converte só o formato da regra; nenhuma aresta é criada, removida ou movida, e um `cache → DB on_miss` vira read-through                                                                                                                              | Migrar a topologia de um design salvo surpreende o usuário; a semântica de hoje fica preservada.                                                                                                           | y          |
+| Referências e quick fixes           | Os 30 pares `cache → DB` das referências viram look-aside (serviço → cache `reads`, serviço → DB "escritas + leituras após miss"); o fix "add cache" do advisor e o padrão de conexão constroem o mesmo formato                                               | O material de estudo precisa ensinar o padrão certo.                                                                                                                                                       | y          |
+| Várias chamadas na mesma linha      | Uma aresta A → B carrega uma lista de chamadas (ex.: "escritas" e "leituras após miss"), cada uma com condição, passo e chamadas por requisição                                                                                                               | O compilador deduplica arestas paralelas; duas linhas A → B seriam ilegíveis.                                                                                                                              | y          |
+| Falha do cache no look-aside        | Erro, timeout ou nó fora na chamada ao cache conta como miss: a chamada condicional ao banco acontece e a requisição não falha por causa do cache                                                                                                             | É o comportamento real do cache-aside e ensina o efeito manada no banco quando o cache cai.                                                                                                                | y          |
+| Ordem padrão                        | Sem passo definido, as chamadas síncronas de um nó rodam em sequência, na ordem atual das arestas (passos 1, 2, 3…), e a chamada condicional fica depois da chamada de que depende                                                                            | Mantém a latência de hoje bit-idêntica para designs existentes.                                                                                                                                            | y          |
+| Chamadas async e passos             | A chamada async sai no seu passo, nunca soma latência e nunca tem volta                                                                                                                                                                                       | É fire-and-forget; o passo só posiciona o disparo no trace e no canvas.                                                                                                                                    | y          |
+| Velocidade das bolas                | As bolas andam à velocidade constante de hoje (`BALL_SPEED`); o tempo real de cada passo aparece só no trace                                                                                                                                                  | Bolas proporcionais à latência ficariam paradas em hops de 1 ms e lentas demais em hops de 500 ms.                                                                                                         | y          |
+| Tempos do trace                     | Sem simulação ou Analyze, o trace mostra só a estrutura (passos, hit/miss); com um snapshot, cada passo mostra o tempo amostrado com o mesmo modelo do sampler                                                                                                | Sem métricas não há fila nem utilização para calcular o tempo.                                                                                                                                             | y          |
+| Onde fica o trace                   | Uma aba nova "Fluxo" no RightPanel, carregada sob demanda (lazy)                                                                                                                                                                                              | Segue o padrão das abas; não pesa no bundle inicial (`bundle:check`).                                                                                                                                      | y          |
+| Limites de edição                   | Até 8 chamadas por aresta, passo de 1 a 20, definidos como duas constantes exportadas de um único módulo (`MAX_EDGE_CALLS = 8`, `MAX_CALL_STEP = 20`, em `domain/graph/edgeRules.ts`) e lidos dali pelo editor, pela sanitização, pelos badges e pelos testes | Cobrem qualquer design de entrevista; mudar o limite é trocar um número num lugar só. O nome evita conflito com `MAX_CALLS_PER_EDGE` de `lib/flowBalls.ts`, que é outra coisa (cópias de bola por aresta). | y          |
+| Prefixo dos requisitos              | `FLW`                                                                                                                                                                                                                                                         | Segue o padrão de três letras das specs (CAN, TRF, OBS, CHS).                                                                                                                                              | y          |
 
 **Open questions:** none - all resolved or logged above (required before the spec is confirmed).
 
@@ -174,73 +174,73 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 
 ### Implicit-requirement dimensions
 
-| Dimension | Coverage |
-| --------- | -------- |
-| Input validation & bounds | FLW-17, FLW-26, FLW-44, FLW-45, FLW-49 |
-| Failure / partial-failure states | FLW-05, FLW-12, FLW-13, FLW-28, FLW-42, FLW-43 |
-| Idempotency / retry / duplicate handling | FLW-19 (migração idempotente); retries por chamada seguem a Spec 04 sem mudança |
-| Auth boundaries & rate limits | N/A because o app é 100% client-side, sem contas nem backend |
-| Concurrency / ordering | FLW-10, FLW-27, FLW-28, FLW-29, FLW-31 |
-| Data lifecycle / expiry | FLW-18, FLW-19, FLW-20 (versão do schema, migração, export/import) |
-| Observability | FLW-34 a FLW-38 (trace); métricas por chamada ficam fora (Out of Scope) |
-| External-dependency failure | N/A because não há serviço externo; a falha de dependência simulada é FLW-12/FLW-13 |
-| State-transition integrity | FLW-25 (somente leitura, undo), FLW-36/FLW-37 (com e sem snapshot), FLW-48 (pausa) |
+| Dimension                                | Coverage                                                                            |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| Input validation & bounds                | FLW-17, FLW-26, FLW-44, FLW-45, FLW-49                                              |
+| Failure / partial-failure states         | FLW-05, FLW-12, FLW-13, FLW-28, FLW-42, FLW-43                                      |
+| Idempotency / retry / duplicate handling | FLW-19 (migração idempotente); retries por chamada seguem a Spec 04 sem mudança     |
+| Auth boundaries & rate limits            | N/A because o app é 100% client-side, sem contas nem backend                        |
+| Concurrency / ordering                   | FLW-10, FLW-27, FLW-28, FLW-29, FLW-31                                              |
+| Data lifecycle / expiry                  | FLW-18, FLW-19, FLW-20 (versão do schema, migração, export/import)                  |
+| Observability                            | FLW-34 a FLW-38 (trace); métricas por chamada ficam fora (Out of Scope)             |
+| External-dependency failure              | N/A because não há serviço externo; a falha de dependência simulada é FLW-12/FLW-13 |
+| State-transition integrity               | FLW-25 (somente leitura, undo), FLW-36/FLW-37 (com e sem snapshot), FLW-48 (pausa)  |
 
 ---
 
 ## Requirement Traceability
 
-| Requirement ID | Story | Phase | Status |
-| -------------- | ----- | ----- | ------ |
-| FLW-01 | P1: Resposta visível no canvas | Tasks | In Tasks |
-| FLW-02 | P1: Resposta visível no canvas | Tasks | In Tasks |
-| FLW-03 | P1: Resposta visível no canvas | Tasks | In Tasks |
-| FLW-04 | P1: Resposta visível no canvas | Tasks | In Tasks |
-| FLW-05 | P1: Resposta visível no canvas | Tasks | In Tasks |
-| FLW-06 | P1: Resposta visível no canvas | Tasks | In Tasks |
-| FLW-07 | P1: Resposta visível no canvas | Tasks | In Tasks |
-| FLW-08 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-09 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-10 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-11 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-12 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-13 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-14 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-15 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-16 | P1: Chamada condicional | Tasks | In Tasks |
-| FLW-17 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-18 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-19 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-20 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-21 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-22 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-23 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-24 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-25 | P1: Referências, editor e dados | Tasks | In Tasks |
-| FLW-26 | P2: Ordem e paralelismo | Tasks | In Tasks |
-| FLW-27 | P2: Ordem e paralelismo | Tasks | In Tasks |
-| FLW-28 | P2: Ordem e paralelismo | Tasks | In Tasks |
-| FLW-29 | P2: Ordem e paralelismo | Tasks | In Tasks |
-| FLW-30 | P2: Ordem e paralelismo | Tasks | In Tasks |
-| FLW-31 | P2: Ordem e paralelismo | Tasks | In Tasks |
-| FLW-32 | P2: Ordem e paralelismo | Tasks | In Tasks |
-| FLW-33 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-34 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-35 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-36 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-37 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-38 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-39 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-40 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-41 | P2: Trace de uma requisição | Tasks | In Tasks |
-| FLW-42 | Edge cases | Tasks | In Tasks |
-| FLW-43 | Edge cases | Tasks | In Tasks |
-| FLW-44 | Edge cases | Tasks | In Tasks |
-| FLW-45 | Edge cases | Tasks | In Tasks |
-| FLW-46 | Edge cases | Tasks | In Tasks |
-| FLW-47 | Edge cases | Tasks | In Tasks |
-| FLW-48 | Edge cases | Tasks | In Tasks |
-| FLW-49 | Edge cases | Tasks | In Tasks |
+| Requirement ID | Story                           | Phase   | Status      |
+| -------------- | ------------------------------- | ------- | ----------- |
+| FLW-01         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-02         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-03         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-04         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-05         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-06         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-07         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-08         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-09         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-10         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-11         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-12         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-13         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-14         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-15         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-16         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-17         | P1: Referências, editor e dados | Tasks   | In Tasks    |
+| FLW-18         | P1: Referências, editor e dados | Execute | Implemented |
+| FLW-19         | P1: Referências, editor e dados | Execute | Implemented |
+| FLW-20         | P1: Referências, editor e dados | Execute | Implemented |
+| FLW-21         | P1: Referências, editor e dados | Tasks   | In Tasks    |
+| FLW-22         | P1: Referências, editor e dados | Tasks   | In Tasks    |
+| FLW-23         | P1: Referências, editor e dados | Tasks   | In Tasks    |
+| FLW-24         | P1: Referências, editor e dados | Tasks   | In Tasks    |
+| FLW-25         | P1: Referências, editor e dados | Tasks   | In Tasks    |
+| FLW-26         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-27         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-28         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-29         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-30         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-31         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-32         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-33         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-34         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-35         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-36         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-37         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-38         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-39         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-40         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-41         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-42         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-43         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-44         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-45         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-46         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-47         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-48         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-49         | Edge cases                      | Tasks   | In Tasks    |
 
 **Coverage:** 49 total, 49 mapped to tasks (ver `tasks.md`), 0 unmapped
 

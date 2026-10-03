@@ -1,10 +1,10 @@
-import { migrateGraphV1toV2, type MigrateOptions } from "@/domain/persistence/migrate";
+import { migrateGraph, type MigrateOptions } from "@/domain/persistence/migrate";
 
 /**
  * `migrate(persisted, fromVersion)` for every persisted store (Spec 05).
  * zustand calls these only when the stored version differs from
- * `STORE_VERSION` (./persistVersion). The graph migration is idempotent, so running it on
- * any mismatch (including a future version) is safe. Never throws.
+ * `STORE_VERSION` (./persistVersion). The graph migration (v1 → v2 → v3) is idempotent, so
+ * running it on any mismatch (including a future version) is safe. Never throws.
  */
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -23,11 +23,11 @@ export function migrateCanvasState<T>(persisted: unknown, fromVersion: number): 
   void fromVersion;
   if (!isRecord(persisted)) return persisted as T;
   const onWarning = warnOnConsole("canvas");
-  const live = migrateGraphV1toV2(persisted.nodes ?? [], persisted.edges ?? [], { onWarning });
+  const live = migrateGraph(persisted.nodes ?? [], persisted.edges ?? [], { onWarning });
   const tabs = Array.isArray(persisted.tabs)
     ? persisted.tabs.filter(isRecord).map((tab) => ({
         ...tab,
-        ...migrateGraphV1toV2(tab.nodes ?? [], tab.edges ?? [], { onWarning }),
+        ...migrateGraph(tab.nodes ?? [], tab.edges ?? [], { onWarning }),
       }))
     : persisted.tabs;
   return { ...persisted, ...live, tabs } as T;
@@ -41,7 +41,7 @@ export function migrateSavedDesignsState<T>(persisted: unknown, fromVersion: num
   const designs = Array.isArray(persisted.designs)
     ? persisted.designs.filter(isRecord).map((design) => ({
         ...design,
-        ...migrateGraphV1toV2(design.nodes ?? [], design.edges ?? [], { onWarning }),
+        ...migrateGraph(design.nodes ?? [], design.edges ?? [], { onWarning }),
         strokes: Array.isArray(design.strokes) ? design.strokes : [],
       }))
     : [];

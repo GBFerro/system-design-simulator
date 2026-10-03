@@ -235,16 +235,17 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Um design v2 com `cache → DB on_miss` migra sem criar, remover ou mover arestas, e a aresta fica com uma chamada `on_miss`
-- [ ] A carga por nó no `analyze()` antes e depois da migração é deep-equal
-- [ ] Migração idempotente (rodar duas vezes = uma); nunca lança com entrada inválida
-- [ ] Export grava `schemaVersion: 3`; export → import devolve as mesmas chamadas; import de 1, 2 e 3 funciona
-- [ ] `persistence.versions.test.ts` passa com `STORE_VERSION` 3
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Um design v2 com `cache → DB on_miss` migra sem criar, remover ou mover arestas, e a aresta fica com uma chamada `on_miss`
+- [x] A carga por nó no `analyze()` antes e depois da migração é deep-equal
+- [x] Migração idempotente (rodar duas vezes = uma); nunca lança com entrada inválida
+- [x] Export grava `schemaVersion: 3`; export → import devolve as mesmas chamadas; import de 1, 2 e 3 funciona
+- [x] `persistence.versions.test.ts` passa com `STORE_VERSION` 3
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(persistence): schema v3 com chamadas por aresta`
+**Status**: ✅ Complete
 
 ---
 
