@@ -322,14 +322,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] `reads`, `writes`, `fraction`, `always` e `on_miss` dão o mesmo valor de hoje
-- [ ] `after_miss` com h = 0,9, r = 0,9, f = 0 → 0,09; com f = 1 → 0,9
-- [ ] Com uma chamada só, `edgeFactor` é bit-idêntico ao `ruleFactor` antigo
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] `reads`, `writes`, `fraction`, `always` e `on_miss` dão o mesmo valor de hoje
+- [x] `after_miss` com h = 0,9, r = 0,9, f = 0 → 0,09; com f = 1 → 0,9
+- [x] Com uma chamada só, `edgeFactor` é bit-idêntico ao `ruleFactor` antigo
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): probabilidade por chamada com leituras após miss`
+**Status**: ✅ Complete
 
 ---
 

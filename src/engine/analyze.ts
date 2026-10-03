@@ -37,7 +37,8 @@ import {
   maxRetriesOf,
   paramNumber,
   rateLimit,
-  ruleFactor,
+  edgeFactor,
+  type CallContext,
 } from "./core/routing";
 import { sampleLatency } from "./core/sampler";
 import { sampleNodesFor, settle, type Topology } from "./core/settle";
@@ -166,6 +167,7 @@ export function analyze(
 
   /* ---------- forward pass: load propagation ---------- */
   const propagate = (failure: Map<string, number>): Pass => {
+    const callCtx: CallContext = { readRatio: cfg.readRatio, byId };
     const inflow = new Map<string, number>();
     entries.forEach((id, i) =>
       inflow.set(
@@ -272,7 +274,7 @@ export function analyze(
         // the rest piles up as lag (bounded by maxQueue, then lost).
         let lag = 0;
         for (const e of edges) {
-          const demand = served * ruleFactor(e.rule, node, cfg.readRatio);
+          const demand = served * edgeFactor(e, node, callCtx);
           const pull = edgeFx(e)?.severed ? 0 : consumerCapacity(node, byId.get(e.target)!);
           const drained = Math.min(demand, pull);
           lag += demand - drained;
@@ -281,7 +283,7 @@ export function analyze(
         flow.backlog = Math.min(maxQueue, lag * cfg.horizonSec);
         flow.lagging = lag > 1e-9;
       } else {
-        for (const e of edges) push(e, served * ruleFactor(e.rule, node, cfg.readRatio));
+        for (const e of edges) push(e, served * edgeFactor(e, node, callCtx));
       }
     }
     return { flows, base, load, shares };

@@ -3,6 +3,7 @@ import { defaultParams, PARAM } from "@/domain/components/registry";
 import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { retryAmplification } from "@/engine/core/queueing";
+import { callProbability, edgeFactor } from "@/engine/core/routing";
 import { simulateCanvas } from "@/engine/client";
 import { createEngine } from "@/engine/engine";
 import { FaultError } from "@/engine/faults/runner";
@@ -443,6 +444,83 @@ describe("compileGraph: call plan (request-flow)", () => {
     expect(Array.isArray(svc.absorbed)).toBe(true);
     expect(structuredClone(graph)).toEqual(graph);
     expect(JSON.parse(JSON.stringify(graph))).toEqual(graph);
+  });
+});
+
+describe("routing: probability of each call (request-flow)", () => {
+  // svc reads redis (h 0.9), then writes the db and reads it after a miss
+  const graph = compileGraph(
+    [
+      comp("client", "client"),
+      comp("svc", "app-server", { instances: 10 }),
+      comp("redis", "cache", { hitRate: 0.9 }),
+      comp("cdn", "cdn", { hitRate: 0.85 }),
+      comp("db", "sql-db", { instances: 4 }),
+    ],
+    [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+      callWire("cdn", "db", [call("on_miss")]),
+    ],
+  );
+  const nodeOf = (id: string) => graph.nodes.find((n) => n.id === id)!;
+  const edge = (source: string, target: string) =>
+    graph.edges.find((e) => e.source === source && e.target === target)!;
+  const byIdMap = new Map(graph.nodes.map((n) => [n.id, n]));
+  const svc = nodeOf("svc");
+
+  it("reads, writes, fraction, always and read-through keep their Spec 04 values (FLW-14)", () => {
+    const ctx = { readRatio: 0.9 };
+    expect(callProbability(call("reads"), svc, ctx)).toBe(0.9);
+    expect(callProbability(call("writes"), svc, ctx)).toBe(1 - 0.9);
+    expect(callProbability(call("fraction", { fraction: 0.2 }), svc, ctx)).toBe(0.2);
+    expect(callProbability(call("always"), svc, ctx)).toBe(1);
+    // read-through: the calling cache's own misses
+    expect(callProbability(call("on_miss"), nodeOf("cdn"), ctx)).toBe(1 - 0.85);
+  });
+
+  it("after_miss is r × (1 − h × (1 − f)): 0.09 with a healthy cache, every read when it fails (FLW-09, FLW-13)", () => {
+    const afterMiss = call("after_miss", { missOf: "redis" });
+    const cacheCall = edge("svc", "redis").id;
+    const at = (f: number) =>
+      callProbability(
+        afterMiss,
+        svc,
+        { readRatio: 0.9, byId: byIdMap, failure: new Map([[cacheCall, f]]) },
+        cacheCall,
+      );
+    expect(at(0)).toBeCloseTo(0.09, 12);
+    expect(at(1)).toBeCloseTo(0.9, 12);
+    expect(at(0.5)).toBeCloseTo(0.9 * (1 - 0.9 * 0.5), 12);
+  });
+
+  it("with one call, the edge factor is exactly P(taken) × callsPerRequest", () => {
+    const one = (calls: EdgeCall[], source = "svc") =>
+      compileGraph(
+        [comp("svc", "app-server"), comp("cdn", "cdn", { hitRate: 0.85 }), comp("db", "sql-db")],
+        [callWire(source, "db", calls)],
+      );
+    const factor = (calls: EdgeCall[], source = "svc") => {
+      const g = one(calls, source);
+      return edgeFactor(
+        g.edges[0],
+        g.nodes.find((n) => n.id === source)!,
+        { readRatio: 0.9 },
+      );
+    };
+    expect(factor([call("reads", { callsPerRequest: 3 })])).toBe(0.9 * 3);
+    expect(factor([call("writes", { callsPerRequest: 2.5 })])).toBe((1 - 0.9) * 2.5);
+    expect(factor([call("fraction", { fraction: 0.1, callsPerRequest: 4 })])).toBe(0.1 * 4);
+    expect(factor([call("always", { callsPerRequest: 0 })])).toBe(0);
+    expect(factor([call("on_miss", { callsPerRequest: 2 })], "cdn")).toBe((1 - 0.85) * 2);
+  });
+
+  it("an edge with several calls sums them: writes + reads after a miss", () => {
+    const ctx = { readRatio: 0.9, byId: byIdMap };
+    expect(edgeFactor(edge("svc", "db"), svc, ctx)).toBeCloseTo(0.1 + 0.09, 12);
+    const down = new Map([[edge("svc", "redis").id, 1]]);
+    expect(edgeFactor(edge("svc", "db"), svc, { ...ctx, failure: down })).toBeCloseTo(1, 12);
   });
 });
 

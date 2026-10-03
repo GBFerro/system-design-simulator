@@ -76,7 +76,8 @@ import {
   maxQueueOf,
   maxRetriesOf,
   rateLimit,
-  ruleFactor,
+  edgeFactor,
+  type CallContext,
 } from "./routing";
 import { sampleLatency } from "./sampler";
 import { sampleNodesFor, settle, type FlowView, type Settled, type Topology } from "./settle";
@@ -234,6 +235,7 @@ export class TickSimulator {
     const load = new Map<string, number>();
     const shares = new Map<string, number>();
     const flows = new Map<string, TickFlow>();
+    const callCtx: CallContext = { readRatio, byId };
 
     // 2–3. propagate in order
     for (const id of order) {
@@ -378,7 +380,7 @@ export class TickSimulator {
         let lost = 0;
         for (const e of edges) {
           const prev = state.lag.get(e.id) ?? 0;
-          const pendingMsgs = prev + completed * ruleFactor(e.rule, node, readRatio) * dt;
+          const pendingMsgs = prev + completed * edgeFactor(e, node, callCtx) * dt;
           const pull = edgeFx(e)?.severed ? 0 : consumerCapacity(node, byId.get(e.target)!);
           const drained = Math.min(pendingMsgs, pull * dt);
           let next = pendingMsgs - drained;
@@ -403,7 +405,7 @@ export class TickSimulator {
           flow.served = Math.max(0, arriving - flow.dropped);
         }
       } else {
-        for (const e of edges) push(e, completed * ruleFactor(e.rule, node, readRatio));
+        for (const e of edges) push(e, completed * edgeFactor(e, node, callCtx));
       }
     }
 

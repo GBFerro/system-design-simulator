@@ -4,14 +4,15 @@
  * | kind          | how inflow λ leaves the node                                        |
  * | ------------- | ------------------------------------------------------------------- |
  * | lb            | split across targets by algorithm; edge rules don't apply           |
- * | service/fixed | each edge by its rule × callsPerRequest                             |
- * | cache         | same, and `on_miss` edges get λ × (1 − hitRate)                     |
+ * | service/fixed | each edge by its calls × callsPerRequest (`edgeFactor`)             |
+ * | cache         | same, and `on_miss` (read-through) calls get λ × (1 − hitRate)      |
  * | queue         | decoupled: each consumer edge drains min(demand, consumer capacity) |
  * | rate-limiter  | admits min(λ, limit); the excess is rejected (429) or queued        |
  * | breaker       | passes all, or fails fast while open (`core/breaker.ts`)           |
  */
 import { PARAM } from "@/domain/components/registry";
-import type { EdgeCall, EdgeRule } from "@/domain/components/types";
+import type { EdgeCall } from "@/domain/components/types";
+import type { CallPlan } from "@/domain/graph/callPlan";
 import type { SimEdge, SimNode } from "@/domain/graph/compile";
 import { clamp01 } from "./queueing";
 
@@ -64,22 +65,45 @@ export function availabilityOf(node: SimNode): number {
   return clamp01(paramNumber(node, PARAM.availability, 0.999));
 }
 
-/* ---------- edge rules ---------- */
+/* ---------- edge calls ---------- */
 
-/** Probability a single request makes this call (before callsPerRequest). */
-export function ruleProbability(call: EdgeCall, source: SimNode, readRatio: number): number {
+/** What a call's probability may depend on besides the source itself. */
+export interface CallContext {
+  readRatio: number;
+  /** Nodes by id (faults applied): the cache's hit rate for `after_miss`. */
+  byId?: ReadonlyMap<string, SimNode>;
+  /** Per edge: probability a single call fails (settle). Missing = 0. */
+  failure?: ReadonlyMap<string, number>;
+}
+
+/**
+ * Probability a single request makes this call (before callsPerRequest).
+ * `after_miss` = the reads that missed the cache call `dependsOn` (edge id,
+ * from the call plan): r × (1 − h × (1 − f)), where h is the cache's hit
+ * rate and f that call's failure (a failed cache call counts as a miss).
+ * Without a resolved dependency it is every read, as the plan treats it.
+ */
+export function callProbability(
+  call: EdgeCall,
+  source: SimNode,
+  ctx: CallContext,
+  dependsOn?: string,
+): number {
   switch (call.kind) {
-    // after_miss: the reads that missed the source's cache call; without the
-    // cache's hit rate (not known per call here) that is every read.
     case "reads":
-    case "after_miss":
-      return clamp01(readRatio);
+      return clamp01(ctx.readRatio);
     case "writes":
-      return clamp01(1 - readRatio);
+      return clamp01(1 - ctx.readRatio);
     case "fraction":
       return clamp01(call.fraction ?? 1);
     case "on_miss":
       return 1 - hitRateOf(source);
+    case "after_miss": {
+      const cache = call.missOf === undefined ? undefined : ctx.byId?.get(call.missOf);
+      if (dependsOn === undefined || !cache) return clamp01(ctx.readRatio);
+      const f = clamp01(ctx.failure?.get(dependsOn) ?? 0);
+      return clamp01(ctx.readRatio) * (1 - hitRateOf(cache) * (1 - f));
+    }
     default:
       return 1;
   }
@@ -90,15 +114,50 @@ export function callsOf(call: EdgeCall): number {
   return Number.isFinite(k) && k > 0 ? k : 0;
 }
 
+/** One call of an edge as the engine runs it: resolved by the source's plan. */
+export interface EdgeCallView {
+  call: EdgeCall;
+  /** `after_miss`: edge id of the cache call it depends on. */
+  dependsOn?: string;
+}
+
+const callsByPlan = new WeakMap<CallPlan, Map<string, EdgeCallView[]>>();
+
+/**
+ * The calls `source` makes over `edge`, in list order, as its call plan
+ * resolved them (an invalid `after_miss` comes out as `reads`). Without a
+ * plan (an edge the compiler left out of it), the edge's own calls.
+ */
+export function edgeCallsOf(edge: SimEdge, source: SimNode): readonly EdgeCallView[] {
+  const plan = source.plan;
+  if (!plan) return edge.rule.calls.map((call) => ({ call }));
+  let byEdge = callsByPlan.get(plan);
+  if (!byEdge) {
+    byEdge = new Map();
+    const all = [...plan.steps.flat(), ...plan.async].sort((a, b) => a.index - b.index);
+    for (const p of all) {
+      const view: EdgeCallView = p.dependsOn
+        ? { call: p.call, dependsOn: p.dependsOn }
+        : { call: p.call };
+      const list = byEdge.get(p.edgeId);
+      if (list) list.push(view);
+      else byEdge.set(p.edgeId, [view]);
+    }
+    callsByPlan.set(plan, byEdge);
+  }
+  return byEdge.get(edge.id) ?? edge.rule.calls.map((call) => ({ call }));
+}
+
 /**
  * Flow multiplier of an edge: Σ over its calls of P(taken) × callsPerRequest
  * (summed from the first term, so one call gives exactly that call's factor).
  */
-export function ruleFactor(rule: EdgeRule, source: SimNode, readRatio: number): number {
-  const [first, ...rest] = rule.calls;
+export function edgeFactor(edge: SimEdge, source: SimNode, ctx: CallContext): number {
+  const [first, ...rest] = edgeCallsOf(edge, source);
   if (!first) return 0;
-  let factor = ruleProbability(first, source, readRatio) * callsOf(first);
-  for (const call of rest) factor += ruleProbability(call, source, readRatio) * callsOf(call);
+  let factor = callProbability(first.call, source, ctx, first.dependsOn) * callsOf(first.call);
+  for (const c of rest)
+    factor += callProbability(c.call, source, ctx, c.dependsOn) * callsOf(c.call);
   return factor;
 }
 

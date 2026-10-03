@@ -7,11 +7,11 @@ import type { SimEdge, SimNode } from "@/domain/graph/compile";
 import { clamp01, probSojournExceeds, type StationState } from "./queueing";
 import {
   availabilityOf,
+  callProbability,
   callsOf,
   hitRateOf,
   lookupShareOf,
   maxRetriesOf,
-  ruleProbability,
   timeoutMsOf,
 } from "./routing";
 import type { SampleEdge, SampleNode } from "./sampler";
@@ -97,7 +97,7 @@ export function settle(
     } else {
       for (const e of sync) {
         for (const call of e.rule.calls) {
-          const q = ruleProbability(call, node, readRatio);
+          const q = callProbability(call, node, { readRatio });
           const k = callsOf(call);
           s *= 1 - q + q * callOk(e) ** k;
           a *= 1 - q + q * (avail.get(e.target) ?? 1);
