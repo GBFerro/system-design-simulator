@@ -46,7 +46,7 @@ Motor de fluxo discretizado no tempo, num Web Worker. A cada tick de 50 ms de te
 1. Gerar as chegadas das fontes: λ(t) segundo o padrão de carga ([Spec 06](06-controles-de-trafego.md)), vezes os multiplicadores de chaos ([Spec 08](08-chaos-engineering.md)), mais os retries do tick anterior.
 2. Propagar o fluxo em ordem topológica. Cada nó aplica sua regra de roteamento (abaixo).
 3. Em cada nó: atualizar o backlog, calcular utilização, espera na fila, drops, timeouts e erros.
-4. Amostrar 1.000 requests que percorrem o grafo pelas probabilidades de roteamento, somando o service time e a espera de cada hop. Daqui saem os p50/p95/p99 end-to-end e os traces ([Spec 07](07-metricas-e-observabilidade.md), OBS-06).
+4. Amostrar 1.000 requests que percorrem o grafo pelas probabilidades de roteamento, somando o service time e a espera de cada hop. As chamadas de um nó seguem o plano de chamadas: passos em sequência (soma) e chamadas do mesmo passo em paralelo (máximo). Daqui saem os p50/p95/p99 end-to-end e os traces ([Spec 07](07-metricas-e-observabilidade.md), OBS-06).
 5. Emitir um `TickSnapshot` para a UI (throttle de 10 fps) e guardar num ring buffer de 6.000 ticks (5 min simulados).
 
 ## Roteamento por tipo de nó
@@ -54,11 +54,25 @@ Motor de fluxo discretizado no tempo, num Web Worker. A cada tick de 50 ms de te
 | Nó              | Como o fluxo de entrada λ sai                                                                                               |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Load Balancer   | Divide entre alvos saudáveis: round robin → igual; weighted → por peso; least connections → proporcional à capacidade livre |
-| Service / App   | Cada aresta pela regra: `always` → λ × `callsPerRequest`; `reads`/`writes` → λ × mix; `fraction` p → λ × p                  |
-| Cache / CDN     | Arestas `on_miss` recebem λ × (1 − h)                                                                                       |
+| Service / App   | Cada aresta pela soma das chamadas: `always` → λ; `reads`/`writes` → λ × mix; `fraction` p → λ × p; `after_miss` (abaixo)   |
+| Cache / CDN     | Chamadas `on_miss` (read-through) recebem λ × (1 − h)                                                                       |
 | Queue / Stream  | Desacopla: a saída é min(backlog, consumers × taxa) e o backlog vira lag                                                    |
 | Rate Limiter    | A saída é min(λ, limite); o excedente vira 429 (erro) ou fila                                                               |
 | Circuit Breaker | Fechado repassa tudo; aberto devolve erro rápido com latência ≈ 0; half-open deixa passar os probes                         |
+
+### Chamadas, passos e cache look-aside
+
+Uma aresta é um link (latência de rede, perda de pacote) com uma lista de chamadas ([Spec 03](03-catalogo-de-componentes.md), regras de aresta). A carga de uma aresta é a soma das chamadas, cada uma vezes `callsPerRequest` (`edgeFactor`, `engine/core/routing.ts`). Com uma chamada só, o resultado é o mesmo do modelo anterior.
+
+Uma chamada `after_miss` de B a D depende da chamada de B ao cache C. A probabilidade dela, com r o read ratio, h o hit rate de C e f a falha da chamada B → C:
+
+```latex
+P(\text{after\_miss}) = r\,\big(1 - h\,(1 - f)\big)
+```
+
+Com C fora (f = 1), D recebe todas as leituras de B. A falha da chamada ao cache é absorvida: vira miss e não derruba a requisição. Como f sai do `settle`, o `analyze()` resolve isso no mesmo ponto fixo dos retries; o tick usa a falha do tick anterior (0 no primeiro).
+
+A ordem das chamadas de um nó vem só de `domain/graph/callPlan.ts`: sem passo explícito, a i-ésima chamada fica no passo i + 1 (sequencial, como antes); com passos explícitos, as implícitas vão depois do maior. Uma `after_miss` roda pelo menos um passo depois da chamada ao cache (o plano corrige e avisa). No sampler, a latência de um nó é o próprio tempo mais a soma, passo a passo, da maior duração entre as chamadas do passo; uma chamada síncrona que falha encerra a requisição sem fazer os passos seguintes. Um design sem passos explícitos e sem `after_miss` dá resultados bit-idênticos aos do modelo anterior (`engine-golden.test.ts`).
 
 ## Fórmulas
 

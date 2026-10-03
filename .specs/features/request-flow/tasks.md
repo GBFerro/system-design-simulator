@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: In Progress (Lote A, fases 1–2: T1–T6 ✅)
+**Status**: In Progress (fases 1–5: T1–T21 ✅)
 
 ---
 
@@ -677,14 +677,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Nenhuma menção restante a "cache → its database (default `on_miss`)" como padrão das referências
-- [ ] `claude-map.test.ts` passa
-- [ ] Gate de build da fase passa antes de abrir o PR 2
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e`
+- [x] Nenhuma menção restante a "cache → its database (default `on_miss`)" como padrão das referências
+- [x] `claude-map.test.ts` passa
+- [x] Gate de build da fase passa antes de abrir o PR 2
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e`
 
 **Tests**: unit
 **Gate**: build
 **Commit**: `docs: modelo de chamadas e cache look-aside no CLAUDE.md e nas specs`
+**Status**: ✅ Complete
 
 ---
 
