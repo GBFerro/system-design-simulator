@@ -1,4 +1,5 @@
-import { routingFor } from "@/domain/components/registry";
+import { getParamSpec, PARAM, routingFor } from "@/domain/components/registry";
+import { DATABASES } from "@/domain/components/traits";
 import type {
   EdgeCall,
   EdgeCallKind,
@@ -129,7 +130,22 @@ function hasReadReplica(dbNodeId: string, callerNodeId: string, graph: RuleGraph
   );
 }
 
-/** `defaultEdgeRule` for a new edge between two canvas nodes, reading the graph for context. */
+/** The first cache (a node with a hit rate) `sourceNodeId` calls synchronously, if any. */
+function cacheCalledBy(sourceNodeId: string, targetNodeId: string, graph: RuleGraph) {
+  return graph.edges.find((e) => {
+    if (e.source !== sourceNodeId || e.target === targetNodeId || isAsyncEdge(e)) return false;
+    const componentId = graph.componentIdOf(e.target);
+    return componentId !== undefined && getParamSpec(componentId, PARAM.hitRate) !== undefined;
+  })?.target;
+}
+
+/**
+ * `defaultEdgeRule` for a new edge between two canvas nodes, reading the graph
+ * for context. Look-aside (FLW-24): a service connected to a database while
+ * it already calls a cache writes to the database and reads it only after a
+ * miss in that cache. With a read replica the replica takes the reads, so the
+ * database keeps only the writes.
+ */
 export function connectEdgeRule(
   sourceNodeId: string,
   targetNodeId: string,
@@ -140,7 +156,19 @@ export function connectEdgeRule(
   const target = graph.componentIdOf(targetNodeId);
   const targetHasReadReplica =
     target === SQL_DB && hasReadReplica(targetNodeId, sourceNodeId, graph);
-  return defaultEdgeRule(source, target, protocol, { targetHasReadReplica });
+  const rule = defaultEdgeRule(source, target, protocol, { targetHasReadReplica });
+  if (!source || !isCaller(source) || !target || !DATABASES.has(target) || targetHasReadReplica) {
+    return rule;
+  }
+  const cache = cacheCalledBy(sourceNodeId, targetNodeId, graph);
+  if (!cache) return rule;
+  return {
+    ...rule,
+    calls: [
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: cache, callsPerRequest: 1 },
+    ],
+  };
 }
 
 /** A canvas (nodes carrying `data.componentId`) as the connect defaults read it. */

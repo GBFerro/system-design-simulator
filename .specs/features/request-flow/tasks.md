@@ -570,14 +570,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Conectar Service → SQL DB com Service → Redis existente gera as duas chamadas
-- [ ] Sem cache, o padrão é o de hoje (`always`, ou `writes` com read replica)
-- [ ] Testes em `edgeRules.test.ts`
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Conectar Service → SQL DB com Service → Redis existente gera as duas chamadas
+- [x] Sem cache, o padrão é o de hoje (`always`, ou `writes` com read replica)
+- [x] Testes em `edgeRules.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(graph): conectar serviço a banco com cache já usa look-aside`
+**Status**: ✅ Complete
 
 ---
 

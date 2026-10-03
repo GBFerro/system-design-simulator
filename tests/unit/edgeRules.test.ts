@@ -21,6 +21,7 @@ import {
   migrateEdgeRuleV2toV3,
   sanitizeEdgeCalls,
 } from "@/domain/graph/edgeRules";
+import { planFor } from "@/domain/graph/callPlan";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 
@@ -144,6 +145,81 @@ describe("connecting from the UI", () => {
     setCanvas([node("app-server"), node("sql-db")]);
     connect("app-server", "sql-db");
     expect(ruleOf("app-server", "sql-db")?.kind).toBe("always");
+  });
+});
+
+describe("look-aside connect default (FLW-24)", () => {
+  beforeEach(() => setCanvas([]));
+
+  const callsOf = (source: string, target: string) => {
+    const edge = s().edges.find((e) => e.source === source && e.target === target);
+    return (edge?.data as CustomEdgeData | undefined)?.rule?.calls;
+  };
+
+  it("Service → DB with a call to a cache is born writes + reads after a miss in that cache", () => {
+    setCanvas([node("app-server", "app"), node("cache", "redis"), node("sql-db", "db")]);
+    connect("app", "redis");
+    connect("app", "db");
+    expect(callsOf("app", "db")).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: "redis", callsPerRequest: 1 },
+    ]);
+    // The cache edge came first, so the plan runs the DB call after it, without a warning
+    const plan = planFor(
+      "app",
+      s().edges.map((e) => ({
+        id: e.id,
+        target: e.target,
+        async: false,
+        calls: (e.data as CustomEdgeData).rule!.calls,
+      })),
+      (id) => id === "redis",
+    );
+    expect(plan.warnings).toEqual([]);
+    expect(plan.steps.map((step) => step.map((p) => p.target))).toEqual([
+      ["redis"],
+      ["db"],
+      ["db"],
+    ]);
+  });
+
+  it("a NoSQL database gets the same look-aside calls", () => {
+    setCanvas([node("app-server", "app"), node("cache", "redis"), node("nosql-db", "db")]);
+    connect("app", "redis");
+    connect("app", "db");
+    expect(callsOf("app", "db")).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: "redis", callsPerRequest: 1 },
+    ]);
+  });
+
+  it("without a sync call to a cache the default stays as before", () => {
+    setCanvas([node("app-server", "app"), node("cache", "redis"), node("sql-db", "db")]);
+    // an async edge to the cache isn't a cache call on the request path
+    s().onConnect({ source: "app", target: "redis", sourceHandle: null, targetHandle: null });
+    s().updateEdgeData(s().edges[0].id, { async: true });
+    connect("app", "db");
+    expect(callsOf("app", "db")).toEqual([{ kind: "always", callsPerRequest: 1 }]);
+  });
+
+  it("with a read replica the DB keeps only the writes (the replica takes the reads)", () => {
+    setCanvas([
+      node("app-server", "app"),
+      node("cache", "redis"),
+      node("sql-db", "db"),
+      node("read-replica", "rr"),
+    ]);
+    connect("db", "rr");
+    connect("app", "redis");
+    connect("app", "db");
+    expect(callsOf("app", "db")).toEqual([{ kind: "writes", callsPerRequest: 1 }]);
+  });
+
+  it("a cache's own output stays read-through", () => {
+    setCanvas([node("app-server", "app"), node("cache", "redis"), node("sql-db", "db")]);
+    connect("app", "redis");
+    connect("redis", "db");
+    expect(callsOf("redis", "db")).toEqual([{ kind: "on_miss", callsPerRequest: 1 }]);
   });
 });
 
