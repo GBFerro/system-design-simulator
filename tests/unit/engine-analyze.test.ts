@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { defaultParams, PARAM } from "@/domain/components/registry";
 import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
-import { retryAmplification } from "@/engine/core/queueing";
-import { callProbability, edgeFactor } from "@/engine/core/routing";
+import { retryAmplification, station } from "@/engine/core/queueing";
+import { callProbability, edgeFactor, forwardEdges } from "@/engine/core/routing";
+import { settle, type FlowView, type Topology } from "@/engine/core/settle";
 import { simulateCanvas } from "@/engine/client";
 import { createEngine } from "@/engine/engine";
 import { FaultError } from "@/engine/faults/runner";
@@ -521,6 +522,92 @@ describe("routing: probability of each call (request-flow)", () => {
     expect(edgeFactor(edge("svc", "db"), svc, ctx)).toBeCloseTo(0.1 + 0.09, 12);
     const down = new Map([[edge("svc", "redis").id, 1]]);
     expect(edgeFactor(edge("svc", "db"), svc, { ...ctx, failure: down })).toBeCloseTo(1, 12);
+  });
+});
+
+describe("settle: a look-aside cache's failure is a miss (request-flow)", () => {
+  const nodes = [
+    comp("client", "client"),
+    comp("svc", "app-server", { instances: 10 }),
+    comp("redis", "cache", { hitRate: 0.9 }),
+    comp("db", "sql-db", { instances: 4 }),
+  ];
+
+  /** settle() over a compiled graph with each node serving `servedShare` of its arrivals. */
+  function settleOf(
+    edges: Edge[],
+    servedShare: Record<string, number>,
+    availability: Record<string, number> = {},
+  ) {
+    const graph = compileGraph(nodes, edges);
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    for (const [id, a] of Object.entries(availability)) byId.get(id)!.params.availability = a;
+    const topo: Topology = {
+      byId,
+      order: graph.order,
+      entries: graph.entryIds,
+      out: forwardEdges(graph.edges),
+      readRatio: 0.9,
+    };
+    const flows = new Map<string, FlowView>();
+    for (const n of graph.nodes) {
+      const offered = 1000;
+      const served = offered * (servedShare[n.id] ?? 1);
+      const st = station({
+        lambda: served,
+        instances: n.instances,
+        capacityPerInstance: n.capacityPerInstance,
+        serviceTimeMs: n.serviceTimeMs,
+        maxQueue: Infinity,
+        horizonSec: 10,
+      });
+      flows.set(n.id, { st, offered, served, dropped: offered - served });
+    }
+    return { graph, settled: settle(topo, flows, new Map()) };
+  }
+
+  const lookAside = [
+    wire("client", "svc"),
+    callWire("svc", "redis", [call("reads")]),
+    callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+  ];
+  // The same service without a cache: every read goes to the database.
+  const noCache = [wire("client", "svc"), callWire("svc", "db", [call("writes"), call("reads")])];
+
+  it("a dead cache (every call fails, availability 0) doesn't fail the request (FLW-12)", () => {
+    const { graph, settled } = settleOf(lookAside, { redis: 0 }, { redis: 0 });
+    const cacheCall = graph.edges.find((e) => e.target === "redis")!.id;
+    expect(settled.failure.get(cacheCall)).toBe(1);
+    expect(settled.success.get("svc")).toBeCloseTo(1, 12);
+    expect(settled.success.get("client")).toBeCloseTo(1, 12);
+    // availability as if the cache weren't there and every read hit the database
+    const without = settleOf(noCache, {}).settled;
+    expect(settled.avail.get("svc")).toBeCloseTo(without.avail.get("svc")!, 12);
+    expect(settled.avail.get("client")).toBeCloseTo(without.avail.get("client")!, 12);
+  });
+
+  it("the call after a miss still fails the request when the database fails", () => {
+    const { settled } = settleOf(lookAside, { db: 0 });
+    // writes always reach the db; reads only on a miss
+    expect(settled.success.get("svc")!).toBeLessThan(1);
+    expect(settled.success.get("svc")!).toBeGreaterThan(0);
+    const allReads = settleOf(lookAside, { db: 0, redis: 0 }).settled;
+    expect(allReads.success.get("svc")!).toBeLessThan(settled.success.get("svc")!);
+  });
+
+  it("every number stays finite and within [0, 1]", () => {
+    for (const redis of [0, 0.3, 1]) {
+      for (const db of [0, 0.5, 1]) {
+        const { settled } = settleOf(lookAside, { redis, db }, { redis: redis, db: db });
+        for (const m of [settled.success, settled.failure, settled.avail]) {
+          for (const v of m.values()) {
+            expect(Number.isFinite(v)).toBe(true);
+            expect(v).toBeGreaterThanOrEqual(0);
+            expect(v).toBeLessThanOrEqual(1);
+          }
+        }
+      }
+    }
   });
 });
 

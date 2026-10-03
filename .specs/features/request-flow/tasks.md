@@ -349,14 +349,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Com o cache com availability 0, o sucesso do serviço não cai por causa do cache
-- [ ] Sem `after_miss`, `success`/`failure`/`avail` iguais aos de hoje (golden)
-- [ ] Todo número finito e em [0, 1]
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Com o cache com availability 0, o sucesso do serviço não cai por causa do cache
+- [x] Sem `after_miss`, `success`/`failure`/`avail` iguais aos de hoje (golden)
+- [x] Todo número finito e em [0, 1]
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): falha do cache look-aside não derruba a requisição`
+**Status**: ✅ Complete
 
 ---
 

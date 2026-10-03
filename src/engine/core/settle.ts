@@ -9,10 +9,12 @@ import {
   availabilityOf,
   callProbability,
   callsOf,
+  edgeCallsOf,
   hitRateOf,
   lookupShareOf,
   maxRetriesOf,
   timeoutMsOf,
+  type CallContext,
 } from "./routing";
 import type { SampleEdge, SampleNode } from "./sampler";
 
@@ -95,10 +97,15 @@ export function settle(
       s *= ok;
       a *= 1 - down;
     } else {
+      // A look-aside cache call's failure is a miss (the call after it goes
+      // to the database), so it never fails the request or its availability.
+      const absorbed = node.plan?.absorbed ?? [];
+      const ctx: CallContext = { readRatio, byId, failure };
       for (const e of sync) {
-        for (const call of e.rule.calls) {
-          const q = callProbability(call, node, { readRatio });
-          const k = callsOf(call);
+        if (absorbed.includes(e.id)) continue;
+        for (const c of edgeCallsOf(e, node)) {
+          const q = callProbability(c.call, node, ctx, c.dependsOn);
+          const k = callsOf(c.call);
           s *= 1 - q + q * callOk(e) ** k;
           a *= 1 - q + q * (avail.get(e.target) ?? 1);
         }
