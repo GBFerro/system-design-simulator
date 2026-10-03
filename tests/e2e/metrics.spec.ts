@@ -209,8 +209,21 @@ test("ball overlay keeps frame time low with 100 edges near the 2,000 cap", asyn
         });
       }
     }
+    // Every call at step 1: a node calls all its dependencies in parallel
+    // (without a step they'd go one after another, request-flow FLW-31).
+    const parallel = {
+      calls: [{ kind: "always", step: 1, callsPerRequest: 1 }],
+      networkLatencyMs: 1,
+      packetLoss: 0,
+    };
     const link = (a: string, b: string) =>
-      edges.push({ id: `p-${a}-${b}`, source: a, target: b, type: "animated", data: {} });
+      edges.push({
+        id: `p-${a}-${b}`,
+        source: a,
+        target: b,
+        type: "animated",
+        data: { rule: parallel },
+      });
     for (let c = 0; c < 9; c++) {
       for (let r = 0; r < 5; r++) {
         link(`n${c}-${r}`, `n${c + 1}-${r}`);

@@ -193,11 +193,11 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 
 | Requirement ID | Story                           | Phase   | Status      |
 | -------------- | ------------------------------- | ------- | ----------- |
-| FLW-01         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
-| FLW-02         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-01         | P1: Resposta visível no canvas  | Execute | Implemented |
+| FLW-02         | P1: Resposta visível no canvas  | Execute | Implemented |
 | FLW-03         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-04         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
-| FLW-05         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-04         | P1: Resposta visível no canvas  | Execute | Implemented |
+| FLW-05         | P1: Resposta visível no canvas  | Execute | Implemented |
 | FLW-06         | P1: Resposta visível no canvas  | Execute | Implemented |
 | FLW-07         | P1: Resposta visível no canvas  | Execute | Implemented |
 | FLW-08         | P1: Chamada condicional         | Execute | Implemented |
@@ -239,8 +239,8 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-44         | Edge cases                      | Execute | Implemented |
 | FLW-45         | Edge cases                      | Tasks   | In Tasks    |
 | FLW-46         | Edge cases                      | Execute | Implemented |
-| FLW-47         | Edge cases                      | Tasks   | In Tasks    |
-| FLW-48         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-47         | Edge cases                      | Execute | Implemented |
+| FLW-48         | Edge cases                      | Execute | Implemented |
 | FLW-49         | Edge cases                      | Tasks   | In Tasks    |
 
 **Coverage:** 49 total, 49 mapped to tasks (ver `tasks.md`), 0 unmapped

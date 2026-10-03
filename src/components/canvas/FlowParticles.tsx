@@ -40,19 +40,25 @@ import type { RuntimeEdgeStatus, TickSnapshot } from "@/engine/types";
  *   The legend shows the quantum.
  * - Expanded nodes (one card per instance, `instanceGraph.ts`): their edges are
  *   drawn once per card, and a ball takes the copy to the instance it picked.
- * - Ball color by edge status (ok = white, so it stands out on the cyan edge;
- *   slow/error amber/rose) with a dark outline; on async edges the ball is a
- *   hollow ring.
+ * - A request is a solid ball colored by edge status (ok = white, so it stands
+ *   out on the cyan edge; slow/error amber/rose) with a dark outline. Its
+ *   response (request-flow, FLW-01/02) is a hollow violet ring walking the same
+ *   path back (`len − pos`), rose when the call failed (FLW-05). Async edges
+ *   are dashed and their calls get no response. The legend shows both symbols.
  * - One rAF loop reads `getLatestSnapshot()` — no React render per frame. It
  *   stops when there's no snapshot or the tab is hidden, and draws a single
- *   still frame while playback is paused (the balls hold still).
+ *   still frame while playback is paused (requests and responses hold still).
  * - `prefers-reduced-motion`: nothing is drawn (edges still show load by
  *   thickness and status by color).
  *
- * `data-particle-count` reports the balls in the last frame, `data-ball-quantum`
- * the req/s per ball and `data-draw-ms` the mean cost of drawing one frame
- * (tests, perf checks).
+ * `data-particle-count` reports the balls in the last frame (both directions),
+ * `data-balls-req`/`data-balls-res` per direction, `data-ball-quantum` the
+ * req/s per ball and `data-draw-ms` the mean cost of drawing one frame (tests,
+ * perf checks).
  */
+
+/** Ring color of a response (an ok one; a failed call's is rose). */
+const RESPONSE_COLOR = "#a78bfa";
 
 /** Flow-px between sampled points on an edge path. */
 const SAMPLE_STEP = 8;
@@ -66,10 +72,9 @@ interface EdgeGeometry {
   /** x0, y0, x1, y1, … evenly spaced by arc length. */
   pts: Float32Array;
   length: number;
-  async: boolean;
 }
 
-function samplePath(path: SVGPathElement, d: string, async: boolean): EdgeGeometry | null {
+function samplePath(path: SVGPathElement, d: string): EdgeGeometry | null {
   let length: number;
   try {
     length = path.getTotalLength();
@@ -84,7 +89,7 @@ function samplePath(path: SVGPathElement, d: string, async: boolean): EdgeGeomet
     pts[i * 2] = p.x;
     pts[i * 2 + 1] = p.y;
   }
-  return { d, pts, length, async };
+  return { d, pts, length };
 }
 
 /** Point (and direction) at fraction `f` ∈ [0, 1] of the sampled path. */
@@ -118,11 +123,15 @@ export function FlowParticles() {
     if (!canvas || !ctx) return;
     const overlay: HTMLCanvasElement = canvas; // stays narrowed inside hoisted functions
 
-    let lastCount = -1;
-    const setCount = (n: number) => {
-      if (n === lastCount) return;
-      lastCount = n;
-      canvas.dataset.particleCount = String(n);
+    let lastReq = -1;
+    let lastRes = -1;
+    const setCount = (requests: number, responses: number) => {
+      if (requests === lastReq && responses === lastRes) return;
+      lastReq = requests;
+      lastRes = responses;
+      canvas.dataset.particleCount = String(requests + responses);
+      canvas.dataset.ballsReq = String(requests);
+      canvas.dataset.ballsRes = String(responses);
     };
     // The legend is updated in place (no React render per frame).
     let lastQuantum = -1;
@@ -139,7 +148,7 @@ export function FlowParticles() {
       }
       canvas.dataset.ballQuantum = String(quantum);
       if (legend && box) {
-        legend.textContent = `= ${formatRps(quantum)} req/s`;
+        legend.textContent = `1 ball = ${formatRps(quantum)} req/s`;
         box.hidden = false;
       }
     };
@@ -150,7 +159,7 @@ export function FlowParticles() {
 
     if (reduceMotion) {
       clear();
-      setCount(0);
+      setCount(0, 0);
       setLegend(null);
       return;
     }
@@ -183,10 +192,7 @@ export function FlowParticles() {
     const resample = () => {
       const root = canvas.closest(".react-flow") ?? canvas.parentElement;
       if (!root) return;
-      // The rendered edges: copies drawn to instance cards carry their edge's data.
-      const asyncById = new Map(
-        rfStore.getState().edges.map((e) => [e.id, e.data?.async === true]),
-      );
+      // The rendered edges (and their copies drawn to instance cards).
       const seen = new Set<string>();
       for (const g of root.querySelectorAll<SVGGElement>(".react-flow__edge[data-id]")) {
         const id = g.dataset.id;
@@ -194,10 +200,9 @@ export function FlowParticles() {
         const d = path?.getAttribute("d");
         if (!id || !path || !d) continue;
         seen.add(id);
-        const async = asyncById.get(id) ?? false;
         const cached = geometry.get(id);
-        if (cached && cached.d === d && cached.async === async) continue;
-        const geo = samplePath(path, d, async);
+        if (cached && cached.d === d) continue;
+        const geo = samplePath(path, d);
         if (geo) geometry.set(id, geo);
         else geometry.delete(id);
       }
@@ -273,28 +278,46 @@ export function FlowParticles() {
       clear();
       ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * tx, dpr * ty);
 
-      // Batch by (status, sync/async): one path per group.
+      // Requests, batched by status: a solid ball with a dark outline.
       for (const status of STATUSES) {
-        for (const async of [false, true]) {
-          ctx.beginPath();
-          let any = false;
-          for (const b of balls.balls) {
-            const geo = geometry.get(b.drawn);
-            if (!geo || geo.async !== async) continue;
-            if ((snapshot.edges[b.edge]?.status ?? "ok") !== status) continue;
-            pointAt(geo, Math.min(1, b.pos / geo.length), tmp);
-            ctx.moveTo(tmp[0] + BALL_RADIUS, tmp[1]);
-            ctx.arc(tmp[0], tmp[1], BALL_RADIUS, 0, Math.PI * 2);
-            any = true;
-          }
-          if (!any) continue;
-          // Sync: a solid ball with a dark outline. Async: a hollow ring.
-          ctx.fillStyle = async ? BALL_OUTLINE : BALL_COLOR[status];
-          ctx.fill();
-          ctx.strokeStyle = async ? BALL_COLOR[status] : BALL_OUTLINE;
-          ctx.lineWidth = async ? 2 : 1.5;
-          ctx.stroke();
+        ctx.beginPath();
+        let any = false;
+        for (const b of balls.balls) {
+          const geo = geometry.get(b.drawn);
+          if (!geo) continue;
+          if ((snapshot.edges[b.edge]?.status ?? "ok") !== status) continue;
+          pointAt(geo, Math.min(1, b.pos / geo.length), tmp);
+          ctx.moveTo(tmp[0] + BALL_RADIUS, tmp[1]);
+          ctx.arc(tmp[0], tmp[1], BALL_RADIUS, 0, Math.PI * 2);
+          any = true;
         }
+        if (!any) continue;
+        ctx.fillStyle = BALL_COLOR[status];
+        ctx.fill();
+        ctx.strokeStyle = BALL_OUTLINE;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Responses, batched by outcome: a hollow ring walking the edge back (len − pos).
+      for (const error of [false, true]) {
+        ctx.beginPath();
+        let any = false;
+        for (const b of balls.responses) {
+          if ((b.error === true) !== error) continue;
+          const geo = geometry.get(b.drawn);
+          if (!geo) continue;
+          pointAt(geo, Math.max(0, 1 - b.pos / geo.length), tmp);
+          ctx.moveTo(tmp[0] + BALL_RADIUS, tmp[1]);
+          ctx.arc(tmp[0], tmp[1], BALL_RADIUS, 0, Math.PI * 2);
+          any = true;
+        }
+        if (!any) continue;
+        ctx.fillStyle = BALL_OUTLINE;
+        ctx.fill();
+        ctx.strokeStyle = error ? EDGE_STATUS_COLOR.error : RESPONSE_COLOR;
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
 
       // Failed requests: a fading ring where they died (the end of the edge they came in on).
@@ -311,8 +334,9 @@ export function FlowParticles() {
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      setCount(balls.balls.length);
-      setLegend(balls.balls.length > 0 ? balls.quantum : null);
+      const alive = balls.balls.length + balls.responses.length;
+      setCount(balls.balls.length, balls.responses.length);
+      setLegend(alive > 0 ? balls.quantum : null);
     };
 
     /* ----- loop ----- */
@@ -330,7 +354,7 @@ export function FlowParticles() {
         clear();
         balls.clear();
         lastStepMs = null;
-        setCount(0);
+        setCount(0, 0);
         setLegend(null);
         return; // stopped: a new snapshot / visibility change restarts it
       }
@@ -397,6 +421,8 @@ export function FlowParticles() {
         ref={canvasRef}
         data-testid="flow-particles"
         data-particle-count={0}
+        data-balls-req={0}
+        data-balls-res={0}
         data-reduced-motion={reduceMotion ? "true" : "false"}
         aria-hidden
         className="pointer-events-none absolute inset-0 h-full w-full"
@@ -405,13 +431,17 @@ export function FlowParticles() {
       <div
         hidden
         data-testid="ball-legend"
-        title="Each ball stands for this much traffic and follows a request through the design"
+        title="A solid ball is a request on its way, a ring its response coming back; each ball stands for this much traffic"
         className="absolute left-3 top-3 z-[5] flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-950/80 px-2 py-1 font-mono text-[11px] text-zinc-300"
       >
-        <span
-          className="inline-block h-2.5 w-2.5 rounded-full border border-zinc-950 bg-slate-50"
-          aria-hidden
-        />
+        <span>
+          request <span className="text-slate-50">●</span>
+        </span>
+        <span className="text-zinc-400">/</span>
+        <span>
+          response <span style={{ color: RESPONSE_COLOR }}>○</span>
+        </span>
+        <span className="text-zinc-400">·</span>
         <span ref={legendRef} />
       </div>
     </>

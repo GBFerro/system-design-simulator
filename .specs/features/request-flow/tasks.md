@@ -762,14 +762,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] e2e em `traffic.spec.ts`: com a referência do URL Shortener rodando, `data-balls-res` > 0 e a legenda mostra os dois símbolos
-- [ ] Com `prefers-reduced-motion`, nenhuma bolinha; arestas async seguem tracejadas
-- [ ] Verificado no browser a 60 fps com 100 arestas (critério da Spec 07)
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] e2e em `traffic.spec.ts`: com a referência do URL Shortener rodando, `data-balls-res` > 0 e a legenda mostra os dois símbolos
+- [x] Com `prefers-reduced-motion`, nenhuma bolinha; arestas async seguem tracejadas
+- [x] Verificado no browser a 60 fps com 100 arestas (critério da Spec 07)
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(canvas): desenho das respostas e legenda de requisição e resposta`
+**Status**: ✅ Complete
 
 ---
 

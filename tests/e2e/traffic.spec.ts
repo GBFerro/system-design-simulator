@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { open } from "./helpers";
 
 // Spec 06 (TRF-01..03): live traffic runs the tick loop in the engine worker.
 
@@ -131,4 +132,88 @@ test("pattern selector edits a spike and previews λ(t)", async ({ page }) => {
   await expect
     .poll(async () => Number(await playhead.getAttribute("x1")), { timeout: 10_000 })
     .toBeGreaterThan(10);
+});
+
+// request-flow (FLW-01/02/04/48): calls go out as solid balls and their
+// responses come back as rings; async edges are dashed and get no response.
+
+/** The URL Shortener reference (the default problem), playing live in the Sim panel. */
+async function playReference(page: Page): Promise<Locator> {
+  await open(page, "/?e2e=1");
+  await page.getByTitle("Load reference solution").click();
+  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Simulate" }).click();
+  const panel = page.getByRole("region", { name: "Live traffic" });
+  await panel.getByRole("button", { name: "Play live traffic" }).click();
+  await expect(panel.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
+  return panel;
+}
+
+const ballCount = (page: Page, dir: "req" | "res") =>
+  page
+    .getByTestId("flow-particles")
+    .getAttribute(`data-balls-${dir}`)
+    .then((v) => Number(v));
+
+/** Dash pattern of the first edge from `source` to `target` (component ids). */
+const dashArray = (page: Page, source: string, target: string) =>
+  page
+    .locator(
+      `.react-flow__edge[data-id^="e-${source}-"][data-id*="-${target}-"] path.react-flow__edge-path`,
+    )
+    .first()
+    .evaluate((p) => getComputedStyle(p).strokeDasharray);
+
+test("responses come back as rings, with both symbols in the legend; pausing holds them still", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+
+  const panel = await playReference(page);
+  await expect.poll(() => ballCount(page, "res"), { timeout: 15_000 }).toBeGreaterThan(0);
+  expect(await ballCount(page, "req")).toBeGreaterThan(0);
+  const total = Number(
+    await page.getByTestId("flow-particles").getAttribute("data-particle-count"),
+  );
+  expect(total).toBeLessThanOrEqual(2000);
+
+  const legend = page.getByTestId("ball-legend");
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText("request ●");
+  await expect(legend).toContainText("response ○");
+  await expect(legend).toContainText(/1 ball = .+ req\/s/);
+
+  // FLW-48: paused, requests and responses hold still.
+  await panel.getByRole("button", { name: "Pause live traffic" }).click();
+  await expect(panel.getByRole("button", { name: "Play live traffic" })).toBeVisible();
+  await page.waitForTimeout(400);
+  const held = [await ballCount(page, "req"), await ballCount(page, "res")];
+  await page.waitForTimeout(1000);
+  expect([await ballCount(page, "req"), await ballCount(page, "res")]).toEqual(held);
+  expect(held[1]).toBeGreaterThan(0);
+
+  expect(errors).toEqual([]);
+});
+
+test("prefers-reduced-motion: no balls either way, async edges still dashed (FLW-04)", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const panel = await playReference(page);
+  await expect
+    .poll(async () => readClock(panel.getByTestId("sim-clock")), { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(2);
+  await page.evaluate(
+    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+  );
+  const overlay = page.getByTestId("flow-particles");
+  await expect(overlay).toHaveAttribute("data-reduced-motion", "true");
+  expect(await ballCount(page, "req")).toBe(0);
+  expect(await ballCount(page, "res")).toBe(0);
+  await expect(page.getByTestId("ball-legend")).toBeHidden();
+
+  // app-server → monitoring is async; load-balancer → rate-limiter is sync.
+  expect(await dashArray(page, "app-server", "monitoring")).not.toBe("none");
+  expect(await dashArray(page, "load-balancer", "rate-limiter")).toBe("none");
 });
