@@ -197,9 +197,26 @@ function cloneSubgraph(clip: Clipboard, existing: Node[], targetTopLeft: XYPosit
     id: `e-${randomId()}`,
     source: idMap.get(e.source)!,
     target: idMap.get(e.target)!,
+    data: remapMissOf(e.data, idMap),
     selected: true,
   }));
   return { nodes, edges };
+}
+
+/**
+ * "After miss" calls of a cloned edge point at the cloned cache; when the
+ * cache wasn't cloned with it, `missOf` is dropped (the call plan then
+ * treats the call as reads, with a warning).
+ */
+function remapMissOf(data: Edge["data"], idMap: ReadonlyMap<string, string>): Edge["data"] {
+  const rule = (data as CustomEdgeData | undefined)?.rule;
+  if (!rule?.calls.some((c) => c.missOf !== undefined)) return data;
+  const calls = rule.calls.map(({ missOf, ...call }) => {
+    if (missOf === undefined) return call;
+    const cloned = idMap.get(missOf);
+    return cloned ? { ...call, missOf: cloned } : call;
+  });
+  return { ...data, rule: { ...rule, calls } };
 }
 
 /** Deselect everything, then append the (selected) clones in one undo step. */
@@ -282,7 +299,10 @@ interface CanvasState {
   applyGraphEdit: (edit: (graph: { nodes: Node[]; edges: Edge[] }) => GraphEditResult) => void;
   /** Merge a params edit (validated by the node's schema) in one undo step. */
   updateNodeParams: (nodeId: string, patch: Params) => void;
-  /** Merge an edge rule edit (normalized) in one undo step. */
+  /**
+   * Merge an edge rule edit (normalized) in one undo step: link fields, the
+   * first call's fields, or a whole call list (`calls`; an empty list is refused).
+   */
   updateEdgeRule: (edgeId: string, patch: EdgeRulePatch) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
@@ -639,6 +659,8 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           const edge = state.edges.find((e) => e.id === edgeId);
           if (!edge || isActiveTabReadOnly(state)) return state;
+          // An edge always keeps at least one call (FLW-44).
+          if (patch.calls !== undefined && patch.calls.length === 0) return state;
           const data = (edge.data ?? {}) as CustomEdgeData;
           const fallback = connectEdgeRule(
             edge.source,

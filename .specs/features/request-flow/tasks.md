@@ -264,15 +264,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Editar chamadas empurra exatamente uma entrada de undo; numa aba somente leitura não muda nada
-- [ ] Patch com `calls: []` é recusado e mantém a última chamada
-- [ ] Colar fonte + cache juntos remapeia `missOf` para o cache colado; colar sem o cache remove `missOf`
-- [ ] `editor.test.ts` cobre os quatro casos; `MUTATING_ACTIONS` continua completo
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Editar chamadas empurra exatamente uma entrada de undo; numa aba somente leitura não muda nada
+- [x] Patch com `calls: []` é recusado e mantém a última chamada
+- [x] Colar fonte + cache juntos remapeia `missOf` para o cache colado; colar sem o cache remove `missOf`
+- [x] `editor.test.ts` cobre os quatro casos; `MUTATING_ACTIONS` continua completo
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(editor): editar chamadas da aresta e remapear miss ao colar`
+**Status**: ✅ Complete
 
 ---
 
