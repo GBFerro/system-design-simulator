@@ -650,14 +650,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Novo teste em `data.test.ts`: nenhuma referência tem aresta de nó com `hitRate` para banco, exceto CDN → origem (read-through legítimo)
-- [ ] `data.test.ts` (SLO, orçamento em [b/1,5, b/1,3]), `scoring.test.ts` (≥ 16), `advisor.test.ts` e `engine-references.test.ts` passam
-- [ ] Golden da T1 inalterado (lê grafos congelados)
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Novo teste em `data.test.ts`: nenhuma referência tem aresta de nó com `hitRate` para banco, exceto CDN → origem (read-through legítimo)
+- [x] `data.test.ts` (SLO, orçamento em [b/1,5, b/1,3]), `scoring.test.ts` (≥ 16), `advisor.test.ts` e `engine-references.test.ts` passam
+- [x] Golden da T1 inalterado (lê grafos congelados)
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `fix(data): referências usam cache look-aside`
+**Status**: ✅ Complete
 
 ---
 

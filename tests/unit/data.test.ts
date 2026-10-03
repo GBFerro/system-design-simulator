@@ -3,6 +3,7 @@ import { INTERVIEW_DATA } from "@/data/interviewData";
 import { LEARNING_PATH, PROBLEM_CONCEPTS } from "@/data/learningPath";
 import { PROBLEMS } from "@/data/problems";
 import { SYSTEM_COMPONENTS } from "@/data/components";
+import { getParamSpec, PARAM } from "@/domain/components/registry";
 import { compileGraph } from "@/domain/graph/compile";
 import { getFaultType } from "@/engine/faults/catalog";
 import { compileFault } from "@/engine/faults/compile";
@@ -101,6 +102,29 @@ describe("reference call lists (request-flow)", () => {
       (g.edges.find((e) => e.target === cache.id)!.data as CustomEdgeData).rule!.calls,
     ).toEqual([{ kind: "reads", callsPerRequest: 1 }]);
     expect(compileGraph(g.nodes, g.edges).warnings).toEqual([]);
+  });
+
+  it("references cache look-aside: only a CDN reads through to its origin (FLW-21)", () => {
+    const readThrough = new Set(["cdn", "origin-shield"]);
+    for (const p of PROBLEMS) {
+      const { edges } = p.referenceSolution;
+      for (const e of edges) {
+        if (!getParamSpec(e.source, PARAM.hitRate)) continue;
+        expect(readThrough.has(e.source), `${p.id}: ${e.source} → ${e.target}`).toBe(true);
+      }
+      // Each look-aside call follows a call to the cache it names, earlier in the list
+      edges.forEach((e, i) => {
+        if (!e.rule || !("calls" in e.rule)) return;
+        for (const c of e.rule.calls) {
+          if (c.kind !== "after_miss") continue;
+          const cacheCall = edges.findIndex(
+            (x) => x.source === e.source && x.target === c.missOf && !x.async,
+          );
+          expect(cacheCall, `${p.id}: ${e.source} → ${e.target}`).toBeGreaterThanOrEqual(0);
+          expect(cacheCall, `${p.id}: ${e.source} → ${e.target}`).toBeLessThan(i);
+        }
+      });
+    }
   });
 
   it("a missOf naming no component of the reference is dropped, and the compiler warns", () => {
