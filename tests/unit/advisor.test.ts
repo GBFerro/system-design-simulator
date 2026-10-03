@@ -19,7 +19,8 @@ import {
   setAdvisorPreview,
   useAdvisorStore,
 } from "@/store/advisorStore";
-import { useCanvasStore } from "@/store/canvasStore";
+import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
+import { GHOST_PREFIX, isGhostId, withPreview } from "@/components/canvas/previewGraph";
 import { useSimulationStore } from "@/store/simulationStore";
 import type { ScoreResult } from "@/types/scoring";
 import { comp as node, text, wire } from "./engineFixtures";
@@ -214,8 +215,19 @@ describe("pattern findings (ADV-01)", () => {
     const after = fixed(g, { readRatio: 0.9 }, "read-cache:db");
     const cache = ofType(after, "cache");
     expect(ruleKind(after, "app", cache.id)).toBe("reads");
-    expect(ruleKind(after, cache.id, "db")).toBe("on_miss");
-    expect(ruleKind(after, "app", "db")).toBe("writes");
+    // Look-aside (FLW-23): nothing from the cache to the database; the caller
+    // writes to it and reads it after a miss in the cache, over the same edge.
+    expect(after.edges.find((e) => e.source === cache.id)).toBeUndefined();
+    const toDb = after.edges.find((e) => e.source === "app" && e.target === "db")!;
+    expect(toDb.id).toBe("e-app-db");
+    expect(edgeRuleOf(after, toDb).calls).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: cache.id, callsPerRequest: 1 },
+    ]);
+    // The cache edge comes first, so the plan has nothing to correct
+    const toCache = after.edges.findIndex((e) => e.source === "app" && e.target === cache.id);
+    expect(toCache).toBeLessThan(after.edges.indexOf(toDb));
+    expect(compileGraph(after.nodes, after.edges).warnings).toEqual([]);
     expect(find(after, { readRatio: 0.9 }, "read-cache:db")).toBeUndefined();
 
     // The database now sees the writes and the cache's misses only.
@@ -224,6 +236,41 @@ describe("pattern findings (ADV-01)", () => {
         (n) => n.nodeId === "db",
       )!.offeredRps;
     expect(dbLoad(after)).toBeLessThan(dbLoad(g) * 0.5);
+  });
+
+  it("a caller that only read the database calls it only after a miss", () => {
+    const g: Graph = {
+      nodes: [node("c", "client"), node("app", "app-server"), node("db", "sql-db")],
+      edges: [wire("c", "app"), wire("app", "db", { rule: { kind: "reads", callsPerRequest: 2 } })],
+    };
+    const after = fixed(g, { readRatio: 0.9 }, "read-cache:db");
+    const cache = ofType(after, "cache");
+    const toDb = after.edges.find((e) => e.source === "app" && e.target === "db")!;
+    expect(edgeRuleOf(after, toDb).calls).toEqual([
+      { kind: "after_miss", missOf: cache.id, callsPerRequest: 2 },
+    ]);
+    expect(after.edges.find((e) => e.source === cache.id)).toBeUndefined();
+  });
+
+  it("the cache fix is deterministic and its preview shows the same look-aside", () => {
+    const g = webApp({ node: node("db", "sql-db", { instances: 2 }) });
+    const f = find(g, { readRatio: 0.9 }, "read-cache:db")!;
+    const diff = f.fix!.preview(g);
+    expect(f.fix!.preview(g)).toEqual(diff);
+    const cacheId = diff.addNodes[0].id;
+    expect(cacheId).toBe("cache-db");
+
+    const shown = withPreview(g.nodes, g.edges, diff);
+    const ghosts = shown.edges.filter((e) => isGhostId(e.id));
+    expect(ghosts.map((e) => [e.source, e.target])).toEqual([
+      ["app", GHOST_PREFIX + cacheId],
+      ["app", "db"],
+    ]);
+    expect((ghosts[1].data as CustomEdgeData).rule!.calls).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: cacheId, callsPerRequest: 1 },
+    ]);
+    expect(shown.edges.find((e) => e.id === "e-app-db")?.className).toBe("sf-preview-removed");
   });
 
   it("a cache the caller already reads (look-aside) counts", () => {
@@ -364,6 +411,23 @@ describe("advisor store", () => {
     expect(findingIds()).not.toContain("spof:db");
     useCanvasStore.getState().undo();
     expect(findingIds()).toContain("spof:db");
+  });
+
+  it("the cache fix is one undo step", () => {
+    const g = webApp({ node: node("db", "sql-db", { instances: 2 }) });
+    setCanvas(g);
+    expect(findingIds()).toContain("read-cache:db");
+    applyFinding("read-cache:db");
+    expect(useCanvasStore.getState().history).toHaveLength(1);
+    const edges = useCanvasStore.getState().edges;
+    expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
+      "c->app",
+      "app->cache-db",
+      "app->db",
+    ]);
+    useCanvasStore.getState().undo();
+    expect(useCanvasStore.getState().edges).toEqual(g.edges);
+    expect(useCanvasStore.getState().nodes).toEqual(g.nodes);
   });
 
   it("apply all is one undo step too; both are no-ops on a read-only tab", () => {

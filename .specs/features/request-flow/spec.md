@@ -214,7 +214,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-20         | P1: Referências, editor e dados | Execute | Implemented |
 | FLW-21         | P1: Referências, editor e dados | Tasks   | In Tasks    |
 | FLW-22         | P1: Referências, editor e dados | Tasks   | In Tasks    |
-| FLW-23         | P1: Referências, editor e dados | Tasks   | In Tasks    |
+| FLW-23         | P1: Referências, editor e dados | Execute | Implemented |
 | FLW-24         | P1: Referências, editor e dados | Execute | Implemented |
 | FLW-25         | P1: Referências, editor e dados | Execute | Implemented |
 | FLW-26         | P2: Ordem e paralelismo         | Execute | Implemented |

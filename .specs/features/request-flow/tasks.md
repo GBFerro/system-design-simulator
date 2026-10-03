@@ -597,13 +597,14 @@ T28 → T30
 
 **Done when**:
 
-- [ ] `advisor.test.ts`: aplicar o fix gera o formato look-aside num único passo de undo e ids derivados (sem aleatório)
-- [ ] O preview (ghosts) mostra a mesma forma
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] `advisor.test.ts`: aplicar o fix gera o formato look-aside num único passo de undo e ids derivados (sem aleatório)
+- [x] O preview (ghosts) mostra a mesma forma
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(advisor): fix de cache constrói o look-aside`
+**Status**: ✅ Complete
 
 ---
 
