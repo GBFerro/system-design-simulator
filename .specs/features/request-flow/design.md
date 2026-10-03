@@ -57,7 +57,7 @@ graph TD
 | Retries entre ticks (`pending`)                                                                 | `src/engine/core/tick.ts:413-427`                              | Mesmo padrão: o tick guarda a `failure` do tick anterior para as chamadas "após miss".                                |
 | `settle()` / `sampleNodesFor()`                                                                 | `src/engine/core/settle.ts`                                    | Compartilhados por `analyze()` e pelo tick (não fazer fork); passam a ler o plano.                                    |
 | `sampleLatency()`                                                                               | `src/engine/core/sampler.ts`                                   | Ganha passos e um `Recorder` opcional; o trace usa o mesmo código.                                                    |
-| Tipo `Trace` (OBS-06, ainda sem uso)                                                            | `src/engine/types.ts:190`                                      | Substituído por `RequestTrace` com eventos de chamada/resposta; a aba Fluxo cumpre o OBS-06 da Spec 07.               |
+| Tipo `Trace` (OBS-06, ainda sem uso)                                                            | `src/engine/types.ts:190`                                      | Substituído por `RequestTrace` com eventos de chamada/resposta; a aba Flow cumpre o OBS-06 da Spec 07.                |
 | `migrateGraphV1toV2`, `migrateCanvasState`, `migrateSavedDesignsState`                          | `src/domain/persistence/migrate.ts`, `src/store/migrations.ts` | Encadear v2 → v3 depois da v1 → v2, no mesmo ponto de entrada.                                                        |
 | `updateEdgeRule` (já em `MUTATING_ACTIONS`)                                                     | `src/store/canvasStore.ts:284,640-660`                         | Continua sendo a única ação de edição; o patch passa a poder trazer `calls`.                                          |
 | `readCacheDiff` (fix "add cache")                                                               | `src/advisor/patterns.ts:94-150`                               | Passa a construir o look-aside (sem a aresta cache → banco).                                                          |
@@ -164,7 +164,7 @@ graph TD
 - **Limites**: requisições e respostas contam no `MAX_BALLS` e no quantum (FLW-07). Se uma chamada não pode nascer (teto atingido ou aresta não desenhada), ela conta como respondida na hora.
 - **Instâncias**: o frame guarda a `lane`, e a resposta volta ao card de origem pela cópia `drawn` da ida (FLW-47).
 - **Pausa**: quadro parado, como hoje (FLW-48).
-- **Desenho** (`FlowParticles`): `dir: "res"` desenha um anel vazado em `getPointAtLength(len − pos)`; o erro usa a cor de erro. A legenda ganha "requisição ● / resposta ○" (FLW-02).
+- **Desenho** (`FlowParticles`): `dir: "res"` desenha um anel vazado em `getPointAtLength(len − pos)`; o erro usa a cor de erro. A legenda ganha "request ● / response ○" (FLW-02).
 
 ### Canvas: badges e destaque
 
@@ -189,11 +189,11 @@ graph TD
 - **Ações**: tudo passa por `updateEdgeRule` (uma entrada de undo, no-op em aba somente leitura, FLW-25). Materializar os passos de um nó edita várias arestas do mesmo nó, então usa `applyGraphEdit` (também uma entrada de undo).
 - **Menu de contexto**: com uma chamada, continua editando como hoje. Com mais de uma, mostra "Editar chamadas no painel".
 
-### `FlowPanel` (aba "Fluxo")
+### `FlowPanel` (aba "Flow")
 
 - **Location**: `src/components/panel/FlowPanel.tsx` (lazy, como as outras abas), `src/components/panel/SequenceDiagram.tsx`
 - **Comportamento**:
-  - Controles: Leitura/Escrita e "Outra requisição" (`index++`).
+  - Controles: Leitura/Escrita e "Another request" (`index++`).
   - O SVG tem uma linha de vida por nó tocado, setas cheias (chamada), tracejadas (resposta) e abertas (async), números de passo, `hit`/`miss` e ms por passo com o total (FLW-34 a 38).
   - Mensagens: sem entrada, "Nenhuma entrada…" (FLW-40); sem snapshot, a estrutura e o texto da FLW-37.
   - Hover/toque num passo chama `setFlowHighlight`.
@@ -352,4 +352,4 @@ Cada PR deixa o app funcionando e passa no CI. A ordem segue as dependências.
 | 1   | Formato v3 + migração + `callPlan` + motor (roteamento, settle, sampler com passos, ponto fixo, tick) + teste de bit-identidade + `EdgeCallsForm` + paste/duplicate | FLW-08 a 14, 16 a 20, 25 a 29, 32, 42 a 46, 49 |
 | 2   | Referências em look-aside + fix "add cache" + padrão de conexão + recalibração + CLAUDE.md/docs                                                                     | FLW-21 a 24                                    |
 | 3   | Bolinhas com frames (ida e volta, erro, async sem volta, legenda, instâncias) + badges de passo e condição                                                          | FLW-01 a 07, 15, 30, 31, 47, 48                |
-| 4   | Trace: `traceRequest`, `traceCanvas`, aba Fluxo, diagrama, destaque                                                                                                 | FLW-33 a 41                                    |
+| 4   | Trace: `traceRequest`, `traceCanvas`, aba Flow, diagrama, destaque                                                                                                  | FLW-33 a 41                                    |

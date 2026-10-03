@@ -89,7 +89,7 @@ T22 → T23 → T24
 T25
 ```
 
-### Phase 7: Trace (aba Fluxo)
+### Phase 7: Trace (aba Flow)
 
 ```
 T26 → T27 → T30 → T31
@@ -747,7 +747,7 @@ T28 → T30
 
 ### T24: Desenho das respostas e legenda
 
-**What**: `FlowParticles` desenha `dir: "res"` como anel vazado andando de volta (`len − pos`), erro na cor de erro, e a legenda mostra "requisição ● / resposta ○"; o canvas expõe contagens por direção em `data-balls-req`/`data-balls-res` para o e2e.
+**What**: `FlowParticles` desenha `dir: "res"` como anel vazado andando de volta (`len − pos`), erro na cor de erro, e a legenda mostra "request ● / response ○"; o canvas expõe contagens por direção em `data-balls-req`/`data-balls-res` para o e2e.
 **Where**: `src/components/canvas/FlowParticles.tsx`
 **Depends on**: T23
 **Reuses**: cache de paths, transform do viewport, legenda atual
@@ -796,7 +796,7 @@ T28 → T30
 
 ---
 
-#### Phase 7: Trace (aba Fluxo)
+#### Phase 7: Trace (aba Flow)
 
 ### T26: Recorder no sampler e `traceRequest`
 
@@ -904,9 +904,9 @@ T28 → T30
 
 ---
 
-### T30: Aba "Fluxo"
+### T30: Aba "Flow"
 
-**What**: `FlowPanel` (lazy) com Leitura/Escrita, "Outra requisição", o `SequenceDiagram` em SVG, tempos por passo e total quando há snapshot, mensagens de sem-snapshot e sem-entrada, hover/toque que destaca a aresta; registrado no `RightPanel`.
+**What**: `FlowPanel` (lazy) com Leitura/Escrita, "Another request", o `SequenceDiagram` em SVG, tempos por passo e total quando há snapshot, mensagens de sem-snapshot e sem-entrada, hover/toque que destaca a aresta; registrado no `RightPanel`.
 **Where**: `src/components/panel/FlowPanel.tsx`
 **Depends on**: T27, T28, T29
 **Reuses**: `styles.ts`, `traceCanvas`, `sequenceLayout`, `setFlowHighlight`, `topologySignature`
@@ -926,13 +926,13 @@ T28 → T30
 
 **Tests**: e2e
 **Gate**: full
-**Commit**: `feat(panel): aba Fluxo com o diagrama de sequência de uma requisição`
+**Commit**: `feat(panel): aba Flow com o diagrama de sequência de uma requisição`
 
 ---
 
 ### T31: Docs da Spec 07 e do `CLAUDE.md` para bolinhas e trace
 
-**What**: Atualizar no `CLAUDE.md` a seção de runtime (bolinhas com frames, resposta, ramificação por requisição) e o painel (aba Fluxo), e na `docs/07` marcar o OBS-06 como entregue pela aba Fluxo; atualizar o índice em `docs/00`.
+**What**: Atualizar no `CLAUDE.md` a seção de runtime (bolinhas com frames, resposta, ramificação por requisição) e o painel (aba Flow), e na `docs/07` marcar o OBS-06 como entregue pela aba Flow; atualizar o índice em `docs/00`.
 **Where**: `CLAUDE.md`
 **Depends on**: T30
 **Reuses**: texto atual das seções
@@ -951,7 +951,7 @@ T28 → T30
 
 **Tests**: unit
 **Gate**: build
-**Commit**: `docs: bolinhas de ida e volta e aba Fluxo no CLAUDE.md e na Spec 07`
+**Commit**: `docs: bolinhas de ida e volta e aba Flow no CLAUDE.md e na Spec 07`
 
 ---
 
