@@ -20,24 +20,24 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 > Generated from codebase, project guidelines, and spec - confirm before Execute. Guidelines found: `CLAUDE.md` (Commands; "Unit tests cover pure logic … editor behavior goes in Playwright"), `AGENTS.md`, `vitest.config.*`, `playwright.config.*`, `.github/workflows/ci.yml` (lint, format:check, typecheck, test, build, bundle:check, test:e2e).
 
-| Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
-| ---------- | ------------------ | -------------------- | ---------------- | ----------- |
-| Domínio puro (`domain/graph`, `engine/core`, `engine/analyze`, `engine/faults`, `advisor/`, `lib/` puros) | unit | Todos os ramos; 1:1 com os ACs FLW; todo edge case listado tem teste; invariantes da Spec 04 (finito, served ≤ offered, determinismo) | `tests/unit/*.test.ts` | `npm test` |
-| Persistência, migrações e stores (`domain/persistence`, `store/`) | unit | Cada caminho de versão (v1, v2, v3 → v3), idempotência, round-trip export/import, ações em aba somente leitura e undo | `tests/unit/persistence.*.test.ts`, `tests/unit/editor.test.ts` | `npm test` |
-| Dados (`data/problems.ts`, referências) | unit | `data.test.ts`, `scoring.test.ts`, `advisor.test.ts`, `engine-references.test.ts` passam; regra nova "nenhuma aresta cache → banco" | `tests/unit/data.test.ts` | `npm test` |
-| UI (`components/panel`, `components/canvas`) | e2e | Fluxo feliz + edge cases da spec + caminho de erro de cada tela tocada; snapshots sintéticos via `window.__runtimeStore` | `tests/e2e/*.spec.ts` (helpers de `helpers.ts`) | `npm run test:e2e` |
-| Documentação (`CLAUDE.md` architecture map) | unit | `claude-map.test.ts` passa (todo arquivo de `lib/`, `hooks/`, `store/` no mapa) | `tests/unit/claude-map.test.ts` | `npm test` |
-| Tipos puros | none | - (build gate only) | - | build gate only |
+| Code Layer                                                                                                | Required Test Type | Coverage Expectation                                                                                                                  | Location Pattern                                                | Run Command        |
+| --------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------ |
+| Domínio puro (`domain/graph`, `engine/core`, `engine/analyze`, `engine/faults`, `advisor/`, `lib/` puros) | unit               | Todos os ramos; 1:1 com os ACs FLW; todo edge case listado tem teste; invariantes da Spec 04 (finito, served ≤ offered, determinismo) | `tests/unit/*.test.ts`                                          | `npm test`         |
+| Persistência, migrações e stores (`domain/persistence`, `store/`)                                         | unit               | Cada caminho de versão (v1, v2, v3 → v3), idempotência, round-trip export/import, ações em aba somente leitura e undo                 | `tests/unit/persistence.*.test.ts`, `tests/unit/editor.test.ts` | `npm test`         |
+| Dados (`data/problems.ts`, referências)                                                                   | unit               | `data.test.ts`, `scoring.test.ts`, `advisor.test.ts`, `engine-references.test.ts` passam; regra nova "nenhuma aresta cache → banco"   | `tests/unit/data.test.ts`                                       | `npm test`         |
+| UI (`components/panel`, `components/canvas`)                                                              | e2e                | Fluxo feliz + edge cases da spec + caminho de erro de cada tela tocada; snapshots sintéticos via `window.__runtimeStore`              | `tests/e2e/*.spec.ts` (helpers de `helpers.ts`)                 | `npm run test:e2e` |
+| Documentação (`CLAUDE.md` architecture map)                                                               | unit               | `claude-map.test.ts` passa (todo arquivo de `lib/`, `hooks/`, `store/` no mapa)                                                       | `tests/unit/claude-map.test.ts`                                 | `npm test`         |
+| Tipos puros                                                                                               | none               | - (build gate only)                                                                                                                   | -                                                               | build gate only    |
 
 ## Gate Check Commands
 
 > Generated from codebase - confirm before Execute.
 
-| Gate Level | When to Use | Command |
-| ---------- | ----------- | ------- |
-| Quick | Tarefas só com testes unitários (vitest não checa tipos, então o typecheck entra aqui) | `npm run typecheck && npm test` |
-| Full | Tarefas com e2e | `npm run typecheck && npm test && npm run test:e2e` (com `npm run dev` aberto: `E2E_PORT=3000 npm run test:e2e`) |
-| Build | Fim de fase / antes de PR | `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` |
+| Gate Level | When to Use                                                                            | Command                                                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Quick      | Tarefas só com testes unitários (vitest não checa tipos, então o typecheck entra aqui) | `npm run typecheck && npm test`                                                                                                      |
+| Full       | Tarefas com e2e                                                                        | `npm run typecheck && npm test && npm run test:e2e` (com `npm run dev` aberto: `E2E_PORT=3000 npm run test:e2e`)                     |
+| Build      | Fim de fase / antes de PR                                                              | `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` |
 
 ---
 
@@ -118,14 +118,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] O fixture guarda grafos de entrada v2 congelados (as referências vão mudar na T20) e os resultados; o tamanho fica abaixo de 1 MB (um hash por design é aceito, com o resultado completo para os 4 sintéticos)
-- [ ] O teste passa na árvore atual e falha se um número do `analyze()` mudar
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos (sem remoções)
+- [x] O fixture guarda grafos de entrada v2 congelados (as referências vão mudar na T20) e os resultados; o tamanho fica abaixo de 1 MB (um hash por design é aceito, com o resultado completo para os 4 sintéticos)
+- [x] O teste passa na árvore atual e falha se um número do `analyze()` mudar
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos (sem remoções)
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): golden de analyze e tick antes do modelo de chamadas`
+**Status**: ✅ Complete
 
 ---
 
@@ -946,106 +947,106 @@ Execução estritamente sequencial dentro de cada fase, na ordem numérica. Gate
 
 ## Task Granularity Check
 
-| Task | Scope | Status |
-| ---- | ----- | ------ |
-| T1 | 1 teste + fixture gerado | ✅ Granular |
-| T2 | tipos + 2 funções no mesmo módulo | ⚠️ OK (coeso: o formato v3) |
-| T3 | 1 módulo puro | ✅ Granular |
-| T4 | troca de 1 tipo + leitores mecânicos | ⚠️ Grande de propósito: a troca de tipo precisa ser atômica para o `tsc` ficar verde; sem semântica nova |
-| T5 | 1 cadeia de migração | ✅ Granular |
-| T6 | 2 ações do mesmo store | ⚠️ OK (coeso: edição de chamadas) |
-| T7 | 1 função (compile) | ✅ Granular |
-| T8 | 2 funções irmãs | ✅ Granular |
-| T9 | 1 função (settle) | ✅ Granular |
-| T10 | 1 laço (ponto fixo) | ✅ Granular |
-| T11 | 1 classe, 1 campo | ✅ Granular |
-| T12 | 1 função (sampler) | ✅ Granular |
-| T13 | 1 função | ✅ Granular |
-| T14 | specs + 1 função de badge | ⚠️ OK (coeso: apresentação das chamadas) |
-| T15 | 1 componente | ✅ Granular |
-| T16 | 1 componente | ✅ Granular |
-| T17 | 1 função | ✅ Granular |
-| T18 | 1 função | ✅ Granular |
-| T19 | 1 função + 1 tipo | ✅ Granular |
-| T20 | 1 arquivo de dados | ✅ Granular |
-| T21 | docs | ✅ Granular |
-| T22 | 1 campo do snapshot | ✅ Granular |
-| T23 | 1 classe | ✅ Granular |
-| T24 | 1 componente | ✅ Granular |
-| T25 | 1 componente | ✅ Granular |
-| T26 | 1 módulo | ✅ Granular |
-| T27 | 1 função de cliente | ✅ Granular |
-| T28 | 1 store + seu leitor | ⚠️ OK (o store sem leitor não é testável no e2e) |
-| T29 | 1 função pura | ✅ Granular |
-| T30 | 1 painel (+ seu SVG) | ✅ Granular |
-| T31 | docs | ✅ Granular |
+| Task | Scope                                | Status                                                                                                   |
+| ---- | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| T1   | 1 teste + fixture gerado             | ✅ Granular                                                                                              |
+| T2   | tipos + 2 funções no mesmo módulo    | ⚠️ OK (coeso: o formato v3)                                                                              |
+| T3   | 1 módulo puro                        | ✅ Granular                                                                                              |
+| T4   | troca de 1 tipo + leitores mecânicos | ⚠️ Grande de propósito: a troca de tipo precisa ser atômica para o `tsc` ficar verde; sem semântica nova |
+| T5   | 1 cadeia de migração                 | ✅ Granular                                                                                              |
+| T6   | 2 ações do mesmo store               | ⚠️ OK (coeso: edição de chamadas)                                                                        |
+| T7   | 1 função (compile)                   | ✅ Granular                                                                                              |
+| T8   | 2 funções irmãs                      | ✅ Granular                                                                                              |
+| T9   | 1 função (settle)                    | ✅ Granular                                                                                              |
+| T10  | 1 laço (ponto fixo)                  | ✅ Granular                                                                                              |
+| T11  | 1 classe, 1 campo                    | ✅ Granular                                                                                              |
+| T12  | 1 função (sampler)                   | ✅ Granular                                                                                              |
+| T13  | 1 função                             | ✅ Granular                                                                                              |
+| T14  | specs + 1 função de badge            | ⚠️ OK (coeso: apresentação das chamadas)                                                                 |
+| T15  | 1 componente                         | ✅ Granular                                                                                              |
+| T16  | 1 componente                         | ✅ Granular                                                                                              |
+| T17  | 1 função                             | ✅ Granular                                                                                              |
+| T18  | 1 função                             | ✅ Granular                                                                                              |
+| T19  | 1 função + 1 tipo                    | ✅ Granular                                                                                              |
+| T20  | 1 arquivo de dados                   | ✅ Granular                                                                                              |
+| T21  | docs                                 | ✅ Granular                                                                                              |
+| T22  | 1 campo do snapshot                  | ✅ Granular                                                                                              |
+| T23  | 1 classe                             | ✅ Granular                                                                                              |
+| T24  | 1 componente                         | ✅ Granular                                                                                              |
+| T25  | 1 componente                         | ✅ Granular                                                                                              |
+| T26  | 1 módulo                             | ✅ Granular                                                                                              |
+| T27  | 1 função de cliente                  | ✅ Granular                                                                                              |
+| T28  | 1 store + seu leitor                 | ⚠️ OK (o store sem leitor não é testável no e2e)                                                         |
+| T29  | 1 função pura                        | ✅ Granular                                                                                              |
+| T30  | 1 painel (+ seu SVG)                 | ✅ Granular                                                                                              |
+| T31  | docs                                 | ✅ Granular                                                                                              |
 
 ---
 
 ## Diagram-Definition Cross-Check
 
-| Task | Depends On (task body) | Diagram Shows | Status |
-| ---- | ---------------------- | ------------- | ------ |
-| T1 | None | — | ✅ Match |
-| T2 | None | — | ✅ Match |
-| T3 | T2 | T2 → T3 | ✅ Match |
-| T4 | T1, T2 (fase 1) | início da fase 2 | ✅ Match |
-| T5 | T4 | T4 → T5 | ✅ Match |
-| T6 | T4 | T4 → T6 | ✅ Match |
-| T7 | T3, T4 (fases anteriores) | início da fase 3 | ✅ Match |
-| T8 | T7 | T7 → T8 | ✅ Match |
-| T9 | T7 | T7 → T9 | ✅ Match |
-| T10 | T8, T9 | T8 → T10, T9 → T10 | ✅ Match |
-| T11 | T10 | T10 → T11 | ✅ Match |
-| T12 | T7, T1 (fase 1) | T7 → T12 | ✅ Match |
-| T13 | T7 | T7 → T13 | ✅ Match |
-| T14 | T4 (fase 2) | início da fase 4 | ✅ Match |
-| T15 | T14 | T14 → T15 | ✅ Match |
-| T16 | T14 | T14 → T16 | ✅ Match |
-| T17 | T4 (fase 2) | início da fase 5 | ✅ Match |
-| T18 | T17 | T17 → T18 | ✅ Match |
-| T19 | T4 (fase 2) | início da fase 5 | ✅ Match |
-| T20 | T19, T10, T12 (fase 3) | T19 → T20 | ✅ Match |
-| T21 | T18, T20 | T18 → T21, T20 → T21 | ✅ Match |
-| T22 | T11 (fase 3) | início da fase 6 | ✅ Match |
-| T23 | T22 | T22 → T23 | ✅ Match |
-| T24 | T23 | T23 → T24 | ✅ Match |
-| T25 | None na fase (usa T3, T14 de fases anteriores) | — | ✅ Match |
-| T26 | None na fase (usa T12) | — | ✅ Match |
-| T27 | T26 | T26 → T27 | ✅ Match |
-| T28 | None na fase (usa T25) | — | ✅ Match |
-| T29 | T26 | T26 → T29 | ✅ Match |
-| T30 | T27, T28, T29 | T27 → T30, T28 → T30, T29 → T30 | ✅ Match |
-| T31 | T30 | T30 → T31 | ✅ Match |
+| Task | Depends On (task body)                         | Diagram Shows                   | Status   |
+| ---- | ---------------------------------------------- | ------------------------------- | -------- |
+| T1   | None                                           | —                               | ✅ Match |
+| T2   | None                                           | —                               | ✅ Match |
+| T3   | T2                                             | T2 → T3                         | ✅ Match |
+| T4   | T1, T2 (fase 1)                                | início da fase 2                | ✅ Match |
+| T5   | T4                                             | T4 → T5                         | ✅ Match |
+| T6   | T4                                             | T4 → T6                         | ✅ Match |
+| T7   | T3, T4 (fases anteriores)                      | início da fase 3                | ✅ Match |
+| T8   | T7                                             | T7 → T8                         | ✅ Match |
+| T9   | T7                                             | T7 → T9                         | ✅ Match |
+| T10  | T8, T9                                         | T8 → T10, T9 → T10              | ✅ Match |
+| T11  | T10                                            | T10 → T11                       | ✅ Match |
+| T12  | T7, T1 (fase 1)                                | T7 → T12                        | ✅ Match |
+| T13  | T7                                             | T7 → T13                        | ✅ Match |
+| T14  | T4 (fase 2)                                    | início da fase 4                | ✅ Match |
+| T15  | T14                                            | T14 → T15                       | ✅ Match |
+| T16  | T14                                            | T14 → T16                       | ✅ Match |
+| T17  | T4 (fase 2)                                    | início da fase 5                | ✅ Match |
+| T18  | T17                                            | T17 → T18                       | ✅ Match |
+| T19  | T4 (fase 2)                                    | início da fase 5                | ✅ Match |
+| T20  | T19, T10, T12 (fase 3)                         | T19 → T20                       | ✅ Match |
+| T21  | T18, T20                                       | T18 → T21, T20 → T21            | ✅ Match |
+| T22  | T11 (fase 3)                                   | início da fase 6                | ✅ Match |
+| T23  | T22                                            | T22 → T23                       | ✅ Match |
+| T24  | T23                                            | T23 → T24                       | ✅ Match |
+| T25  | None na fase (usa T3, T14 de fases anteriores) | —                               | ✅ Match |
+| T26  | None na fase (usa T12)                         | —                               | ✅ Match |
+| T27  | T26                                            | T26 → T27                       | ✅ Match |
+| T28  | None na fase (usa T25)                         | —                               | ✅ Match |
+| T29  | T26                                            | T26 → T29                       | ✅ Match |
+| T30  | T27, T28, T29                                  | T27 → T30, T28 → T30, T29 → T30 | ✅ Match |
+| T31  | T30                                            | T30 → T31                       | ✅ Match |
 
 ---
 
 ## Test Co-location Validation
 
-| Task | Code Layer Created/Modified | Matrix Requires | Task Says | Status |
-| ---- | --------------------------- | --------------- | --------- | ------ |
-| T1 | teste do motor | unit | unit | ✅ OK |
-| T2 | domínio puro | unit | unit | ✅ OK |
-| T3 | domínio puro | unit | unit | ✅ OK |
-| T4 | domínio puro + leitores (UI só mecânico) | unit (UI coberta pelos e2e existentes no gate de fase) | unit | ✅ OK |
-| T5 | persistência | unit | unit | ✅ OK |
-| T6 | store | unit | unit | ✅ OK |
-| T7–T13 | motor (domínio puro) | unit | unit | ✅ OK |
-| T14 | domínio puro | unit | unit | ✅ OK |
-| T15 | UI | e2e | e2e | ✅ OK |
-| T16 | UI | e2e | e2e | ✅ OK |
-| T17 | domínio puro | unit | unit | ✅ OK |
-| T18 | advisor (domínio puro) | unit | unit | ✅ OK |
-| T19 | lib + tipo | unit | unit | ✅ OK |
-| T20 | dados | unit | unit | ✅ OK |
-| T21 | docs | unit (claude-map) | unit | ✅ OK |
-| T22 | motor | unit | unit | ✅ OK |
-| T23 | lib pura | unit | unit | ✅ OK |
-| T24 | UI | e2e | e2e | ✅ OK |
-| T25 | UI | e2e | e2e | ✅ OK |
-| T26 | motor | unit | unit | ✅ OK |
-| T27 | motor (cliente) | unit | unit | ✅ OK |
-| T28 | store + UI | unit + e2e | unit, e2e | ✅ OK |
-| T29 | lib pura | unit | unit | ✅ OK |
-| T30 | UI | e2e | e2e | ✅ OK |
-| T31 | docs | unit (claude-map) | unit | ✅ OK |
+| Task   | Code Layer Created/Modified              | Matrix Requires                                        | Task Says | Status |
+| ------ | ---------------------------------------- | ------------------------------------------------------ | --------- | ------ |
+| T1     | teste do motor                           | unit                                                   | unit      | ✅ OK  |
+| T2     | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T3     | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T4     | domínio puro + leitores (UI só mecânico) | unit (UI coberta pelos e2e existentes no gate de fase) | unit      | ✅ OK  |
+| T5     | persistência                             | unit                                                   | unit      | ✅ OK  |
+| T6     | store                                    | unit                                                   | unit      | ✅ OK  |
+| T7–T13 | motor (domínio puro)                     | unit                                                   | unit      | ✅ OK  |
+| T14    | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T15    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T16    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T17    | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T18    | advisor (domínio puro)                   | unit                                                   | unit      | ✅ OK  |
+| T19    | lib + tipo                               | unit                                                   | unit      | ✅ OK  |
+| T20    | dados                                    | unit                                                   | unit      | ✅ OK  |
+| T21    | docs                                     | unit (claude-map)                                      | unit      | ✅ OK  |
+| T22    | motor                                    | unit                                                   | unit      | ✅ OK  |
+| T23    | lib pura                                 | unit                                                   | unit      | ✅ OK  |
+| T24    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T25    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T26    | motor                                    | unit                                                   | unit      | ✅ OK  |
+| T27    | motor (cliente)                          | unit                                                   | unit      | ✅ OK  |
+| T28    | store + UI                               | unit + e2e                                             | unit, e2e | ✅ OK  |
+| T29    | lib pura                                 | unit                                                   | unit      | ✅ OK  |
+| T30    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T31    | docs                                     | unit (claude-map)                                      | unit      | ✅ OK  |
