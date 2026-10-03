@@ -79,7 +79,9 @@ src/
                   traits.ts (component sets the engine, scorer and advisor share: MANAGED_MULTI_ZONE, DATABASES)
     graph/        compile.ts (ReactFlow nodes/edges → validated SimGraph),
                   edgeRules.ts (connect defaults, sanitize, rule form specs; edge helpers: edgeRuleOf,
-                  newEdgeData, isAsyncEdge)
+                  newEdgeData, isAsyncEdge),
+                  callPlan.ts (request-flow: a node's call plan — steps, parallel groups, "after miss"
+                  dependencies and absorbed cache calls; the only place call order is resolved)
     persistence/  migrate.ts (v1 → v2), serialize.ts (canvas ⇄ Serialized*), envelope.ts (JSON export/import), version.ts (SCHEMA_VERSION)
   engine/         analyze.ts (steady state), core/ (queueing = Erlang C/M/M/c, routing, sampler,
                   rng (+ Poisson), settle = shared reverse pass/sampler model, tick = TickSimulator,

@@ -173,19 +173,20 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Sem passo explícito, a chamada na posição i fica no passo i + 1 (sequencial, como hoje)
-- [ ] Com algum passo explícito, chamadas sem passo vão depois do maior passo, uma por passo
-- [ ] Dois passos iguais formam um grupo paralelo
-- [ ] `after_miss` com `missOf` inexistente, não chamado pela fonte, ou sem `hitRate` → tratado como `reads` + aviso
-- [ ] `after_miss` em passo ≤ ao da dependência → passo efetivo = dependência + 1 + aviso
-- [ ] `absorbed` contém a aresta da chamada ao cache referenciado
-- [ ] LB e fila: passos ignorados
-- [ ] `tests/unit/call-plan.test.ts` cobre cada regra; `CLAUDE.md` (Architecture map, `domain/graph`) cita `callPlan.ts`
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Sem passo explícito, a chamada na posição i fica no passo i + 1 (sequencial, como hoje)
+- [x] Com algum passo explícito, chamadas sem passo vão depois do maior passo, uma por passo
+- [x] Dois passos iguais formam um grupo paralelo
+- [x] `after_miss` com `missOf` inexistente, não chamado pela fonte, ou sem `hitRate` → tratado como `reads` + aviso
+- [x] `after_miss` em passo ≤ ao da dependência → passo efetivo = dependência + 1 + aviso
+- [x] `absorbed` contém a aresta da chamada ao cache referenciado
+- [x] LB e fila: passos ignorados
+- [x] `tests/unit/call-plan.test.ts` cobre cada regra; `CLAUDE.md` (Architecture map, `domain/graph`) cita `callPlan.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(graph): plano de chamadas por nó com passos e dependência de miss`
+**Status**: ✅ Complete
 
 ---
 
