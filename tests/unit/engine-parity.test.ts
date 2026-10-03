@@ -1,3 +1,4 @@
+import type { Edge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
 import { compileGraph } from "@/domain/graph/compile";
@@ -5,6 +6,7 @@ import { analyze } from "@/engine/analyze";
 import { TickSimulator } from "@/engine/core/tick";
 import type { TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
+import { comp, wire } from "./engineFixtures";
 
 // analyze() and the tick loop share core/settle.ts and the routing. At a steady
 // load below capacity they must show the same picture, or the Simulate button
@@ -36,7 +38,44 @@ describe("tick loop vs analyze() at steady state", () => {
     expect(healthy.length).toBeGreaterThanOrEqual(20);
   });
 
-  it.each(healthy.filter((_, i) => i % 4 === 0).map((h) => [h.id, h] as const))(
+  // Look-aside cache (request-flow): the database gets writes + reads after a miss.
+  const lookAsideEdge = (source: string, target: string, rule: unknown): Edge => ({
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    data: { protocol: "http", async: false, rule },
+  });
+  const lookAsideGraph = compileGraph(
+    [
+      comp("client", "client"),
+      comp("svc", "app-server", { instances: 10 }),
+      comp("redis", "cache", { hitRate: 0.9, instances: 2, capacityPerInstance: 50_000 }),
+      comp("db", "sql-db", { instances: 4, capacityPerInstance: 5000 }),
+    ],
+    [
+      wire("client", "svc"),
+      lookAsideEdge("svc", "redis", {
+        calls: [{ kind: "reads", callsPerRequest: 1 }],
+        networkLatencyMs: 1,
+        packetLoss: 0,
+      }),
+      lookAsideEdge("svc", "db", {
+        calls: [
+          { kind: "writes", callsPerRequest: 1 },
+          { kind: "after_miss", missOf: "redis", callsPerRequest: 1 },
+        ],
+        networkLatencyMs: 1,
+        packetLoss: 0,
+      }),
+    ],
+  );
+  const lookAside = {
+    id: "synthetic:look-aside",
+    graph: lookAsideGraph,
+    steady: analyze(lookAsideGraph, RPS),
+  };
+
+  it.each([...healthy.filter((_, i) => i % 4 === 0), lookAside].map((h) => [h.id, h] as const))(
     "%s: per-node load and throughput agree",
     (_id, h) => {
       const sim = new TickSimulator(h.graph, { seed: 1 });

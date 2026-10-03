@@ -5,9 +5,12 @@ import { compileGraph, type SimGraph } from "@/domain/graph/compile";
 import { retryAmplification } from "@/engine/core/queueing";
 import { TickSimulator } from "@/engine/core/tick";
 import { FlowEngine, type EngineClock } from "@/engine/engine";
+import { compileFault } from "@/engine/faults/compile";
+import { effectsAt } from "@/engine/faults/effects";
 import { createSimSession, type SimFrame } from "@/engine/session";
 import { rateAt } from "@/engine/traffic/patterns";
 import { HISTORY_TICKS, TICK_SEC, type TrafficPattern } from "@/engine/traffic/types";
+import type { EdgeCall } from "@/domain/components/types";
 import type { TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import { comp, randomCanvas, wire } from "./engineFixtures";
@@ -305,6 +308,73 @@ describe("tick loop: invariants", () => {
     const perTickMs = (performance.now() - start) / n;
     console.info(`tick: ${perTickMs.toFixed(3)} ms (50 nodes, 80 edges, 1000 samples)`);
     expect(perTickMs).toBeLessThan(5);
+  });
+});
+
+describe("tick loop: reads after a cache miss (request-flow)", () => {
+  const RPS = 10_000;
+  const call = (kind: EdgeCall["kind"], extra: Partial<EdgeCall> = {}): EdgeCall => ({
+    kind,
+    callsPerRequest: 1,
+    ...extra,
+  });
+  const callWire = (source: string, target: string, calls: EdgeCall[]): Edge => ({
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    data: { protocol: "http", async: false, rule: { calls, networkLatencyMs: 1, packetLoss: 0 } },
+  });
+  const graph = compileGraph(
+    [
+      comp("client", "client"),
+      comp("svc", "app-server", { instances: 10 }),
+      comp("redis", "cache", { hitRate: 0.9, instances: 2, capacityPerInstance: 50_000 }),
+      comp("db", "sql-db", { instances: 4, capacityPerInstance: 5000 }),
+    ],
+    [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+    ],
+  );
+  const options = { readRatio: 0.9, seed: 11 };
+  const kill = compileFault({ type: "kill-node", target: { kind: "node", id: "redis" } }, 0, {
+    graph,
+    readRatio: 0.9,
+  });
+  if (!kill.ok) throw new Error(kill.error);
+  const killed = effectsAt(kill.modifiers, 1);
+
+  /** Share of the arrivals that reach the database this tick. */
+  const dbShare = (s: TickSnapshot) => s.nodes.db.rpsIn / s.offeredRps;
+
+  it("a cache killed mid-run sends every read to the database within 2 ticks (FLW-13)", () => {
+    const sim = new TickSimulator(graph, options);
+    let healthy!: TickSnapshot;
+    for (let i = 0; i < 40; i++) healthy = sim.step(RPS);
+    expect(dbShare(healthy)).toBeCloseTo(0.19, 6);
+    const faulted = [sim.step(RPS, killed), sim.step(RPS, killed), sim.step(RPS, killed)];
+    expect(faulted[0].nodes.redis.status).toBe("down");
+    expect(dbShare(faulted[1])).toBeCloseTo(1, 6);
+    expect(dbShare(faulted[2])).toBeCloseTo(1, 6);
+    // the cache's failure is a miss: requests keep succeeding
+    expect(faulted[2].global.errorRate).toBeCloseTo(0, 9);
+  });
+
+  it("same graph + seed + faults → bit-identical snapshots; reset() forgets past failures (FLW-16)", () => {
+    const run = (sim: TickSimulator) => {
+      const out: TickSnapshot[] = [];
+      for (let i = 0; i < 10; i++) out.push(sim.step(RPS));
+      for (let i = 0; i < 10; i++) out.push(sim.step(RPS, killed));
+      return out;
+    };
+    const a = new TickSimulator(graph, options);
+    const b = new TickSimulator(graph, options);
+    expect(run(a)).toEqual(run(b));
+    // after a reset the first tick routes as if nothing had failed before
+    const healthyRun = (sim: TickSimulator) => Array.from({ length: 10 }, () => sim.step(RPS));
+    a.reset();
+    expect(healthyRun(a)).toEqual(healthyRun(new TickSimulator(graph, options)));
   });
 });
 

@@ -21,6 +21,10 @@
  *    the tick's stations for end-to-end p50/p95/p99 (`sampleLatency`).
  * 5. A `TickSnapshot` keyed by ReactFlow ids.
  *
+ * Reads after a cache miss (look-aside) route by the cache call's failure
+ * of the previous tick (a failed cache call is a miss), so a cache that goes
+ * down sends every read to the database from the next tick on.
+ *
  * Retries carry over: an edge out of a node with `maxRetries` R keeps the
  * failed attempts of each generation k < R and re-sends them the next tick,
  * so a steady failure fraction f converges to λ(1 − f^{R+1})/(1 − f), the
@@ -138,6 +142,12 @@ export class TickSimulator {
   private nodeState = new Map<string, NodeState>();
   /** Retry attempts by generation (index k = k+1-th retry), req/s, per edge. */
   private pending = new Map<string, number[]>();
+  /**
+   * Per edge: the previous tick's call failure. Reads after a cache miss go
+   * to the database when the cache call fails, so this tick routes them by
+   * the failure the last one measured (none on the first tick).
+   */
+  private lastFailure = new Map<string, number>();
   private rng: Rng;
   private ticks = 0;
   private readonly samples: number;
@@ -164,11 +174,12 @@ export class TickSimulator {
     return this.ticks;
   }
 
-  /** Back to t = 0: empty queues, no pending retries, PRNG reseeded. */
+  /** Back to t = 0: empty queues, no pending retries or past failures, PRNG reseeded. */
   reset(): void {
     this.ticks = 0;
     this.nodeState.clear();
     this.pending.clear();
+    this.lastFailure = new Map();
     this.rng = mulberry32(resolveConfig(this.graph, this.topo.byId, this.options).seed);
   }
 
@@ -235,7 +246,7 @@ export class TickSimulator {
     const load = new Map<string, number>();
     const shares = new Map<string, number>();
     const flows = new Map<string, TickFlow>();
-    const callCtx: CallContext = { readRatio, byId };
+    const callCtx: CallContext = { readRatio, byId, failure: this.lastFailure };
 
     // 2–3. propagate in order
     for (const id of order) {
@@ -411,6 +422,7 @@ export class TickSimulator {
 
     // reverse pass: timeouts, call failure, success, availability
     const settled = settle(topo, flows, shares);
+    this.lastFailure = settled.failure;
     this.advanceBreakers(topo, flows, load, settled, dt);
 
     // schedule next tick's retries from this tick's failed attempts

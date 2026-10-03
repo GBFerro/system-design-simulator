@@ -404,14 +404,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Fault `kill-node` no Redis no meio de uma execução: em ≤ 2 ticks a carga do DB sobe para todas as leituras
-- [ ] `engine-parity.test.ts` passa também para o design look-aside da T10 (analyze ≈ média do tick)
-- [ ] Mesmo grafo + seed + faults → snapshots bit-idênticos; golden da T1 inalterado
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Fault `kill-node` no Redis no meio de uma execução: em ≤ 2 ticks a carga do DB sobe para todas as leituras
+- [x] `engine-parity.test.ts` passa também para o design look-aside da T10 (analyze ≈ média do tick)
+- [x] Mesmo grafo + seed + faults → snapshots bit-idênticos; golden da T1 inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): tick aplica leituras após miss com a falha do tick anterior`
+**Status**: ✅ Complete
 
 ---
 

@@ -204,7 +204,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-10         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-11         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-12         | P1: Chamada condicional         | Tasks   | In Tasks    |
-| FLW-13         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-13         | P1: Chamada condicional         | Execute | Implemented |
 | FLW-14         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-15         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-16         | P1: Chamada condicional         | Tasks   | In Tasks    |
