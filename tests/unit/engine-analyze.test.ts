@@ -6,12 +6,30 @@ import { retryAmplification } from "@/engine/core/queueing";
 import { simulateCanvas } from "@/engine/client";
 import { createEngine } from "@/engine/engine";
 import { FaultError } from "@/engine/faults/runner";
+import type { EdgeCall } from "@/domain/components/types";
 import type { SteadyState } from "@/engine/types";
+import type { Edge } from "@xyflow/react";
 import { comp, text, wire } from "./engineFixtures";
 
 const byId = (s: SteadyState, id: string) => s.nodes.find((n) => n.nodeId === id)!;
 const edgeOf = (s: SteadyState, source: string, target: string) =>
   s.edges.find((e) => e.source === source && e.target === target)!;
+
+/** An edge carrying an explicit call list (schema v3). */
+function callWire(source: string, target: string, calls: EdgeCall[], async = false): Edge {
+  return {
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    data: { protocol: "http", async, rule: { calls, networkLatencyMs: 1, packetLoss: 0 } },
+  };
+}
+
+const call = (kind: EdgeCall["kind"], extra: Partial<EdgeCall> = {}): EdgeCall => ({
+  kind,
+  callsPerRequest: 1,
+  ...extra,
+});
 
 describe("analyze(): queueing through the graph", () => {
   it("M/M/1 node at ρ = 0.5 waits S·ρ/(1−ρ)", () => {
@@ -322,6 +340,109 @@ describe("analyze(): graph hygiene and entry points", () => {
       db[PARAM.capacityPerInstance],
       db[PARAM.serviceTimeMs],
     ]);
+  });
+});
+
+describe("compileGraph: call plan (request-flow)", () => {
+  const lookAside = [
+    comp("client", "client"),
+    comp("svc", "app-server", { instances: 10 }),
+    comp("redis", "cache", { hitRate: 0.9 }),
+    comp("db", "sql-db", { instances: 4 }),
+    comp("log", "monitoring"),
+  ];
+
+  it("every node with a forward outgoing edge carries its plan; leaves don't", () => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+      callWire("svc", "log", [call("always")], true),
+    ]);
+    const plan = (id: string) => graph.nodes.find((n) => n.id === id)!.plan;
+    expect(
+      plan("client")!
+        .steps.flat()
+        .map((p) => p.edgeId),
+    ).toEqual(["e-client-svc"]);
+    const svc = plan("svc")!;
+    expect(svc.steps.map((g) => g.map((p) => `${p.edgeId}#${p.index}@${p.step}`))).toEqual([
+      ["e-svc-redis#0@1"],
+      ["e-svc-db#0@2"],
+      ["e-svc-db#1@3"],
+    ]);
+    expect(svc.async.map((p) => p.edgeId)).toEqual(["e-svc-log"]);
+    expect(svc.steps[2][0].dependsOn).toBe("e-svc-redis");
+    expect(svc.absorbed).toEqual(["e-svc-redis"]);
+    expect(plan("redis")).toBeUndefined();
+    expect(plan("db")).toBeUndefined();
+    expect(plan("log")).toBeUndefined();
+    expect(graph.warnings).toEqual([]);
+  });
+
+  it("a back edge stays out of the plan and carries no load (FLW-46)", () => {
+    const graph = compileGraph(
+      [
+        comp("client", "client"),
+        comp("a", "app-server", { instances: 10 }),
+        comp("redis", "cache", { hitRate: 0.5 }),
+        comp("b", "app-server", { instances: 10 }),
+      ],
+      [
+        wire("client", "a"),
+        callWire("a", "redis", [call("reads")]),
+        callWire("a", "b", [call("always")]),
+        // closes the cycle a → b → a: a conditional call on the back edge
+        callWire("b", "a", [call("after_miss", { missOf: "redis" })]),
+      ],
+    );
+    const back = graph.edges.find((e) => e.back)!;
+    expect([back.source, back.target]).toEqual(["b", "a"]);
+    expect(graph.nodes.find((n) => n.id === "b")!.plan).toBeUndefined();
+    const a = graph.nodes.find((n) => n.id === "a")!.plan!;
+    expect(a.steps.flat().map((p) => p.edgeId)).toEqual(["e-a-redis", "e-a-b"]);
+    expect(edgeOf(analyze(graph, 1000), "b", "a").rps).toBe(0);
+  });
+
+  it.each([
+    ["missOf names a node the graph doesn't have (FLW-42)", "ghost"],
+    ["missOf names a node without hit rate (FLW-43)", "log"],
+  ])("%s: graph.warnings says so and the call counts as reads", (_name, missOf) => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "log", [call("always")]),
+      callWire("svc", "db", [call("after_miss", { missOf })]),
+    ]);
+    const svc = graph.nodes.find((n) => n.id === "svc")!.plan!;
+    expect(svc.steps.flat().find((p) => p.target === "db")!.call.kind).toBe("reads");
+    expect(svc.warnings).toHaveLength(1);
+    expect(graph.warnings).toContain(svc.warnings[0]);
+    expect(svc.warnings[0]).toMatch(/svc → db: "reads after a miss" .*treated as reads/);
+  });
+
+  it("a raised after-miss step shows up in graph.warnings (FLW-29)", () => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads", { step: 2 })]),
+      callWire("svc", "db", [call("after_miss", { missOf: "redis", step: 1 })]),
+    ]);
+    const svc = graph.nodes.find((n) => n.id === "svc")!.plan!;
+    expect(svc.steps.flat().find((p) => p.target === "db")!.step).toBe(3);
+    expect(svc.warnings).toHaveLength(1);
+    expect(svc.warnings[0]).toMatch(/svc → db: .*at step 1; it runs at step 3/);
+    expect(graph.warnings).toContain(svc.warnings[0]);
+  });
+
+  it("stays structured-clone safe: plain arrays and objects only", () => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+    ]);
+    const svc = graph.nodes.find((n) => n.id === "svc")!.plan!;
+    expect(Array.isArray(svc.absorbed)).toBe(true);
+    expect(structuredClone(graph)).toEqual(graph);
+    expect(JSON.parse(JSON.stringify(graph))).toEqual(graph);
   });
 });
 

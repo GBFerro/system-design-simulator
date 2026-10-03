@@ -7,6 +7,7 @@ import {
   serviceTimeMsOf,
 } from "@/domain/components/registry";
 import type { EdgeRule, Params, RoutingKind } from "@/domain/components/types";
+import { planFor, type CallPlan } from "./callPlan";
 import { defaultEdgeRule, sanitizeEdgeRule } from "./edgeRules";
 
 /**
@@ -30,6 +31,12 @@ export interface SimNode {
   instances: number;
   capacityPerInstance: number;
   serviceTimeMs: number;
+  /**
+   * Order and conditions of the node's calls (request-flow, `callPlan.ts`):
+   * present on every node with a forward (non-back) outgoing edge. The engine
+   * reads it and never reinterprets steps (AD-002).
+   */
+  plan?: CallPlan;
 }
 
 export interface SimEdge {
@@ -278,6 +285,28 @@ export function compileGraph(rawNodes: readonly unknown[], rawEdges: readonly un
 
   const position = new Map(order.map((id, i) => [id, i]));
   for (const e of edges) e.back = position.get(e.target)! <= position.get(e.source)!;
+
+  /* ---- call plans (back edges carry nothing, so they stay out) ---- */
+  const forward = new Map<string, SimEdge[]>();
+  for (const e of edges) {
+    if (e.back) continue;
+    const list = forward.get(e.source);
+    if (list) list.push(e);
+    else forward.set(e.source, [e]);
+  }
+  const hasHitRate = (id: string) => typeof byId.get(id)?.params[PARAM.hitRate] === "number";
+  const labelOf = (id: string) => byId.get(id)?.label ?? id;
+  for (const node of nodes) {
+    const list = forward.get(node.id);
+    if (!list) continue;
+    node.plan = planFor(
+      node.id,
+      list.map((e) => ({ id: e.id, target: e.target, async: e.async, calls: e.rule.calls })),
+      hasHitRate,
+      { routing: node.routing, labelOf },
+    );
+    warnings.push(...node.plan.warnings);
+  }
 
   /* ---- entry points ---- */
   const clients = nodes.filter((n) => n.componentId === CLIENT_COMPONENT_ID);

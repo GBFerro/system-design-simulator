@@ -237,7 +237,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-43         | Edge cases                      | Tasks   | In Tasks    |
 | FLW-44         | Edge cases                      | Tasks   | In Tasks    |
 | FLW-45         | Edge cases                      | Tasks   | In Tasks    |
-| FLW-46         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-46         | Edge cases                      | Execute | Implemented |
 | FLW-47         | Edge cases                      | Tasks   | In Tasks    |
 | FLW-48         | Edge cases                      | Tasks   | In Tasks    |
 | FLW-49         | Edge cases                      | Tasks   | In Tasks    |

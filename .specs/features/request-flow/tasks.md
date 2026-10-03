@@ -294,15 +294,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Plano presente em todo nó com aresta de saída não-`back`; aresta `back` fica fora do plano (sem carga)
-- [ ] Avisos de `missOf` inválido e de passo corrigido aparecem em `graph.warnings`
-- [ ] Resultado continua structured-clone safe (sem `Map`/`Set` no `SimGraph`: `absorbed` como array)
-- [ ] Testes no `engine-analyze.test.ts` (seção compile); golden da T1 inalterado
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Plano presente em todo nó com aresta de saída não-`back`; aresta `back` fica fora do plano (sem carga)
+- [x] Avisos de `missOf` inválido e de passo corrigido aparecem em `graph.warnings`
+- [x] Resultado continua structured-clone safe (sem `Map`/`Set` no `SimGraph`: `absorbed` como array)
+- [x] Testes no `engine-analyze.test.ts` (seção compile); golden da T1 inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): compilador anexa o plano de chamadas aos nós`
+**Status**: ✅ Complete
 
 ---
 
