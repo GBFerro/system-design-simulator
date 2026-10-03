@@ -37,11 +37,11 @@ graph TD
 
 ### Abordagens consideradas
 
-| Abordagem | Como | Por que não / por que sim |
-| --------- | ---- | ------------------------- |
-| **A. Link + lista de chamadas na mesma aresta (escolhida)** | `EdgeRule` vira `{ calls, networkLatencyMs, packetLoss }`. A carga da aresta é a soma das chamadas; a falha e a latência continuam por aresta. | Faults, blast radius, métricas, cards de instância e ids de aresta não mudam. Só o roteamento, o settle e o sampler passam a iterar chamadas. |
-| B. Uma `SimEdge` por chamada no compilador (`edgeId#i`) | O motor quase não muda, mas cada chamada vira uma aresta própria. | Runtime metrics, faults (`effects.edges`), blast e `flowBalls` usam o id da aresta do canvas; tudo precisaria agregar de volta. Mais churn e mais chance de divergência. |
-| C. Permitir duas arestas A → B no canvas | Uma linha "escritas" e outra "leituras após miss". | Recusada no Specify (linha 5 das premissas): ilegível, e o compilador deduplica arestas paralelas. |
+| Abordagem                                                   | Como                                                                                                                                           | Por que não / por que sim                                                                                                                                                |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A. Link + lista de chamadas na mesma aresta (escolhida)** | `EdgeRule` vira `{ calls, networkLatencyMs, packetLoss }`. A carga da aresta é a soma das chamadas; a falha e a latência continuam por aresta. | Faults, blast radius, métricas, cards de instância e ids de aresta não mudam. Só o roteamento, o settle e o sampler passam a iterar chamadas.                            |
+| B. Uma `SimEdge` por chamada no compilador (`edgeId#i`)     | O motor quase não muda, mas cada chamada vira uma aresta própria.                                                                              | Runtime metrics, faults (`effects.edges`), blast e `flowBalls` usam o id da aresta do canvas; tudo precisaria agregar de volta. Mais churn e mais chance de divergência. |
+| C. Permitir duas arestas A → B no canvas                    | Uma linha "escritas" e outra "leituras após miss".                                                                                             | Recusada no Specify (linha 5 das premissas): ilegível, e o compilador deduplica arestas paralelas.                                                                       |
 
 ---
 
@@ -49,34 +49,34 @@ graph TD
 
 ### Existing Components to Leverage
 
-| Component | Location | How to Use |
-| --------- | -------- | ---------- |
-| `sanitizeEdgeRule`, `defaultEdgeRule`, `connectEdgeRule`, `edgeRuleBadge`, `applyEdgeRulePatch` | `src/domain/graph/edgeRules.ts` | Estender para o formato com `calls`; o sanitize aceita também o formato v2 achatado (defesa extra além da migração). |
-| `ruleProbability`, `callsOf`, `ruleFactor` | `src/engine/core/routing.ts:69-90` | `ruleProbability` vira `callProbability(call, …)`; `ruleFactor` vira `edgeFactor(edge, …)` = Σ das chamadas. |
-| Ponto fixo de retries | `src/engine/analyze.ts:163-311` | Também liga quando há chamada "após miss": a probabilidade depende da falha da chamada ao cache, que sai do `settle`. |
-| Retries entre ticks (`pending`) | `src/engine/core/tick.ts:413-427` | Mesmo padrão: o tick guarda a `failure` do tick anterior para as chamadas "após miss". |
-| `settle()` / `sampleNodesFor()` | `src/engine/core/settle.ts` | Compartilhados por `analyze()` e pelo tick (não fazer fork); passam a ler o plano. |
-| `sampleLatency()` | `src/engine/core/sampler.ts` | Ganha passos e um `Recorder` opcional; o trace usa o mesmo código. |
-| Tipo `Trace` (OBS-06, ainda sem uso) | `src/engine/types.ts:190` | Substituído por `RequestTrace` com eventos de chamada/resposta; a aba Fluxo cumpre o OBS-06 da Spec 07. |
-| `migrateGraphV1toV2`, `migrateCanvasState`, `migrateSavedDesignsState` | `src/domain/persistence/migrate.ts`, `src/store/migrations.ts` | Encadear v2 → v3 depois da v1 → v2, no mesmo ponto de entrada. |
-| `updateEdgeRule` (já em `MUTATING_ACTIONS`) | `src/store/canvasStore.ts:284,640-660` | Continua sendo a única ação de edição; o patch passa a poder trazer `calls`. |
-| `readCacheDiff` (fix "add cache") | `src/advisor/patterns.ts:94-150` | Passa a construir o look-aside (sem a aresta cache → banco). |
-| `buildReferenceGraph` | `src/lib/loadReference.ts:40-80` | Resolve `missOf` dado por componentId na referência para o id do nó. |
-| `ParamsForm` + `EDGE_RULE_SPECS` | `src/components/panel/ParamsForm.tsx`, `edgeRules.ts:240-310` | Continua para os campos do link; cada chamada usa um `ParamsForm` com `EDGE_CALL_SPECS`. |
-| `useEdgeRuntime`, padrão de seletor por entidade | `src/store/runtimeStore.ts` | Mesmo padrão para `useFlowHighlight(edgeId)`. |
-| `AnimatedEdge` (async já tracejado) | `src/components/canvas/edges/AnimatedEdge.tsx:85-91` | FLW-04 já é atendido; só os badges de passo e de condição são novos. |
-| `simulateCanvas` / worker Comlink | `src/engine/client.ts:125`, `src/engine/worker.ts` | `traceCanvas()` segue o mesmo caminho lazy. |
+| Component                                                                                       | Location                                                       | How to Use                                                                                                            |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `sanitizeEdgeRule`, `defaultEdgeRule`, `connectEdgeRule`, `edgeRuleBadge`, `applyEdgeRulePatch` | `src/domain/graph/edgeRules.ts`                                | Estender para o formato com `calls`; o sanitize aceita também o formato v2 achatado (defesa extra além da migração).  |
+| `ruleProbability`, `callsOf`, `ruleFactor`                                                      | `src/engine/core/routing.ts:69-90`                             | `ruleProbability` vira `callProbability(call, …)`; `ruleFactor` vira `edgeFactor(edge, …)` = Σ das chamadas.          |
+| Ponto fixo de retries                                                                           | `src/engine/analyze.ts:163-311`                                | Também liga quando há chamada "após miss": a probabilidade depende da falha da chamada ao cache, que sai do `settle`. |
+| Retries entre ticks (`pending`)                                                                 | `src/engine/core/tick.ts:413-427`                              | Mesmo padrão: o tick guarda a `failure` do tick anterior para as chamadas "após miss".                                |
+| `settle()` / `sampleNodesFor()`                                                                 | `src/engine/core/settle.ts`                                    | Compartilhados por `analyze()` e pelo tick (não fazer fork); passam a ler o plano.                                    |
+| `sampleLatency()`                                                                               | `src/engine/core/sampler.ts`                                   | Ganha passos e um `Recorder` opcional; o trace usa o mesmo código.                                                    |
+| Tipo `Trace` (OBS-06, ainda sem uso)                                                            | `src/engine/types.ts:190`                                      | Substituído por `RequestTrace` com eventos de chamada/resposta; a aba Fluxo cumpre o OBS-06 da Spec 07.               |
+| `migrateGraphV1toV2`, `migrateCanvasState`, `migrateSavedDesignsState`                          | `src/domain/persistence/migrate.ts`, `src/store/migrations.ts` | Encadear v2 → v3 depois da v1 → v2, no mesmo ponto de entrada.                                                        |
+| `updateEdgeRule` (já em `MUTATING_ACTIONS`)                                                     | `src/store/canvasStore.ts:284,640-660`                         | Continua sendo a única ação de edição; o patch passa a poder trazer `calls`.                                          |
+| `readCacheDiff` (fix "add cache")                                                               | `src/advisor/patterns.ts:94-150`                               | Passa a construir o look-aside (sem a aresta cache → banco).                                                          |
+| `buildReferenceGraph`                                                                           | `src/lib/loadReference.ts:40-80`                               | Resolve `missOf` dado por componentId na referência para o id do nó.                                                  |
+| `ParamsForm` + `EDGE_RULE_SPECS`                                                                | `src/components/panel/ParamsForm.tsx`, `edgeRules.ts:240-310`  | Continua para os campos do link; cada chamada usa um `ParamsForm` com `EDGE_CALL_SPECS`.                              |
+| `useEdgeRuntime`, padrão de seletor por entidade                                                | `src/store/runtimeStore.ts`                                    | Mesmo padrão para `useFlowHighlight(edgeId)`.                                                                         |
+| `AnimatedEdge` (async já tracejado)                                                             | `src/components/canvas/edges/AnimatedEdge.tsx:85-91`           | FLW-04 já é atendido; só os badges de passo e de condição são novos.                                                  |
+| `simulateCanvas` / worker Comlink                                                               | `src/engine/client.ts:125`, `src/engine/worker.ts`             | `traceCanvas()` segue o mesmo caminho lazy.                                                                           |
 
 ### Integration Points
 
-| System | Integration Method |
-| ------ | ------------------ |
-| Motor (analyze, tick, sampler) | `SimEdge.rule.calls` + `SimNode.plan`, gerados pelo `compileGraph` a partir do `callPlan`. |
-| Faults (Spec 08) | Sem mudança no tick. `faults/catalog.ts:166` (`writeShareOf`) passa a ponderar pelas chamadas da aresta. Um cache derrubado faz a falha da chamada ao cache ir a 1, e o ponto fixo manda as leituras ao banco (FLW-13). |
-| Persistência (Spec 05) | `SCHEMA_VERSION` 2 → 3; `STORE_VERSION` acompanha; envelope aceita 1, 2 e 3. |
-| Advisor (Spec 12) | O fix "add cache" e `insertBetween` geram `calls`; `advisorStore` já assina o grafo por `JSON.stringify(rule)` e continua funcionando. |
-| Runtime (Spec 07) | `TickSnapshot.global.readRatio` (novo) para as bolinhas sortearem leitura ou escrita; `extra.hitRatio` (já existe, ciente de faults) para hit/miss. |
-| CLAUDE.md / `claude-map` test | Arquivos novos entram no mapa de arquitetura (o teste `claude-map` falha se faltar). |
+| System                         | Integration Method                                                                                                                                                                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Motor (analyze, tick, sampler) | `SimEdge.rule.calls` + `SimNode.plan`, gerados pelo `compileGraph` a partir do `callPlan`.                                                                                                                              |
+| Faults (Spec 08)               | Sem mudança no tick. `faults/catalog.ts:166` (`writeShareOf`) passa a ponderar pelas chamadas da aresta. Um cache derrubado faz a falha da chamada ao cache ir a 1, e o ponto fixo manda as leituras ao banco (FLW-13). |
+| Persistência (Spec 05)         | `SCHEMA_VERSION` 2 → 3; `STORE_VERSION` acompanha; envelope aceita 1, 2 e 3.                                                                                                                                            |
+| Advisor (Spec 12)              | O fix "add cache" e `insertBetween` geram `calls`; `advisorStore` já assina o grafo por `JSON.stringify(rule)` e continua funcionando.                                                                                  |
+| Runtime (Spec 07)              | `TickSnapshot.global.readRatio` (novo) para as bolinhas sortearem leitura ou escrita; `extra.hitRatio` (já existe, ciente de faults) para hit/miss.                                                                     |
+| CLAUDE.md / `claude-map` test  | Arquivos novos entram no mapa de arquitetura (o teste `claude-map` falha se faltar).                                                                                                                                    |
 
 ---
 
@@ -240,14 +240,14 @@ export interface EdgeRule {
 export interface PlannedCall {
   edgeId: string;
   target: string;
-  index: number;            // position in edge.rule.calls
+  index: number; // position in edge.rule.calls
   call: EdgeCall;
-  step: number;             // effective step (≥ 1)
+  step: number; // effective step (≥ 1)
   async: boolean;
-  dependsOn?: string;       // edgeId of the cache call, for after_miss
+  dependsOn?: string; // edgeId of the cache call, for after_miss
 }
 export interface CallPlan {
-  steps: PlannedCall[][];   // sync calls grouped by effective step, ascending
+  steps: PlannedCall[][]; // sync calls grouped by effective step, ascending
   async: PlannedCall[];
   absorbed: ReadonlySet<string>; // edgeIds of cache calls whose failure becomes a miss
   warnings: string[];
@@ -258,14 +258,24 @@ export interface CallPlan {
 
 ```typescript
 export type TraceEvent =
-  | { type: "call"; edgeId: string; from: string; to: string; step: number; t0: number; t1: number; ok: boolean; attempt: number }
+  | {
+      type: "call";
+      edgeId: string;
+      from: string;
+      to: string;
+      step: number;
+      t0: number;
+      t1: number;
+      ok: boolean;
+      attempt: number;
+    }
   | { type: "async"; edgeId: string; from: string; to: string; step: number; t0: number }
   | { type: "cache"; nodeId: string; hit: boolean; viaFailure: boolean };
 export interface RequestTrace {
   cls: "read" | "write";
   ok: boolean;
   totalMs: number;
-  events: TraceEvent[];     // in start order; responses are implied by `call.t1`
+  events: TraceEvent[]; // in start order; responses are implied by `call.t1`
 }
 ```
 
@@ -287,47 +297,47 @@ O read ratio resolvido pelo motor (`resolveConfig`), para as bolinhas. O teste d
 
 ## Error Handling Strategy
 
-| Error Scenario | Handling | User Impact |
-| -------------- | -------- | ----------- |
-| `missOf` aponta para nó apagado ou que a fonte não chama | `callPlan` trata como `reads` e o compilador avisa | Aviso no painel Sim; ícone de aviso no badge da aresta; o banco recebe todas as leituras. |
-| `missOf` aponta para nó sem `hitRate` | Mesmo tratamento | Mesmo aviso. |
-| "Após miss" no mesmo passo ou antes da dependência | O passo efetivo sobe e o compilador avisa | O badge mostra o passo efetivo, com aviso. |
-| Cache fora, com erro ou com timeout | Falha absorvida: vira miss | O banco recebe as leituras; a requisição não falha pelo cache. |
-| JSON com mais de 8 chamadas, passo fora do intervalo ou condição desconhecida | O sanitize corrige e devolve `warnings` | Toast de aviso no import, como hoje. |
-| Aresta com 0 chamadas (edição) | `EdgeCallsForm` desabilita "remover" na última; o sanitize recusa lista vazia e volta ao padrão de conexão | Nada é perdido. |
-| Copiar/colar ou duplicar uma seleção | `missOf` é remapeado pelo mapa de ids dos nós colados; se o cache não foi junto, `missOf` é removido e a chamada vira "leituras" com aviso | A cópia funciona sem apontar para o cache original. |
-| Frame de bolinha órfão (aresta removida no meio do voo, troca de grafo) | Frames com mais de `FRAME_TTL_SEC` (20 s) ou cujo nó sumiu são descartados; `clear()` do runtime zera tudo | Nenhuma bolinha fica presa. |
-| Trace sem entrada | O worker devolve `events: []` com aviso | Mensagem da FLW-40. |
+| Error Scenario                                                                | Handling                                                                                                                                   | User Impact                                                                               |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `missOf` aponta para nó apagado ou que a fonte não chama                      | `callPlan` trata como `reads` e o compilador avisa                                                                                         | Aviso no painel Sim; ícone de aviso no badge da aresta; o banco recebe todas as leituras. |
+| `missOf` aponta para nó sem `hitRate`                                         | Mesmo tratamento                                                                                                                           | Mesmo aviso.                                                                              |
+| "Após miss" no mesmo passo ou antes da dependência                            | O passo efetivo sobe e o compilador avisa                                                                                                  | O badge mostra o passo efetivo, com aviso.                                                |
+| Cache fora, com erro ou com timeout                                           | Falha absorvida: vira miss                                                                                                                 | O banco recebe as leituras; a requisição não falha pelo cache.                            |
+| JSON com mais de 8 chamadas, passo fora do intervalo ou condição desconhecida | O sanitize corrige e devolve `warnings`                                                                                                    | Toast de aviso no import, como hoje.                                                      |
+| Aresta com 0 chamadas (edição)                                                | `EdgeCallsForm` desabilita "remover" na última; o sanitize recusa lista vazia e volta ao padrão de conexão                                 | Nada é perdido.                                                                           |
+| Copiar/colar ou duplicar uma seleção                                          | `missOf` é remapeado pelo mapa de ids dos nós colados; se o cache não foi junto, `missOf` é removido e a chamada vira "leituras" com aviso | A cópia funciona sem apontar para o cache original.                                       |
+| Frame de bolinha órfão (aresta removida no meio do voo, troca de grafo)       | Frames com mais de `FRAME_TTL_SEC` (20 s) ou cujo nó sumiu são descartados; `clear()` do runtime zera tudo                                 | Nenhuma bolinha fica presa.                                                               |
+| Trace sem entrada                                                             | O worker devolve `events: []` com aviso                                                                                                    | Mensagem da FLW-40.                                                                       |
 
 ---
 
 ## Risks & Concerns
 
-| Concern | Location (file:line) | Impact | Mitigation |
-| ------- | -------------------- | ------ | ---------- |
-| Bit-identidade do sampler depende da ordem exata dos sorteios | `src/engine/core/sampler.ts:150-170` | Uma mudança sutil altera os percentis de todos os designs e quebra testes de referência | Teste de regressão (FLW-32) que grava, antes da mudança, os resultados das 35 referências e de designs sintéticos com retries, timeouts e `fraction`, e compara deep-equal depois. É a primeira tarefa do motor. |
-| `flowBalls` hoje não tem estado por requisição (o "cache first" é um caso especial) | `src/lib/flowBalls.ts:239-250` | Os frames aumentam o estado e o risco de vazamento | Frames num `Map` com TTL; teste unitário para vazamento (o número de frames volta a 0 depois de N segundos sem spawn); o teto `MAX_BALLS` continua valendo. |
-| Muitos arquivos leem `e.rule.kind` diretamente | `catalog.ts:168`, `CanvasContextMenu.tsx:179`, `advisor/graph.ts:166`, `GhostEdge`, `previewGraph` | Se algum leitor for esquecido, ele lê o formato errado | Trocar o tipo faz o `tsc` apontar todos os leitores; nenhum `as any`. |
-| Paste e duplicate não conhecem `missOf` | `src/store/canvasStore.ts` (`pasteClipboard`, `duplicateSelection`) | A cópia apontaria para o cache original | Remapear no mesmo ponto em que os ids de nó são remapeados; teste no `editor.test.ts`. |
-| Migrar 30 referências à mão | `src/data/problems.ts` | Erros de digitação e orçamentos fora da faixa | Script de verificação no teste: nenhuma referência tem aresta cache → banco; `data.test.ts` checa SLO e orçamento; recalibrar `budgetMonthlyUsd` onde sair de [b/1,5, b/1,3]. |
-| A disponibilidade das referências sobe (cache absorvido) | `src/scoring/rules/availability.ts` | Scores de availability mudam; algum teste de score fixo pode quebrar | Esperado. Ajustar só testes que fixam valores, nunca os limites da rubrica; o SPOF do cache fica no backlog (Out of Scope). |
-| `CLAUDE.md` descreve o look-aside antigo e o mapa de arquitetura | `CLAUDE.md` (Data conventions, Architecture map) | A doc desatualizada ensina errado aos agentes; o teste `claude-map` falha | Tarefa própria: atualizar as convenções de arestas de referência, as invariantes do motor (chamadas, passos, após miss) e o mapa com os arquivos novos. Atualizar também `docs/03`, `docs/04` e `docs/07` (OBS-06). |
-| Bundle inicial: `flowBalls` e `AnimatedEdge` estão no chunk inicial | `scripts/bundle-size.mjs` | +15% estoura o `bundle:check` | `callPlan` é pequeno; `FlowPanel`, `SequenceDiagram` e o trace são lazy; medir no PR. |
-| Teste de score das referências (≥ 16) com look-aside | `tests/unit/scoring.test.ts` | Latência e scalability podem mudar | Cada hop de cache → banco vira serviço → banco, com o mesmo número de hops; medir e ajustar `params` da referência se preciso. |
+| Concern                                                                             | Location (file:line)                                                                               | Impact                                                                                  | Mitigation                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bit-identidade do sampler depende da ordem exata dos sorteios                       | `src/engine/core/sampler.ts:150-170`                                                               | Uma mudança sutil altera os percentis de todos os designs e quebra testes de referência | Teste de regressão (FLW-32) que grava, antes da mudança, os resultados das 35 referências e de designs sintéticos com retries, timeouts e `fraction`, e compara deep-equal depois. É a primeira tarefa do motor.    |
+| `flowBalls` hoje não tem estado por requisição (o "cache first" é um caso especial) | `src/lib/flowBalls.ts:239-250`                                                                     | Os frames aumentam o estado e o risco de vazamento                                      | Frames num `Map` com TTL; teste unitário para vazamento (o número de frames volta a 0 depois de N segundos sem spawn); o teto `MAX_BALLS` continua valendo.                                                         |
+| Muitos arquivos leem `e.rule.kind` diretamente                                      | `catalog.ts:168`, `CanvasContextMenu.tsx:179`, `advisor/graph.ts:166`, `GhostEdge`, `previewGraph` | Se algum leitor for esquecido, ele lê o formato errado                                  | Trocar o tipo faz o `tsc` apontar todos os leitores; nenhum `as any`.                                                                                                                                               |
+| Paste e duplicate não conhecem `missOf`                                             | `src/store/canvasStore.ts` (`pasteClipboard`, `duplicateSelection`)                                | A cópia apontaria para o cache original                                                 | Remapear no mesmo ponto em que os ids de nó são remapeados; teste no `editor.test.ts`.                                                                                                                              |
+| Migrar 30 referências à mão                                                         | `src/data/problems.ts`                                                                             | Erros de digitação e orçamentos fora da faixa                                           | Script de verificação no teste: nenhuma referência tem aresta cache → banco; `data.test.ts` checa SLO e orçamento; recalibrar `budgetMonthlyUsd` onde sair de [b/1,5, b/1,3].                                       |
+| A disponibilidade das referências sobe (cache absorvido)                            | `src/scoring/rules/availability.ts`                                                                | Scores de availability mudam; algum teste de score fixo pode quebrar                    | Esperado. Ajustar só testes que fixam valores, nunca os limites da rubrica; o SPOF do cache fica no backlog (Out of Scope).                                                                                         |
+| `CLAUDE.md` descreve o look-aside antigo e o mapa de arquitetura                    | `CLAUDE.md` (Data conventions, Architecture map)                                                   | A doc desatualizada ensina errado aos agentes; o teste `claude-map` falha               | Tarefa própria: atualizar as convenções de arestas de referência, as invariantes do motor (chamadas, passos, após miss) e o mapa com os arquivos novos. Atualizar também `docs/03`, `docs/04` e `docs/07` (OBS-06). |
+| Bundle inicial: `flowBalls` e `AnimatedEdge` estão no chunk inicial                 | `scripts/bundle-size.mjs`                                                                          | +15% estoura o `bundle:check`                                                           | `callPlan` é pequeno; `FlowPanel`, `SequenceDiagram` e o trace são lazy; medir no PR.                                                                                                                               |
+| Teste de score das referências (≥ 16) com look-aside                                | `tests/unit/scoring.test.ts`                                                                       | Latência e scalability podem mudar                                                      | Cada hop de cache → banco vira serviço → banco, com o mesmo número de hops; medir e ajustar `params` da referência se preciso.                                                                                      |
 
 ---
 
 ## Tech Decisions
 
-| Decision | Choice | Rationale |
-| -------- | ------ | --------- |
-| Onde guardar a lista de chamadas | Em `edge.data.rule.calls` (a chave `rule` continua) | Todas as leituras já passam por `sanitizeEdgeRule`/`edgeRuleOf`; trocar o tipo faz o `tsc` achar todos os leitores. |
-| Valor `on_miss` | Mantido como read-through; o novo é `after_miss` | A migração não renomeia valores; `on_miss` antigo continua com a mesma semântica. |
-| Referência da dependência | `missOf` = id do nó do cache | Uma aresta é única por (fonte, alvo); o id do nó sobrevive à troca do id da aresta e o loader de referências já mapeia componentId → nó. |
-| Probabilidade de miss com falha | r × (1 − h·(1 − f)), com f do `settle` no ponto fixo (analyze) ou do tick anterior (tick) | Reaproveita o mecanismo dos retries; determinístico; uma fault no cache se propaga sozinha. |
-| Ramificação das bolinhas | Por requisição (classe, regra, hitRatio), e não mais pela carga da aresta, exceto no LB | Com várias chamadas por aresta, a carga agregada não diz qual chamada a bola faz; a ramificação por requisição é coerente com o trace. |
-| Trace no worker | `traceCanvas` roda `analyze()` + `traceRequest` no worker | O motor nunca entra no bundle inicial; mesmo modelo do sampler. |
-| Velocidade da bolinha | Constante (`BALL_SPEED`) | Premissa confirmada; o tempo real fica no trace. |
+| Decision                         | Choice                                                                                    | Rationale                                                                                                                                |
+| -------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Onde guardar a lista de chamadas | Em `edge.data.rule.calls` (a chave `rule` continua)                                       | Todas as leituras já passam por `sanitizeEdgeRule`/`edgeRuleOf`; trocar o tipo faz o `tsc` achar todos os leitores.                      |
+| Valor `on_miss`                  | Mantido como read-through; o novo é `after_miss`                                          | A migração não renomeia valores; `on_miss` antigo continua com a mesma semântica.                                                        |
+| Referência da dependência        | `missOf` = id do nó do cache                                                              | Uma aresta é única por (fonte, alvo); o id do nó sobrevive à troca do id da aresta e o loader de referências já mapeia componentId → nó. |
+| Probabilidade de miss com falha  | r × (1 − h·(1 − f)), com f do `settle` no ponto fixo (analyze) ou do tick anterior (tick) | Reaproveita o mecanismo dos retries; determinístico; uma fault no cache se propaga sozinha.                                              |
+| Ramificação das bolinhas         | Por requisição (classe, regra, hitRatio), e não mais pela carga da aresta, exceto no LB   | Com várias chamadas por aresta, a carga agregada não diz qual chamada a bola faz; a ramificação por requisição é coerente com o trace.   |
+| Trace no worker                  | `traceCanvas` roda `analyze()` + `traceRequest` no worker                                 | O motor nunca entra no bundle inicial; mesmo modelo do sampler.                                                                          |
+| Velocidade da bolinha            | Constante (`BALL_SPEED`)                                                                  | Premissa confirmada; o tempo real fica no trace.                                                                                         |
 
 Decisões de projeto registradas em `.specs/STATE.md`: AD-001 (aresta = link + chamadas de quem chama) e AD-002 (um único `callPlan` para motor, canvas e trace).
 
@@ -337,9 +347,9 @@ Decisões de projeto registradas em `.specs/STATE.md`: AD-001 (aresta = link + c
 
 Cada PR deixa o app funcionando e passa no CI. A ordem segue as dependências.
 
-| PR | Conteúdo | Requisitos |
-| -- | -------- | ---------- |
-| 1 | Formato v3 + migração + `callPlan` + motor (roteamento, settle, sampler com passos, ponto fixo, tick) + teste de bit-identidade + `EdgeCallsForm` + paste/duplicate | FLW-08 a 14, 16 a 20, 25 a 29, 32, 42 a 46, 49 |
-| 2 | Referências em look-aside + fix "add cache" + padrão de conexão + recalibração + CLAUDE.md/docs | FLW-21 a 24 |
-| 3 | Bolinhas com frames (ida e volta, erro, async sem volta, legenda, instâncias) + badges de passo e condição | FLW-01 a 07, 15, 30, 31, 47, 48 |
-| 4 | Trace: `traceRequest`, `traceCanvas`, aba Fluxo, diagrama, destaque | FLW-33 a 41 |
+| PR  | Conteúdo                                                                                                                                                            | Requisitos                                     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 1   | Formato v3 + migração + `callPlan` + motor (roteamento, settle, sampler com passos, ponto fixo, tick) + teste de bit-identidade + `EdgeCallsForm` + paste/duplicate | FLW-08 a 14, 16 a 20, 25 a 29, 32, 42 a 46, 49 |
+| 2   | Referências em look-aside + fix "add cache" + padrão de conexão + recalibração + CLAUDE.md/docs                                                                     | FLW-21 a 24                                    |
+| 3   | Bolinhas com frames (ida e volta, erro, async sem volta, legenda, instâncias) + badges de passo e condição                                                          | FLW-01 a 07, 15, 30, 31, 47, 48                |
+| 4   | Trace: `traceRequest`, `traceCanvas`, aba Fluxo, diagrama, destaque                                                                                                 | FLW-33 a 41                                    |
