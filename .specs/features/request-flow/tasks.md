@@ -623,14 +623,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Tipo em `src/types/problem.ts` atualizado
-- [ ] Referência sintética com `missOf: "cache"` resolve para o nó do cache; componentId inexistente → `missOf` removido + aviso do compilador
-- [ ] Teste em `data.test.ts` ou `persistence.migrate.test.ts`
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Tipo em `src/types/problem.ts` atualizado
+- [x] Referência sintética com `missOf: "cache"` resolve para o nó do cache; componentId inexistente → `missOf` removido + aviso do compilador
+- [x] Teste em `data.test.ts` ou `persistence.migrate.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(data): referências declaram chamadas com miss por componente`
+**Status**: ✅ Complete
 
 ---
 

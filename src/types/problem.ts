@@ -1,4 +1,4 @@
-import type { EdgeRuleV2, Params } from "@/domain/components/types";
+import type { EdgeCall, EdgeRuleV2, Params } from "@/domain/components/types";
 
 export interface ProblemRequirements {
   readsPerSec: number;
@@ -38,9 +38,22 @@ export interface ProblemHint {
 export interface ReferenceSolution {
   /** `params` override the schema defaults (sized so the reference holds its peak, Spec 09). */
   nodes: Array<{ componentId: string; x: number; y: number; params?: Params }>;
-  /** `async`/`rule` override the connect defaults (e.g. metrics shipped asynchronously). */
-  edges: Array<{ source: string; target: string; async?: boolean; rule?: Partial<EdgeRuleV2> }>;
+  /**
+   * `async`/`rule` override the connect defaults (e.g. metrics shipped
+   * asynchronously). `rule` is the v2 flat shape (one call) or a call list;
+   * inside a reference, an `after_miss` call's `missOf` is a componentId.
+   */
+  edges: Array<{ source: string; target: string; async?: boolean; rule?: ReferenceEdgeRule }>;
 }
+
+/** A reference edge's calls (request-flow): `missOf` names a componentId of the reference. */
+export interface ReferenceCallsRule {
+  calls: Array<Partial<EdgeCall>>;
+  networkLatencyMs?: number;
+  packetLoss?: number;
+}
+
+export type ReferenceEdgeRule = Partial<EdgeRuleV2> | ReferenceCallsRule;
 
 export interface Problem {
   id: string;

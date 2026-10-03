@@ -12,6 +12,8 @@ import { analyze } from "@/engine/analyze";
 import { estimateCost } from "@/cost/estimate";
 import { budgetFraction, latencySloOf, problemSlo } from "@/slo/slo";
 import { AVAILABILITY_RANGE } from "@/slo/types";
+import type { CustomEdgeData } from "@/store/canvasStore";
+import type { Problem } from "@/types/problem";
 
 // Ids, duplicates and learning-path coverage are in catalog.test.ts; this file
 // checks the "Data conventions" of CLAUDE.md that are about order and wiring.
@@ -55,6 +57,59 @@ describe("reference solutions", () => {
       );
       expect(hasEntry, `${id}: no entry node, nothing on the request path is reachable`).toBe(true);
     }
+  });
+});
+
+describe("reference call lists (request-flow)", () => {
+  /** A synthetic problem whose reference is App → Redis (reads) and App → SQL DB (look-aside). */
+  function lookAsideProblem(missOf: string): Problem {
+    return {
+      ...PROBLEMS[0],
+      referenceSolution: {
+        nodes: [
+          { componentId: "client", x: 0, y: 0 },
+          { componentId: "app-server", x: 200, y: 0 },
+          { componentId: "cache", x: 400, y: -100 },
+          { componentId: "sql-db", x: 400, y: 100 },
+        ],
+        edges: [
+          { source: "client", target: "app-server" },
+          { source: "app-server", target: "cache", rule: { calls: [{ kind: "reads" }] } },
+          {
+            source: "app-server",
+            target: "sql-db",
+            rule: { calls: [{ kind: "writes" }, { kind: "after_miss", missOf }] },
+          },
+        ],
+      },
+    };
+  }
+
+  const dbCalls = (g: ReturnType<typeof buildReferenceGraph>) => {
+    const db = g.nodes.find((n) => n.data.componentId === "sql-db")!;
+    return (g.edges.find((e) => e.target === db.id)!.data as CustomEdgeData).rule!.calls;
+  };
+
+  it("a reference's missOf names a component; the loader points it at that node", () => {
+    const g = buildReferenceGraph(lookAsideProblem("cache"));
+    const cache = g.nodes.find((n) => n.data.componentId === "cache")!;
+    expect(dbCalls(g)).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: cache.id, callsPerRequest: 1 },
+    ]);
+    expect(
+      (g.edges.find((e) => e.target === cache.id)!.data as CustomEdgeData).rule!.calls,
+    ).toEqual([{ kind: "reads", callsPerRequest: 1 }]);
+    expect(compileGraph(g.nodes, g.edges).warnings).toEqual([]);
+  });
+
+  it("a missOf naming no component of the reference is dropped, and the compiler warns", () => {
+    const g = buildReferenceGraph(lookAsideProblem("memcached"));
+    expect(dbCalls(g)).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", callsPerRequest: 1 },
+    ]);
+    expect(compileGraph(g.nodes, g.edges).warnings.join(" ")).toMatch(/names no cache call/);
   });
 });
 
