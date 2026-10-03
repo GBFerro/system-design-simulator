@@ -195,11 +195,11 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | -------------- | ------------------------------- | ------- | ----------- |
 | FLW-01         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
 | FLW-02         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
-| FLW-03         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-03         | P1: Resposta visível no canvas  | Execute | Implemented |
 | FLW-04         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
 | FLW-05         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
-| FLW-06         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
-| FLW-07         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
+| FLW-06         | P1: Resposta visível no canvas  | Execute | Implemented |
+| FLW-07         | P1: Resposta visível no canvas  | Execute | Implemented |
 | FLW-08         | P1: Chamada condicional         | Execute | Implemented |
 | FLW-09         | P1: Chamada condicional         | Execute | Implemented |
 | FLW-10         | P1: Chamada condicional         | Execute | Implemented |
@@ -223,7 +223,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-28         | P2: Ordem e paralelismo         | Execute | Implemented |
 | FLW-29         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
 | FLW-30         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
-| FLW-31         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-31         | P2: Ordem e paralelismo         | Execute | Implemented |
 | FLW-32         | P2: Ordem e paralelismo         | Execute | Implemented |
 | FLW-33         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
 | FLW-34         | P2: Trace de uma requisição     | Tasks   | In Tasks    |

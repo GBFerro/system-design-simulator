@@ -733,16 +733,17 @@ T28 → T30
 
 **Done when**:
 
-- [ ] `flow-balls.test.ts`: chamada síncrona gera resposta na mesma aresta em sentido inverso; async não gera
-- [ ] O passo 2 só sai depois de todas as respostas do passo 1; a resposta à entrada fecha o frame
-- [ ] Falha no nó gera burst + resposta de erro; falha de cache referenciado segue para o banco
-- [ ] Respostas contam no `MAX_BALLS`; frames voltam a 0 após `FRAME_TTL_SEC` sem spawn; a resposta volta ao card de origem com instâncias expandidas
-- [ ] O teste antigo "cache first" é substituído pelo equivalente com passos (nenhum outro removido)
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] `flow-balls.test.ts`: chamada síncrona gera resposta na mesma aresta em sentido inverso; async não gera
+- [x] O passo 2 só sai depois de todas as respostas do passo 1; a resposta à entrada fecha o frame
+- [x] Falha no nó gera burst + resposta de erro; falha de cache referenciado segue para o banco
+- [x] Respostas contam no `MAX_BALLS`; frames voltam a 0 após `FRAME_TTL_SEC` sem spawn; a resposta volta ao card de origem com instâncias expandidas
+- [x] O teste antigo "cache first" é substituído pelo equivalente com passos (nenhum outro removido)
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(canvas): bolinhas fazem ida e volta em cada chamada`
+**Status**: ✅ Complete
 
 ---
 

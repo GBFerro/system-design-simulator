@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { RoutingKind } from "@/domain/components/types";
+import type { EdgeCall, RoutingKind } from "@/domain/components/types";
 import { mulberry32 } from "@/engine/core/rng";
 import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import {
   BALL_SPEED,
+  FRAME_TTL_SEC,
   FlowBalls,
   MAX_BALLS,
   TARGET_SPAWN_PER_SEC,
   buildTopology,
   niceStep,
   type FlowEnv,
+  type FlowTopology,
   type TopoEdge,
 } from "@/lib/flowBalls";
 
@@ -134,31 +136,46 @@ describe("flow balls (OBS-04)", () => {
     expect(mean("lb-s1") / total).toBeLessThan(0.85);
   });
 
-  it("cache first: the other sync calls leave once the ball reaches the cache", () => {
-    const topo = buildTopology([e("app", "cache"), e("app", "db")], (id): RoutingKind =>
-      id === "cache" ? "cache" : "service",
+  it("steps: the database read leaves only after the cache answered, and only on a miss", () => {
+    // Look-aside: app → cache (reads); app → db (writes + reads after a miss in the cache).
+    const topo = buildTopology(
+      [
+        ce("client", "app", [call("always")]),
+        ce("app", "cache", [call("reads")]),
+        ce("app", "db", [call("writes"), call("after_miss", { missOf: "cache" })]),
+      ],
+      (id): RoutingKind => (id === "cache" ? "cache" : "service"),
+      undefined,
+      (id) => id === "cache",
     );
-    // The db sees the 10 % that missed.
-    const s = snap(
-      { app: node(60), cache: node(60), db: node(6) },
-      { "app-cache": 60, "app-db": 6 },
+    const s = withReadRatio(
+      snap(
+        {
+          client: node(60),
+          app: node(60),
+          cache: node(54, { extra: { hitRatio: 0.9 } }),
+          db: node(11),
+        },
+        { "client-app": 60, "app-cache": 54, "app-db": 11 },
+      ),
+      0.9,
     );
-    const balls = new FlowBalls(mulberry32(5));
-    const dt = 0.05;
-    let dbLaunched = 0;
-    let dbWithoutCacheArrival = 0;
-    for (let f = 0; f < 4000; f++) {
-      const cacheArrivals = balls.balls.filter(
-        (b) => b.edge === "app-cache" && b.pos + BALL_SPEED * dt >= LEN,
-      ).length;
-      balls.step(dt, s, topo, env);
-      // Balls launched this frame start at 0.
-      const fresh = balls.balls.filter((b) => b.edge === "app-db" && b.pos === 0).length;
-      dbLaunched += fresh;
-      if (cacheArrivals === 0) dbWithoutCacheArrival += fresh;
+    const t = record(new FlowBalls(mulberry32(5)), s, topo, env, 6000);
+    const reads = t.keysOn("app-cache");
+    let readMisses = 0;
+    for (const key of reads) {
+      const db = t.first("app-db", key);
+      if (db === undefined) continue;
+      readMisses++;
+      expect(db).toBeGreaterThan(t.last("app-cache", key)); // after the cache's response is back
     }
-    expect(dbLaunched).toBeGreaterThan(0);
-    expect(dbWithoutCacheArrival).toBe(0);
+    expect(reads.size).toBeGreaterThan(200);
+    expect(readMisses / reads.size).toBeGreaterThan(0.04); // 1 − hitRatio = 10 %
+    expect(readMisses / reads.size).toBeLessThan(0.16);
+    const writes = [...t.keysOn("app-db")].filter((k) => !reads.has(k)).length;
+    const all = t.keysOn("client-app").size;
+    expect(writes / all).toBeGreaterThan(0.05); // 1 − readRatio = 10 %
+    expect(writes / all).toBeLessThan(0.15);
   });
 
   it("a request fails at a node with its error share and leaves a burst", () => {
@@ -273,5 +290,276 @@ describe("flow balls (OBS-04)", () => {
       }
       expect([...lanes].sort()).toEqual([0, 1, 2, 3, 4]);
     });
+  });
+});
+
+/* ---------- request frames (request-flow) ---------- */
+
+const call = (kind: EdgeCall["kind"], extra: Partial<EdgeCall> = {}): EdgeCall => ({
+  kind,
+  callsPerRequest: 1,
+  ...extra,
+});
+
+/** An edge carrying its calls (`rule.calls`), as the canvas builds the topology. */
+const ce = (source: string, target: string, calls: EdgeCall[], async = false): TopoEdge => ({
+  ...e(source, target, async),
+  calls,
+});
+
+const withReadRatio = (s: TickSnapshot, readRatio: number): TickSnapshot => ({
+  ...s,
+  global: { ...s.global, readRatio },
+});
+
+/** Every ball (request or response) seen per frame, by edge and request key. */
+function record(
+  balls: FlowBalls,
+  s: TickSnapshot,
+  topo: FlowTopology,
+  env: FlowEnv,
+  frames: number,
+  dt = 0.05,
+) {
+  // dir → edge → key → [first frame, last frame] a ball of that request was on the edge
+  const seen = {
+    req: new Map<string, Map<number, number[]>>(),
+    res: new Map<string, Map<number, number[]>>(),
+  };
+  const responses: { edge: string; drawn: string; key: number; error: boolean }[] = [];
+  const requests: { edge: string; drawn: string; key: number }[] = [];
+  let most = 0;
+  let mostResponses = 0;
+  for (let f = 0; f < frames; f++) {
+    balls.step(dt, s, topo, env);
+    most = Math.max(most, balls.balls.length + balls.responses.length);
+    mostResponses = Math.max(mostResponses, balls.responses.length);
+    for (const [dir, list] of [
+      ["req", balls.balls],
+      ["res", balls.responses],
+    ] as const) {
+      for (const b of list) {
+        expect(b.dir).toBe(dir);
+        const byKey = seen[dir].get(b.edge) ?? seen[dir].set(b.edge, new Map()).get(b.edge)!;
+        const span = byKey.get(b.key);
+        if (span) span[1] = f;
+        else byKey.set(b.key, [f, f]);
+        if (b.pos !== 0) continue; // launched this frame
+        if (dir === "res") {
+          responses.push({ edge: b.edge, drawn: b.drawn, key: b.key, error: b.error === true });
+        } else requests.push({ edge: b.edge, drawn: b.drawn, key: b.key });
+      }
+    }
+  }
+  const span = (dir: "req" | "res", edge: string, key: number) => seen[dir].get(edge)?.get(key);
+  return {
+    responses,
+    requests,
+    most,
+    mostResponses,
+    keysOn: (edge: string) => new Set(seen.req.get(edge)?.keys() ?? []),
+    /** First frame the request's call on `edge` was in flight. */
+    first: (edge: string, key: number) => span("req", edge, key)?.[0],
+    /** Last frame anything of the request's call on `edge` (call or response) was in flight. */
+    last: (edge: string, key: number) =>
+      Math.max(span("req", edge, key)?.[1] ?? -1, span("res", edge, key)?.[1] ?? -1),
+  };
+}
+
+describe("request frames: calls go out, responses come back (request-flow)", () => {
+  it("a sync call's response comes back along the same drawn edge, in reverse (FLW-01)", () => {
+    const topo = buildTopology([ce("a", "b", [call("always")])], () => "service");
+    const s = snap({ a: node(60), b: node(60) }, { "a-b": 60 });
+    const t = record(new FlowBalls(mulberry32(21)), s, topo, env, 400);
+    expect(t.responses.length).toBeGreaterThan(50);
+    const sent = new Map(t.requests.map((r) => [r.key, r]));
+    for (const res of t.responses) {
+      const req = sent.get(res.key)!;
+      expect(res.edge).toBe(req.edge);
+      expect(res.drawn).toBe(req.drawn);
+      expect(res.error).toBe(false);
+    }
+    // The response leaves b once the call got there: the call takes 20 frames (1 s)
+    // to cross, so the request's last ball on the edge is ~40 frames after its first.
+    for (const key of sent.keys()) {
+      const span = t.last("a-b", key) - t.first("a-b", key)!;
+      if (t.first("a-b", key)! < 350) expect(span).toBeGreaterThanOrEqual(38);
+    }
+  });
+
+  it("an async call gets no response and the caller doesn't wait for it (FLW-03)", () => {
+    // a → b async (step 1), a → c sync (step 2)
+    const topo = buildTopology(
+      [ce("a", "b", [call("always")], true), ce("a", "c", [call("always")])],
+      () => "service",
+    );
+    const s = snap({ a: node(60), b: node(60), c: node(60) }, { "a-b": 60, "a-c": 60 });
+    const t = record(new FlowBalls(mulberry32(22)), s, topo, env, 400);
+    expect(t.responses.some((r) => r.edge === "a-c")).toBe(true);
+    expect(t.responses.some((r) => r.edge === "a-b")).toBe(false);
+    const keys = t.keysOn("a-b");
+    expect(keys.size).toBeGreaterThan(50);
+    for (const key of keys) expect(t.first("a-c", key)).toBe(t.first("a-b", key));
+  });
+
+  it("a step's calls leave together; step 2 leaves only after every response of step 1 (FLW-31)", () => {
+    const topo = buildTopology(
+      [
+        ce("app", "c1", [call("always", { step: 1 })]),
+        ce("app", "c2", [call("always", { step: 1 })]),
+        ce("app", "db", [call("always", { step: 2 })]),
+      ],
+      () => "service",
+    );
+    // c2 is twice as far: its response comes back a second after c1's.
+    const far: FlowEnv = { lengthOf: (id) => (id === "app-c2" ? 2 * LEN : LEN) };
+    const s = snap(
+      { app: node(60), c1: node(60), c2: node(60), db: node(60) },
+      { "app-c1": 60, "app-c2": 60, "app-db": 60 },
+    );
+    const t = record(new FlowBalls(mulberry32(23)), s, topo, far, 600);
+    const keys = t.keysOn("app-db");
+    expect(keys.size).toBeGreaterThan(50);
+    for (const key of keys) {
+      expect(t.first("app-c1", key)).toBe(t.first("app-c2", key));
+      expect(t.first("app-db", key)!).toBeGreaterThan(t.last("app-c1", key));
+      expect(t.first("app-db", key)!).toBeGreaterThan(t.last("app-c2", key));
+    }
+  });
+
+  it("a failure at a node leaves a burst and sends an error response back (FLW-05)", () => {
+    const topo = buildTopology(
+      [ce("a", "b", [call("always")]), ce("b", "c", [call("always")])],
+      () => "service",
+    );
+    const s = snap(
+      { a: node(600), b: node(600, { errorRate: 1, rpsOut: 0 }), c: node(0) },
+      { "a-b": 600, "b-c": 600 },
+    );
+    const balls = new FlowBalls(mulberry32(24));
+    const t = record(balls, s, topo, env, 100);
+    expect(t.keysOn("b-c").size).toBe(0);
+    expect(balls.bursts.length).toBeGreaterThan(0);
+    expect(t.responses.length).toBeGreaterThan(0);
+    expect(t.responses.every((r) => r.edge === "a-b" && r.error)).toBe(true);
+  });
+
+  it("a failed cache call counts as a miss: the read goes on to the database", () => {
+    const topo = buildTopology(
+      [
+        ce("client", "app", [call("always")]),
+        ce("app", "cache", [call("reads")]),
+        ce("app", "db", [call("writes"), call("after_miss", { missOf: "cache" })]),
+      ],
+      (id): RoutingKind => (id === "cache" ? "cache" : "service"),
+      undefined,
+      (id) => id === "cache",
+    );
+    const s = withReadRatio(
+      snap(
+        {
+          client: node(60),
+          app: node(60),
+          cache: node(54, { errorRate: 1, rpsOut: 0, extra: { hitRatio: 0.9 } }),
+          db: node(60),
+        },
+        { "client-app": 60, "app-cache": 54, "app-db": 60 },
+      ),
+      0.9,
+    );
+    const balls = new FlowBalls(mulberry32(25));
+    const t = record(balls, s, topo, env, 600);
+    const reads = t.keysOn("app-cache");
+    expect(reads.size).toBeGreaterThan(50);
+    for (const key of reads) {
+      if (t.first("app-cache", key)! > 500) continue; // its read may still be on the way
+      expect(t.first("app-db", key)!).toBeGreaterThan(t.last("app-cache", key));
+    }
+    // The request itself doesn't fail because of the cache.
+    const back = t.responses.filter((r) => r.edge === "client-app");
+    expect(back.length).toBeGreaterThan(50);
+    expect(back.every((r) => !r.error)).toBe(true);
+  });
+
+  it("the response reaching the entry closes the request (FLW-06)", () => {
+    const topo = buildTopology([ce("a", "b", [call("always")])], () => "service");
+    const balls = new FlowBalls(mulberry32(26));
+    const busy = snap({ a: node(60), b: node(60) }, { "a-b": 60 });
+    for (let f = 0; f < 60; f++) balls.step(0.05, busy, topo, env);
+    expect(balls.frameCount).toBeGreaterThan(0);
+    expect(balls.responses.length).toBeGreaterThan(0);
+    const idle = snap({ a: node(0), b: node(0) }, { "a-b": 0 });
+    for (let f = 0; f < 60; f++) balls.step(0.05, idle, topo, env); // 3 s: every round trip ends
+    expect(balls.balls.length).toBe(0);
+    expect(balls.responses.length).toBe(0);
+    expect(balls.frameCount).toBe(0);
+  });
+
+  it(`frames still waiting after FRAME_TTL_SEC (${FRAME_TTL_SEC} s) are dropped`, () => {
+    const topo = buildTopology([ce("a", "b", [call("always")])], () => "service");
+    const slow: FlowEnv = { lengthOf: () => 100 * BALL_SPEED }; // 100 s per crossing
+    const balls = new FlowBalls(mulberry32(27));
+    const busy = snap({ a: node(60), b: node(60) }, { "a-b": 60 });
+    for (let f = 0; f < 20; f++) balls.step(0.05, busy, topo, slow);
+    const idle = snap({ a: node(0), b: node(0) }, { "a-b": 0 });
+    for (let f = 0; f < 200; f++) balls.step(0.05, idle, topo, slow); // 10 s more
+    expect(balls.frameCount).toBeGreaterThan(0);
+    for (let f = 0; f < 240; f++) balls.step(0.05, idle, topo, slow); // past the TTL
+    expect(balls.frameCount).toBe(0);
+    expect(balls.balls.length).toBeGreaterThan(0); // their calls are still on the way
+  });
+
+  it("frames at a node that left the graph are dropped; clear() drops everything", () => {
+    const topo = buildTopology([ce("a", "b", [call("always")])], () => "service");
+    const slow: FlowEnv = { lengthOf: () => 100 * BALL_SPEED };
+    const balls = new FlowBalls(mulberry32(28));
+    const busy = snap({ a: node(60), b: node(60) }, { "a-b": 60 });
+    for (let f = 0; f < 20; f++) balls.step(0.05, busy, topo, slow);
+    expect(balls.frameCount).toBeGreaterThan(0);
+    const other = buildTopology([ce("x", "y", [call("always")])], () => "service");
+    balls.step(0.05, snap({}, {}), other, slow);
+    expect(balls.frameCount).toBe(0);
+    for (let f = 0; f < 20; f++) balls.step(0.05, busy, topo, slow);
+    balls.clear();
+    expect(balls.frameCount).toBe(0);
+    expect(balls.balls.length + balls.responses.length).toBe(0);
+  });
+
+  it("responses count toward MAX_BALLS and the adaptive quantum (FLW-07)", () => {
+    // Every node calls three dependencies in parallel at full load: ×3 balls per hop.
+    const edges: TopoEdge[] = [];
+    for (let c = 0; c < 6; c++) {
+      for (let r = 0; r < 3; r++) {
+        for (let k = 0; k < 3; k++) {
+          edges.push(ce(`n${c}-${r}`, `n${c + 1}-${k}`, [call("always", { step: 1 })]));
+        }
+      }
+    }
+    const topo = buildTopology(edges, () => "service");
+    const s = snap({}, Object.fromEntries(edges.map((x) => [x.id, 1_000_000])));
+    const balls = new FlowBalls(mulberry32(29));
+    balls.step(0.05, s, topo, env);
+    const first = balls.quantum;
+    const t = record(balls, s, topo, env, 1200);
+    expect(t.mostResponses).toBeGreaterThan(0);
+    expect(t.most).toBeLessThanOrEqual(MAX_BALLS);
+    expect(balls.quantum).toBeGreaterThan(first);
+  });
+
+  it("with an expanded entry the response returns to the card the request left from (FLW-47)", () => {
+    const topo = buildTopology([ce("app", "db", [call("always")])], () => "service");
+    const expanded: FlowEnv = {
+      lengthOf: () => LEN,
+      instancesOf: (id) =>
+        id === "app" ? { count: 4, down: [false, false, false, false] } : undefined,
+    };
+    const s = snap({ app: node(60), db: node(60) }, { "app-db": 60 });
+    const t = record(new FlowBalls(mulberry32(30)), s, topo, expanded, 400);
+    const sent = new Map(t.requests.map((r) => [r.key, r.drawn]));
+    expect(t.responses.length).toBeGreaterThan(50);
+    for (const res of t.responses) expect(res.drawn).toBe(sent.get(res.key));
+    expect(new Set(t.responses.map((r) => r.drawn))).toEqual(
+      new Set(["inst:app-db:0:-1", "inst:app-db:1:-1", "inst:app-db:2:-1", "inst:app-db:3:-1"]),
+    );
   });
 });

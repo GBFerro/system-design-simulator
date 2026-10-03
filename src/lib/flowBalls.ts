@@ -1,35 +1,53 @@
 /**
- * Request balls for the flow overlay (Spec 07, OBS-04). Pure state machine:
- * the canvas layer (`components/canvas/FlowParticles`) feeds it the latest
- * snapshot, the topology and the drawn geometry, and draws what it holds.
+ * Request balls for the flow overlay (Spec 07, OBS-04; request-flow). Pure
+ * state machine: the canvas layer (`components/canvas/FlowParticles`) feeds
+ * it the latest snapshot, the topology and the drawn geometry, and draws what
+ * it holds.
  *
- * One ball stands for `quantum` req/s of flow: an edge carrying r req/s sees
- * r / quantum balls per second, so a 5× spike is 5× the balls. A ball is a
- * request walking the graph, so it can be followed from the entry to the end:
+ * One ball stands for `quantum` req/s of flow. A ball is a request walking the
+ * graph, so it can be followed from the entry and back:
  *
  * - It is born at an entry node (no incoming edge with load) at that node's
- *   arrival rate.
- * - At each node it fails with the node's error/drop share (a burst marks it),
- *   else it continues:
+ *   arrival rate, a read with probability `global.readRatio`.
+ * - At each node it fails with the node's error/drop share: a burst marks it
+ *   and an error response goes back to the caller (FLW-05). Else the node
+ *   opens a **frame** for the request and makes its calls:
  *   - a load balancer sends it down ONE outgoing edge, weighted by the edges' load;
- *   - any other node calls each dependency in proportion to that edge's load
- *     (the ID generator only sees writes, a DB behind a cache only the misses),
- *     cache first: the other sync calls leave only once the ball reaches the cache.
+ *   - a queue takes it and answers at once; its consumers get it fire-and-forget;
+ *   - any other node follows its call plan (`domain/graph/callPlan`, AD-002):
+ *     step by step, the calls of a step together (FLW-31), each made or not
+ *     for this request (reads/writes by its class, a fraction by a draw,
+ *     read-through and "after a miss" by the cache's `extra.hitRatio`; a
+ *     failed cache call the plan absorbs counts as a miss). Sync calls are
+ *     waited for; async ones leave in their step and never answer (FLW-03).
+ * - After the last step the frame answers: a response ball (`dir: "res"`)
+ *   travels the same drawn edge back to the caller's frame (FLW-01). At the
+ *   entry the request ends (FLW-06).
  * - Into an expanded node (one card per instance, `lib/instances.ts`) the ball
  *   takes the edge to ONE instance's card, picked like the load balancer in
  *   front would (round robin, least connections, hash of the request; weighted
  *   splits by capacity, equal within a node), skipping instances the faults took
- *   down; its calls leave from that card.
+ *   down; its calls leave from that card, and its response retraces the copy
+ *   it came in on, back to the caller's card (FLW-47).
+ *
+ * Edges without their calls (a topology built without rules) are all called
+ * at once, each in proportion to its load, as before the call model.
+ *
+ * Requests and responses share MAX_BALLS and drive the quantum (FLW-07). A
+ * call that can't be drawn (cap reached, edge not drawn) counts as answered
+ * on the spot; frames waiting longer than FRAME_TTL_SEC, or at a node that
+ * left the graph, are dropped.
  *
  * The quantum is adaptive: a round number (1-2-5 steps) giving ~TARGET_SPAWN_PER_SEC
  * balls per second at the entries, re-picked only when the load drifts far from
  * it, so the legend doesn't flicker.
  */
-import type { RoutingKind } from "@/domain/components/types";
+import type { EdgeCall, RoutingKind } from "@/domain/components/types";
+import { planFor, type CallPlan, type PlannedCall } from "@/domain/graph/callPlan";
 import type { TickSnapshot } from "@/engine/types";
 import { instanceEdgeId, laneOf } from "./instances";
 
-/** Hard cap on balls alive at once, all edges together. */
+/** Hard cap on balls alive at once (requests and responses), all edges together. */
 export const MAX_BALLS = 2000;
 /** Balls per second born at the entries (all together) the quantum aims at. */
 export const TARGET_SPAWN_PER_SEC = 6;
@@ -47,12 +65,25 @@ export const BALL_SPEED = 150;
 const MAX_CALLS_PER_EDGE = 3;
 /** How long a failure burst stays on screen, seconds. */
 export const BURST_SEC = 0.5;
+/** A frame still waiting after this long (orphaned by an edit) is dropped, seconds. */
+export const FRAME_TTL_SEC = 20;
+/**
+ * Read ratio when a snapshot doesn't carry one (built by hand): the engine's
+ * default (`DEFAULT_READ_RATIO`, engine/core/routing.ts), not imported so the
+ * engine stays out of the initial bundle.
+ */
+const FALLBACK_READ_RATIO = 0.9;
 
 export interface TopoEdge {
   id: string;
   source: string;
   target: string;
   async: boolean;
+  /**
+   * The calls the source makes over the edge (`rule.calls`). Without them
+   * the source calls every edge at once, in proportion to its load.
+   */
+  calls?: readonly EdgeCall[];
 }
 
 export interface FlowTopology {
@@ -64,12 +95,20 @@ export interface FlowTopology {
   routing: ReadonlyMap<string, RoutingKind>;
   /** Load balancers' split algorithm (`PARAM.lbAlgorithm`). */
   algorithm: ReadonlyMap<string, string>;
+  /** Call plan of each source whose edges all carry their calls. */
+  plans: ReadonlyMap<string, CallPlan>;
 }
 
+/**
+ * Who calls whom, the routing per node and each node's call plan. Built once
+ * per graph change (never per frame). `hasHitRate`: the node has a hit rate
+ * (caches, CDNs), which "after a miss" calls need (as in `compileGraph`).
+ */
 export function buildTopology(
   edges: readonly TopoEdge[],
   routingOf: (nodeId: string) => RoutingKind,
   algorithmOf: (nodeId: string) => string | undefined = () => undefined,
+  hasHitRate: (nodeId: string) => boolean = () => false,
 ): FlowTopology {
   const out = new Map<string, TopoEdge[]>();
   const inn = new Map<string, TopoEdge[]>();
@@ -89,7 +128,18 @@ export function buildTopology(
       if (algo) algorithm.set(id, algo);
     }
   }
-  return { out, in: inn, byId, routing, algorithm };
+  const plans = new Map<string, CallPlan>();
+  for (const [source, outs] of out) {
+    if (outs.some((e) => !e.calls)) continue;
+    const planEdges = outs.map((e) => ({
+      id: e.id,
+      target: e.target,
+      async: e.async,
+      calls: e.calls!,
+    }));
+    plans.set(source, planFor(source, planEdges, hasHitRate, { routing: routing.get(source) }));
+  }
+  return { out, in: inn, byId, routing, algorithm, plans };
 }
 
 /** An expanded node's instances. */
@@ -112,20 +162,47 @@ export interface Ball {
   edge: string;
   /** What is drawn for it: the edge, or its copy between instance cards. */
   drawn: string;
-  /** Flow-px travelled along `drawn`. */
+  /** Flow-px travelled along `drawn` (a response travels it target → source). */
   pos: number;
+  /** "req": a call on its way to the target; "res": its response on the way back. */
+  dir: "req" | "res";
   /** Stable per request (and its calls): the hash algorithm's key. */
   key: number;
+  /** The request is a read (else a write). */
+  read: boolean;
   /** Card (lane) and instance it heads to at the target; −1 = not expanded. */
   lane: number;
   instance: number;
-  /** Sync calls of the node it left, sent once it reaches its target (cache first). */
-  deferred?: { node: string; lane: number; edges: readonly TopoEdge[] };
+  /** A response to a failed call (drawn in the error color). */
+  error?: boolean;
+  /** Frame (at the edge's source) waiting for this call; undefined for async calls. */
+  frame?: number;
 }
 
 export interface Burst {
   /** The drawn edge whose end marks where the request failed. */
   edge: string;
+  age: number;
+}
+
+/** One request at one node: its calls, step by step, until it answers. */
+interface Frame {
+  node: string;
+  /** Card the request is in at `node` (−1 = not expanded): its calls leave from it. */
+  lane: number;
+  key: number;
+  read: boolean;
+  /** The call that brought the request here (its response retraces it); none at an entry or after an async call. */
+  caller?: Ball;
+  /** Steps started (index into the plan's steps; LB/queue/no plan: 1 once started). */
+  started: number;
+  /** Plan step number of the last started step: async calls up to it are sent. */
+  at: number;
+  /** Sync calls still out. */
+  pending: number;
+  failed: boolean;
+  /** Absorbed cache calls (edge id) → hit, for "after a miss" calls. */
+  hits: Map<string, boolean>;
   age: number;
 }
 
@@ -155,8 +232,18 @@ function mix(key: number): number {
   return (h ^ (h >>> 16)) >>> 0;
 }
 
+/** What one `step` works with. */
+interface StepContext {
+  snap: TickSnapshot;
+  topo: FlowTopology;
+  env: FlowEnv;
+}
+
 export class FlowBalls {
+  /** Calls on their way (`dir: "req"`). */
   balls: Ball[] = [];
+  /** Responses on their way back (`dir: "res"`). */
+  responses: Ball[] = [];
   bursts: Burst[] = [];
   /** req/s per ball. */
   quantum = 1;
@@ -167,40 +254,66 @@ export class FlowBalls {
   private rr = new Map<string, number>();
   /** Balls heading to each instance, per node (least connections). */
   private inFlight = new Map<string, number[]>();
+  private frames = new Map<number, Frame>();
+  private nextFrame = 1;
 
   constructor(private readonly rng: () => number = Math.random) {}
 
+  /** Requests open at some node (waiting for their calls). */
+  get frameCount(): number {
+    return this.frames.size;
+  }
+
   clear(): void {
     this.balls = [];
+    this.responses = [];
     this.bursts = [];
     this.owed.clear();
     this.rr.clear();
     this.inFlight.clear();
+    this.frames.clear();
     this.cooldown = 0;
   }
 
   /** Advance `dt` seconds: move balls, handle arrivals, spawn at the entries. */
   step(dt: number, snap: TickSnapshot, topo: FlowTopology, env: FlowEnv): void {
+    const ctx: StepContext = { snap, topo, env };
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       this.bursts[i].age += dt;
       if (this.bursts[i].age >= BURST_SEC) this.bursts.splice(i, 1);
     }
+    for (const [id, f] of this.frames) {
+      f.age += dt;
+      if (f.age > FRAME_TTL_SEC || !topo.routing.has(f.node)) this.frames.delete(id);
+    }
 
     const arrived: Ball[] = [];
-    const kept: Ball[] = [];
-    for (const b of this.balls) {
-      const len = env.lengthOf(b.drawn);
-      if (len === undefined) {
-        this.leave(topo.byId.get(b.edge)?.target, b.instance);
-        continue; // edge gone or no longer drawn (expanded/collapsed)
+    const answered: Ball[] = [];
+    const lost: Ball[] = [];
+    const move = (list: Ball[], done: Ball[]): Ball[] => {
+      const kept: Ball[] = [];
+      for (const b of list) {
+        const len = env.lengthOf(b.drawn);
+        if (len === undefined) {
+          lost.push(b); // edge gone or no longer drawn (expanded/collapsed)
+          continue;
+        }
+        b.pos += BALL_SPEED * dt;
+        (b.pos >= len ? done : kept).push(b);
       }
-      b.pos += BALL_SPEED * dt;
-      (b.pos >= len ? arrived : kept).push(b);
+      return kept;
+    };
+    this.balls = move(this.balls, arrived);
+    this.responses = move(this.responses, answered);
+    for (const b of lost) {
+      // The call counts as answered: its frame goes on.
+      if (b.dir === "req") this.leave(topo.byId.get(b.edge)?.target, b.instance);
+      this.deliver(b.frame, b.edge, b.dir === "req" || !b.error, ctx);
     }
-    this.balls = kept;
-    for (const b of arrived) this.arrive(b, snap, topo, env);
+    for (const b of arrived) this.arrive(b, ctx);
+    for (const b of answered) this.deliver(b.frame, b.edge, !b.error, ctx);
 
-    this.spawn(dt, snap, topo, env);
+    this.spawn(dt, ctx);
   }
 
   /** Entry nodes and their arrival rate, req/s. */
@@ -216,23 +329,30 @@ export class FlowBalls {
     return rates;
   }
 
-  private spawn(dt: number, snap: TickSnapshot, topo: FlowTopology, env: FlowEnv): void {
+  private get alive(): number {
+    return this.balls.length + this.responses.length;
+  }
+
+  private spawn(dt: number, ctx: StepContext): void {
+    const { snap, topo, env } = ctx;
     const rates = this.entries(snap, topo);
     let total = 0;
     for (const r of rates.values()) total += r;
     if (total <= 0) return;
     this.adaptQuantum(dt, total);
+    const readRatio = snap.global.readRatio ?? FALLBACK_READ_RATIO;
     for (const [node, rate] of rates) {
       let owed = (this.owed.get(node) ?? 0) + (rate / this.quantum) * dt;
       while (owed >= 1) {
         owed -= 1;
         const key = Math.floor(this.rng() * 2 ** 31);
+        const read = this.rng() < readRatio;
         // Born at an expanded entry: it starts in one of its instances.
         const layout = env.instancesOf?.(node);
         const lane = layout
           ? laneOf(this.pick(node, layout, "round-robin", key), layout.count)
           : -1;
-        this.dispatch(node, lane, snap, topo, env, key);
+        this.open(node, lane, key, read, undefined, ctx);
       }
       this.owed.set(node, owed);
     }
@@ -248,7 +368,7 @@ export class FlowBalls {
     this.cooldown = Math.max(0, this.cooldown - dt);
     const ideal = entryRps / TARGET_SPAWN_PER_SEC;
     const drift = ideal / this.quantum;
-    const fill = this.balls.length / MAX_BALLS;
+    const fill = this.alive / MAX_BALLS;
     if (drift > QUANTUM_HYSTERESIS) {
       this.quantum = niceStep(ideal);
     } else if (this.cooldown > 0) {
@@ -263,23 +383,227 @@ export class FlowBalls {
     this.cooldown = QUANTUM_COOLDOWN_SEC;
   }
 
-  private arrive(b: Ball, snap: TickSnapshot, topo: FlowTopology, env: FlowEnv): void {
-    const { deferred } = b;
-    if (deferred) {
-      this.launchCalls(deferred.node, deferred.lane, deferred.edges, snap, topo, env, b.key);
+  /** A call reached its target: the request fails there or opens a frame. */
+  private arrive(b: Ball, ctx: StepContext): void {
+    const node = ctx.topo.byId.get(b.edge)?.target;
+    if (!node) {
+      this.deliver(b.frame, b.edge, true, ctx); // edge left the graph: answered
+      return;
     }
-    const node = topo.byId.get(b.edge)?.target;
-    if (!node) return;
     this.leave(node, b.instance);
-    const m = snap.nodes[node];
+    const m = ctx.snap.nodes[node];
     if (m) {
       const failP = clamp01(Math.max(m.errorRate, m.rpsIn > 0 ? m.drops / m.rpsIn : 0));
       if (failP > 0 && this.rng() < failP) {
         this.bursts.push({ edge: b.drawn, age: 0 });
+        this.respond(b, true, ctx);
         return;
       }
     }
-    this.dispatch(node, b.lane, snap, topo, env, b.key);
+    this.open(node, b.lane, b.key, b.read, b.frame === undefined ? undefined : b, ctx);
+  }
+
+  private open(
+    node: string,
+    lane: number,
+    key: number,
+    read: boolean,
+    caller: Ball | undefined,
+    ctx: StepContext,
+  ): void {
+    const id = this.nextFrame++;
+    const f: Frame = {
+      node,
+      lane,
+      key,
+      read,
+      caller,
+      started: 0,
+      at: 0,
+      pending: 0,
+      failed: false,
+      hits: new Map(),
+      age: 0,
+    };
+    this.frames.set(id, f);
+    this.advance(id, f, ctx);
+  }
+
+  /** Start steps until one has calls out, then wait; past the last, answer. */
+  private advance(id: number, f: Frame, ctx: StepContext): void {
+    while (f.pending === 0) {
+      if (f.failed || !this.nextStep(id, f, ctx)) {
+        this.frames.delete(id);
+        if (f.caller) this.respond(f.caller, f.failed, ctx);
+        return;
+      }
+    }
+  }
+
+  /** Send the frame's next step; false when none is left (after sending the last async calls). */
+  private nextStep(id: number, f: Frame, ctx: StepContext): boolean {
+    const { snap, topo } = ctx;
+    const routing = topo.routing.get(f.node);
+    const outs = (topo.out.get(f.node) ?? []).filter((e) => (snap.edges[e.id]?.rps ?? 0) > 0);
+    const plan = topo.plans.get(f.node);
+
+    if (routing === "lb") {
+      if (f.started++ > 0 || outs.length === 0) return false;
+      const total = outs.reduce((s, e) => s + snap.edges[e.id].rps, 0);
+      let pick = this.rng() * total;
+      let chosen = outs[outs.length - 1];
+      for (const e of outs) {
+        pick -= snap.edges[e.id].rps;
+        if (pick <= 0) {
+          chosen = e;
+          break;
+        }
+      }
+      this.call(id, f, chosen, 1, ctx);
+      return true;
+    }
+
+    if (routing === "queue" || !plan) {
+      if (f.started++ > 0) return false;
+      // A queue answers the producer at once; its consumers get the message
+      // fire-and-forget. Without a plan, every edge in proportion to its load.
+      const through = plan ? 0 : this.throughRate(f.node, snap, topo);
+      for (const e of outs) {
+        let n: number;
+        if (plan) {
+          n = 0;
+          for (const p of [...plan.steps.flat(), ...plan.async]) {
+            if (p.edgeId === e.id) n += this.copies(f, p, ctx);
+          }
+        } else {
+          n = through > 0 ? this.draw(snap.edges[e.id].rps / through) : 0;
+        }
+        this.call(id, f, e, n, ctx, routing === "queue" || e.async);
+      }
+      return true;
+    }
+
+    if (f.started >= plan.steps.length) {
+      this.sendAsync(id, f, plan, Infinity, ctx);
+      return false;
+    }
+    const group = plan.steps[f.started++];
+    this.sendAsync(id, f, plan, group[0].step, ctx);
+    for (const p of group) {
+      const e = topo.byId.get(p.edgeId);
+      if (e) this.call(id, f, e, this.copies(f, p, ctx), ctx);
+    }
+    return true;
+  }
+
+  /** Async calls planned after the last started step and up to `upTo`. */
+  private sendAsync(id: number, f: Frame, plan: CallPlan, upTo: number, ctx: StepContext): void {
+    for (const p of plan.async) {
+      if (p.step <= f.at || p.step > upTo) continue;
+      const e = ctx.topo.byId.get(p.edgeId);
+      if (e) this.call(id, f, e, this.copies(f, p, ctx), ctx, true);
+    }
+    f.at = upTo;
+  }
+
+  /** How many calls this request makes for a planned call (0 = condition not met). */
+  private copies(f: Frame, p: PlannedCall, ctx: StepContext): number {
+    if ((ctx.snap.edges[p.edgeId]?.rps ?? 0) <= 0) return 0;
+    const { call } = p;
+    let made: boolean;
+    switch (call.kind) {
+      case "reads":
+        made = f.read;
+        break;
+      case "writes":
+        made = !f.read;
+        break;
+      case "fraction":
+        made = this.rng() < clamp01(call.fraction ?? 1);
+        break;
+      case "on_miss":
+        made = this.rng() >= this.hitRatio(f.node, ctx);
+        break;
+      case "after_miss":
+        made = f.read && f.hits.get(p.dependsOn ?? "") !== true;
+        break;
+      default:
+        made = true;
+    }
+    return made ? this.draw(call.callsPerRequest) : 0;
+  }
+
+  /** ⌊k⌋ calls plus one more with probability frac(k), capped. */
+  private draw(k: number): number {
+    if (!(k > 0)) return 0;
+    return Math.min(MAX_CALLS_PER_EDGE, Math.floor(k) + (this.rng() < k % 1 ? 1 : 0));
+  }
+
+  private hitRatio(node: string, ctx: StepContext): number {
+    return clamp01(ctx.snap.nodes[node]?.extra?.hitRatio ?? 0);
+  }
+
+  /** `n` calls down `e`: sync ones are waited for (or answered at once when they can't be drawn). */
+  private call(
+    id: number,
+    f: Frame,
+    e: TopoEdge,
+    n: number,
+    ctx: StepContext,
+    async = e.async,
+  ): void {
+    for (let k = 0; k < n; k++) {
+      const sent = this.launch(e, f, async ? undefined : id, ctx);
+      if (async) continue;
+      if (sent) f.pending++;
+      else this.resolve(f, e, true, ctx);
+    }
+  }
+
+  /** A call of the frame came back (ok or failed). */
+  private resolve(f: Frame, e: TopoEdge | undefined, ok: boolean, ctx: StepContext): void {
+    if (!e) return;
+    const plan = ctx.topo.plans.get(f.node);
+    if (plan?.absorbed.includes(e.id)) {
+      // A cache call some "after a miss" call depends on: a failure is a miss.
+      if (!f.read) return;
+      const hit = ok && this.rng() < this.hitRatio(e.target, ctx);
+      f.hits.set(e.id, hit && f.hits.get(e.id) !== false);
+      return;
+    }
+    if (!ok) f.failed = true;
+  }
+
+  /** The response to a call reached the frame that made it. */
+  private deliver(frameId: number | undefined, edge: string, ok: boolean, ctx: StepContext): void {
+    if (frameId === undefined) return;
+    const f = this.frames.get(frameId);
+    if (!f) return; // dropped (TTL, node gone)
+    f.pending = Math.max(0, f.pending - 1);
+    this.resolve(f, ctx.topo.byId.get(edge), ok, ctx);
+    if (f.pending === 0) this.advance(frameId, f, ctx);
+  }
+
+  /** Answer the call `req` along the edge it came in on (async calls get no answer). */
+  private respond(req: Ball, error: boolean, ctx: StepContext): void {
+    if (req.frame === undefined) return;
+    if (this.alive >= MAX_BALLS || ctx.env.lengthOf(req.drawn) === undefined) {
+      this.deliver(req.frame, req.edge, !error, ctx);
+      return;
+    }
+    this.responses.push({ ...req, dir: "res", pos: 0, error });
+  }
+
+  /** The rate at which balls leave `node` (the requests it served), req/s. */
+  private throughRate(node: string, snap: TickSnapshot, topo: FlowTopology): number {
+    const m = snap.nodes[node];
+    if (m && m.rpsIn > 0) {
+      const failP = clamp01(Math.max(m.errorRate, m.drops / m.rpsIn));
+      return m.rpsIn * (1 - failP);
+    }
+    // No node metrics (synthetic snapshot): the busiest incoming or outgoing edge.
+    const edges = [...(topo.in.get(node) ?? []), ...(topo.out.get(node) ?? [])];
+    return Math.max(0, ...edges.map((e) => snap.edges[e.id]?.rps ?? 0));
   }
 
   /** The instance a ball heads to at `node`: a live one, by the algorithm. */
@@ -328,107 +652,14 @@ export class FlowBalls {
     if (load && load[index] > 0) load[index]--;
   }
 
-  /** A request at `node` (in card `lane`, −1 = not expanded). */
-  private dispatch(
-    node: string,
-    lane: number,
-    snap: TickSnapshot,
-    topo: FlowTopology,
-    env: FlowEnv,
-    key: number,
-  ): void {
-    const outs = (topo.out.get(node) ?? []).filter((e) => (snap.edges[e.id]?.rps ?? 0) > 0);
-    if (outs.length === 0) return;
-
-    if (topo.routing.get(node) === "lb") {
-      const total = outs.reduce((s, e) => s + snap.edges[e.id].rps, 0);
-      let pick = this.rng() * total;
-      let chosen = outs[outs.length - 1];
-      for (const e of outs) {
-        pick -= snap.edges[e.id].rps;
-        if (pick <= 0) {
-          chosen = e;
-          break;
-        }
-      }
-      this.launch(chosen, lane, key, topo, env, undefined);
-      return;
-    }
-
-    // Cache first: the other sync calls wait for the cache leg to arrive.
-    const cacheLegs = outs.filter((e) => !e.async && topo.routing.get(e.target) === "cache");
-    const later = outs.filter((e) => !e.async && topo.routing.get(e.target) !== "cache");
-    const now = outs.filter((e) => e.async || topo.routing.get(e.target) === "cache");
-    if (cacheLegs.length > 0 && later.length > 0) {
-      const sent = this.launchCalls(node, lane, now, snap, topo, env, key, (e) =>
-        cacheLegs.includes(e) ? { node, lane, edges: later } : undefined,
-      );
-      if (!sent.some((e) => cacheLegs.includes(e))) {
-        this.launchCalls(node, lane, later, snap, topo, env, key);
-      }
-      return;
-    }
-    this.launchCalls(node, lane, outs, snap, topo, env, key);
-  }
-
   /**
-   * Call each edge in proportion to its load: rps(edge) / (balls' rate through
-   * the node). Returns the edges that got at least one ball.
+   * Send a call down `e` from the frame's card: into an expanded target it
+   * takes the copy to the instance it picked. False when nothing is drawn for
+   * it (or the cap is reached).
    */
-  private launchCalls(
-    node: string,
-    lane: number,
-    edges: readonly TopoEdge[],
-    snap: TickSnapshot,
-    topo: FlowTopology,
-    env: FlowEnv,
-    key: number,
-    deferredFor?: (e: TopoEdge) => Ball["deferred"],
-  ): TopoEdge[] {
-    const through = this.throughRate(node, snap, topo);
-    const sent: TopoEdge[] = [];
-    if (through <= 0) return sent;
-    for (const e of edges) {
-      const rps = snap.edges[e.id]?.rps ?? 0;
-      if (rps <= 0) continue;
-      const calls = rps / through;
-      const n = Math.min(MAX_CALLS_PER_EDGE, Math.floor(calls) + (this.rng() < calls % 1 ? 1 : 0));
-      let any = false;
-      for (let k = 0; k < n; k++) {
-        if (this.launch(e, lane, key, topo, env, k === 0 ? deferredFor?.(e) : undefined))
-          any = true;
-      }
-      if (any) sent.push(e);
-    }
-    return sent;
-  }
-
-  /** The rate at which balls leave `node` (the requests it served), req/s. */
-  private throughRate(node: string, snap: TickSnapshot, topo: FlowTopology): number {
-    const m = snap.nodes[node];
-    if (m && m.rpsIn > 0) {
-      const failP = clamp01(Math.max(m.errorRate, m.drops / m.rpsIn));
-      return m.rpsIn * (1 - failP);
-    }
-    // No node metrics (synthetic snapshot): the busiest incoming or outgoing edge.
-    const edges = [...(topo.in.get(node) ?? []), ...(topo.out.get(node) ?? [])];
-    return Math.max(0, ...edges.map((e) => snap.edges[e.id]?.rps ?? 0));
-  }
-
-  /**
-   * Send a ball down `e` from card `fromLane` of its source: into an expanded
-   * target it takes the copy to the instance it picked. False when nothing is
-   * drawn for it (or the cap is reached).
-   */
-  private launch(
-    e: TopoEdge,
-    fromLane: number,
-    key: number,
-    topo: FlowTopology,
-    env: FlowEnv,
-    deferred: Ball["deferred"],
-  ): boolean {
-    if (this.balls.length >= MAX_BALLS) return false;
+  private launch(e: TopoEdge, f: Frame, frame: number | undefined, ctx: StepContext): boolean {
+    const { topo, env } = ctx;
+    if (this.alive >= MAX_BALLS) return false;
     const layout = env.instancesOf?.(e.target);
     let instance = -1;
     let lane = -1;
@@ -437,14 +668,23 @@ export class FlowBalls {
         topo.routing.get(e.source) === "lb"
           ? (topo.algorithm.get(e.source) ?? "round-robin")
           : "round-robin";
-      instance = this.pick(e.target, layout, policy, key);
+      instance = this.pick(e.target, layout, policy, f.key);
       lane = laneOf(instance, layout.count);
     }
-    const drawn = instanceEdgeId(e.id, fromLane, lane);
+    const drawn = instanceEdgeId(e.id, f.lane, lane);
     if (env.lengthOf(drawn) === undefined) return false;
     if (layout && instance >= 0) this.enter(e.target, instance, layout.count);
-    const ball: Ball = { edge: e.id, drawn, pos: 0, key, lane, instance };
-    if (deferred) ball.deferred = deferred;
+    const ball: Ball = {
+      edge: e.id,
+      drawn,
+      pos: 0,
+      dir: "req",
+      key: f.key,
+      read: f.read,
+      lane,
+      instance,
+    };
+    if (frame !== undefined) ball.frame = frame;
     this.balls.push(ball);
     return true;
   }

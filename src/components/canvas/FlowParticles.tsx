@@ -20,6 +20,7 @@ import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { PARAM, instancesOf, routingFor } from "@/domain/components/registry";
 import { formatRps } from "@/components/traffic/format";
+import { edgeRuleOf } from "@/domain/graph/edgeRules";
 import type { RuntimeEdgeStatus, TickSnapshot } from "@/engine/types";
 
 /**
@@ -33,9 +34,10 @@ import type { RuntimeEdgeStatus, TickSnapshot } from "@/engine/types";
  *   sizes); the viewport is applied as a canvas transform read from the
  *   ReactFlow store each frame, so pan/zoom never resamples.
  * - Balls (`lib/flowBalls.ts`): one ball = `quantum` req/s, born at the entries
- *   and routed like a request (a load balancer picks one edge, other nodes call
- *   each dependency in proportion to its load, cache first); a failure at a
- *   node shows a burst. Global cap of 2,000 balls. The legend shows the quantum.
+ *   and routed like a request (a load balancer picks one edge, other nodes
+ *   follow their call plan step by step, waiting for each sync call's
+ *   response); a failure at a node shows a burst. Global cap of 2,000 balls.
+ *   The legend shows the quantum.
  * - Expanded nodes (one card per instance, `instanceGraph.ts`): their edges are
  *   drawn once per card, and a ball takes the copy to the instance it picked.
  * - Ball color by edge status (ok = white, so it stands out on the cyan edge;
@@ -216,6 +218,8 @@ export function FlowParticles() {
       const paramsOf = new Map(
         components.map((n) => [n.id, (n.data as { params?: Record<string, unknown> }).params]),
       );
+      // Each edge's calls (normalized like the compiler reads them), so the
+      // balls follow the same call plan as the engine (AD-002).
       topology = buildTopology(
         edges
           .filter((e) => componentOf.has(e.source) && componentOf.has(e.target))
@@ -224,12 +228,14 @@ export function FlowParticles() {
             source: e.source,
             target: e.target,
             async: e.data?.async === true,
+            calls: edgeRuleOf({ nodes, edges }, e).calls,
           })),
         (id) => routingFor(componentOf.get(id) ?? "custom"),
         (id) => {
           const algo = paramsOf.get(id)?.[PARAM.lbAlgorithm];
           return typeof algo === "string" ? algo : undefined;
         },
+        (id) => typeof paramsOf.get(id)?.[PARAM.hitRate] === "number",
       );
       return topology;
     };
