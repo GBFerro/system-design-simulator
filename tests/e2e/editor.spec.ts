@@ -317,3 +317,38 @@ test("FLW-25: on a read-only reference the calls can't be edited", async ({ page
   await expect(page.getByRole("button", { name: "Add call" })).toBeDisabled();
   await expect(call(page, 1).getByRole("button", { name: "Remove call 1" })).toBeDisabled();
 });
+
+test("FLW-17: the context menu edits a one-call edge and sends a several-call edge to the panel", async ({
+  page,
+}) => {
+  await serviceWithDbAndCache(page);
+  const menu = page.getByRole("menu", { name: "Canvas actions" });
+  const rightClick = async (target: string) => {
+    const point = await edgePoint(page, edgeTo(page, target));
+    await page.mouse.click(point.x, point.y, { button: "right" });
+    await expect(menu).toBeVisible();
+  };
+
+  // One call: the menu switches its condition, the look-aside included
+  await rightClick("sql-db");
+  await expect(
+    menu.getByRole("menuitemradio", { name: "Reads after a miss in Cache / Redis" }),
+  ).toBeVisible();
+  await menu.getByRole("menuitemradio", { name: "Writes only" }).click();
+  await expect(menu).toHaveCount(0);
+  await selectEdge(page, "sql-db");
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+
+  // Two calls: the menu offers the panel instead of one call's condition
+  await page.getByRole("button", { name: "Add call" }).click();
+  await expect(call(page, 2)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } });
+  await expect(page.getByTestId("edge-calls")).toHaveCount(0);
+  await rightClick("sql-db");
+  await expect(menu.getByRole("menuitemradio", { name: "Writes only" })).toHaveCount(0);
+  await menu.getByRole("menuitem", { name: /Edit calls in the panel/ }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(call(page, 2)).toBeVisible();
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+});

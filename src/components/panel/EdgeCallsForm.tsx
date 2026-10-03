@@ -91,6 +91,26 @@ function pinSteps(graph: Graph, sourceId: string, edgeId: string, index: number,
   });
 }
 
+/**
+ * What the call form (and the context menu) offers for a call of `edge`: the
+ * caches its source calls synchronously over its other edges (FLW-08) and
+ * whether the source itself has a hit rate (read-through, FLW-14).
+ */
+export function callFormContext(graph: Graph, edge: Edge): CallFormContext {
+  return {
+    caches: graph.edges
+      .filter(
+        (e) =>
+          e.source === edge.source &&
+          e.id !== edge.id &&
+          !isAsyncEdge(e) &&
+          hasHitRate(graph, e.target),
+      )
+      .map((e) => ({ id: e.target, label: labelOf(graph, e.target) })),
+    readThrough: hasHitRate(graph, edge.source),
+  };
+}
+
 export function EdgeCallsForm({ edge }: { edge: Edge }) {
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
@@ -108,19 +128,7 @@ export function EdgeCallsForm({ edge }: { edge: Edge }) {
     (e) => e.source === edge.source && edgeRuleOf(graph, e).calls.some((c) => c.step !== undefined),
   );
 
-  // FLW-08: the caches the source calls synchronously over its other edges
-  const ctx: CallFormContext = {
-    caches: edges
-      .filter(
-        (e) =>
-          e.source === edge.source &&
-          e.id !== edge.id &&
-          !isAsyncEdge(e) &&
-          hasHitRate(graph, e.target),
-      )
-      .map((e) => ({ id: e.target, label: labelOf(graph, e.target) })),
-    readThrough: hasHitRate(graph, edge.source),
-  };
+  const ctx = callFormContext(graph, edge);
 
   const setCalls = (calls: EdgeCall[]) => updateEdgeRule(edge.id, { calls });
 

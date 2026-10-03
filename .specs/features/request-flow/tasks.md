@@ -543,12 +543,13 @@ T28 → T30
 
 **Done when**:
 
-- [ ] e2e: aresta com uma chamada troca a condição pelo menu; aresta com duas mostra o atalho para o painel
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] e2e: aresta com uma chamada troca a condição pelo menu; aresta com duas mostra o atalho para o painel
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(canvas): menu de contexto remete arestas com várias chamadas ao painel`
+**Status**: ✅ Complete
 
 ---
 

@@ -482,21 +482,6 @@ export const EDGE_RULE_SPECS: readonly ParamSpec[] = [
 ];
 
 /**
- * A rule as flat form values (fraction shown even while hidden): the link
- * plus the edge's first call, the one the single-call form edits.
- */
-export function edgeRuleValues(rule: EdgeRule): Params {
-  const call = rule.calls[0];
-  return {
-    kind: call.kind,
-    fraction: call.fraction ?? DEFAULT_RULE_FRACTION,
-    callsPerRequest: call.callsPerRequest,
-    networkLatencyMs: rule.networkLatencyMs,
-    packetLoss: rule.packetLoss,
-  };
-}
-
-/**
  * An edit to an edge's rule: link fields, a whole call list (`calls`), or
  * fields of the edge's first call (`kind`/`fraction`/`callsPerRequest`, what
  * the single-call form and the context menu edit).
