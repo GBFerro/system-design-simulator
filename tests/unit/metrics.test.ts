@@ -173,6 +173,26 @@ describe("runtimeStore structural sharing", () => {
     s().clear();
   });
 
+  it("shares global while the read ratio holds, and replaces it when the ratio changes", () => {
+    const s = () => useRuntimeStore.getState();
+    s().clear();
+    const at = (t: number, readRatio: number): TickSnapshot => {
+      const base = snap(t);
+      return { ...base, global: { ...base.global, readRatio } };
+    };
+    s().pushSnapshot(at(0, 0.9));
+    const first = s().latest!;
+    s().pushSnapshot(at(0.05, 0.9));
+    const second = s().latest!;
+    expect(second.global).toBe(first.global);
+    expect(second.global.readRatio).toBe(0.9);
+    s().pushSnapshot(at(0.1, 0.6));
+    const third = s().latest!;
+    expect(third.global).not.toBe(second.global);
+    expect(third.global.readRatio).toBe(0.6);
+    s().clear();
+  });
+
   it("treats a changed OBS-03 extra as a change, and a new node as a new record", () => {
     const prev = snap(0, { a: metrics({ extra: { hitRatio: 0.9 } }) });
     const next = shareUnchanged(prev, snap(1, { a: metrics({ extra: { hitRatio: 0.8 } }) }));

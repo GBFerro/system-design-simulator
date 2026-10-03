@@ -619,6 +619,7 @@ export class TickSimulator {
         p95: finite(latency.p95Ms),
         p99: finite(latency.p99Ms),
         availability: entries.length > 0 ? clamp01(mean(settled.avail)) : 0,
+        readRatio: topo.readRatio,
       },
     };
   }

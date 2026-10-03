@@ -64,7 +64,7 @@ export interface ResolvedConfig {
 }
 
 export function resolveConfig(
-  graph: SimGraph,
+  graph: Pick<SimGraph, "entryIds">,
   byId: Map<string, SimNode>,
   config?: SimConfig,
 ): ResolvedConfig {

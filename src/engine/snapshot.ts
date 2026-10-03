@@ -4,8 +4,10 @@
  */
 import { PARAM } from "@/domain/components/params";
 import type { NodeStatus } from "@/types/simulation";
+import { resolveConfig } from "./analyze";
 import type {
   NodeSteadyState,
+  SimConfig,
   SimGraph,
   SimNode,
   EdgeRuntimeMetrics,
@@ -76,16 +78,20 @@ export function extrasOf(
 
 /**
  * `graph` is optional: pass the compiled graph the steady state came from to
- * get the param-based OBS-03 extras (hit ratio, pool usage, replication lag).
+ * get the param-based OBS-03 extras (hit ratio, pool usage, replication lag)
+ * and its entry's read ratio. `config`: what `analyze()` was given, so
+ * `global.readRatio` is the ratio it resolved.
  */
 export function steadyStateToSnapshot(
   steady: SteadyState,
   t = 0,
-  graph?: Pick<SimGraph, "nodes">,
+  graph?: Pick<SimGraph, "nodes" | "entryIds">,
+  config?: SimConfig,
 ): TickSnapshot {
   const nodes: Record<string, NodeRuntimeMetrics> = {};
   const statusById = new Map<string, RuntimeNodeStatus>();
   const simById = new Map(graph?.nodes.map((n) => [n.id, n]));
+  const { readRatio } = resolveConfig(graph ?? { entryIds: [] }, simById, config);
   for (const n of steady.nodes) {
     const status = runtimeStatusOf(n.status);
     statusById.set(n.nodeId, status);
@@ -131,6 +137,7 @@ export function steadyStateToSnapshot(
       p95: steady.latency.p95Ms,
       p99: steady.latency.p99Ms,
       availability: steady.availability,
+      readRatio,
     },
   };
 }

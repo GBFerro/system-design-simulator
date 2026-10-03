@@ -706,14 +706,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Analyze e tick expõem o mesmo valor para o mesmo grafo
-- [ ] `pushSnapshot` continua compartilhando `global` quando nada muda
-- [ ] Testes em `runtime.test.ts` / `metrics.test.ts`
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Analyze e tick expõem o mesmo valor para o mesmo grafo
+- [x] `pushSnapshot` continua compartilhando `global` quando nada muda
+- [x] Testes em `runtime.test.ts` / `metrics.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): snapshot expõe o read ratio resolvido`
+**Status**: ✅ Complete
 
 ---
 

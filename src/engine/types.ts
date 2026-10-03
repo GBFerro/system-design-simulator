@@ -184,6 +184,13 @@ export interface GlobalRuntimeMetrics {
   p95: number;
   p99: number;
   availability: number;
+  /**
+   * Share of requests that are reads, as the engine resolved it
+   * (`resolveConfig`: config, else the entry's `readRatio` param, else the
+   * default). The flow balls draw reads and writes with it (request-flow).
+   * Absent in snapshots built by hand (tests).
+   */
+  readRatio?: number;
 }
 
 /** One sampled request (OBS-06, Phase 5). */

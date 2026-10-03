@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
+import { PARAM } from "@/domain/components/params";
+import type { Params } from "@/domain/components/types";
 import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
+import { TickSimulator } from "@/engine/core/tick";
 import { steadyStateToSnapshot } from "@/engine/snapshot";
+import { comp, wire } from "./engineFixtures";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import { RingBuffer } from "@/lib/ringBuffer";
 import { useRuntimeStore } from "@/store/runtimeStore";
@@ -41,6 +45,34 @@ describe("steadyStateToSnapshot", () => {
       expect(m.rpsOut).toBeLessThanOrEqual(m.rpsIn + 1e-9);
     }
     expect(snap.global.throughput).toBeLessThanOrEqual(snap.offeredRps + 1e-9);
+  });
+});
+
+describe("global.readRatio (request-flow FLW-01: balls draw reads with it)", () => {
+  // client → app → db: reads and writes split by the resolved read ratio.
+  const design = (clientParams: Params = {}) =>
+    compileGraph(
+      [comp("client", "client", clientParams), comp("app", "app-server"), comp("db", "sql-db")],
+      [wire("client", "app"), wire("app", "db", { rule: { kind: "writes" } })],
+    );
+  const both = (graph: ReturnType<typeof design>, config?: { readRatio: number }) => ({
+    analyze: steadyStateToSnapshot(analyze(graph, 1000, config), 0, graph, config).global.readRatio,
+    tick: new TickSimulator(graph, config).step(1000).global.readRatio,
+  });
+
+  it("is the engine's default when nothing sets it, the same in analyze and the tick", () => {
+    expect(both(design())).toEqual({ analyze: 0.9, tick: 0.9 });
+  });
+
+  it("follows the entry node's readRatio param in analyze and the tick", () => {
+    expect(both(design({ [PARAM.readRatio]: 0.7 }))).toEqual({ analyze: 0.7, tick: 0.7 });
+  });
+
+  it("follows a config override in analyze and the tick", () => {
+    expect(both(design({ [PARAM.readRatio]: 0.7 }), { readRatio: 0.25 })).toEqual({
+      analyze: 0.25,
+      tick: 0.25,
+    });
   });
 });
 
