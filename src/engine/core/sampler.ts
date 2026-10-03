@@ -7,15 +7,23 @@
  * synchronous hops count: async edges and edges out of a queue are
  * fire-and-forget for the user. The cost is O(N × path length), independent
  * of the RPS. Seeded, so the same model + seed gives the same percentiles.
+ *
+ * A node makes its calls by step, as its call plan orders them
+ * (request-flow): steps run in sequence and the calls of one step in
+ * parallel, so a step lasts as long as its slowest call. A failed sync call
+ * fails the request after its step (the others of the step were already
+ * out); a failed look-aside cache call is a miss instead. A read after a
+ * miss goes to the database when the cache call failed or missed.
  */
 import type { EdgeCallKind } from "@/domain/components/types";
 import type { LatencySummary } from "../types";
 import { sampleServiceMs, sampleWaitMs, type StationState } from "./queueing";
 import type { Rng } from "./rng";
 
+/** A load balancer's target. */
 export interface SampleEdge {
   target: string;
-  /** Only LB edges can be async here: picking one ends the user's wait. */
+  /** Picking an async target ends the user's wait. */
   async: boolean;
   kind: EdgeCallKind;
   /** kind = "fraction": P(taken). */
@@ -23,8 +31,24 @@ export interface SampleEdge {
   callsPerRequest: number;
   networkLatencyMs: number;
   packetLoss: number;
-  /** LB only: split share. */
+  /** Split share. */
   share: number;
+}
+
+/** One sync call of a rule node (from its call plan). */
+export interface SampleCall {
+  edgeId: string;
+  target: string;
+  kind: EdgeCallKind;
+  /** kind = "fraction": P(taken). */
+  fraction: number;
+  callsPerRequest: number;
+  networkLatencyMs: number;
+  packetLoss: number;
+  /** kind = "after_miss": the cache node whose miss it follows. */
+  missOf?: string;
+  /** kind = "after_miss": edge id of the cache call it depends on. */
+  dependsOn?: string;
 }
 
 export interface SampleNode {
@@ -39,8 +63,12 @@ export interface SampleNode {
   maxRetries: number;
   /** 1 − hitRate. */
   missProbability: number;
-  /** Forward edges on the user path (sync only, except an LB keeps all its targets). */
+  /** Load balancer: all its targets (sync and async). Empty for other nodes. */
   edges: SampleEdge[];
+  /** Rule nodes: sync calls by step, in order (same step = parallel). Empty for the others. */
+  steps: SampleCall[][];
+  /** Edge ids of cache calls whose failure is a miss (an `after_miss` depends on them). */
+  absorbed: string[];
 }
 
 export interface SampleModel {
@@ -106,7 +134,9 @@ export function sampleLatency(
       node.latencyShare >= 1 || rng() < node.latencyShare
         ? sampleServiceMs(node.station, rng) + sampleWaitMs(node.station, rng)
         : 0;
-    if (node.kind === "queue" || node.edges.length === 0) return { ok: true, ms };
+    if (node.kind === "queue" || (node.kind === "lb" ? node.edges : node.steps).length === 0) {
+      return { ok: true, ms };
+    }
     if (visits > MAX_VISITS_PER_REQUEST) {
       truncated = true;
       return { ok: true, ms };
@@ -129,40 +159,66 @@ export function sampleLatency(
     }
 
     const miss = rng() < node.missProbability;
-    for (const e of node.edges) {
-      let taken: boolean;
-      switch (e.kind) {
-        // after_miss: every read until the cache call's outcome is sampled
-        case "reads":
-        case "after_miss":
-          taken = isRead;
-          break;
-        case "writes":
-          taken = !isRead;
-          break;
-        case "on_miss":
-          taken = miss;
-          break;
-        case "fraction":
-          taken = rng() < e.fraction;
-          break;
-        default:
-          taken = true;
+    // Look-aside cache calls of this request: edge id → the call failed.
+    const cacheFailed = node.absorbed.length > 0 ? new Map<string, boolean>() : undefined;
+    for (const step of node.steps) {
+      // Every call of the step starts now; the step ends with the slowest.
+      const start = ms;
+      let failed = false;
+      for (const e of step) {
+        let taken: boolean;
+        switch (e.kind) {
+          case "reads":
+            taken = isRead;
+            break;
+          case "writes":
+            taken = !isRead;
+            break;
+          case "on_miss":
+            taken = miss;
+            break;
+          case "after_miss":
+            taken = isRead && missedCache(e, cacheFailed);
+            break;
+          case "fraction":
+            taken = rng() < e.fraction;
+            break;
+          default:
+            taken = true;
+        }
+        if (!taken) continue;
+        const whole = Math.floor(e.callsPerRequest);
+        const count = whole + (rng() < e.callsPerRequest - whole ? 1 : 0);
+        let end = start;
+        let ok = true;
+        for (let i = 0; i < count && ok; i++) {
+          const r = call(node, e);
+          end += r.ms;
+          ok = r.ok;
+        }
+        // (one call per step: exactly the old running sum, NaN included)
+        if (!(end <= ms)) ms = end;
+        if (cacheFailed && node.absorbed.includes(e.edgeId)) cacheFailed.set(e.edgeId, !ok);
+        else if (!ok) failed = true;
       }
-      if (!taken) continue;
-      const whole = Math.floor(e.callsPerRequest);
-      const count = whole + (rng() < e.callsPerRequest - whole ? 1 : 0);
-      for (let i = 0; i < count; i++) {
-        const r = call(node, e);
-        ms += r.ms;
-        if (!r.ok) return { ok: false, ms };
-      }
+      if (failed) return { ok: false, ms };
     }
     return { ok: true, ms };
   };
 
-  /** One logical call with retries; calls are sequential. */
-  const call = (caller: SampleNode, e: SampleEdge): Hop => {
+  /**
+   * A read goes on after the cache call `e` depends on when that call failed
+   * or wasn't made, or else when it misses (P = 1 − the cache's hit rate).
+   */
+  const missedCache = (e: SampleCall, cacheFailed?: Map<string, boolean>): boolean => {
+    const failed = e.dependsOn === undefined ? undefined : cacheFailed?.get(e.dependsOn);
+    if (failed !== false) return true;
+    const cache = e.missOf === undefined ? undefined : model.nodes.get(e.missOf);
+    return rng() < (cache?.missProbability ?? 1);
+  };
+
+  /** One logical call with retries; the attempts are sequential. */
+  const call = (caller: SampleNode, e: SampleEdge | SampleCall): Hop => {
     let ms = 0;
     const timeout = caller.timeoutMs;
     for (let attempt = 0; attempt <= caller.maxRetries; attempt++) {

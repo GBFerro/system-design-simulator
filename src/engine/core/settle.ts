@@ -16,7 +16,7 @@ import {
   timeoutMsOf,
   type CallContext,
 } from "./routing";
-import type { SampleEdge, SampleNode } from "./sampler";
+import type { SampleCall, SampleEdge, SampleNode } from "./sampler";
 
 /** The graph as both passes walk it. */
 export interface Topology {
@@ -128,26 +128,49 @@ export function sampleNodesFor(
   for (const id of order) {
     const node = byId.get(id)!;
     const flow = flows.get(id)!;
+    const edges = out.get(id) ?? [];
     // LB: keep async targets so their share still counts (the user isn't kept
     // waiting); one entry per edge (the LB picks a target, rules don't apply).
-    // Other nodes: one entry per call, in edge order then call order.
-    const sync: SampleEdge[] =
-      node.routing === "queue"
-        ? []
-        : (out.get(id) ?? [])
-            .filter((e) => node.routing === "lb" || !e.async)
-            .flatMap((e) =>
-              (node.routing === "lb" ? e.rule.calls.slice(0, 1) : e.rule.calls).map((call) => ({
-                async: e.async,
-                target: e.target,
-                kind: call.kind,
-                fraction: clamp01(call.fraction ?? 1),
-                callsPerRequest: node.routing === "lb" ? 1 : callsOf(call),
-                networkLatencyMs: e.rule.networkLatencyMs,
-                packetLoss: e.rule.packetLoss,
-                share: shares.get(e.id) ?? 0,
-              })),
-            );
+    const lbEdges: SampleEdge[] =
+      node.routing === "lb"
+        ? edges.map((e) => {
+            const call = e.rule.calls[0];
+            return {
+              async: e.async,
+              target: e.target,
+              kind: call?.kind ?? "always",
+              fraction: clamp01(call?.fraction ?? 1),
+              callsPerRequest: 1,
+              networkLatencyMs: e.rule.networkLatencyMs,
+              packetLoss: e.rule.packetLoss,
+              share: shares.get(e.id) ?? 0,
+            };
+          })
+        : [];
+    // Other nodes (not queues): the sync calls by step, as the call plan
+    // orders them; the link (latency, loss) from the edge as faults left it.
+    const plan = node.routing === "lb" || node.routing === "queue" ? undefined : node.plan;
+    const link = new Map(edges.map((e) => [e.id, e]));
+    const steps: SampleCall[][] = (plan?.steps ?? []).map((group) =>
+      group.flatMap((p) => {
+        const e = link.get(p.edgeId);
+        if (!e) return [];
+        const call: SampleCall = {
+          edgeId: e.id,
+          target: e.target,
+          kind: p.call.kind,
+          fraction: clamp01(p.call.fraction ?? 1),
+          callsPerRequest: callsOf(p.call),
+          networkLatencyMs: e.rule.networkLatencyMs,
+          packetLoss: e.rule.packetLoss,
+        };
+        if (p.dependsOn !== undefined) {
+          call.dependsOn = p.dependsOn;
+          call.missOf = p.call.missOf;
+        }
+        return [call];
+      }),
+    );
     sampleNodes.set(id, {
       station: flow.st,
       dropProbability: flow.offered > 0 ? clamp01(flow.dropped / flow.offered) : 0,
@@ -156,7 +179,9 @@ export function sampleNodesFor(
       timeoutMs: timeoutMsOf(node),
       maxRetries: maxRetriesOf(node),
       missProbability: 1 - hitRateOf(node),
-      edges: sync,
+      edges: lbEdges,
+      steps: steps.filter((group) => group.length > 0),
+      absorbed: plan?.absorbed ?? [],
     });
   }
   return sampleNodes;

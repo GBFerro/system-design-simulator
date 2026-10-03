@@ -201,9 +201,9 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-07         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
 | FLW-08         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-09         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-10         | P1: Chamada condicional         | Tasks   | In Tasks    |
-| FLW-11         | P1: Chamada condicional         | Tasks   | In Tasks    |
-| FLW-12         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-10         | P1: Chamada condicional         | Execute | Implemented |
+| FLW-11         | P1: Chamada condicional         | Execute | Implemented |
+| FLW-12         | P1: Chamada condicional         | Execute | Implemented |
 | FLW-13         | P1: Chamada condicional         | Execute | Implemented |
 | FLW-14         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-15         | P1: Chamada condicional         | Tasks   | In Tasks    |
@@ -218,12 +218,12 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-24         | P1: Referências, editor e dados | Tasks   | In Tasks    |
 | FLW-25         | P1: Referências, editor e dados | Tasks   | In Tasks    |
 | FLW-26         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
-| FLW-27         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
-| FLW-28         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-27         | P2: Ordem e paralelismo         | Execute | Implemented |
+| FLW-28         | P2: Ordem e paralelismo         | Execute | Implemented |
 | FLW-29         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
 | FLW-30         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
 | FLW-31         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
-| FLW-32         | P2: Ordem e paralelismo         | Tasks   | In Tasks    |
+| FLW-32         | P2: Ordem e paralelismo         | Execute | Implemented |
 | FLW-33         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
 | FLW-34         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
 | FLW-35         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
@@ -233,8 +233,8 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-39         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
 | FLW-40         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
 | FLW-41         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-42         | Edge cases                      | Tasks   | In Tasks    |
-| FLW-43         | Edge cases                      | Tasks   | In Tasks    |
+| FLW-42         | Edge cases                      | Execute | Implemented |
+| FLW-43         | Edge cases                      | Execute | Implemented |
 | FLW-44         | Edge cases                      | Tasks   | In Tasks    |
 | FLW-45         | Edge cases                      | Tasks   | In Tasks    |
 | FLW-46         | Edge cases                      | Execute | Implemented |

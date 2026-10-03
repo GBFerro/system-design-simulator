@@ -431,15 +431,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Novo `tests/unit/engine-sampler.test.ts`: B → C (passo 1, 10 ms), B → E (passo 1, 30 ms), B → D (passo 2, 20 ms), tempos fixos → latência de B = próprio + 50 ms
-- [ ] Falha no passo 1 → passo 2 não é chamado; a outra chamada do passo 1 conta
-- [ ] Leitura com hit não chama D; com miss chama D depois de C; C falhando chama D e a requisição não falha
-- [ ] Golden da T1 inalterado (mesma sequência de sorteios)
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Novo `tests/unit/engine-sampler.test.ts`: B → C (passo 1, 10 ms), B → E (passo 1, 30 ms), B → D (passo 2, 20 ms), tempos fixos → latência de B = próprio + 50 ms
+- [x] Falha no passo 1 → passo 2 não é chamado; a outra chamada do passo 1 conta
+- [x] Leitura com hit não chama D; com miss chama D depois de C; C falhando chama D e a requisição não falha
+- [x] Golden da T1 inalterado (mesma sequência de sorteios)
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): sampler com passos paralelos e leituras após miss`
+**Status**: ✅ Complete
 
 ---
 
