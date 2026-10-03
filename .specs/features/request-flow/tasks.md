@@ -376,15 +376,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Client → Service → Redis (`reads`, h 0,9) e Service → DB (`writes` + `after_miss: Redis`) a 10.000 req/s, r 0,9: DB recebe 1.900 req/s (tolerância 1e-6 relativa)
-- [ ] Com `effects` derrubando o Redis: DB recebe 10.000 req/s e o availability não cai por causa do Redis
-- [ ] Mesmo grafo + seed → deep-equal; served ≤ offered em todo nó; tudo finito
-- [ ] Golden da T1 inalterado
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Client → Service → Redis (`reads`, h 0,9) e Service → DB (`writes` + `after_miss: Redis`) a 10.000 req/s, r 0,9: DB recebe 1.900 req/s (tolerância 1e-6 relativa)
+- [x] Com `effects` derrubando o Redis: DB recebe 10.000 req/s e o availability não cai por causa do Redis
+- [x] Mesmo grafo + seed → deep-equal; served ≤ offered em todo nó; tudo finito
+- [x] Golden da T1 inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): analyze resolve leituras após miss no ponto fixo`
+**Status**: ✅ Complete
 
 ---
 

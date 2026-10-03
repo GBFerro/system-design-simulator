@@ -8,6 +8,7 @@ import { settle, type FlowView, type Topology } from "@/engine/core/settle";
 import { simulateCanvas } from "@/engine/client";
 import { createEngine } from "@/engine/engine";
 import { FaultError } from "@/engine/faults/runner";
+import { analyzeUnderFault } from "@/engine/faults/steady";
 import type { EdgeCall } from "@/domain/components/types";
 import type { SteadyState } from "@/engine/types";
 import type { Edge } from "@xyflow/react";
@@ -606,6 +607,87 @@ describe("settle: a look-aside cache's failure is a miss (request-flow)", () => 
             expect(v).toBeLessThanOrEqual(1);
           }
         }
+      }
+    }
+  });
+});
+
+describe("analyze(): reads after a cache miss (request-flow)", () => {
+  const RPS = 10_000;
+  const config = { readRatio: 0.9 };
+  const nodes = [
+    comp("client", "client"),
+    comp("svc", "app-server", { instances: 10 }),
+    comp("redis", "cache", { hitRate: 0.9, instances: 2, capacityPerInstance: 50_000 }),
+    comp("db", "sql-db", { instances: 4, capacityPerInstance: 5000 }),
+  ];
+  const lookAside = [
+    wire("client", "svc"),
+    callWire("svc", "redis", [call("reads")]),
+    callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+  ];
+  const graph = compileGraph(nodes, lookAside);
+
+  it("the database gets the writes plus the reads that missed: 1,900 req/s at 10k (FLW-09)", () => {
+    const s = analyze(graph, RPS, config);
+    expect(byId(s, "db").offeredRps / 1900).toBeCloseTo(1, 6);
+    expect(edgeOf(s, "svc", "db").rps / 1900).toBeCloseTo(1, 6);
+    // the same load as the read-through model it replaces
+    const readThrough = analyze(
+      compileGraph(nodes, [
+        wire("client", "svc"),
+        wire("svc", "redis", { rule: { kind: "reads" } }),
+        wire("redis", "db", { rule: { kind: "on_miss" } }),
+        wire("svc", "db", { rule: { kind: "writes" } }),
+      ]),
+      RPS,
+      config,
+    );
+    expect(byId(s, "db").offeredRps).toBeCloseTo(byId(readThrough, "db").offeredRps, 6);
+  });
+
+  it("with the cache killed, every read goes to the database and no request fails for it (FLW-12, FLW-13)", () => {
+    const r = analyzeUnderFault(
+      graph,
+      RPS,
+      { type: "kill-node", target: { kind: "node", id: "redis" } },
+      config,
+    );
+    if (!r.ok) throw new Error(r.error);
+    const s = r.steady;
+    expect(byId(s, "redis").servedRps).toBe(0);
+    expect(edgeOf(s, "svc", "redis").failureRate).toBe(1);
+    expect(byId(s, "db").offeredRps / RPS).toBeCloseTo(1, 6);
+    expect(s.errorRate).toBeCloseTo(0, 9);
+    expect(s.throughputRps / RPS).toBeCloseTo(1, 9);
+    // availability as if the design had no cache and read the database every time
+    const noCache = analyze(
+      compileGraph(nodes, [
+        wire("client", "svc"),
+        callWire("svc", "db", [call("writes"), call("reads")]),
+      ]),
+      RPS,
+      config,
+    );
+    expect(s.availability).toBeCloseTo(noCache.availability, 12);
+    expect(s.warnings).not.toContain("Retry load did not fully settle; figures are approximate.");
+  });
+
+  it("keeps the Spec 04 invariants: deterministic, served ≤ offered, every number finite (FLW-16)", () => {
+    const a = analyze(compileGraph(nodes, lookAside), RPS, { ...config, seed: 5 });
+    const b = analyze(compileGraph(nodes, lookAside), RPS, { ...config, seed: 5 });
+    expect(a).toEqual(b);
+    for (const s of [a, analyze(graph, RPS * 20, config)]) {
+      expect(s.throughputRps).toBeLessThanOrEqual(s.offeredRps);
+      for (const n of s.nodes) {
+        expect(n.servedRps).toBeLessThanOrEqual(n.offeredRps);
+        for (const v of [n.offeredRps, n.servedRps, n.utilization, n.p99Ms, n.queueDepth]) {
+          expect(Number.isFinite(v)).toBe(true);
+        }
+      }
+      for (const e of s.edges) expect(Number.isFinite(e.rps)).toBe(true);
+      for (const v of [s.availability, s.errorRate, s.latency.p99Ms, s.goodputRps]) {
+        expect(Number.isFinite(v)).toBe(true);
       }
     }
   });

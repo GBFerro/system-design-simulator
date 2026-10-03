@@ -200,7 +200,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-06         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
 | FLW-07         | P1: Resposta visível no canvas  | Tasks   | In Tasks    |
 | FLW-08         | P1: Chamada condicional         | Tasks   | In Tasks    |
-| FLW-09         | P1: Chamada condicional         | Tasks   | In Tasks    |
+| FLW-09         | P1: Chamada condicional         | Execute | Implemented |
 | FLW-10         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-11         | P1: Chamada condicional         | Tasks   | In Tasks    |
 | FLW-12         | P1: Chamada condicional         | Tasks   | In Tasks    |

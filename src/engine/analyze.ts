@@ -8,7 +8,9 @@
  *    λ(1 − f^{R+1})/(1 − f), where f is the call's failure fraction (drops,
  *    timeouts, packet loss, downstream failure). f depends on the load it
  *    creates, so steps 1–2 iterate to a fixed point (monotone: from f = 0 the
- *    load only grows, bounded by (R+1)×).
+ *    load only grows, bounded by (R+1)×). Reads after a cache miss join the
+ *    same loop: a failed cache call is a miss, so the database's share
+ *    r × (1 − h × (1 − f)) needs the cache call's f.
  * 3. End-to-end success and availability by a reverse pass over the sync
  *    path; latency percentiles by sampling requests (core/sampler.ts).
  *
@@ -164,10 +166,13 @@ export function analyze(
   const retrying = order.some(
     (id) => maxRetriesOf(byId.get(id)!) > 0 && (out.get(id)?.length ?? 0) > 0,
   );
+  // Reads after a cache miss depend on the cache call's failure (a failed
+  // call is a miss), which comes out of the reverse pass: same fixed point.
+  const lookAside = order.some((id) => (byId.get(id)!.plan?.absorbed.length ?? 0) > 0);
 
   /* ---------- forward pass: load propagation ---------- */
   const propagate = (failure: Map<string, number>): Pass => {
-    const callCtx: CallContext = { readRatio: cfg.readRatio, byId };
+    const callCtx: CallContext = { readRatio: cfg.readRatio, byId, failure };
     const inflow = new Map<string, number>();
     entries.forEach((id, i) =>
       inflow.set(
@@ -292,12 +297,12 @@ export function analyze(
   /* ---------- reverse pass: success, call failure, availability ---------- */
   const settleOf = (p: Pass) => settle(topo, p.flows, p.shares);
 
-  /* ---------- fixed point for retry amplification ---------- */
+  /* ---------- fixed point: retry amplification and reads after a miss ---------- */
   let failure = new Map<string, number>();
   let pass = propagate(failure);
   let settled = settleOf(pass);
   let iterations = 1;
-  if (retrying) {
+  if (retrying || lookAside) {
     for (; iterations < cfg.maxIterations; iterations++) {
       failure = settled.failure;
       const next = propagate(failure);
