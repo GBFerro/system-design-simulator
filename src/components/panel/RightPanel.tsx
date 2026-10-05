@@ -56,6 +56,13 @@ import { useAdvisorStore } from "@/store/advisorStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useInterviewStore } from "@/store/interviewStore";
 import { InterviewPhasePanel } from "@/components/interview/InterviewPhasePanel";
+import dynamic from "next/dynamic";
+
+// The Flow tab (request-flow): the panel, its diagram and the trace load on demand.
+const FlowPanel = dynamic(() => import("./FlowPanel").then((m) => m.FlowPanel), {
+  ssr: false,
+  loading: () => <p className="text-[11px] text-zinc-400">Loading…</p>,
+});
 
 interface RightPanelProps {
   open?: boolean;
@@ -111,6 +118,9 @@ function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
             className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
           >
             Simulate
+          </TabsTrigger>
+          <TabsTrigger value="flow" className={TAB_TRIGGER}>
+            Flow
           </TabsTrigger>
           <TabsTrigger value="chaos" className={TAB_TRIGGER}>
             Chaos
@@ -171,6 +181,14 @@ function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
             <SimulationControls onAnalyze={onAnalyze} />
             <Separator className="bg-zinc-800" />
             <MetricsDisplay />
+          </div>
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="flow" className="mt-0 flex-1 overflow-hidden min-h-0">
+        <ScrollArea className="h-full">
+          <div className={TAB_BODY}>
+            <FlowPanel />
           </div>
         </ScrollArea>
       </TabsContent>

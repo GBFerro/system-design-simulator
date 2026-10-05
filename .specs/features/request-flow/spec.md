@@ -225,15 +225,15 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-30         | P2: Ordem e paralelismo         | Execute | Implemented |
 | FLW-31         | P2: Ordem e paralelismo         | Execute | Implemented |
 | FLW-32         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-33         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-34         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-35         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-36         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-37         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-38         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-39         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-40         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
-| FLW-41         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-33         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-34         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-35         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-36         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-37         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-38         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-39         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-40         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-41         | P2: Trace de uma requisição     | Execute | Implemented |
 | FLW-42         | Edge cases                      | Execute | Implemented |
 | FLW-43         | Edge cases                      | Execute | Implemented |
 | FLW-44         | Edge cases                      | Execute | Implemented |

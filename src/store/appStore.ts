@@ -27,6 +27,7 @@ interface AppState {
   activeRightTab:
     | "properties"
     | "simulation"
+    | "flow"
     | "chaos"
     | "slo"
     | "score"

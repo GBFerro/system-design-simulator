@@ -16,13 +16,13 @@ import type { RequestTrace } from "@/engine/types";
  */
 
 /** Horizontal distance between lifelines. */
-export const LANE_WIDTH = 104;
+export const LANE_WIDTH = 88;
 /** Vertical distance between arrows. */
 export const ROW_HEIGHT = 30;
 /** Room above the first arrow for the lifeline headers. */
 export const HEADER_HEIGHT = 40;
 /** Left/right margin around the first and last lifeline. */
-export const SIDE_MARGIN = 56;
+export const SIDE_MARGIN = 48;
 
 export interface SequenceLifeline {
   nodeId: string;

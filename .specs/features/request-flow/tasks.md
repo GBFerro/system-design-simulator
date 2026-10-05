@@ -927,14 +927,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Novo `tests/e2e/flow.spec.ts`: referência do URL Shortener, leitura → passos com cache e banco, monitoramento async sem volta; com Analyze, ms por passo e total; sem snapshot, a mensagem da FLW-37; canvas sem entrada, a mensagem da FLW-40; hover destaca a aresta; funciona em aba somente leitura e no viewport de celular (bottom sheet)
-- [ ] Não recalcula a cada tick (só com mudança de topologia ou de snapshot existente/rps)
-- [ ] `bundle:check` passa sem re-baseline
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Novo `tests/e2e/flow.spec.ts`: referência do URL Shortener, leitura → passos com cache e banco, monitoramento async sem volta; com Analyze, ms por passo e total; sem snapshot, a mensagem da FLW-37; canvas sem entrada, a mensagem da FLW-40; hover destaca a aresta; funciona em aba somente leitura e no viewport de celular (bottom sheet)
+- [x] Não recalcula a cada tick (só com mudança de topologia ou de snapshot existente/rps)
+- [x] `bundle:check` passa sem re-baseline
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(panel): aba Flow com o diagrama de sequência de uma requisição`
+**Status**: ✅ Complete
 
 ---
 
