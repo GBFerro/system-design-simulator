@@ -1017,14 +1017,15 @@ Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e h�
 
 **Done when**:
 
-- [ ] O teste passa no código atual
-- [ ] O teste falha numa cópia em scratch com M6a (`src/lib/flowBalls.ts`: remover o `if (async) continue;` de `call`)
-- [ ] Nenhum teste existente alterado ou removido
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] O teste passa no código atual
+- [x] O teste falha numa cópia em scratch com M6a (`src/lib/flowBalls.ts`: remover o `if (async) continue;` de `call`)
+- [x] Nenhum teste existente alterado ou removido
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(canvas): quem chama segue sem esperar a chamada async`
+**Status**: ✅ Complete
 
 ---
 

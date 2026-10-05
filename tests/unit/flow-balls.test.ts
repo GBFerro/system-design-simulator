@@ -427,6 +427,48 @@ describe("request frames: calls go out, responses come back (request-flow)", () 
     for (const key of keys) expect(t.first("a-c", key)).toBe(t.first("a-b", key));
   });
 
+  it("a caller with an async call answers its own caller as soon as without it (FLW-03)", () => {
+    // c → a; a → m (async, step 1) and a → d (sync, step 2). The same seed with and without a → m.
+    const run = (withAsync: boolean) => {
+      const edges = [
+        ce("c", "a", [call("always")]),
+        ...(withAsync ? [ce("a", "m", [call("always")], true)] : []),
+        ce("a", "d", [call("always")]),
+      ];
+      const s = snap(
+        { c: node(60), a: node(60), m: node(60), d: node(60) },
+        { "c-a": 60, "a-m": withAsync ? 60 : 0, "a-d": 60 },
+      );
+      const frames = 600;
+      const t = record(
+        new FlowBalls(mulberry32(32)),
+        s,
+        buildTopology(edges, () => "service"),
+        env,
+        frames,
+      );
+      // Frames from a request's call on c-a to the first frame of its response there.
+      const roundTrips: number[] = [];
+      for (const key of t.keysOn("c-a")) {
+        if (t.first("c-a", key)! > frames - 120) continue; // its round trip may still be on the way
+        const back = t.firstResponse("c-a", key);
+        expect(back).toBeDefined(); // every request gets its response
+        roundTrips.push(back! - t.first("c-a", key)!);
+      }
+      return { t, roundTrips };
+    };
+    const plain = run(false);
+    const withAsync = run(true);
+    expect(withAsync.t.keysOn("a-m").size).toBeGreaterThan(50); // the async call is made
+    expect(withAsync.roundTrips.length).toBeGreaterThan(50);
+    const [base] = plain.roundTrips;
+    expect(new Set(plain.roundTrips)).toEqual(new Set([base])); // fixed lengths: one round trip
+    for (const frames of withAsync.roundTrips) {
+      expect(frames).toBe(base); // the same frame as without a → m
+      expect(frames * 0.05).toBeLessThan(FRAME_TTL_SEC);
+    }
+  });
+
   it("a step's calls leave together; step 2 leaves only after every response of step 1 (FLW-31)", () => {
     const topo = buildTopology(
       [
