@@ -529,6 +529,23 @@ describe("faults that fail writes: write share per call (request-flow)", () => {
     expect(shares.svc).toBeCloseTo(0.1 / (0.1 + 0.09), 12);
   });
 
+  it("each call weighs by its calls per request: writes ×2 + reads after a miss ×1", () => {
+    const shares = diskFullShares([
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [
+        call("writes", { callsPerRequest: 2 }),
+        call("after_miss", { missOf: "redis" }),
+      ]),
+    ]);
+    // 2(1 − r) / (2(1 − r) + r(1 − h)), r = 0.9, h = 0.9
+    const r = 0.9;
+    const h = 0.9;
+    const expected = (2 * (1 - r)) / (2 * (1 - r) + r * (1 - h));
+    expect(Math.abs(shares.svc - expected)).toBeLessThan(1e-9);
+    expect(shares.svc).not.toBeCloseTo((1 - r) / (1 - r + r * (1 - h)), 3); // k matters
+  });
+
   it("an edge with one call keeps the write share it had (writes 1, reads 0, always 1 − r)", () => {
     const shares = diskFullShares([
       wire("client", "svc"),

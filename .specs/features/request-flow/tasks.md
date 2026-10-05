@@ -1096,12 +1096,13 @@ Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e h�
 
 **Done when**:
 
-- [ ] O teste passa no código atual com a fórmula acima, com tolerância 1e-9
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] O teste passa no código atual com a fórmula acima, com tolerância 1e-9
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(chaos): parcela de escrita com chamadas por requisição`
+**Status**: ✅ Complete
 
 ---
 
