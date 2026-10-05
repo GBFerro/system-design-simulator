@@ -137,6 +137,30 @@ describe("traceRequest: one request through the sampler's model", () => {
     expect(trace.ok).toBe(true);
   });
 
+  it("a read through a CDN: its hit or miss, and the origin call only on a miss (FLW-35)", () => {
+    // b → CDN (2 ms round trip) → origin on a miss (read-through, 10 ms).
+    const m = model({
+      b: node([[to("b", "cdn", 2, 1)]]),
+      cdn: node([[to("cdn", "origin", 10, 1, "on_miss")]], { missProbability: 0.5 }),
+      origin: node(),
+    });
+    const traces = Array.from({ length: 20 }, (_, i) => traceRequest(m, 5, i, "read"));
+    const hitOf = (t: (typeof traces)[number]) =>
+      t.events.find((e) => e.type === "cache" && e.nodeId === "cdn" && e.hit);
+    const hit = traces.find((t) => hitOf(t) !== undefined);
+    const miss = traces.find((t) => hitOf(t) === undefined);
+
+    expect(hit?.events).toEqual([
+      call("b-cdn", "b", "cdn", 1, 0, 2),
+      { type: "cache", nodeId: "cdn", hit: true, viaFailure: false },
+    ]);
+    expect(miss?.events).toEqual([
+      call("b-cdn", "b", "cdn", 1, 0, 12),
+      { type: "cache", nodeId: "cdn", hit: false, viaFailure: false },
+      call("cdn-origin", "cdn", "origin", 1, 1, 11),
+    ]);
+  });
+
   it("a write takes only the write call (FLW-34: Read or Write)", () => {
     const trace = traceRequest(lookAside({ missProbability: 1 }), 1, 0, "write");
     expect(trace.cls).toBe("write");

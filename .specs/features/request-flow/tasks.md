@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: In Progress (fases 1–8: T1–T37 ✅; fase 9, correções da iteração 2: T38–T42)
+**Status**: Complete (fases 1–9: T1–T42 ✅)
 
 ---
 
@@ -1262,13 +1262,14 @@ Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a fa
 
 **Done when**:
 
-- [ ] Asserido para um índice com hit e outro com miss (`cache` event e presença/ausência da chamada à origem)
-- [ ] O teste falha num mutante em scratch com N13
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Asserido para um índice com hit e outro com miss (`cache` event e presença/ausência da chamada à origem)
+- [x] O teste falha num mutante em scratch com N13
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): trace marca hit e miss do read-through`
+**Status**: ✅ Complete
 
 ---
 
