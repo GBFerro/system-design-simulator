@@ -161,6 +161,59 @@ function pushTicks(page: Page, count: number, factor: number) {
   );
 }
 
+/** Pushes one later tick per load (req/s), each a copy of the latest snapshot otherwise. */
+function pushLoads(page: Page, loads: number[]) {
+  return page.evaluate((values) => {
+    const store = (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore;
+    const base = store.getState().latest!;
+    values.forEach((offeredRps, i) =>
+      store.getState().pushSnapshot({ ...base, t: base.t + (i + 1) * 0.05, offeredRps }),
+    );
+  }, loads);
+}
+
+/** The reference after Analyze with the Flow tab showing the timed trace; returns the panel and the snapshot's load. */
+async function analyzedFlow(page: Page) {
+  await page.getByTitle("Load reference solution").click();
+  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Simulate" }).click();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  await expect(page.getByText("Analysis complete!")).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("tab", { name: "Flow" }).click();
+  const panel = page.getByTestId("flow-panel");
+  await expect(panel.getByTestId("flow-total")).toBeVisible({ timeout: 20_000 });
+  const load = await page.evaluate(
+    () =>
+      (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore.getState().latest!
+        .offeredRps,
+  );
+  expect(load).toBeGreaterThan(1);
+  return { panel, load };
+}
+
+test("the trace runs at the snapshot's load, and follows it when it changes (FLW-36)", async ({
+  page,
+}) => {
+  await open(page, "/?e2e");
+  const { panel, load } = await analyzedFlow(page);
+  const total = panel.getByTestId("flow-total");
+  const totalMs = async () => Number(await total.getAttribute("data-total-ms"));
+  const atPeak = await totalMs();
+  expect(atPeak).toBeGreaterThan(0);
+
+  // The run's load drops to 1 req/s: request #1 is traced again at that load, with other times.
+  await pushLoads(page, [1]);
+  await expect(async () => {
+    const idle = await totalMs();
+    expect(idle).toBeGreaterThan(0);
+    expect(idle).not.toBe(atPeak);
+  }).toPass({ timeout: 15_000 });
+  // Back at the peak: the same request at the same load gives the same total again.
+  await pushLoads(page, [load]);
+  await expect(total).toHaveAttribute("data-total-ms", String(atPeak), { timeout: 15_000 });
+  await expect(panel.getByTestId("flow-request")).toHaveText("Request #1");
+});
+
 test("the trace isn't recomputed on every tick, only when the load really moves", async ({
   page,
 }) => {

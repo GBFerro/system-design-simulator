@@ -1323,13 +1323,14 @@ A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, clien
 
 **Done when**:
 
-- [ ] O teste passa no código real e falha (em scratch, com `node_modules` copiado por `robocopy /XJ`, porque junção de C: para Z: quebra o Next) com o mutante X11
-- [ ] Esperas por asserção (`expect(...).toPass`/`toHaveAttribute`), nunca `waitForTimeout`
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] O teste passa no código real e falha (em scratch, com `node_modules` copiado por `robocopy /XJ`, porque junção de C: para Z: quebra o Next) com o mutante X11
+- [x] Esperas por asserção (`expect(...).toPass`/`toHaveAttribute`), nunca `waitForTimeout`
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `test(panel): aba Flow leva a carga do snapshot ao trace`
+**Status**: ✅ Complete
 
 ---
 
