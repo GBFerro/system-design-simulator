@@ -511,6 +511,48 @@ describe("request frames: calls go out, responses come back (request-flow)", () 
     expect(t.responses.every((r) => r.edge === "a-b" && r.error)).toBe(true);
   });
 
+  it("a call fails with its edge's link failure: the caller's timeout or loss (FLW-05)", () => {
+    // a → b → c, every node healthy: only the link a → b fails, when it does.
+    const topo = buildTopology(
+      [ce("a", "b", [call("always")]), ce("b", "c", [call("always")])],
+      () => "service",
+    );
+    const base = snap({ a: node(600), b: node(600), c: node(600) }, { "a-b": 600, "b-c": 600 });
+    const run = (s: TickSnapshot) => {
+      const balls = new FlowBalls(mulberry32(27));
+      const responses: { edge: string; error: boolean }[] = [];
+      const reachedC = new Set<number>();
+      let bursts = 0;
+      let burstsOff = 0;
+      // Bursts last BURST_SEC (10 frames): looking every 5 frames sees each one.
+      for (let chunk = 0; chunk < 80; chunk++) {
+        const t = record(balls, s, topo, env, 5);
+        responses.push(...t.responses.map(({ edge, error }) => ({ edge, error })));
+        for (const key of t.keysOn("b-c")) reachedC.add(key);
+        bursts = Math.max(bursts, balls.bursts.length);
+        burstsOff += balls.bursts.filter((b) => b.edge !== "a-b").length;
+      }
+      return { responses, reachedC, bursts, burstsOff };
+    };
+
+    const failing = run({ ...base, edgeLinkFailure: { "a-b": 1 } });
+    expect(failing.bursts).toBeGreaterThan(0);
+    expect(failing.burstsOff).toBe(0);
+    expect(failing.reachedC.size).toBe(0);
+    const back = failing.responses.filter((r) => r.edge === "a-b");
+    expect(back.length).toBeGreaterThan(50);
+    expect(back.every((r) => r.error)).toBe(true);
+
+    const fine = run({ ...base, edgeLinkFailure: { "a-b": 0 } });
+    expect(fine.bursts).toBe(0);
+    expect(fine.reachedC.size).toBeGreaterThan(50);
+    const ok = fine.responses.filter((r) => r.edge === "a-b");
+    expect(ok.length).toBeGreaterThan(50);
+    expect(ok.every((r) => !r.error)).toBe(true);
+    // A snapshot without the field (built by hand, older engine) behaves the same.
+    expect(run(base)).toEqual(fine);
+  });
+
   it("a failed cache call counts as a miss: the read goes on to the database", () => {
     const topo = buildTopology(
       [

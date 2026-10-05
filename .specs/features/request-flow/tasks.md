@@ -1185,14 +1185,15 @@ Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a fa
 
 **Done when**:
 
-- [ ] Teste em `flow-balls.test.ts`: aresta com `edgeLinkFailure` 1 e alvo saudável ⇒ todas as chamadas nela geram burst e resposta de erro, nenhuma resposta ok; com 0 ⇒ nenhum burst
-- [ ] O teste falha num mutante em scratch que ignora `edgeLinkFailure`
-- [ ] Snapshots sem o campo (testes antigos, snapshots feitos à mão) continuam funcionando como antes
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Teste em `flow-balls.test.ts`: aresta com `edgeLinkFailure` 1 e alvo saudável ⇒ todas as chamadas nela geram burst e resposta de erro, nenhuma resposta ok; com 0 ⇒ nenhum burst
+- [x] O teste falha num mutante em scratch que ignora `edgeLinkFailure`
+- [x] Snapshots sem o campo (testes antigos, snapshots feitos à mão) continuam funcionando como antes
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(canvas): bolinhas mostram o timeout de quem chamou`
+**Status**: ✅ Complete
 
 ---
 

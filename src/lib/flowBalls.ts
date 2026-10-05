@@ -9,8 +9,9 @@
  *
  * - It is born at an entry node (no incoming edge with load) at that node's
  *   arrival rate, a read with probability `global.readRatio`.
- * - At each node it fails with the node's error/drop share: a burst marks it
- *   and an error response goes back to the caller (FLW-05). Else the node
+ * - A call fails on arrival with its edge's `edgeLinkFailure` (packet loss,
+ *   the caller's timeout), then with the node's error/drop share: a burst
+ *   marks it and an error response goes back to the caller (FLW-05). Else the node
  *   opens a **frame** for the request and makes its calls:
  *   - a load balancer sends it down ONE outgoing edge, weighted by the edges' load;
  *   - a queue takes it and answers at once; its consumers get it fire-and-forget;
@@ -383,7 +384,11 @@ export class FlowBalls {
     this.cooldown = QUANTUM_COOLDOWN_SEC;
   }
 
-  /** A call reached its target: the request fails there or opens a frame. */
+  /**
+   * A call reached its target: it fails on the link or by the caller's
+   * timeout (`edgeLinkFailure`), the request fails at the node, or the node
+   * opens a frame.
+   */
   private arrive(b: Ball, ctx: StepContext): void {
     const node = ctx.topo.byId.get(b.edge)?.target;
     if (!node) {
@@ -391,16 +396,26 @@ export class FlowBalls {
       return;
     }
     this.leave(node, b.instance);
+    const linkP = clamp01(ctx.snap.edgeLinkFailure?.[b.edge] ?? 0);
+    if (linkP > 0 && this.rng() < linkP) {
+      this.fail(b, ctx);
+      return;
+    }
     const m = ctx.snap.nodes[node];
     if (m) {
       const failP = clamp01(Math.max(m.errorRate, m.rpsIn > 0 ? m.drops / m.rpsIn : 0));
       if (failP > 0 && this.rng() < failP) {
-        this.bursts.push({ edge: b.drawn, age: 0 });
-        this.respond(b, true, ctx);
+        this.fail(b, ctx);
         return;
       }
     }
     this.open(node, b.lane, b.key, b.read, b.frame === undefined ? undefined : b, ctx);
+  }
+
+  /** The call failed: a burst marks it and an error response goes back (FLW-05). */
+  private fail(b: Ball, ctx: StepContext): void {
+    this.bursts.push({ edge: b.drawn, age: 0 });
+    this.respond(b, true, ctx);
   }
 
   private open(
