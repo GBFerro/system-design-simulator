@@ -1121,12 +1121,13 @@ Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e hÃ
 
 **Done when**:
 
-- [ ] Nenhum literal 8 ou 20 do limite em `tests/e2e/editor.spec.ts`
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Nenhum literal 8 ou 20 do limite em `tests/e2e/editor.spec.ts`
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `test(editor): e2e usa MAX_EDGE_CALLS em vez do literal`
+**Status**: âœ… Complete
 
 ---
 

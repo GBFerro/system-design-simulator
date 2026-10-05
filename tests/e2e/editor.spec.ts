@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
 import { MOD, center, connect, edgePoint, open, quickAdd } from "./helpers";
 
 // Spec 02: one test per editor bug from the diagnosis (B1–B6) plus the CAN-05 shortcuts.
@@ -273,9 +274,9 @@ test("FLW-25: the Props panel edits an edge's calls, one undo step per edit", as
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(call(page, 2)).toHaveCount(0);
 
-  // At most MAX_EDGE_CALLS (8) calls per edge
+  // At most MAX_EDGE_CALLS calls per edge
   const add = page.getByRole("button", { name: "Add call" });
-  for (let n = 2; n <= 8; n++) {
+  for (let n = 2; n <= MAX_EDGE_CALLS; n++) {
     await add.click();
     await expect(call(page, n)).toBeVisible();
   }
