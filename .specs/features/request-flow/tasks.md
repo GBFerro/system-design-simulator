@@ -872,14 +872,15 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Teste unitário do store; mudar o destaque re-renderiza só a aresta afetada
-- [ ] e2e: setar o destaque pelo `window` marca `data-edge-highlight="req"`/`"res"` e não cria entrada de undo nem escreve no `canvasStore`
-- [ ] `CLAUDE.md` (mapa de `store/`) lista o arquivo; `claude-map.test.ts` passa
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Teste unitário do store; mudar o destaque re-renderiza só a aresta afetada
+- [x] e2e: setar o destaque pelo `window` marca `data-edge-highlight="req"`/`"res"` e não cria entrada de undo nem escreve no `canvasStore`
+- [x] `CLAUDE.md` (mapa de `store/`) lista o arquivo; `claude-map.test.ts` passa
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: unit, e2e
 **Gate**: full
 **Commit**: `feat(canvas): destaque de aresta comandado pelo trace`
+**Status**: ✅ Complete
 
 ---
 

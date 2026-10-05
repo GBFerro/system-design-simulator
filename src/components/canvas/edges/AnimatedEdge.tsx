@@ -18,6 +18,8 @@ import { PARAM, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
 import { edgeCallsBadge, edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
 import { planFor, type PlanEdge } from "@/domain/graph/callPlan";
+import { useFlowHighlight, type FlowDirection } from "@/store/flowHighlightStore";
+import { usePrefersReducedMotion } from "@/hooks/useBreakpoint";
 
 const protocolBadge: Record<string, { text: string; color: string } | null> = {
   http: null,
@@ -111,6 +113,67 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
   return byEdge;
 }
 
+const HIGHLIGHT_COLOR = "#22d3ee";
+
+/**
+ * The edge the Flow tab's trace points at (FLW-39): a bright dashed trace
+ * with an arrowhead the way the step goes (`req` toward the callee, `res`
+ * back toward the caller); the dashes march that way unless the user asked
+ * for reduced motion. Mounted only on the highlighted edge.
+ */
+function FlowHighlightPath({
+  edgeId,
+  path,
+  dir,
+  width,
+}: {
+  edgeId: string;
+  path: string;
+  dir: FlowDirection;
+  width: number;
+}) {
+  const reduceMotion = usePrefersReducedMotion();
+  const marker = `flow-hl-${edgeId.replace(/[^\w-]/g, "_")}`;
+  return (
+    <g aria-hidden>
+      <defs>
+        <marker
+          id={marker}
+          viewBox="0 0 10 10"
+          refX="8"
+          refY="5"
+          markerWidth="4"
+          markerHeight="4"
+          orient="auto-start-reverse"
+        >
+          <path d="M0,0 L10,5 L0,10 z" fill={HIGHLIGHT_COLOR} />
+        </marker>
+      </defs>
+      <path
+        d={path}
+        fill="none"
+        stroke={HIGHLIGHT_COLOR}
+        strokeWidth={width}
+        strokeOpacity={0.9}
+        strokeLinecap="round"
+        strokeDasharray="8 6"
+        markerEnd={dir === "req" ? `url(#${marker})` : undefined}
+        markerStart={dir === "res" ? `url(#${marker})` : undefined}
+      >
+        {!reduceMotion && (
+          <animate
+            attributeName="stroke-dashoffset"
+            from={dir === "req" ? 28 : 0}
+            to={dir === "req" ? 0 : 28}
+            dur="0.8s"
+            repeatCount="indefinite"
+          />
+        )}
+      </path>
+    </g>
+  );
+}
+
 function AnimatedEdgeInner({
   id,
   sourceX,
@@ -132,6 +195,8 @@ function AnimatedEdgeInner({
   // Step and condition badges from the source's call plan (FLW-15/29/30). They
   // depend on the graph only, so a tick never resizes them.
   const plan = useCanvasStore((s) => planBadges(s.nodes, s.edges).get(copy?.instanceOf ?? id));
+  // The Flow tab's hovered step (FLW-39): a string per edge, so only it re-renders.
+  const highlight = useFlowHighlight(copy?.instanceOf ?? id);
   const rps = runtime ? runtime.rps * (copy?.share ?? 1) : undefined;
   const flowing = runtime !== undefined && runtime.rps > 0;
   const isDark = useAppStore((s) => s.theme) === "dark";
@@ -163,6 +228,7 @@ function AnimatedEdgeInner({
       data-edge-status={runtime?.status}
       data-edge-rps={runtime ? Math.round(runtime.rps) : undefined}
       data-edge-blast={blast}
+      data-edge-highlight={highlight ?? undefined}
     >
       {blast && (
         <path
@@ -190,6 +256,14 @@ function AnimatedEdgeInner({
           ...(isAsync ? { strokeDasharray: "6 4" } : {}),
         }}
       />
+      {highlight && (
+        <FlowHighlightPath
+          edgeId={id}
+          path={edgePath}
+          dir={highlight}
+          width={edgeStrokeWidth(rps) + 3}
+        />
+      )}
       {/* Label + protocol badge */}
       {showLabel && (
         <EdgeLabelRenderer>

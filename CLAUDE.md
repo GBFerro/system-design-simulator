@@ -102,7 +102,8 @@ src/
                   over measurements), measure.ts (Spec 09: analyze() at peak/2×/under drill faults; lazy)
   store/          zustand stores (see below): canvasStore, appStore (UI, toast, persisted display currency), interviewStore, penStore,
                   savedDesignsStore, customComponentsStore, customProblemsStore, tradeoffStore,
-                  simulationStore (v1 result + score), expandedNodesStore (unpersisted: nodes showing their instances, a view setting); runtimeStore.ts = unpersisted live metrics, fed by
+                  simulationStore (v1 result + score), expandedNodesStore (unpersisted: nodes showing their instances, a view setting),
+                  flowHighlightStore (unpersisted: the edge + direction the Flow tab's hovered step highlights, read per edge with useFlowHighlight); runtimeStore.ts = unpersisted live metrics, fed by
                   SimController (tick frames) and the Analyze button (analyze snapshot);
                   chaosStore (unpersisted faults of the live run), advisorStore (unpersisted findings and
                   fix preview, recomputed when the design, the run's load, the problem or the score change), drillStore (unpersisted failure drill of phase 6),
