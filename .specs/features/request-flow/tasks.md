@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: Complete (fases 1–10: T1–T48 ✅)
+**Status**: Done (fases 1–10: T1–T48 ✅; verificada na rodada 4, PASS)
 
 ---
 

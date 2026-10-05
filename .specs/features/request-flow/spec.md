@@ -1,6 +1,6 @@
 # Fluxo da requisição: chamadas, respostas e ordem — Specification
 
-Oct 3, 2026 · Status: confirmada · Escopo: Complex (modelo do motor + canvas + painel + dados)
+Oct 3, 2026 · Status: verificada (rodada 4, PASS) · Escopo: Complex (modelo do motor + canvas + painel + dados)
 
 ## Problem Statement
 
@@ -193,58 +193,58 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 
 ## Requirement Traceability
 
-| Requirement ID | Story                           | Phase   | Status      |
-| -------------- | ------------------------------- | ------- | ----------- |
-| FLW-01         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-02         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-03         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-04         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-05         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-06         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-07         | P1: Resposta visível no canvas  | Execute | Implemented |
-| FLW-08         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-09         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-10         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-11         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-12         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-13         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-14         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-15         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-16         | P1: Chamada condicional         | Execute | Implemented |
-| FLW-17         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-18         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-19         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-20         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-21         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-22         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-23         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-24         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-25         | P1: Referências, editor e dados | Execute | Implemented |
-| FLW-26         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-27         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-28         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-29         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-30         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-31         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-32         | P2: Ordem e paralelismo         | Execute | Implemented |
-| FLW-33         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-34         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-35         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-36         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-37         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-38         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-39         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-40         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-41         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-50         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-42         | Edge cases                      | Execute | Implemented |
-| FLW-43         | Edge cases                      | Execute | Implemented |
-| FLW-44         | Edge cases                      | Execute | Implemented |
-| FLW-45         | Edge cases                      | Tasks   | Implemented |
-| FLW-46         | Edge cases                      | Execute | Implemented |
-| FLW-47         | Edge cases                      | Execute | Implemented |
-| FLW-48         | Edge cases                      | Execute | Implemented |
-| FLW-49         | Edge cases                      | Tasks   | Implemented |
+| Requirement ID | Story                           | Phase  | Status   |
+| -------------- | ------------------------------- | ------ | -------- |
+| FLW-01         | P1: Resposta visível no canvas  | Verify | Verified |
+| FLW-02         | P1: Resposta visível no canvas  | Verify | Verified |
+| FLW-03         | P1: Resposta visível no canvas  | Verify | Verified |
+| FLW-04         | P1: Resposta visível no canvas  | Verify | Verified |
+| FLW-05         | P1: Resposta visível no canvas  | Verify | Verified |
+| FLW-06         | P1: Resposta visível no canvas  | Verify | Verified |
+| FLW-07         | P1: Resposta visível no canvas  | Verify | Verified |
+| FLW-08         | P1: Chamada condicional         | Verify | Verified |
+| FLW-09         | P1: Chamada condicional         | Verify | Verified |
+| FLW-10         | P1: Chamada condicional         | Verify | Verified |
+| FLW-11         | P1: Chamada condicional         | Verify | Verified |
+| FLW-12         | P1: Chamada condicional         | Verify | Verified |
+| FLW-13         | P1: Chamada condicional         | Verify | Verified |
+| FLW-14         | P1: Chamada condicional         | Verify | Verified |
+| FLW-15         | P1: Chamada condicional         | Verify | Verified |
+| FLW-16         | P1: Chamada condicional         | Verify | Verified |
+| FLW-17         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-18         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-19         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-20         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-21         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-22         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-23         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-24         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-25         | P1: Referências, editor e dados | Verify | Verified |
+| FLW-26         | P2: Ordem e paralelismo         | Verify | Verified |
+| FLW-27         | P2: Ordem e paralelismo         | Verify | Verified |
+| FLW-28         | P2: Ordem e paralelismo         | Verify | Verified |
+| FLW-29         | P2: Ordem e paralelismo         | Verify | Verified |
+| FLW-30         | P2: Ordem e paralelismo         | Verify | Verified |
+| FLW-31         | P2: Ordem e paralelismo         | Verify | Verified |
+| FLW-32         | P2: Ordem e paralelismo         | Verify | Verified |
+| FLW-33         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-34         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-35         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-36         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-37         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-38         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-39         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-40         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-41         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-50         | P2: Trace de uma requisição     | Verify | Verified |
+| FLW-42         | Edge cases                      | Verify | Verified |
+| FLW-43         | Edge cases                      | Verify | Verified |
+| FLW-44         | Edge cases                      | Verify | Verified |
+| FLW-45         | Edge cases                      | Verify | Verified |
+| FLW-46         | Edge cases                      | Verify | Verified |
+| FLW-47         | Edge cases                      | Verify | Verified |
+| FLW-48         | Edge cases                      | Verify | Verified |
+| FLW-49         | Edge cases                      | Verify | Verified |
 
 **Coverage:** 50 total, 50 mapped to tasks (ver `tasks.md`), 0 unmapped
 

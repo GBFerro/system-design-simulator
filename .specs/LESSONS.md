@@ -77,6 +77,27 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: FLW-36 src/components/panel/FlowPanel.tsx:49 (iteração 3)
 - last seen: 2026-10-05T17:13:03Z
 
+### L-010 - Test a time-varying model read at a chosen moment with a case where an earlier moment gives a different result.
+
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `engine` · harmful: 0
+- features: request-flow
+- evidence: Y13 src/engine/core/trace.ts:155 (FLW-36, rodada 4) (engine)
+- last seen: 2026-10-05T22:49:19Z
+
+### L-011 - State in the acceptance criterion which moment of a time-varying fault a derived view reflects.
+
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · harmful: 0
+- features: request-flow
+- evidence: FLW-36 src/engine/core/trace.ts:151,155 (rodada 4)
+- last seen: 2026-10-05T22:49:20Z
+
+### L-012 - Freeze live inputs before asserting that an event triggers a recompute, so noise cannot trigger it instead.
+
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `ui` · harmful: 0
+- features: request-flow
+- evidence: Y8 src/components/panel/FlowPanel.tsx:61; tests/e2e/flow.spec.ts:335 (FLW-36, rodada 4) (ui)
+- last seen: 2026-10-05T22:49:20Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

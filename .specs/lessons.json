@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 10,
+  "next_id": 13,
   "lessons": [
     {
       "id": "L-001",
@@ -136,6 +136,50 @@
       "evidence": ["FLW-36 src/components/panel/FlowPanel.tsx:49 (iteração 3)"],
       "created": "2026-10-05T17:13:03Z",
       "last_seen": "2026-10-05T17:13:03Z"
+    },
+    {
+      "id": "L-010",
+      "key": "surviving_mutant::test a time varying model read at a chosen moment with a case where an earlier moment gives a different result",
+      "text": "Test a time-varying model read at a chosen moment with a case where an earlier moment gives a different result.",
+      "signal": "surviving_mutant",
+      "scope": "engine",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["Y13 src/engine/core/trace.ts:155 (FLW-36, rodada 4) (engine)"],
+      "created": "2026-10-05T22:49:19Z",
+      "last_seen": "2026-10-05T22:49:19Z"
+    },
+    {
+      "id": "L-011",
+      "key": "spec_precision_gap::state in the acceptance criterion which moment of a time varying fault a derived view reflects",
+      "text": "State in the acceptance criterion which moment of a time-varying fault a derived view reflects.",
+      "signal": "spec_precision_gap",
+      "scope": "",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["FLW-36 src/engine/core/trace.ts:151,155 (rodada 4)"],
+      "created": "2026-10-05T22:49:20Z",
+      "last_seen": "2026-10-05T22:49:20Z"
+    },
+    {
+      "id": "L-012",
+      "key": "surviving_mutant::freeze live inputs before asserting that an event triggers a recompute so noise cannot trigger it instead",
+      "text": "Freeze live inputs before asserting that an event triggers a recompute, so noise cannot trigger it instead.",
+      "signal": "surviving_mutant",
+      "scope": "ui",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "Y8 src/components/panel/FlowPanel.tsx:61; tests/e2e/flow.spec.ts:335 (FLW-36, rodada 4) (ui)"
+      ],
+      "created": "2026-10-05T22:49:20Z",
+      "last_seen": "2026-10-05T22:49:20Z"
     }
   ]
 }
