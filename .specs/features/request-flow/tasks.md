@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: In Progress (fases 1–5: T1–T21 ✅)
+**Status**: Done (fases 1–7: T1–T31 ✅)
 
 ---
 
@@ -954,13 +954,14 @@ T28 → T30
 
 **Done when**:
 
-- [ ] `claude-map.test.ts` passa
-- [ ] Gate de build passa antes de abrir o PR 4
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e`
+- [x] `claude-map.test.ts` passa
+- [x] Gate de build passa antes de abrir o PR 4
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e`
 
 **Tests**: unit
 **Gate**: build
 **Commit**: `docs: bolinhas de ida e volta e aba Flow no CLAUDE.md e na Spec 07`
+**Status**: ✅ Complete
 
 ---
 

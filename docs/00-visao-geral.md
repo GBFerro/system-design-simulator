@@ -42,7 +42,7 @@ O objetivo é transformar o SystemForge de um calculador de snapshot num simulad
 | 04  | [Motor de simulação](04-motor-de-simulacao.md)                               | `analyze()`, loop de tick, worker        | 1 e 2                 |
 | 05  | [Persistência e compartilhamento](05-persistencia-e-compartilhamento.md)     | PER-01 a PER-04                          | 1 (PER-03 na 6)       |
 | 06  | [Controles de tráfego](06-controles-de-trafego.md)                           | TRF-01 a TRF-06                          | 2 (TRF-04 a 06 na 6)  |
-| 07  | [Métricas e observabilidade](07-metricas-e-observabilidade.md)               | OBS-01 a OBS-07                          | 2 (OBS-05 a 07 na 5)  |
+| 07  | [Métricas e observabilidade](07-metricas-e-observabilidade.md)               | OBS-01 a OBS-07 (OBS-06 entregue)        | 2 (OBS-05 a 07 na 5)  |
 | 08  | [Chaos engineering](08-chaos-engineering.md)                                 | CHS-01 a CHS-06                          | 3 (CHS-03/05/06 na 5) |
 | 09  | [Modo entrevista v2](09-modo-entrevista-v2.md)                               | Failure drill, rubrica medida, relatório | 4                     |
 | 10  | [Custo](10-custo.md)                                                         | CST-01 a CST-05                          | 5                     |
@@ -102,7 +102,7 @@ São sete fases (0 a 6) em ordem de dependência, e cada uma termina com algo us
 | 5. Custo, SLO e advisor | CST-01 a 05, SLO-01 a 03, ADV-01/02, CHS-03, 05, 06, OBS-05 a 07    | 07, 08, 10, 11, 12 | G       | Right-size aplica e mostra a economia; SLO violado aparece no relatório; quick fix tem undo                            |
 | 6. Polimento            | CAN-07 a 11, LRN-02 a 04, PER-03, TRF-04 a 06, CMP-03/04            | 03, 05, 06, 13, 14 | M       | Link compartilhado abre o mesmo design em outro browser                                                                |
 
-**Andamento.** As Fases 0 a 4 estão concluídas. Da Fase 5 estão implementados CST-01 a 05 ([Spec 10](10-custo.md)), SLO-01 a 03 ([Spec 11](11-slo-e-error-budget.md)), ADV-01/02 ([Spec 12](12-advisor.md)) e CHS-03/06 ([Spec 08](08-chaos-engineering.md)). Faltam OBS-05 a 07 ([Spec 07](07-metricas-e-observabilidade.md)) e os game days (CHS-05), cujo roteiro usa a trilha de eventos do TRF-06 ([Spec 06](06-controles-de-trafego.md)): o CHS-05 traz o mínimo dela para a Fase 5 ou espera o TRF-06. A Fase 6 ainda não começou.
+**Andamento.** As Fases 0 a 4 estão concluídas. Da Fase 5 estão implementados CST-01 a 05 ([Spec 10](10-custo.md)), SLO-01 a 03 ([Spec 11](11-slo-e-error-budget.md)), ADV-01/02 ([Spec 12](12-advisor.md)) e CHS-03/06 ([Spec 08](08-chaos-engineering.md)). O OBS-06 ([Spec 07](07-metricas-e-observabilidade.md)) foi entregue pela aba Flow do [fluxo da requisição](../.specs/features/request-flow/spec.md), que também trouxe chamadas com passos, cache look-aside e bolinhas de ida e volta. Faltam OBS-05 e OBS-07 e os game days (CHS-05), cujo roteiro usa a trilha de eventos do TRF-06 ([Spec 06](06-controles-de-trafego.md)): o CHS-05 traz o mínimo dela para a Fase 5 ou espera o TRF-06. A Fase 6 ainda não começou.
 
 Depois da Fase 6, e fora desta spec: backend para a galeria da comunidade (PER-04), contas e colaboração em tempo real.
 
