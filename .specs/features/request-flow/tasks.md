@@ -1375,12 +1375,13 @@ A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, clien
 
 **Done when**:
 
-- [ ] O teste passa no código real e falha em scratch com X9
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] O teste passa no código real e falha em scratch com X9
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
-**Commit**: `test(metrics): Analyze publica a falha de link por aresta`
+**Commit**: `test(metrics): analyze publica a falha de link por aresta`
+**Status**: ✅ Complete
 
 ---
 
