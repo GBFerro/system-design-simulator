@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: In Progress (fases 1–7: T1–T31 ✅; fase 8, correções da verificação: T32–T37)
+**Status**: In Progress (fases 1–8: T1–T37 ✅; fase 9, correções da iteração 2: T38–T42)
 
 ---
 
@@ -101,6 +101,13 @@ T28 → T30
 
 ```
 T32 → T33 → T34 → T35 → T36 → T37
+```
+
+### Phase 9: Correções da verificação (iteração 2)
+
+```
+T38 → T39
+T40 → T41 → T42
 ```
 
 ---
@@ -1131,9 +1138,139 @@ Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e h�
 
 ---
 
+#### Phase 9: Correções da verificação (iteração 2)
+
+Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a falha por timeout de quem chamou (FLW-05: comportamento faltando), e três trechos de AC não têm teste que discrimine (FLW-36, FLW-30, FLW-35: mutantes N4, N9/N10 e N13 sobreviveram). T38 e T39 mudam código; T40–T42 só testes.
+
+### T38: Snapshot publica a falha do link por aresta
+
+**What**: O motor publica no snapshot, num campo de topo novo e opcional `edgeLinkFailure: Record<edgeId, number>`, a parte da falha de cada aresta que é do link e de quem chama: 1 − (1 − perda de pacote) × (1 − P(timeout de quem chama)), sem a falha da cadeia abaixo do alvo (que as bolinhas já modelam andando por ela). Preenchido no tick e no `steadyStateToSnapshot`.
+**Where**: `src/engine/core/settle.ts`
+**Depends on**: None
+**Reuses**: o cálculo de `timedOut` e `packetLoss` que o `settle` já faz por aresta; `snapshot.ts`, `tick.ts` e `types.ts` só para levar o valor ao snapshot
+**Requirement**: FLW-05
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Com `timeoutMs` 5 no chamador e um banco de 200 ms, `edgeLinkFailure` da aresta chamador → banco ≈ 1 no tick e no Analyze; sem timeout nem perda, 0
+- [ ] Um alvo que falha por conta própria (fault no banco) NÃO aparece em `edgeLinkFailure` da aresta (só na métrica do nó)
+- [ ] O campo é de topo no `TickSnapshot` (não dentro de `edges`), então o golden da T1 passa sem mudar fixture nem teste; nenhum valor existente do `settle` muda
+- [ ] `pushSnapshot` não passa a re-renderizar arestas a cada tick (o campo não entra nos objetos por aresta)
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): snapshot publica a falha do link por aresta`
+
+---
+
+### T39: Bolinhas mostram o timeout de quem chamou
+
+**What**: Quando uma chamada chega ao alvo, ela falha com a probabilidade `edgeLinkFailure` da sua aresta (antes do sorteio da falha do nó), com o burst atual e uma resposta de erro voltando até quem chamou (FLW-05).
+**Where**: `src/lib/flowBalls.ts`
+**Depends on**: T38
+**Reuses**: `arrive`, `respond`, `bursts`
+**Requirement**: FLW-05
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Teste em `flow-balls.test.ts`: aresta com `edgeLinkFailure` 1 e alvo saudável ⇒ todas as chamadas nela geram burst e resposta de erro, nenhuma resposta ok; com 0 ⇒ nenhum burst
+- [ ] O teste falha num mutante em scratch que ignora `edgeLinkFailure`
+- [ ] Snapshots sem o campo (testes antigos, snapshots feitos à mão) continuam funcionando como antes
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(canvas): bolinhas mostram o timeout de quem chamou`
+
+---
+
+### T40: Teste do trace na carga do último snapshot
+
+**What**: Provar que o trace usa a carga pedida: o mesmo design com um nó perto da saturação dá tempo de fila maior (total maior) em rps alto do que em 1 req/s (mata N4: `src/engine/core/trace.ts`, sempre 1 req/s).
+**Where**: `tests/unit/engine-trace.test.ts`
+**Depends on**: None
+**Reuses**: `traceGraph`, fixtures de `engineFixtures.ts`
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código real e falha num mutante em scratch com N4
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): trace usa a carga pedida`
+
+---
+
+### T41: E2E dos casos em que o badge de passo não aparece
+
+**What**: Provar que o badge de passo não aparece numa aresta de um nó com uma só chamada síncrona, nem nas arestas de saída de um balanceador (mata N9 e N10: `src/components/canvas/edges/AnimatedEdge.tsx`).
+**Where**: `tests/e2e/editor.spec.ts`
+**Depends on**: T40
+**Reuses**: os helpers de `tests/e2e/helpers.ts` e do próprio arquivo (`serviceWithDbAndCache`)
+**Requirement**: FLW-30
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Os dois casos asseridos pela ausência do badge de passo, ao lado de um caso positivo no mesmo teste
+- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(editor): badge de passo some com uma chamada e no LB`
+
+---
+
+### T42: Teste do hit/miss do read-through no trace
+
+**What**: Num design com read-through (CDN → origem, `on_miss`), o trace de uma leitura marca o resultado da CDN como `hit` ou `miss`, e a chamada à origem só aparece no `miss` (mata N13: `src/engine/core/sampler.ts`).
+**Where**: `tests/unit/engine-trace.test.ts`
+**Depends on**: T41
+**Reuses**: `traceRequest`/`traceGraph`
+**Requirement**: FLW-35
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Asserido para um índice com hit e outro com miss (`cache` event e presença/ausência da chamada à origem)
+- [ ] O teste falha num mutante em scratch com N13
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): trace marca hit e miss do read-through`
+
+---
+
 ## Phase Execution Map
 
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8. As dependências dentro de cada fase estão nos diagramas do Execution Plan; as dependências entre fases apontam sempre para trás.
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9. As dependências dentro de cada fase estão nos diagramas do Execution Plan; as dependências entre fases apontam sempre para trás.
 
 Execução estritamente sequencial dentro de cada fase, na ordem numérica. Gate de build no fim de cada fase (e antes de cada PR: fim das fases 4, 5, 6 e 7).
 

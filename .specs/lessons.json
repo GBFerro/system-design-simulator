@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "promote_threshold": 2,
+  "window_days": 45,
+  "quarantine_threshold": 2,
+  "next_id": 7,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "surviving_mutant::test request response flow through an intermediate node that makes its own calls not only through leaf targets",
+      "text": "Test request/response flow through an intermediate node that makes its own calls, not only through leaf targets.",
+      "signal": "surviving_mutant",
+      "scope": "canvas-flow",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["M6b src/lib/flowBalls.ts:428 (iteração 1) (canvas-flow)"],
+      "created": "2026-10-05T16:00:58Z",
+      "last_seen": "2026-10-05T16:00:58Z"
+    },
+    {
+      "id": "L-002",
+      "key": "surviving_mutant::test a fire and forget call on a node that has its own caller and assert the caller s response timing is unchanged",
+      "text": "Test a fire-and-forget call on a node that has its own caller and assert the caller's response timing is unchanged.",
+      "signal": "surviving_mutant",
+      "scope": "canvas-flow",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["M6a src/lib/flowBalls.ts:557 (iteração 1) (canvas-flow)"],
+      "created": "2026-10-05T16:00:58Z",
+      "last_seen": "2026-10-05T16:00:58Z"
+    },
+    {
+      "id": "L-003",
+      "key": "surviving_mutant::assert the negative case of a conditional display rule when it must not show not only when it shows",
+      "text": "Assert the negative case of a conditional display rule (when it must not show), not only when it shows.",
+      "signal": "surviving_mutant",
+      "scope": "ui",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["N9/N10 src/components/canvas/edges/AnimatedEdge.tsx:88,93 (FLW-30) (ui)"],
+      "created": "2026-10-05T16:00:58Z",
+      "last_seen": "2026-10-05T16:00:58Z"
+    },
+    {
+      "id": "L-004",
+      "key": "surviving_mutant::test that a passed option changes the result comparing the default with its explicit value proves nothing",
+      "text": "Test that a passed option changes the result; comparing the default with its explicit value proves nothing.",
+      "signal": "surviving_mutant",
+      "scope": "engine",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["N4 src/engine/core/trace.ts:127 (FLW-36) (engine)"],
+      "created": "2026-10-05T16:00:59Z",
+      "last_seen": "2026-10-05T16:00:59Z"
+    },
+    {
+      "id": "L-005",
+      "key": "surviving_mutant::give every case an acceptance criterion enumerates its own test assertion",
+      "text": "Give every case an acceptance criterion enumerates its own test assertion.",
+      "signal": "surviving_mutant",
+      "scope": "",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["N13 src/engine/core/sampler.ts:206 (FLW-35)"],
+      "created": "2026-10-05T16:00:59Z",
+      "last_seen": "2026-10-05T16:00:59Z"
+    },
+    {
+      "id": "L-006",
+      "key": "ac_gap::record a spec deviation when the design narrows an acceptance criterion instead of narrowing it silently",
+      "text": "Record a SPEC_DEVIATION when the design narrows an acceptance criterion instead of narrowing it silently.",
+      "signal": "ac_gap",
+      "scope": "",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["FLW-05 src/lib/flowBalls.ts:396; design.md:162"],
+      "created": "2026-10-05T16:00:59Z",
+      "last_seen": "2026-10-05T16:00:59Z"
+    }
+  ]
+}
