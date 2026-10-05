@@ -243,6 +243,36 @@ test("the trace isn't recomputed on every tick, only when the load really moves"
   expect(await runs()).toBe(before + 3);
 });
 
+test("the trace is recomputed only when the load moves past 1.25× either way: not at ×1.2 or ÷1.2, yes at ×1.32 and ÷1.32 (FLW-36)", async ({
+  page,
+}) => {
+  await open(page, "/?e2e");
+  const { panel, load } = await analyzedFlow(page);
+  const runs = async () => Number(await panel.getAttribute("data-traces"));
+  // 30 ticks around `level`, ±1% noise: far less than the room to the 1.25 limit.
+  const ticks = (level: number) =>
+    Array.from({ length: 30 }, (_, i) => level * (1 + 0.01 * Math.sin(i + 1)));
+  let request = 1;
+  // "Another request" is the barrier (one trace of its own): once its number
+  // shows, everything the ticks triggered has rendered.
+  const tracesAfter = async (loads: number[]) => {
+    const before = await runs();
+    await pushLoads(page, loads);
+    await panel.getByRole("button", { name: "Another request" }).click();
+    await expect(panel.getByTestId("flow-request")).toHaveText(`Request #${++request}`);
+    return (await runs()) - before - 1;
+  };
+
+  // The last trace ran at `load`: ×1.2 and ÷1.2 stay within the limit.
+  expect(await tracesAfter(ticks(load * 1.2))).toBe(0);
+  expect(await tracesAfter(ticks(load / 1.2))).toBe(0);
+  // ×1.32 crosses it: one trace, at the first tick past it.
+  const up = ticks(load * 1.32);
+  expect(await tracesAfter(up)).toBe(1);
+  // ÷1.32 from that trace's load crosses it the other way: one more.
+  expect(await tracesAfter(ticks(up[0] / 1.32))).toBe(1);
+});
+
 test("a design without an entry point says so instead of a diagram (FLW-40)", async ({ page }) => {
   await open(page, "/?e2e");
   await quickAdd(page, "App Server");

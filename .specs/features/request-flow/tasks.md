@@ -1349,13 +1349,14 @@ A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, clien
 
 **Done when**:
 
-- [ ] Os quatro lados asseridos; o teste falha em scratch com X10
-- [ ] Se precisar de um atributo de teste novo para contar traces, ele fica em `FlowPanel.tsx` no mesmo commit e não muda nada visível
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Os quatro lados asseridos; o teste falha em scratch com X10
+- [x] Se precisar de um atributo de teste novo para contar traces, ele fica em `FlowPanel.tsx` no mesmo commit e não muda nada visível
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `test(panel): limite de recálculo do trace nos dois sentidos`
+**Status**: ✅ Complete
 
 ---
 
