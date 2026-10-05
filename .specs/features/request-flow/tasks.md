@@ -1298,12 +1298,13 @@ A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, clien
 
 **Done when**:
 
-- [ ] O teste passa no código real e falha num mutante em scratch que descarta `options.rps` em `src/engine/client.ts`
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] O teste passa no código real e falha num mutante em scratch que descarta `options.rps` em `src/engine/client.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): traceCanvas usa a carga pedida`
+**Status**: ✅ Complete
 
 ---
 

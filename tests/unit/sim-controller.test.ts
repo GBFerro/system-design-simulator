@@ -180,6 +180,31 @@ describe("traceCanvas (in-thread fallback)", () => {
     );
   });
 
+  it("traces at the requested load: near saturation 95 req/s takes longer than 1 req/s (FLW-36)", async () => {
+    // client → app: 100 req/s (5 slots of 50 ms); at 95 req/s requests queue.
+    const nodes = [
+      comp("client", "client"),
+      comp("app", "app-server", {
+        instances: 1,
+        capacityPerInstance: 100,
+        serviceTimeMs: 50,
+        timeoutMs: 60_000,
+        maxRetries: 0,
+      }),
+    ];
+    const edges = [wire("client", "app")];
+    const meanTotal = async (rps: number) => {
+      const traces = await Promise.all(
+        Array.from({ length: 20 }, (_, index) =>
+          traceCanvas(nodes, edges, { rps, cls: "read", index }),
+        ),
+      );
+      for (const t of traces) expect(t.ok).toBe(true);
+      return traces.reduce((sum, t) => sum + t.totalMs, 0) / traces.length;
+    };
+    expect(await meanTotal(95)).toBeGreaterThan((await meanTotal(1)) * 2);
+  });
+
   it("no entry point: no events and the warning (FLW-40)", async () => {
     const cycle = [comp("a", "app-server"), comp("b", "app-server")];
     for (const [nodes, edges] of [
