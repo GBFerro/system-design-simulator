@@ -116,7 +116,8 @@ src/
   hooks/          useBreakpoint (useIsMobile/useIsCoarsePointer/usePrefersReducedMotion/useMinWidth)
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils, ringBuffer,
                   topology (topologySignature: what structure-dependent views recompute on),
-                  particles (edge width/status color), flowBalls (request balls of the flow overlay), instances (instance cards/lanes, edge-copy ids, instances down under faults), runtimeMetrics (snapshot sharing, sparklines, formatters)
+                  particles (edge width/status color), flowBalls (request balls of the flow overlay), instances (instance cards/lanes, edge-copy ids, instances down under faults), runtimeMetrics (snapshot sharing, sparklines, formatters),
+                  sequenceLayout (request-flow: a RequestTrace → lifelines, call/response/async arrows, hit/miss marks for the Flow tab)
   types/          shared interfaces
 tests/
   unit/           vitest (pure logic: scoring, engine, traffic patterns, persistence, store actions;

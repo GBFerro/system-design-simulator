@@ -899,15 +899,16 @@ T28 → T30
 
 **Done when**:
 
-- [ ] Uma linha de vida por nó tocado, na ordem do primeiro contato
-- [ ] Cada chamada síncrona gera uma seta de ida e uma de volta; async só a de ida; chamada não feita não aparece
-- [ ] Numeração na ordem de início
-- [ ] `tests/unit/sequence-layout.test.ts`; `CLAUDE.md` (mapa de `lib/`) lista o arquivo
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Uma linha de vida por nó tocado, na ordem do primeiro contato
+- [x] Cada chamada síncrona gera uma seta de ida e uma de volta; async só a de ida; chamada não feita não aparece
+- [x] Numeração na ordem de início
+- [x] `tests/unit/sequence-layout.test.ts`; `CLAUDE.md` (mapa de `lib/`) lista o arquivo
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(trace): layout puro do diagrama de sequência`
+**Status**: ✅ Complete
 
 ---
 
