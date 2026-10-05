@@ -1212,12 +1212,13 @@ Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a fa
 
 **Done when**:
 
-- [ ] O teste passa no código real e falha num mutante em scratch com N4
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] O teste passa no código real e falha num mutante em scratch com N4
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): trace usa a carga pedida`
+**Status**: ✅ Complete
 
 ---
 

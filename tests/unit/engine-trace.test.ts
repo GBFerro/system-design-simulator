@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EdgeCallKind } from "@/domain/components/types";
+import { compileGraph } from "@/domain/graph/compile";
 import { station } from "@/engine/core/queueing";
 import { mulberry32, type Rng } from "@/engine/core/rng";
 import {
@@ -9,8 +10,9 @@ import {
   type SampleModel,
   type SampleNode,
 } from "@/engine/core/sampler";
-import { requestSeed, traceRequest } from "@/engine/core/trace";
+import { requestSeed, traceGraph, traceRequest } from "@/engine/core/trace";
 import type { TraceEvent } from "@/engine/types";
+import { comp, wire } from "./engineFixtures";
 
 /**
  * Trace of one request (request-flow, FLW-34/35/36/38): the sampler with a
@@ -338,5 +340,35 @@ describe("the recorder never changes the sampling (FLW-32 golden)", () => {
     expect(heard).toBeGreaterThan(3000);
     expect(recorded.draws).toBe(plain.draws);
     expect(withRecorder).toEqual(without);
+  });
+});
+
+describe("traceGraph: the trace at the requested load (FLW-36)", () => {
+  it("near saturation the same requests take longer at the snapshot's load than at 1 req/s", () => {
+    // client → app: 100 req/s (5 slots of 50 ms); at 95 req/s requests queue.
+    const graph = compileGraph(
+      [
+        comp("client", "client"),
+        comp("app", "app-server", {
+          instances: 1,
+          capacityPerInstance: 100,
+          serviceTimeMs: 50,
+          timeoutMs: 60_000,
+          maxRetries: 0,
+        }),
+      ],
+      [wire("client", "app")],
+    );
+    const indices = Array.from({ length: 20 }, (_, i) => i);
+    const meanTotal = (rps: number | undefined) =>
+      indices.reduce((sum, index) => {
+        const trace = traceGraph(graph, { rps, cls: "read", index });
+        expect(trace.ok).toBe(true);
+        return sum + trace.totalMs;
+      }, 0) / indices.length;
+    const idle = meanTotal(1);
+    // Without a load (no snapshot) the trace runs at 1 req/s.
+    expect(meanTotal(undefined)).toBe(idle);
+    expect(meanTotal(95)).toBeGreaterThan(idle * 2);
   });
 });
