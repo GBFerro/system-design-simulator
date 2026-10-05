@@ -1237,12 +1237,13 @@ Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a fa
 
 **Done when**:
 
-- [ ] Os dois casos asseridos pela ausência do badge de passo, ao lado de um caso positivo no mesmo teste
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Os dois casos asseridos pela ausência do badge de passo, ao lado de um caso positivo no mesmo teste
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `test(editor): badge de passo some com uma chamada e no LB`
+**Status**: ✅ Complete
 
 ---
 

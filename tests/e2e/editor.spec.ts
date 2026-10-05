@@ -386,6 +386,35 @@ test("FLW-30: each call shows its step, with ∥ when another call of the node r
   await expect(stepBadge(page, "cache")).toHaveText("1∥");
 });
 
+test("FLW-30: no step badge on a node's only sync call, nor on a load balancer's edges", async ({
+  page,
+}) => {
+  await open(page);
+  const labels = ["App Server", "Cache / Redis", "SQL Database"];
+  labels.push("Load Balancer", "Auth Service", "WebSocket Server");
+  for (const label of labels) await quickAdd(page, label);
+  await expect(nodes(page)).toHaveCount(6);
+
+  // App Server's only sync call: its label shows the condition, no step.
+  await connect(page, "app-server", "sql-db");
+  await selectEdge(page, "sql-db");
+  await call(page, 1).getByLabel("Call rule").selectOption("writes");
+  await expect(condBadge(page, "sql-db")).toHaveText("writes");
+  await expect(stepBadge(page, "sql-db")).toHaveCount(0);
+
+  // A second sync call: now both show their step.
+  await connect(page, "app-server", "cache");
+  await expect(stepBadge(page, "sql-db")).toHaveText("1");
+  await expect(stepBadge(page, "cache")).toHaveText("2");
+
+  // A load balancer sends each request down one edge: no steps on its two edges.
+  await connect(page, "load-balancer", "auth-service");
+  await connect(page, "load-balancer", "websocket-server");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+  await expect(stepBadge(page, "auth-service")).toHaveCount(0);
+  await expect(stepBadge(page, "websocket-server")).toHaveCount(0);
+});
+
 test("FLW-15/29: a call after a miss names its cache, and the edge warns when the plan moved it", async ({
   page,
 }) => {
