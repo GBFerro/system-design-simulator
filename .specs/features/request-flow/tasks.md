@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: Complete (fases 1–9: T1–T42 ✅)
+**Status**: In Progress (fases 1–9: T1–T42 ✅; fase 10, rodada 4: T43–T48)
 
 ---
 
@@ -108,6 +108,12 @@ T32 → T33 → T34 → T35 → T36 → T37
 ```
 T38 → T39
 T40 → T41 → T42
+```
+
+### Phase 10: Rodada 4 (cola sem teste e trace com faults ativas)
+
+```
+T43 → T44 → T45 → T46 → T47 → T48
 ```
 
 ---
@@ -1273,9 +1279,163 @@ Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a fa
 
 ---
 
+#### Phase 10: Rodada 4 (cola sem teste e trace com faults ativas)
+
+A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, cliente e motor (X9–X12; código correto, testes faltando). O usuário autorizou uma 4ª rodada (2026-10-05) e decidiu: o limite de 25% fica simétrico (razão > 1,25 em qualquer sentido), os textos da interface ficam em inglês e **o trace passa a refletir as faults ativas** (FLW-36 ajustado, FLW-50 novo). T43–T46 são só testes; T47–T48 mudam código.
+
+### T43: Teste de que o traceCanvas usa a carga pedida
+
+**What**: Teste unitário em que `traceCanvas` com `rps: 95` difere de `rps: 1` num design com um nó perto da saturação (mata X12: `client.traceCanvas` descartando `options.rps`).
+**Where**: `tests/unit/sim-controller.test.ts`
+**Depends on**: None
+**Reuses**: o teste "without a snapshot's load the trace runs at 1 req/s" e seus fixtures
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código real e falha num mutante em scratch que descarta `options.rps` em `src/engine/client.ts`
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): traceCanvas usa a carga pedida`
+
+---
+
+### T44: E2E de que a aba Flow leva a carga do snapshot ao trace
+
+**What**: Na aba Flow, depois de um Analyze, empurrar via `window.__runtimeStore` um snapshot com `offeredRps` bem diferente e esperar o `data-total-ms` mudar (mata X11: `FlowPanel` chamando `traceCanvas` sem `rps`).
+**Where**: `tests/e2e/flow.spec.ts`
+**Depends on**: T43
+**Reuses**: helpers de `tests/e2e/helpers.ts` e do próprio arquivo
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código real e falha (em scratch, com `node_modules` copiado por `robocopy /XJ`, porque junção de C: para Z: quebra o Next) com o mutante X11
+- [ ] Esperas por asserção (`expect(...).toPass`/`toHaveAttribute`), nunca `waitForTimeout`
+- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(panel): aba Flow leva a carga do snapshot ao trace`
+
+---
+
+### T45: E2E dos dois lados do limite de recálculo do trace
+
+**What**: Com a mesma base de carga, asserir que ×1,2 e ÷1,2 não geram trace novo e que ×1,32 e ÷1,32 geram (razão > 1,25 em qualquer sentido, como a spec emendada diz), contando os traces pelo atributo que a aba já expõe ou por um contador de teste (mata X10: `RPS_STEP` 1,25 → 1,9).
+**Where**: `tests/e2e/flow.spec.ts`
+**Depends on**: T44
+**Reuses**: o snapshot sintético da T44
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Os quatro lados asseridos; o teste falha em scratch com X10
+- [ ] Se precisar de um atributo de teste novo para contar traces, ele fica em `FlowPanel.tsx` no mesmo commit e não muda nada visível
+- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(panel): limite de recálculo do trace nos dois sentidos`
+
+---
+
+### T46: E2E de que o Analyze publica a falha de link
+
+**What**: Um design em que o chamador estoura o timeout contra o banco (`timeoutMs` baixo, banco lento); depois do Analyze, `window.__runtimeStore.getState().latest.edgeLinkFailure` da aresta chamador → banco é > 0,99 (mata X9: `AppShell` montando o snapshot do Analyze sem `linkFailure`).
+**Where**: `tests/e2e/metrics.spec.ts`
+**Depends on**: T45
+**Reuses**: helpers de `tests/e2e/helpers.ts`
+**Requirement**: FLW-05
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código real e falha em scratch com X9
+- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(metrics): Analyze publica a falha de link por aresta`
+
+---
+
+### T47: O trace aplica as faults ativas no motor
+
+**What**: `traceGraph` (e `traceCanvas` no worker/cliente) aceita `faults?: FaultSpec[]`; compila cada uma (como `analyzeUnderFault`: `compileFault` a partir de t = 0, efeitos lidos em regime, logo antes do fim da janela mais curta) e roda `analyzeWithModel(graph, rps, config, effects)` antes de traçar. Sem faults, o resultado é idêntico ao de hoje.
+**Where**: `src/engine/core/trace.ts`
+**Depends on**: T46
+**Reuses**: `compileFault`, `effectsAt`, `analyzeUnderFault` (`faults/steady.ts`), `analyzeWithModel`; `client.ts`/`worker.ts` só para levar o parâmetro (structured-clone safe)
+**Requirement**: FLW-36, FLW-50
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Teste em `engine-trace.test.ts`: Client → App → Redis (`reads`) e App → DB (`writes` + `after_miss` Redis); com a fault `kill-node` no Redis, o trace de uma leitura mostra a chamada ao Redis com falha (`ok: false` ou `cache` com `viaFailure`) e depois a chamada ao DB; sem a fault, um índice com hit não chama o DB
+- [ ] Sem `faults` (ou lista vazia), o trace é deep-equal ao de antes; golden da T1 intocado
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): trace aplica as faults ativas da execução`
+
+---
+
+### T48: A aba Flow passa as faults ativas e recalcula quando elas mudam
+
+**What**: `FlowPanel` lê as faults ativas do `chaosStore` (`faults` com `active`), passa as `spec` a `traceCanvas` e recalcula quando o conjunto de faults ativas muda (chave estável, ex.: ids ativos ordenados), além dos gatilhos de hoje; nunca a cada tick.
+**Where**: `src/components/panel/FlowPanel.tsx`
+**Depends on**: T47
+**Reuses**: `useChaosStore`, `simActions` (no e2e), o padrão de recálculo atual
+**Requirement**: FLW-36, FLW-50
+
+**Tools**:
+
+- MCP: `chrome-devtools`
+- Skill: `run`
+
+**Done when**:
+
+- [ ] e2e em `flow.spec.ts`: referência do URL Shortener em execução ao vivo; matar o Redis (atalho Kill do nó ou `simActions`); na aba Flow, uma leitura mostra o Redis com falha e a chamada ao NoSQL; curar a fault volta ao trace sem falha
+- [ ] O trace não recalcula a cada tick com faults ativas (mesma garantia do teste de histerese)
+- [ ] Verificado no browser
+- [ ] `CLAUDE.md` (parágrafo do Flow tab e do Request trace) diz que o trace usa as faults ativas
+- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `feat(panel): aba Flow reflete as faults ativas da execução`
+
+---
+
 ## Phase Execution Map
 
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9. As dependências dentro de cada fase estão nos diagramas do Execution Plan; as dependências entre fases apontam sempre para trás.
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10. As dependências dentro de cada fase estão nos diagramas do Execution Plan; as dependências entre fases apontam sempre para trás.
 
 Execução estritamente sequencial dentro de cada fase, na ordem numérica. Gate de build no fim de cada fase (e antes de cada PR: fim das fases 4, 5, 6 e 7).
 

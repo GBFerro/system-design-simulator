@@ -47,8 +47,8 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | Tempos do trace                     | Sem simulação ou Analyze, o trace mostra só a estrutura (passos, hit/miss); com um snapshot, cada passo mostra o tempo amostrado com o mesmo modelo do sampler                                                                                                                 | Sem métricas não há fila nem utilização para calcular o tempo.                                                                                                                                             | y          |
 | Onde fica o trace                   | Uma aba nova "Flow" no RightPanel, carregada sob demanda (lazy)                                                                                                                                                                                                                | Segue o padrão das abas; não pesa no bundle inicial (`bundle:check`).                                                                                                                                      | y          |
 | Limites de edição                   | Até 8 chamadas por aresta, passo de 1 a 20, definidos como duas constantes exportadas de um único módulo (`MAX_EDGE_CALLS = 8`, `MAX_CALL_STEP = 20`, em `domain/graph/edgeRules.ts`) e lidos dali pelo editor, pela sanitização, pelos badges e pelos testes                  | Cobrem qualquer design de entrevista; mudar o limite é trocar um número num lugar só. O nome evita conflito com `MAX_CALLS_PER_EDGE` de `lib/flowBalls.ts`, que é outra coisa (cópias de bola por aresta). | y          |
-| Idioma dos textos da interface      | Todo texto que a interface mostra é em inglês, como no resto do app: aba "Flow", botões "Read"/"Write"/"Another request", mensagens "Run the simulation or Analyze to see the timings" e "No entry point: connect a Client or an entry node", legenda "request ● / response ○" | A UI inteira do app é em inglês e a prosa das specs é em português; o Lote C já adotou o inglês nos rótulos do editor (SPEC_DEVIATION em `edgeRules.ts`).                                                  | n          |
-| Estado que o trace amostra          | O design na carga do último snapshot, sem as faults ativas; recalcula só quando a carga muda mais de 25% (o `offeredRps` oscila a cada tick)                                                                                                                                   | O trace é uma explicação do caminho, não uma medição da execução; passar as faults ativas fica como ideia adiada.                                                                                          | n          |
+| Idioma dos textos da interface      | Todo texto que a interface mostra é em inglês, como no resto do app: aba "Flow", botões "Read"/"Write"/"Another request", mensagens "Run the simulation or Analyze to see the timings" e "No entry point: connect a Client or an entry node", legenda "request ● / response ○" | A UI inteira do app é em inglês e a prosa das specs é em português; o Lote C já adotou o inglês nos rótulos do editor (SPEC_DEVIATION em `edgeRules.ts`).                                                  | y          |
+| Estado que o trace amostra          | O design na carga do último snapshot e com as faults ativas da execução; recalcula quando a razão entre a carga atual e a do último trace passa de 1,25 em qualquer sentido (o `offeredRps` oscila a cada tick) ou quando o conjunto de faults ativas muda                     | Decisão do usuário (2026-10-05): o trace deve mostrar o mesmo estado que o canvas; o limite simétrico em log é o que o código já faz.                                                                      | y          |
 | Prefixo dos requisitos              | `FLW`                                                                                                                                                                                                                                                                          | Segue o padrão de três letras das specs (CAN, TRF, OBS, CHS).                                                                                                                                              | y          |
 
 **Open questions:** none - all resolved or logged above (required before the spec is confirmed).
@@ -152,12 +152,13 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 1. The RightPanel SHALL ter uma aba "Flow", carregada sob demanda, sem aumentar o JS inicial de `/` além do limite do `bundle:check`. <!-- FLW-33 -->
 2. WHEN o usuário escolhe "Read" ou "Write" na aba Flow THEN ela SHALL mostrar um diagrama de sequência com uma linha de vida por nó tocado, uma seta cheia por chamada, uma seta tracejada por resposta síncrona e uma seta aberta sem volta por chamada async, numerados na ordem em que acontecem. <!-- FLW-34 -->
 3. The diagrama SHALL marcar como "hit" ou "miss" o resultado de cada chamada a um cache cujo resultado decide o caminho da requisição (a chamada "após miss" de quem chama e o read-through do próprio cache), e a chamada condicional que não aconteceu SHALL não aparecer. <!-- FLW-35 -->
-4. WHILE existe um snapshot (simulação ao vivo ou Analyze), a aba Flow SHALL mostrar o tempo de cada passo e o total ponta a ponta, amostrados com o mesmo modelo do sampler sobre o design na carga do último snapshot, sem as faults ativas, e SHALL recalcular só quando a carga muda mais de 25%. <!-- FLW-36 -->
+4. WHILE existe um snapshot (simulação ao vivo ou Analyze), a aba Flow SHALL mostrar o tempo de cada passo e o total ponta a ponta, amostrados com o mesmo modelo do sampler sobre o design na carga do último snapshot e com as faults ativas da execução, e SHALL recalcular só quando a razão entre a carga atual e a do último trace passa de 1,25 em qualquer sentido ou quando o conjunto de faults ativas muda. <!-- FLW-36 -->
 5. WHILE não existe snapshot, a aba Flow SHALL mostrar a estrutura sem tempos e o texto "Run the simulation or Analyze to see the timings". <!-- FLW-37 -->
 6. WHEN o usuário clica em "Another request" THEN a aba Flow SHALL amostrar a próxima requisição da sequência, e o mesmo design + seed + índice SHALL dar o mesmo trace. <!-- FLW-38 -->
 7. WHEN o usuário passa o mouse ou toca num passo do diagrama THEN o canvas SHALL destacar a aresta daquela chamada e o sentido (ida ou volta) sem escrever no `canvasStore`. <!-- FLW-39 -->
 8. IF o design não tem nó de entrada (cliente, ou nó sem entrada com aresta de saída) THEN a aba Flow SHALL mostrar "No entry point: connect a Client or an entry node" em vez do diagrama. <!-- FLW-40 -->
 9. The aba Flow SHALL funcionar em aba somente leitura (referências) e na bottom sheet do mobile. <!-- FLW-41 -->
+10. WHILE uma fault ativa derruba o cache C de uma chamada "após miss", the trace de uma leitura SHALL mostrar a chamada a C como falha e, em seguida, a chamada "após miss" ao banco. <!-- FLW-50 -->
 
 **Independent Test**: Na referência do URL Shortener, aba Flow, leitura: Client → LB → Service → Redis (miss) → Service → NoSQL → … → Client, com a chamada async ao monitoramento sem volta; com o Analyze rodado, cada passo mostra ms e o total bate com a soma dos passos. E2E em `tests/e2e/` com snapshot sintético via `window.__runtimeStore`.
 
@@ -235,6 +236,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-39         | P2: Trace de uma requisição     | Execute | Implemented |
 | FLW-40         | P2: Trace de uma requisição     | Execute | Implemented |
 | FLW-41         | P2: Trace de uma requisição     | Execute | Implemented |
+| FLW-50         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
 | FLW-42         | Edge cases                      | Execute | Implemented |
 | FLW-43         | Edge cases                      | Execute | Implemented |
 | FLW-44         | Edge cases                      | Execute | Implemented |
@@ -244,7 +246,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-48         | Edge cases                      | Execute | Implemented |
 | FLW-49         | Edge cases                      | Tasks   | Implemented |
 
-**Coverage:** 49 total, 49 mapped to tasks (ver `tasks.md`), 0 unmapped
+**Coverage:** 50 total, 50 mapped to tasks (ver `tasks.md`), 0 unmapped
 
 ---
 

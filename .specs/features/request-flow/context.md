@@ -36,7 +36,7 @@ Uma aresta A → B passa a ser lida como uma chamada que A faz a B, com ida e, s
 
 ## Agent's Discretion
 
-Nenhuma: todas as premissas da spec foram confirmadas em 2026-10-03.
+Nenhuma: todas as premissas da spec foram confirmadas (2026-10-03; idioma da interface, estado do trace e limite de 25% em 2026-10-05).
 
 ## Deferred Ideas
 
@@ -50,5 +50,5 @@ Nenhuma: todas as premissas da spec foram confirmadas em 2026-10-03.
 - (Lote D) `src/engine/config.ts` (novo: `resolveConfig` saiu de `analyze.ts` para o `snapshot.ts` não carregar o motor no Analyze) ainda não está no mapa do `CLAUDE.md`; entrar junto com a T31. O `scoring/measure.ts` chama `steadyStateToSnapshot(atPeak, 0, graph)` sem o `config` com o read mix do problema, então o `global.readRatio` desse snapshot (usado só para resolver o drill) é o da entrada, não o do problema; passar o `config` se algum leitor precisar.
 - (Lote E) Na bottom sheet do celular, tocar num passo da aba Flow destaca a aresta, mas a sheet cobre ~70% do canvas e a aresta pode ficar escondida. Enquadrar a aresta acima da sheet (`paddingAboveSheet`) ao tocar num passo.
 - (Lote E) O e2e `traffic.spec.ts` "responses come back as rings… pausing holds them still" (T24) falhou uma vez na suíte completa local contra `next dev` (0 respostas no quadro pausado) e passou isolado: sensível à carga. Tornar a pausa determinística no teste (esperar `data-balls-res` > 0 antes de pausar).
-- (Verifier, iteração 1) Passar os efeitos das faults ativas ao `traceCanvas`: numa run com o Redis derrubado o trace mostra hits e tempos de um cache vivo. Hoje a spec (FLW-36) fixa o trace como "sem faults ativas".
+- ~~(Verifier, iteração 1) Passar os efeitos das faults ativas ao `traceCanvas`.~~ Decidido pelo usuário em 2026-10-05: o trace reflete as faults ativas (FLW-36, FLW-50; tarefas T47–T48).
 - (Verifier, iteração 1) Asserir o estilo visual das setas da aba Flow (tracejado das respostas, ponta aberta das async) e do anel das bolinhas de resposta; exige um atributo de teste no `FlowParticles`/`SequenceDiagram`.
