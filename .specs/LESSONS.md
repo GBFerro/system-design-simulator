@@ -39,8 +39,8 @@ Seen once or not yet corroborated. Tracked, not trusted.
 
 - signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `engine` · harmful: 0
 - features: request-flow
-- evidence: N4 src/engine/core/trace.ts:127 (FLW-36) (engine)
-- last seen: 2026-10-05T16:00:59Z
+- evidence: N4 src/engine/core/trace.ts:127 (FLW-36) (engine) (+1 more)
+- last seen: 2026-10-05T17:13:03Z
 
 ### L-005 - Give every case an acceptance criterion enumerates its own test assertion.
 
@@ -55,6 +55,27 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - features: request-flow
 - evidence: FLW-05 src/lib/flowBalls.ts:396; design.md:162
 - last seen: 2026-10-05T16:00:59Z
+
+### L-007 - Test that a value reaches the screen through every layer that forwards it, not only the function that computes it.
+
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `ui` · harmful: 0
+- features: request-flow
+- evidence: X9 src/components/layout/app-shell.tsx:171 (FLW-05, iteração 3) (ui) (+1 more)
+- last seen: 2026-10-05T17:13:01Z
+
+### L-008 - Assert both sides of a numeric threshold the spec names, just below and just above it.
+
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `ui` · harmful: 0
+- features: request-flow
+- evidence: X10 src/components/panel/FlowPanel.tsx:20 (FLW-36, iteração 3) (ui)
+- last seen: 2026-10-05T17:13:02Z
+
+### L-009 - State the base and direction of a relative change threshold in the acceptance criterion.
+
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · harmful: 0
+- features: request-flow
+- evidence: FLW-36 src/components/panel/FlowPanel.tsx:49 (iteração 3)
+- last seen: 2026-10-05T17:13:03Z
 
 ## Quarantined (failed when applied - ignore)
 

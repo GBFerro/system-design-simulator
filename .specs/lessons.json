@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 7,
+  "next_id": 10,
   "lessons": [
     {
       "id": "L-001",
@@ -57,9 +57,12 @@
       "features": ["request-flow"],
       "recurrence": 1,
       "harmful": 0,
-      "evidence": ["N4 src/engine/core/trace.ts:127 (FLW-36) (engine)"],
+      "evidence": [
+        "N4 src/engine/core/trace.ts:127 (FLW-36) (engine)",
+        "X12 tests/unit/sim-controller.test.ts:176-180 (FLW-36, iteração 3) (engine)"
+      ],
       "created": "2026-10-05T16:00:59Z",
-      "last_seen": "2026-10-05T16:00:59Z"
+      "last_seen": "2026-10-05T17:13:03Z"
     },
     {
       "id": "L-005",
@@ -88,6 +91,51 @@
       "evidence": ["FLW-05 src/lib/flowBalls.ts:396; design.md:162"],
       "created": "2026-10-05T16:00:59Z",
       "last_seen": "2026-10-05T16:00:59Z"
+    },
+    {
+      "id": "L-007",
+      "key": "surviving_mutant::test that a value reaches the screen through every layer that forwards it not only the function that computes it",
+      "text": "Test that a value reaches the screen through every layer that forwards it, not only the function that computes it.",
+      "signal": "surviving_mutant",
+      "scope": "ui",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "X9 src/components/layout/app-shell.tsx:171 (FLW-05, iteração 3) (ui)",
+        "X11/X12 src/components/panel/FlowPanel.tsx:91, src/engine/client.ts:190 (FLW-36, iteração 3) (ui)"
+      ],
+      "created": "2026-10-05T17:13:00Z",
+      "last_seen": "2026-10-05T17:13:01Z"
+    },
+    {
+      "id": "L-008",
+      "key": "surviving_mutant::assert both sides of a numeric threshold the spec names just below and just above it",
+      "text": "Assert both sides of a numeric threshold the spec names, just below and just above it.",
+      "signal": "surviving_mutant",
+      "scope": "ui",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["X10 src/components/panel/FlowPanel.tsx:20 (FLW-36, iteração 3) (ui)"],
+      "created": "2026-10-05T17:13:02Z",
+      "last_seen": "2026-10-05T17:13:02Z"
+    },
+    {
+      "id": "L-009",
+      "key": "spec_precision_gap::state the base and direction of a relative change threshold in the acceptance criterion",
+      "text": "State the base and direction of a relative change threshold in the acceptance criterion.",
+      "signal": "spec_precision_gap",
+      "scope": "",
+      "status": "candidate",
+      "features": ["request-flow"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["FLW-36 src/components/panel/FlowPanel.tsx:49 (iteração 3)"],
+      "created": "2026-10-05T17:13:03Z",
+      "last_seen": "2026-10-05T17:13:03Z"
     }
   ]
 }
