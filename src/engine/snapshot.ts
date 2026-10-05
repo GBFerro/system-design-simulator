@@ -80,13 +80,15 @@ export function extrasOf(
  * `graph` is optional: pass the compiled graph the steady state came from to
  * get the param-based OBS-03 extras (hit ratio, pool usage, replication lag)
  * and its entry's read ratio. `config`: what `analyze()` was given, so
- * `global.readRatio` is the ratio it resolved.
+ * `global.readRatio` is the ratio it resolved. `linkFailure`: the run's
+ * per-edge link failure (`analyzeWithModel`), published as `edgeLinkFailure`.
  */
 export function steadyStateToSnapshot(
   steady: SteadyState,
   t = 0,
   graph?: Pick<SimGraph, "nodes" | "entryIds">,
   config?: SimConfig,
+  linkFailure?: Record<string, number>,
 ): TickSnapshot {
   const nodes: Record<string, NodeRuntimeMetrics> = {};
   const statusById = new Map<string, RuntimeNodeStatus>();
@@ -139,5 +141,6 @@ export function steadyStateToSnapshot(
       availability: steady.availability,
       readRatio,
     },
+    ...(linkFailure ? { edgeLinkFailure: linkFailure } : {}),
   };
 }

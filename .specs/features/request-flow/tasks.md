@@ -1157,15 +1157,16 @@ Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a fa
 
 **Done when**:
 
-- [ ] Com `timeoutMs` 5 no chamador e um banco de 200 ms, `edgeLinkFailure` da aresta chamador → banco ≈ 1 no tick e no Analyze; sem timeout nem perda, 0
-- [ ] Um alvo que falha por conta própria (fault no banco) NÃO aparece em `edgeLinkFailure` da aresta (só na métrica do nó)
-- [ ] O campo é de topo no `TickSnapshot` (não dentro de `edges`), então o golden da T1 passa sem mudar fixture nem teste; nenhum valor existente do `settle` muda
-- [ ] `pushSnapshot` não passa a re-renderizar arestas a cada tick (o campo não entra nos objetos por aresta)
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Com `timeoutMs` 5 no chamador e um banco de 200 ms, `edgeLinkFailure` da aresta chamador → banco ≈ 1 no tick e no Analyze; sem timeout nem perda, 0
+- [x] Um alvo que falha por conta própria (fault no banco) NÃO aparece em `edgeLinkFailure` da aresta (só na métrica do nó)
+- [x] O campo é de topo no `TickSnapshot` (não dentro de `edges`), então o golden da T1 passa sem mudar fixture nem teste; nenhum valor existente do `settle` muda
+- [x] `pushSnapshot` não passa a re-renderizar arestas a cada tick (o campo não entra nos objetos por aresta)
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): snapshot publica a falha do link por aresta`
+**Status**: ✅ Complete
 
 ---
 

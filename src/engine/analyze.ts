@@ -44,7 +44,13 @@ import { sampleNodesFor, settle, type Topology } from "./core/settle";
 import { sanitizeLatencySlo, slowShareOf } from "./core/slo";
 import { drainShares, entryShares, withEffects } from "./core/faultView";
 import type { TickEffects } from "./faults/effects";
-import type { EdgeSteadyState, NodeSteadyState, SimConfig, SteadyState } from "./types";
+import type {
+  AnalyzedGraph,
+  EdgeSteadyState,
+  NodeSteadyState,
+  SimConfig,
+  SteadyState,
+} from "./types";
 import type { NodeStatus } from "@/types/simulation";
 
 export {
@@ -105,17 +111,29 @@ export function analyze(
   return analyzeWithModel(graph, rps, config, effects).steady;
 }
 
+/** `analyze()` plus each edge's link failure (what the Analyze button's snapshot needs). */
+export function analyzeGraphWithLinks(
+  graph: SimGraph,
+  rps: number,
+  config?: SimConfig,
+): AnalyzedGraph {
+  const { steady, linkFailure } = analyzeWithModel(graph, rps, config);
+  return { steady, linkFailure };
+}
+
 /**
  * `analyze()` plus the sampler's model at that steady state (the stations,
  * drops and call plans its percentiles were sampled from), so one request
- * can be traced through the same model (`core/trace.ts`, request-flow).
+ * can be traced through the same model (`core/trace.ts`, request-flow), and
+ * each edge's link failure (`Settled.linkFailure`, the snapshot's
+ * `edgeLinkFailure`), kept out of `steady` so its shape doesn't change.
  */
 export function analyzeWithModel(
   graph: SimGraph,
   rps: number,
   config?: SimConfig,
   effects: TickEffects | null = null,
-): { steady: SteadyState; model: SampleModel } {
+): { steady: SteadyState; model: SampleModel; linkFailure: Record<string, number> } {
   const graphById = new Map(graph.nodes.map((n) => [n.id, n]));
   const cfg = resolveConfig(graph, graphById, config);
   const requestedRps = Number.isFinite(rps) && rps > 0 ? rps : 0;
@@ -345,9 +363,11 @@ export function analyzeWithModel(
     };
   });
 
+  const linkFailure: Record<string, number> = {};
   const edges: EdgeSteadyState[] = graph.edges
     .filter((e) => byId.has(e.source) && byId.has(e.target))
     .map((e) => {
+      linkFailure[e.id] = e.back ? 0 : clamp01(settled.linkFailure.get(e.id) ?? 0);
       const b = pass.base.get(e.id) ?? 0;
       const l = pass.load.get(e.id) ?? 0;
       return {
@@ -407,5 +427,5 @@ export function analyzeWithModel(
     seed: cfg.seed,
     iterations,
   };
-  return { steady, model };
+  return { steady, model, linkFailure };
 }

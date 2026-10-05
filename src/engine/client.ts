@@ -23,6 +23,7 @@ import type { SteadyUnderFault } from "./faults/steady";
 import type { FrameListener, InjectResult, SimFrame } from "./session";
 import { toSimulationResult } from "./toSimulationResult";
 import type {
+  AnalyzedGraph,
   FaultId,
   FaultRecord,
   FaultSpec,
@@ -99,6 +100,27 @@ export async function analyzeGraph(
   return analyze(graph, rps, config);
 }
 
+/**
+ * Steady state of a compiled graph plus each edge's link failure (the Analyze
+ * button's snapshot, request-flow FLW-05) — in the worker when possible.
+ */
+async function analyzeGraphWithLinks(
+  graph: SimGraph,
+  rps: number,
+  config?: SimConfig,
+): Promise<AnalyzedGraph> {
+  const h = getWorker();
+  if (h) {
+    try {
+      return await Promise.race([h.api.analyzeGraphWithLinks(graph, rps, config), h.failed]);
+    } catch (err) {
+      disableWorker(err);
+    }
+  }
+  const { analyzeGraphWithLinks: analyzeWithLinks } = await import("./analyze");
+  return analyzeWithLinks(graph, rps, config);
+}
+
 /** Steady state of a compiled graph under one fault (Spec 09 scoring) — in the worker when possible. */
 export async function analyzeGraphUnderFault(
   graph: SimGraph,
@@ -120,18 +142,24 @@ export async function analyzeGraphUnderFault(
 
 /**
  * Compile the canvas (ReactFlow nodes/edges, text nodes included) and analyze
- * it. Returns the raw steady state, the legacy `SimulationResult` view and the
- * compiled graph (its params feed the OBS-03 extras of the runtime snapshot).
+ * it. Returns the raw steady state, the legacy `SimulationResult` view, the
+ * compiled graph (its params feed the OBS-03 extras of the runtime snapshot)
+ * and each edge's link failure (the snapshot's `edgeLinkFailure`).
  */
 export async function simulateCanvas(
   nodes: readonly unknown[],
   edges: readonly unknown[],
   rps: number,
   config?: SimConfig,
-): Promise<{ steady: SteadyState; result: SimulationResult; graph: SimGraph }> {
+): Promise<{
+  steady: SteadyState;
+  result: SimulationResult;
+  graph: SimGraph;
+  linkFailure: Record<string, number>;
+}> {
   const graph = compileGraph(nodes, edges);
-  const steady = await analyzeGraph(graph, rps, config);
-  return { steady, result: toSimulationResult(steady), graph };
+  const { steady, linkFailure } = await analyzeGraphWithLinks(graph, rps, config);
+  return { steady, result: toSimulationResult(steady), graph, linkFailure };
 }
 
 /** One request through a compiled graph (request-flow) — in the worker when possible. */

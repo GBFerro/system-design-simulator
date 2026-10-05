@@ -193,6 +193,24 @@ describe("runtimeStore structural sharing", () => {
     s().clear();
   });
 
+  it("keeps the edges record when only edgeLinkFailure changes (FLW-05: no edge re-render)", () => {
+    const s = () => useRuntimeStore.getState();
+    s().clear();
+    const at = (t: number, link: number): TickSnapshot => ({
+      ...snap(t, { a: metrics() }),
+      edges: { e1: { rps: 10, status: "ok" } },
+      edgeLinkFailure: { e1: link },
+    });
+    s().pushSnapshot(at(0, 0.1));
+    const first = s().latest!;
+    s().pushSnapshot(at(0.05, 0.4));
+    const second = s().latest!;
+    expect(second.edges).toBe(first.edges);
+    expect(second.edges.e1).toBe(first.edges.e1);
+    expect(second.edgeLinkFailure).toEqual({ e1: 0.4 });
+    s().clear();
+  });
+
   it("treats a changed OBS-03 extra as a change, and a new node as a new record", () => {
     const prev = snap(0, { a: metrics({ extra: { hitRatio: 0.9 } }) });
     const next = shareUnchanged(prev, snap(1, { a: metrics({ extra: { hitRatio: 0.8 } }) }));

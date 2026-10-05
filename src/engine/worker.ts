@@ -5,6 +5,7 @@
  * `SimFrame`); the frame listener is a Comlink `proxy`.
  */
 import { expose } from "comlink";
+import { analyzeGraphWithLinks } from "./analyze";
 import { createEngine } from "./engine";
 import { traceGraph, type TraceOptions } from "./core/trace";
 import { analyzeUnderFault } from "./faults/steady";
@@ -30,6 +31,8 @@ export const workerApi = {
   load: engine.load.bind(engine),
   analyze: engine.analyze.bind(engine),
   analyzeGraph: engine.analyzeGraph.bind(engine),
+  analyzeGraphWithLinks: (graph: SimGraph, rps: number, config?: SimConfig) =>
+    analyzeGraphWithLinks(graph, rps, config),
   analyzeUnderFault: (graph: SimGraph, rps: number, fault: FaultSpec, config?: SimConfig) =>
     analyzeUnderFault(graph, rps, fault, config),
   traceGraph: (graph: SimGraph, options: TraceOptions) => traceGraph(graph, options),

@@ -120,6 +120,15 @@ export interface SteadyState {
   iterations: number;
 }
 
+/**
+ * What the Analyze button gets from the engine: the steady state and each
+ * edge's link failure for the snapshot's `edgeLinkFailure` (request-flow).
+ */
+export interface AnalyzedGraph {
+  steady: SteadyState;
+  linkFailure: Record<string, number>;
+}
+
 /* ---------- Spec 06 (traffic) and Spec 08 (chaos) ---------- */
 
 export type { TrafficPattern, SimSpeed } from "./traffic/types";
@@ -237,6 +246,14 @@ export interface TickSnapshot {
   nodes: Record<string, NodeRuntimeMetrics>;
   edges: Record<string, EdgeRuntimeMetrics>;
   global: GlobalRuntimeMetrics;
+  /**
+   * Per edge id: probability a call fails on the link or by the caller's
+   * timeout, 1 − (1 − packet loss) × (1 − P(timeout)), without the target's
+   * own failure (request-flow FLW-05: the balls fail the call with it). Kept
+   * out of `edges` so a tick doesn't re-render edges for it. Absent in
+   * snapshots built by hand (tests): no call fails on its link.
+   */
+  edgeLinkFailure?: Record<string, number>;
   traces?: RequestTrace[];
 }
 

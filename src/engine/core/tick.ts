@@ -585,9 +585,11 @@ export class TickSimulator {
     }
 
     const edges: Record<string, EdgeRuntimeMetrics> = {};
+    const edgeLinkFailure: Record<string, number> = {};
     for (const e of this.edgesById.values()) {
       const target = nodes[e.target]?.status;
       const f = e.back ? 0 : (settled.failure.get(e.id) ?? 0);
+      edgeLinkFailure[e.id] = e.back ? 0 : (settled.linkFailure.get(e.id) ?? 0);
       edges[e.id] = {
         rps: finite(load.get(e.id) ?? 0),
         status:
@@ -621,6 +623,7 @@ export class TickSimulator {
         availability: entries.length > 0 ? clamp01(mean(settled.avail)) : 0,
         readRatio: topo.readRatio,
       },
+      edgeLinkFailure,
     };
   }
 }

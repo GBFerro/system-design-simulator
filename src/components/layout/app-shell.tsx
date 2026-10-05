@@ -157,7 +157,7 @@ export function AppShell() {
         const [{ simulateCanvas, currentLatencySlo }, { steadyStateToSnapshot }] =
           await Promise.all([import("@/engine/client"), import("@/engine/snapshot")]);
         const latencySlo = currentLatencySlo();
-        const { steady, result, graph } = await simulateCanvas(
+        const { steady, result, graph, linkFailure } = await simulateCanvas(
           nodes,
           edges,
           config.requestsPerSec,
@@ -166,7 +166,9 @@ export function AppShell() {
 
         // Metrics live in runtimeStore (Spec 07), never in node.data.
         useSimulationStore.getState().setResult(result);
-        useRuntimeStore.getState().pushSnapshot(steadyStateToSnapshot(steady, 0, graph));
+        useRuntimeStore
+          .getState()
+          .pushSnapshot(steadyStateToSnapshot(steady, 0, graph, undefined, linkFailure));
         useAppStore.getState().showToast("Analysis complete!", "success");
       } catch (err) {
         console.error("Analysis failed", err);

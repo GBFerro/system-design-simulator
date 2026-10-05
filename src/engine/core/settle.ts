@@ -46,6 +46,13 @@ export interface Settled {
   success: Map<string, number>;
   /** Per edge: probability a single call fails (drop, timeout, loss, downstream failure). */
   failure: Map<string, number>;
+  /**
+   * Per edge: the link's and the caller's share of `failure` only, 1 − (1 −
+   * packet loss) × (1 − P(caller's timeout)), without the target's own
+   * failure (request-flow FLW-05: the balls fail a call with it, then walk
+   * the target's failures themselves).
+   */
+  linkFailure: Map<string, number>;
   /** Per node: composed availability of it and its sync dependencies. */
   avail: Map<string, number>;
 }
@@ -59,6 +66,7 @@ export function settle(
   const { byId, order, out, readRatio } = topo;
   const success = new Map<string, number>();
   const failure = new Map<string, number>();
+  const linkFailure = new Map<string, number>();
   const avail = new Map<string, number>();
   for (let i = order.length - 1; i >= 0; i--) {
     const id = order[i];
@@ -76,8 +84,10 @@ export function settle(
         timeout === undefined
           ? 0
           : probSojournExceeds(target.st, timeout - 2 * e.rule.networkLatencyMs);
-      const ok = (1 - e.rule.packetLoss) * (1 - timedOut) * (success.get(e.target) ?? 1);
+      const linkOk = (1 - e.rule.packetLoss) * (1 - timedOut);
+      const ok = linkOk * (success.get(e.target) ?? 1);
       failure.set(e.id, clamp01(1 - ok));
+      linkFailure.set(e.id, clamp01(1 - linkOk));
     }
 
     const servedFraction = flow.offered > 0 ? flow.served / flow.offered : 1;
@@ -115,7 +125,7 @@ export function settle(
     success.set(id, clamp01(s));
     avail.set(id, clamp01(a));
   }
-  return { success, failure, avail };
+  return { success, failure, linkFailure, avail };
 }
 
 /** Per-node model for `sampleLatency` (user path only). */
