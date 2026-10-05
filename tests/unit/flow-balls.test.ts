@@ -360,6 +360,8 @@ function record(
     keysOn: (edge: string) => new Set(seen.req.get(edge)?.keys() ?? []),
     /** First frame the request's call on `edge` was in flight. */
     first: (edge: string, key: number) => span("req", edge, key)?.[0],
+    /** First frame the response to the request's call on `edge` was on its way back. */
+    firstResponse: (edge: string, key: number) => span("res", edge, key)?.[0],
     /** Last frame anything of the request's call on `edge` (call or response) was in flight. */
     last: (edge: string, key: number) =>
       Math.max(span("req", edge, key)?.[1] ?? -1, span("res", edge, key)?.[1] ?? -1),
@@ -385,6 +387,29 @@ describe("request frames: calls go out, responses come back (request-flow)", () 
       const span = t.last("a-b", key) - t.first("a-b", key)!;
       if (t.first("a-b", key)! < 350) expect(span).toBeGreaterThanOrEqual(38);
     }
+  });
+
+  it("the response leaves the target only after the target's own calls came back (FLW-01)", () => {
+    // a → b → c: b answers a once its call to c has gone out and come back.
+    const topo = buildTopology(
+      [ce("a", "b", [call("always")]), ce("b", "c", [call("always")])],
+      () => "service",
+    );
+    const s = snap({ a: node(60), b: node(60), c: node(60) }, { "a-b": 60, "b-c": 60 });
+    const frames = 600;
+    const t = record(new FlowBalls(mulberry32(31)), s, topo, env, frames);
+    const keys = t.keysOn("b-c");
+    expect(keys.size).toBeGreaterThan(50);
+    let checked = 0;
+    for (const key of keys) {
+      // A round trip a → b → c → b → a takes 80 frames: the early ones are complete.
+      if (t.first("a-b", key)! > frames - 100) continue;
+      const back = t.firstResponse("a-b", key);
+      expect(back).toBeDefined();
+      expect(back!).toBeGreaterThan(t.last("b-c", key)); // after b's call and its response
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(50);
   });
 
   it("an async call gets no response and the caller doesn't wait for it (FLW-03)", () => {

@@ -990,14 +990,15 @@ Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e h�
 
 **Done when**:
 
-- [ ] O teste passa no código atual
-- [ ] O teste falha numa cópia em scratch com M6b (`src/lib/flowBalls.ts`: o alvo responde em `open` antes de `advance`)
-- [ ] Nenhum teste existente alterado ou removido
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] O teste passa no código atual
+- [x] O teste falha numa cópia em scratch com M6b (`src/lib/flowBalls.ts`: o alvo responde em `open` antes de `advance`)
+- [x] Nenhum teste existente alterado ou removido
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(canvas): resposta só sai depois das chamadas do alvo`
+**Status**: ✅ Complete
 
 ---
 
