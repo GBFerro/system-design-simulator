@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: Done (fases 1–7: T1–T31 ✅)
+**Status**: In Progress (fases 1–7: T1–T31 ✅; fase 8, correções da verificação: T32–T37)
 
 ---
 
@@ -95,6 +95,12 @@ T25
 T26 → T27 → T30 → T31
 T26 → T29 → T30
 T28 → T30
+```
+
+### Phase 8: Correções da verificação (iteração 1, só testes)
+
+```
+T32 → T33 → T34 → T35 → T36 → T37
 ```
 
 ---
@@ -965,9 +971,163 @@ T28 → T30
 
 ---
 
+#### Phase 8: Correções da verificação (iteração 1, só testes)
+
+Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e há lacunas menores de teste. O código está correto; faltam testes. Cada tarefa abaixo só escreve testes (nenhuma mudança em `src/`); se uma sonda revelar um defeito real no código, PARE e relate.
+
+### T32: Teste de que a resposta espera as chamadas do alvo
+
+**What**: Com a cadeia `a → b → c`, provar que para cada requisição a primeira bolinha de resposta em `a-b` aparece depois do último quadro (chamada ou resposta) de `b-c` (mata M6b: o alvo responde ao chegar, antes das próprias chamadas).
+**Where**: `tests/unit/flow-balls.test.ts`
+**Depends on**: None
+**Reuses**: helpers `record`, `ce`, `call`, `snap`, `node`, `env` do arquivo; `t.first`/`t.last`
+**Requirement**: FLW-01
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código atual
+- [ ] O teste falha numa cópia em scratch com M6b (`src/lib/flowBalls.ts`: o alvo responde em `open` antes de `advance`)
+- [ ] Nenhum teste existente alterado ou removido
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(canvas): resposta só sai depois das chamadas do alvo`
+
+---
+
+### T33: Teste de que quem chama não espera a chamada async
+
+**What**: Com `c → a`, `a → m` (async) e `a → d` (sync), provar que toda requisição em `c-a` recebe resposta antes de `FRAME_TTL_SEC` e no mesmo tempo que no design sem `a → m` (mata M6a: a chamada async entra em `pending`).
+**Where**: `tests/unit/flow-balls.test.ts`
+**Depends on**: T32
+**Reuses**: os mesmos helpers; `FRAME_TTL_SEC`
+**Requirement**: FLW-03
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código atual
+- [ ] O teste falha numa cópia em scratch com M6a (`src/lib/flowBalls.ts`: remover o `if (async) continue;` de `call`)
+- [ ] Nenhum teste existente alterado ou removido
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(canvas): quem chama segue sem esperar a chamada async`
+
+---
+
+### T34: O trace reproduz o sampler também com chamadas async
+
+**What**: No teste "times come from the sampler", acrescentar `asyncCalls` com `fraction` e `callsPerRequest` fracionário ao modelo e manter `trace.totalMs === sampled.latency.meanMs` com latência amostrada (mata M9: o recorder consome o stream principal).
+**Where**: `tests/unit/engine-trace.test.ts`
+**Depends on**: T33
+**Reuses**: o modelo e os helpers do teste existente (em torno da linha 183)
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código atual
+- [ ] O teste falha numa cópia em scratch com M9 (`src/engine/core/trace.ts`: o recorder usa o `rng` principal do sampler)
+- [ ] Nenhum teste existente alterado ou removido
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): trace reproduz o sampler com chamadas async`
+
+---
+
+### T35: Teste das opções de cache do formulário de chamadas
+
+**What**: Testar `callFormContext` (de `EdgeCallsForm.tsx`): uma aresta async para um cache e uma sync para um nó sem `hitRate` ficam fora de `caches`, e uma sync para um cache entra.
+**Where**: `tests/unit/edge-calls-form.test.ts`
+**Depends on**: T34
+**Reuses**: `callFormContext`, fixtures de `engineFixtures.ts`
+**Requirement**: FLW-08
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Os três casos asseridos pelo valor de `caches`
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(panel): opções de cache do formulário de chamadas`
+
+---
+
+### T36: Teste da parcela de escrita das faults com `callsPerRequest` diferente de 1
+
+**What**: Caso em `engine-chaos.test.ts` com `writes` de `callsPerRequest` 2 e `after_miss` de 1, asserindo `2(1 − r) / (2(1 − r) + r(1 − h))` para a parcela de escrita (cobre o SPEC_DEVIATION da T13).
+**Where**: `tests/unit/engine-chaos.test.ts`
+**Depends on**: T35
+**Reuses**: os helpers e o grafo look-aside do teste em torno da linha 529
+**Requirement**: FLW-16
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste passa no código atual com a fórmula acima, com tolerância 1e-9
+- [ ] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(chaos): parcela de escrita com chamadas por requisição`
+
+---
+
+### T37: E2E usa a constante do limite de chamadas
+
+**What**: Trocar o literal `8` de `editor.spec.ts` (em torno da linha 278) pela importação de `MAX_EDGE_CALLS`.
+**Where**: `tests/e2e/editor.spec.ts`
+**Depends on**: T36
+**Reuses**: `MAX_EDGE_CALLS` de `src/domain/graph/edgeRules.ts`
+**Requirement**: FLW-49
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Nenhum literal 8 ou 20 do limite em `tests/e2e/editor.spec.ts`
+- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(editor): e2e usa MAX_EDGE_CALLS em vez do literal`
+
+---
+
 ## Phase Execution Map
 
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7. As dependências dentro de cada fase estão nos diagramas do Execution Plan; as dependências entre fases apontam sempre para trás.
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8. As dependências dentro de cada fase estão nos diagramas do Execution Plan; as dependências entre fases apontam sempre para trás.
 
 Execução estritamente sequencial dentro de cada fase, na ordem numérica. Gate de build no fim de cada fase (e antes de cada PR: fim das fases 4, 5, 6 e 7).
 
