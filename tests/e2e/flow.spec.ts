@@ -61,13 +61,13 @@ async function referenceFlow(page: Page, scope?: Locator) {
   return panel;
 }
 
-/** "Another request" until the trace shows a cache miss (seeded: same requests every run). */
-async function untilMiss(panel: Locator) {
+/** "Another request" until the trace shows a cache miss (or hit) (seeded: same requests every run). */
+async function untilMiss(panel: Locator, mark: "miss" | "hit" = "miss") {
   await expect(async () => {
-    if ((await panel.locator('[data-mark="miss"]').count()) === 0) {
+    if ((await panel.locator(`[data-mark="${mark}"]`).count()) === 0) {
       await panel.getByRole("button", { name: "Another request" }).click();
     }
-    await expect(panel.locator('[data-mark="miss"]')).toHaveCount(1, { timeout: 1_000 });
+    await expect(panel.locator(`[data-mark="${mark}"]`)).toHaveCount(1, { timeout: 1_000 });
   }).toPass({ timeout: 30_000 });
 }
 
@@ -271,6 +271,74 @@ test("the trace is recomputed only when the load moves past 1.25× either way: n
   expect(await tracesAfter(up)).toBe(1);
   // ÷1.32 from that trace's load crosses it the other way: one more.
   expect(await tracesAfter(ticks(up[0] / 1.32))).toBe(1);
+});
+
+test("the trace follows the run's active faults: the cache killed fails and reads go to the database; healed, back to normal (FLW-36, FLW-50)", async ({
+  page,
+}) => {
+  await open(page, "/?e2e");
+  await page.getByTitle("Load reference solution").click();
+  const cacheNode = page.locator(".react-flow__node").filter({ hasText: CACHE });
+  await expect(cacheNode).toBeVisible();
+  await page.getByRole("tab", { name: "Simulate" }).click();
+  const live = page.getByRole("region", { name: "Live traffic" });
+  await live.getByRole("button", { name: "Play live traffic" }).click();
+  await expect(live.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
+  await page.getByRole("tab", { name: "Flow" }).click();
+  const panel = page.getByTestId("flow-panel");
+  await expect(panel.getByTestId("flow-total")).toBeVisible({ timeout: 20_000 });
+
+  // A read that hits the cache: no call to the database.
+  await untilMiss(panel, "hit");
+  const request = (await panel.getByTestId("flow-request").textContent())!;
+  const cacheCall = arrow(panel, "call", "to", CACHE);
+  const dbCall = arrow(panel, "call", "to", DB);
+  const cacheResponse = arrow(panel, "response", "from", CACHE);
+  const failedMark = panel.locator('[data-mark="miss"]', { hasText: "cache failed" });
+  await expect(dbCall).toHaveCount(0);
+  await expect(cacheResponse).toHaveAttribute(
+    "aria-label",
+    /^Response \d+: Cache \/ Redis → [^(]+$/,
+  );
+
+  // Kill the cache (a fault of the live run, allowed on the read-only tab).
+  await cacheNode.click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Kill node/ }).click();
+  // The same request, traced again: the cache call fails, then the read goes to the database.
+  await expect(failedMark).toHaveCount(1, { timeout: 15_000 });
+  await expect(cacheResponse).toHaveAttribute("aria-label", /\(failed\)$/);
+  await expect(dbCall).toHaveCount(1);
+  expect(Number(await dbCall.getAttribute("data-n"))).toBeGreaterThan(
+    Number(await cacheCall.getAttribute("data-n")),
+  );
+  await expect(panel.getByTestId("flow-request")).toHaveText(request);
+
+  // Ticks go on with the fault active: no new trace ("Another request" is the barrier).
+  const runs = async () => Number(await panel.getAttribute("data-traces"));
+  const simTime = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore.getState().latest!
+          .t,
+    );
+  const before = await runs();
+  const t0 = await simTime();
+  await expect.poll(simTime, { timeout: 15_000 }).toBeGreaterThan(t0 + 2);
+  await panel.getByRole("button", { name: "Another request" }).click();
+  await expect(panel.getByTestId("flow-request")).not.toHaveText(request);
+  expect(await runs()).toBe(before + 1);
+  await expect(failedMark).toHaveCount(1);
+
+  // Heal: the trace runs without the fault again.
+  await cacheNode.click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Restore node/ }).click();
+  await expect(failedMark).toHaveCount(0, { timeout: 15_000 });
+  await expect(cacheResponse).toHaveAttribute(
+    "aria-label",
+    /^Response \d+: Cache \/ Redis → [^(]+$/,
+  );
+  await untilMiss(panel, "hit");
+  await expect(dbCall).toHaveCount(0);
 });
 
 test("a design without an entry point says so instead of a diagram (FLW-40)", async ({ page }) => {

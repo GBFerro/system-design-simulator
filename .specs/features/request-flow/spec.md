@@ -236,7 +236,7 @@ Uma aresta A → B hoje dá a entender que o fluxo começa em A e termina em B. 
 | FLW-39         | P2: Trace de uma requisição     | Execute | Implemented |
 | FLW-40         | P2: Trace de uma requisição     | Execute | Implemented |
 | FLW-41         | P2: Trace de uma requisição     | Execute | Implemented |
-| FLW-50         | P2: Trace de uma requisição     | Tasks   | In Tasks    |
+| FLW-50         | P2: Trace de uma requisição     | Execute | Implemented |
 | FLW-42         | Edge cases                      | Execute | Implemented |
 | FLW-43         | Edge cases                      | Execute | Implemented |
 | FLW-44         | Edge cases                      | Execute | Implemented |

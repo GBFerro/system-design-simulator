@@ -8,6 +8,7 @@ import { NO_ENTRY_WARNING } from "@/engine/constants";
 import { sequenceLayout } from "@/lib/sequenceLayout";
 import { topologySignature } from "@/lib/topology";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
+import { useChaosStore } from "@/store/chaosStore";
 import { setFlowHighlight } from "@/store/flowHighlightStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { SequenceDiagram } from "./SequenceDiagram";
@@ -53,6 +54,17 @@ function useTraceRps(): number | undefined {
   return rps;
 }
 
+/** The run's active faults as a stable key (their ids, sorted): it changes on inject or heal, not on a tick. */
+function useActiveFaultsKey(): string {
+  return useChaosStore((s) =>
+    s.faults
+      .filter((f) => f.active)
+      .map((f) => f.id)
+      .sort()
+      .join(","),
+  );
+}
+
 interface Traced {
   trace: GraphTrace;
   labels: Record<string, string>;
@@ -63,13 +75,15 @@ interface Traced {
 /**
  * The Flow tab (request-flow, FLW-33..41): one read or write request through
  * the design as a sequence diagram. The trace runs in the engine worker
- * (`traceCanvas`, lazy) at the latest snapshot's load, and is recomputed only
- * when the design, the class, the request number or the existence/level of
- * the load change — never on a tick. Read-only: it works on reference tabs.
+ * (`traceCanvas`, lazy) at the latest snapshot's load under the run's active
+ * faults, and is recomputed only when the design, the class, the request
+ * number, the existence/level of the load or the set of active faults
+ * change — never on a tick. Read-only: it works on reference tabs.
  */
 export function FlowPanel() {
   const key = useCanvasStore((s) => designKey(s.nodes, s.edges));
   const rps = useTraceRps();
+  const faultsKey = useActiveFaultsKey();
   const [cls, setCls] = useState<"read" | "write">("read");
   const [index, setIndex] = useState(0);
   const [traced, setTraced] = useState<Traced | null>(null);
@@ -83,12 +97,16 @@ export function FlowPanel() {
     runs.current++;
     section.current?.setAttribute("data-traces", String(runs.current));
     const { nodes, edges } = useCanvasStore.getState();
+    const faults = useChaosStore
+      .getState()
+      .faults.filter((f) => f.active)
+      .map((f) => f.spec);
     const labels: Record<string, string> = {};
     for (const n of nodes) {
       if (n.type !== "text") labels[n.id] = (n.data as ComponentNodeData).label ?? n.id;
     }
     import("@/engine/client")
-      .then(({ traceCanvas }) => traceCanvas(nodes, edges, { rps, cls, index }))
+      .then(({ traceCanvas }) => traceCanvas(nodes, edges, { rps, cls, index, faults }))
       .then((trace) => {
         if (cancelled) return;
         setTraced({ trace, labels, timed: rps !== undefined });
@@ -101,7 +119,7 @@ export function FlowPanel() {
     return () => {
       cancelled = true;
     };
-  }, [key, rps, cls, index]);
+  }, [key, rps, cls, index, faultsKey]);
 
   // The highlight belongs to this tab: leave nothing lit behind.
   useEffect(() => () => setFlowHighlight(null), []);

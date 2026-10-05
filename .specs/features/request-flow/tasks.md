@@ -12,7 +12,7 @@ Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) a
 
 **Spec**: `.specs/features/request-flow/spec.md`
 **Design**: `.specs/features/request-flow/design.md`
-**Status**: In Progress (fases 1–9: T1–T42 ✅; fase 10, rodada 4: T43–T48)
+**Status**: Complete (fases 1–10: T1–T48 ✅)
 
 ---
 
@@ -1426,15 +1426,16 @@ A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, clien
 
 **Done when**:
 
-- [ ] e2e em `flow.spec.ts`: referência do URL Shortener em execução ao vivo; matar o Redis (atalho Kill do nó ou `simActions`); na aba Flow, uma leitura mostra o Redis com falha e a chamada ao NoSQL; curar a fault volta ao trace sem falha
-- [ ] O trace não recalcula a cada tick com faults ativas (mesma garantia do teste de histerese)
-- [ ] Verificado no browser
-- [ ] `CLAUDE.md` (parágrafo do Flow tab e do Request trace) diz que o trace usa as faults ativas
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] e2e em `flow.spec.ts`: referência do URL Shortener em execução ao vivo; matar o Redis (atalho Kill do nó ou `simActions`); na aba Flow, uma leitura mostra o Redis com falha e a chamada ao NoSQL; curar a fault volta ao trace sem falha
+- [x] O trace não recalcula a cada tick com faults ativas (mesma garantia do teste de histerese)
+- [x] Verificado no browser
+- [x] `CLAUDE.md` (parágrafo do Flow tab e do Request trace) diz que o trace usa as faults ativas
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(panel): aba Flow reflete as faults ativas da execução`
+**Status**: ✅ Complete
 
 ---
 
