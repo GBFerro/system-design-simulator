@@ -203,6 +203,41 @@ describe("traceRequest: one request through the sampler's model", () => {
       expect(calls[1].t0).toBeGreaterThan(calls[0].t1 - 1e-9);
     }
   });
+
+  it("with async calls (fraction, fractional calls per request) the total is still the sampled latency (FLW-36)", () => {
+    // The async calls' conditions and counts draw from the recorder's own
+    // stream: they fire before the sync calls of their step and must not
+    // shift the sampler's draws (the request without a recorder ignores them).
+    const timed = (steps: SampleCall[][] = [], extra: Partial<SampleNode> = {}) =>
+      node(steps, { latencyShare: 1, ...extra });
+    const m = model({
+      b: timed([[to("b", "c", 4, 1)], [to("b", "d", 6, 2)]], {
+        asyncCalls: [
+          to("b", "mon", 2, 1, "fraction", { fraction: 0.5, callsPerRequest: 1.5 }),
+          to("b", "q", 2, 2, "always", { callsPerRequest: 0.7 }),
+        ],
+      }),
+      c: timed(),
+      d: timed([[to("d", "e", 2, 1)]], {
+        asyncCalls: [to("d", "q", 2, 1, "fraction", { fraction: 0.6, callsPerRequest: 2.5 })],
+      }),
+      e: timed(),
+      mon: timed(),
+      q: timed([], { kind: "queue" }),
+    });
+    let asyncEvents = 0;
+    for (const index of [0, 1, 2, 3, 4, 5, 6, 7]) {
+      const trace = traceRequest(m, 11, index, "read");
+      expect(trace).toEqual(traceRequest(m, 11, index, "read")); // still deterministic
+      const sampled = sampleLatency({ ...m, readRatio: 1 }, 1, mulberry32(requestSeed(11, index)));
+      expect(trace.ok).toBe(true);
+      expect(trace.totalMs).toBe(sampled.latency.meanMs);
+      const calls = trace.events.filter((e) => e.type === "call");
+      expect(calls.map((e) => e.edgeId)).toEqual(["b-c", "b-d", "d-e"]);
+      asyncEvents += trace.events.filter((e) => e.type === "async").length;
+    }
+    expect(asyncEvents).toBeGreaterThan(0); // the async calls are made
+  });
 });
 
 /** A seeded PRNG that counts its draws. */

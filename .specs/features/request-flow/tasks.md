@@ -1044,14 +1044,15 @@ Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e h�
 
 **Done when**:
 
-- [ ] O teste passa no código atual
-- [ ] O teste falha numa cópia em scratch com M9 (`src/engine/core/trace.ts`: o recorder usa o `rng` principal do sampler)
-- [ ] Nenhum teste existente alterado ou removido
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] O teste passa no código atual
+- [x] O teste falha numa cópia em scratch com M9 (`src/engine/core/trace.ts`: o recorder usa o `rng` principal do sampler)
+- [x] Nenhum teste existente alterado ou removido
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): trace reproduz o sampler com chamadas async`
+**Status**: ✅ Complete
 
 ---
 
