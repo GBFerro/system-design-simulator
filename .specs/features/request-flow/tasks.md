@@ -1071,12 +1071,13 @@ Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e h�
 
 **Done when**:
 
-- [ ] Os três casos asseridos pelo valor de `caches`
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Os três casos asseridos pelo valor de `caches`
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(panel): opções de cache do formulário de chamadas`
+**Status**: ✅ Complete
 
 ---
 
