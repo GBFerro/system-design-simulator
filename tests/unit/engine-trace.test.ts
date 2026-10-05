@@ -1,6 +1,8 @@
+import type { Edge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
-import type { EdgeCallKind } from "@/domain/components/types";
+import type { EdgeCall, EdgeCallKind } from "@/domain/components/types";
 import { compileGraph } from "@/domain/graph/compile";
+import { analyzeWithModel } from "@/engine/analyze";
 import { station } from "@/engine/core/queueing";
 import { mulberry32, type Rng } from "@/engine/core/rng";
 import {
@@ -10,7 +12,8 @@ import {
   type SampleModel,
   type SampleNode,
 } from "@/engine/core/sampler";
-import { requestSeed, traceGraph, traceRequest } from "@/engine/core/trace";
+import { requestSeed, traceGraph, traceRequest, type GraphTrace } from "@/engine/core/trace";
+import type { FaultSpec } from "@/engine/faults/types";
 import type { TraceEvent } from "@/engine/types";
 import { comp, wire } from "./engineFixtures";
 
@@ -394,5 +397,113 @@ describe("traceGraph: the trace at the requested load (FLW-36)", () => {
     // Without a load (no snapshot) the trace runs at 1 req/s.
     expect(meanTotal(undefined)).toBe(idle);
     expect(meanTotal(95)).toBeGreaterThan(idle * 2);
+  });
+});
+
+describe("traceGraph: the run's active faults (FLW-36, FLW-50)", () => {
+  // client → app → redis (reads); app → db (writes + reads after a miss in redis): look-aside.
+  const callEdge = (source: string, target: string, calls: EdgeCall[]): Edge => ({
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    data: { protocol: "http", async: false, rule: { calls, networkLatencyMs: 1, packetLoss: 0 } },
+  });
+  const graph = compileGraph(
+    [
+      comp("client", "client"),
+      comp("app", "app-server", { instances: 4 }),
+      comp("redis", "cache", { hitRate: 0.9 }),
+      comp("db", "sql-db", { instances: 4 }),
+    ],
+    [
+      wire("client", "app"),
+      callEdge("app", "redis", [{ kind: "reads", callsPerRequest: 1 }]),
+      callEdge("app", "db", [
+        { kind: "writes", callsPerRequest: 1 },
+        { kind: "after_miss", missOf: "redis", callsPerRequest: 1 },
+      ]),
+    ],
+  );
+  const killRedis: FaultSpec = { type: "kill-node", target: { kind: "node", id: "redis" } };
+  const read = (index: number, faults?: FaultSpec[]) =>
+    traceGraph(graph, { rps: 100, cls: "read", index, faults });
+  const calls = (t: GraphTrace, to: string) =>
+    t.events.filter(
+      (e): e is Extract<TraceEvent, { type: "call" }> => e.type === "call" && e.to === to,
+    );
+  const cacheOf = (t: GraphTrace) => t.events.find((e) => e.type === "cache");
+  const pos = (t: GraphTrace, e: TraceEvent | undefined) => t.events.indexOf(e!);
+  // A request that hits the cache in the healthy design (seeded: always the same one).
+  const hitIndex = Array.from({ length: 20 }, (_, i) => i).find((i) => {
+    const c = cacheOf(read(i));
+    return c?.type === "cache" && c.hit;
+  })!;
+
+  it("with the cache down, a read that hit it calls it, fails, and then reads the database (FLW-50)", () => {
+    expect(hitIndex).toBeDefined();
+    const healthy = read(hitIndex);
+    expect(calls(healthy, "redis")).toHaveLength(1);
+    expect(calls(healthy, "redis")[0].ok).toBe(true);
+    expect(calls(healthy, "db")).toHaveLength(0);
+
+    const down = read(hitIndex, [killRedis]);
+    const [redisCall] = calls(down, "redis");
+    expect(calls(down, "redis")).toHaveLength(1);
+    expect(redisCall.ok).toBe(false);
+    expect(cacheOf(down)).toEqual({ type: "cache", nodeId: "redis", hit: false, viaFailure: true });
+    const [dbCall] = calls(down, "db");
+    expect(calls(down, "db")).toHaveLength(1);
+    expect(dbCall.ok).toBe(true);
+    expect(dbCall.t0).toBeGreaterThanOrEqual(redisCall.t1);
+    expect(pos(down, dbCall)).toBeGreaterThan(pos(down, redisCall));
+    // The cache call is absorbed: the request still succeeds.
+    expect(down.ok).toBe(true);
+  });
+
+  it("composes every active fault, read where all of them still hold", () => {
+    const slowDb: FaultSpec = {
+      type: "slow-node",
+      target: { kind: "node", id: "db" },
+      intensity: 20,
+      durationSec: 600,
+    };
+    // The kill ends first (30 s): the faults are read before it heals.
+    const both = read(hitIndex, [{ ...killRedis, durationSec: 30 }, slowDb]);
+    const onlyKill = read(hitIndex, [{ ...killRedis, durationSec: 30 }]);
+    expect(calls(both, "redis")[0].ok).toBe(false);
+    const dbMs = (t: GraphTrace) => calls(t, "db")[0].t1 - calls(t, "db")[0].t0;
+    expect(dbMs(both)).toBeGreaterThan(dbMs(onlyKill) * 5);
+  });
+
+  it("a fault that doesn't compile is left out with a warning; the trace and the other faults still run", () => {
+    const ghost: FaultSpec = { type: "kill-node", target: { kind: "node", id: "gone" } };
+    const withGhost = read(hitIndex, [ghost]);
+    const healthy = read(hitIndex);
+    expect(withGhost.warnings).toEqual([
+      ...healthy.warnings,
+      expect.stringMatching(/^Fault left out of the trace: Kill node: /),
+    ]);
+    expect({ ...withGhost, warnings: [] }).toEqual({ ...healthy, warnings: [] });
+    // The other faults still apply.
+    const ghostFirst = read(hitIndex, [ghost, killRedis]);
+    expect(ghostFirst.warnings).toHaveLength(healthy.warnings.length + 1);
+    expect({ ...ghostFirst, warnings: [] }).toEqual({
+      ...read(hitIndex, [killRedis]),
+      warnings: [],
+    });
+    expect(calls(ghostFirst, "redis")[0].ok).toBe(false);
+  });
+
+  it("without faults (or an empty list) the trace is the healthy design's, as before", () => {
+    for (const index of [0, hitIndex, 7]) {
+      const plain = read(index);
+      expect(read(index, [])).toEqual(plain);
+      // Before the faults: analyze at the load, then the request through its model.
+      const { steady, model } = analyzeWithModel(graph, 100);
+      expect(plain).toEqual({
+        ...traceRequest(model, steady.seed, index, "read"),
+        warnings: steady.warnings,
+      });
+    }
   });
 });

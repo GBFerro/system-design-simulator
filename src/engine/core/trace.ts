@@ -9,8 +9,12 @@
  * request" is just the next index.
  */
 import type { SimGraph } from "@/domain/graph/compile";
-import { analyzeWithModel } from "../analyze";
+import { analyzeWithModel, resolveConfig } from "../analyze";
 import { NO_ENTRY_WARNING } from "../constants";
+import { compileFault } from "../faults/compile";
+import { effectsAt, type TickEffects } from "../faults/effects";
+import { DEFAULT_STEADY_FAULT_SEC } from "../faults/steady";
+import type { CompiledModifier, FaultSpec } from "../faults/types";
 import type { RequestTrace, SimConfig, TraceEvent } from "../types";
 import { mulberry32, type Rng } from "./rng";
 import { sampleLatency, type Recorder, type SampleModel, type TracedCall } from "./sampler";
@@ -112,29 +116,66 @@ export interface TraceOptions {
   cls: "read" | "write";
   /** Request number in the sequence ("Another request" = the next one). */
   index: number;
+  /** The live run's active faults (FLW-50), applied in their steady state; none = the healthy design. */
+  faults?: readonly FaultSpec[];
 }
 
 /** A trace plus the warnings of the design it ran on. */
 export type GraphTrace = RequestTrace & { warnings: string[] };
 
 /**
- * One request through a compiled graph: `analyze()` at the given load, then
- * `traceRequest` on its sampler model with the run's seed. Without an entry
- * there's nothing to trace: no events and `NO_ENTRY_WARNING`.
+ * The faults' effects together, as `analyzeUnderFault` reads one
+ * (`faults/steady.ts`): each compiled at t = 0, all read just before the
+ * shortest window ends, so every one of them still holds, past the
+ * transients a live run shows first. A fault that doesn't compile (its
+ * target left the design) is left out with a warning. No faults → null.
+ */
+function faultEffects(
+  graph: SimGraph,
+  faults: readonly FaultSpec[],
+  config?: SimConfig,
+): { effects: TickEffects | null; warnings: string[] } {
+  if (faults.length === 0) return { effects: null, warnings: [] };
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const { readRatio } = resolveConfig(graph, byId, config);
+  const modifiers: CompiledModifier[] = [];
+  const warnings: string[] = [];
+  let end = Infinity;
+  for (const fault of faults) {
+    const compiled = compileFault(fault, 0, { graph, readRatio });
+    if (!compiled.ok) {
+      warnings.push(`Fault left out of the trace: ${compiled.error}`);
+      continue;
+    }
+    modifiers.push(...compiled.modifiers);
+    end = Math.min(end, compiled.endT ?? fault.durationSec ?? DEFAULT_STEADY_FAULT_SEC);
+  }
+  if (modifiers.length === 0) return { effects: null, warnings };
+  // Just before the end: modifiers are active while t < endT.
+  return { effects: effectsAt(modifiers, Math.max(0, end - 1e-3)), warnings };
+}
+
+/**
+ * One request through a compiled graph: `analyze()` at the given load (under
+ * the given faults), then `traceRequest` on its sampler model with the run's
+ * seed. Without an entry there's nothing to trace: no events and
+ * `NO_ENTRY_WARNING`.
  */
 export function traceGraph(graph: SimGraph, options: TraceOptions): GraphTrace {
   const rps =
     options.rps !== undefined && Number.isFinite(options.rps) && options.rps > 0 ? options.rps : 1;
-  const { steady, model } = analyzeWithModel(graph, rps, options.config);
+  const faults = faultEffects(graph, options.faults ?? [], options.config);
+  const { steady, model } = analyzeWithModel(graph, rps, options.config, faults.effects);
+  const warnings = [...steady.warnings, ...faults.warnings];
   if (model.entries.length === 0) {
     return {
       cls: options.cls,
       ok: false,
       totalMs: 0,
       events: [],
-      warnings: [...steady.warnings, NO_ENTRY_WARNING],
+      warnings: [...warnings, NO_ENTRY_WARNING],
     };
   }
   const trace = traceRequest(model, steady.seed, options.index, options.cls);
-  return { ...trace, warnings: steady.warnings };
+  return { ...trace, warnings };
 }

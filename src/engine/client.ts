@@ -179,8 +179,9 @@ export async function traceGraph(graph: SimGraph, options: TraceOptions): Promis
 /**
  * Compile the canvas and trace one request through it (the Flow tab,
  * request-flow): `analyze()` at `options.rps` (the latest snapshot's offered
- * load; 1 req/s without one), then request `options.index` of the sequence
- * as a read or a write. No entry → no events and a warning.
+ * load; 1 req/s without one) under `options.faults` (the live run's active
+ * faults, plain data for the worker), then request `options.index` of the
+ * sequence as a read or a write. No entry → no events and a warning.
  */
 export async function traceCanvas(
   nodes: readonly unknown[],

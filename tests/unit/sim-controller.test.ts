@@ -173,6 +173,25 @@ describe("traceCanvas (in-thread fallback)", () => {
     expect(dbCall(hit)).toBe(-1);
   });
 
+  it("carries the run's faults to the trace: with the cache killed, reads go to the database (FLW-50)", async () => {
+    const options = { cls: "read" as const, index: 0 };
+    const healthy = await traceCanvas(reference.nodes, reference.edges, options);
+    const down = await traceCanvas(reference.nodes, reference.edges, {
+      ...options,
+      faults: [{ type: "kill-node", target: { kind: "node", id: cache } }],
+    });
+    const dbCalls = (t: typeof down) =>
+      t.events.filter((e) => e.type === "call" && e.from === app && e.to === db);
+    expect(healthy.events).toContainEqual(
+      expect.objectContaining({ type: "cache", nodeId: cache, hit: true }),
+    );
+    expect(dbCalls(healthy)).toHaveLength(0);
+    expect(down.events).toContainEqual(
+      expect.objectContaining({ type: "call", from: app, to: cache, ok: false }),
+    );
+    expect(dbCalls(down)).toHaveLength(1);
+  });
+
   it("without a snapshot's load the trace runs at 1 req/s", async () => {
     const options = { cls: "write" as const, index: 0 };
     expect(await traceCanvas(reference.nodes, reference.edges, options)).toEqual(

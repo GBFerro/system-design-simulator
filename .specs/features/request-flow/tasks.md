@@ -1400,13 +1400,14 @@ A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, clien
 
 **Done when**:
 
-- [ ] Teste em `engine-trace.test.ts`: Client → App → Redis (`reads`) e App → DB (`writes` + `after_miss` Redis); com a fault `kill-node` no Redis, o trace de uma leitura mostra a chamada ao Redis com falha (`ok: false` ou `cache` com `viaFailure`) e depois a chamada ao DB; sem a fault, um índice com hit não chama o DB
-- [ ] Sem `faults` (ou lista vazia), o trace é deep-equal ao de antes; golden da T1 intocado
-- [ ] Gate check passes: `npm run typecheck && npm test`
+- [x] Teste em `engine-trace.test.ts`: Client → App → Redis (`reads`) e App → DB (`writes` + `after_miss` Redis); com a fault `kill-node` no Redis, o trace de uma leitura mostra a chamada ao Redis com falha (`ok: false` ou `cache` com `viaFailure`) e depois a chamada ao DB; sem a fault, um índice com hit não chama o DB
+- [x] Sem `faults` (ou lista vazia), o trace é deep-equal ao de antes; golden da T1 intocado
+- [x] Gate check passes: `npm run typecheck && npm test`
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): trace aplica as faults ativas da execução`
+**Status**: ✅ Complete
 
 ---
 
