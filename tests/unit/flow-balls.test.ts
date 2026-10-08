@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { EdgeCall, RoutingKind } from "@/domain/components/types";
 import { mulberry32 } from "@/engine/core/rng";
 import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
+import { DEFAULT_READ_RATIO } from "@/engine/core/routing";
 import {
   BALL_SPEED,
+  FALLBACK_READ_RATIO,
   FRAME_TTL_SEC,
   FlowBalls,
   MAX_BALLS,
@@ -16,6 +18,10 @@ import {
 } from "@/lib/flowBalls";
 
 // OBS-04: balls are requests walking the graph; one ball = `quantum` req/s.
+
+it("the balls' read-ratio fallback is the engine's default (a copy, to keep the engine out of the initial bundle)", () => {
+  expect(FALLBACK_READ_RATIO).toBe(DEFAULT_READ_RATIO);
+});
 
 const LEN = BALL_SPEED; // every edge takes 1 s to cross
 const env: FlowEnv = { lengthOf: () => LEN };

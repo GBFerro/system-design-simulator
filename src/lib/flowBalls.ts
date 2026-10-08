@@ -73,7 +73,7 @@ export const FRAME_TTL_SEC = 20;
  * default (`DEFAULT_READ_RATIO`, engine/core/routing.ts), not imported so the
  * engine stays out of the initial bundle.
  */
-const FALLBACK_READ_RATIO = 0.9;
+export const FALLBACK_READ_RATIO = 0.9;
 
 export interface TopoEdge {
   id: string;
