@@ -3,6 +3,7 @@ import { INTERVIEW_DATA } from "@/data/interviewData";
 import { LEARNING_PATH, PROBLEM_CONCEPTS } from "@/data/learningPath";
 import { PROBLEMS } from "@/data/problems";
 import { SYSTEM_COMPONENTS } from "@/data/components";
+import { getParamSpec, PARAM } from "@/domain/components/registry";
 import { compileGraph } from "@/domain/graph/compile";
 import { getFaultType } from "@/engine/faults/catalog";
 import { compileFault } from "@/engine/faults/compile";
@@ -12,6 +13,8 @@ import { analyze } from "@/engine/analyze";
 import { estimateCost } from "@/cost/estimate";
 import { budgetFraction, latencySloOf, problemSlo } from "@/slo/slo";
 import { AVAILABILITY_RANGE } from "@/slo/types";
+import type { CustomEdgeData } from "@/store/canvasStore";
+import type { Problem } from "@/types/problem";
 
 // Ids, duplicates and learning-path coverage are in catalog.test.ts; this file
 // checks the "Data conventions" of CLAUDE.md that are about order and wiring.
@@ -55,6 +58,82 @@ describe("reference solutions", () => {
       );
       expect(hasEntry, `${id}: no entry node, nothing on the request path is reachable`).toBe(true);
     }
+  });
+});
+
+describe("reference call lists (request-flow)", () => {
+  /** A synthetic problem whose reference is App → Redis (reads) and App → SQL DB (look-aside). */
+  function lookAsideProblem(missOf: string): Problem {
+    return {
+      ...PROBLEMS[0],
+      referenceSolution: {
+        nodes: [
+          { componentId: "client", x: 0, y: 0 },
+          { componentId: "app-server", x: 200, y: 0 },
+          { componentId: "cache", x: 400, y: -100 },
+          { componentId: "sql-db", x: 400, y: 100 },
+        ],
+        edges: [
+          { source: "client", target: "app-server" },
+          { source: "app-server", target: "cache", rule: { calls: [{ kind: "reads" }] } },
+          {
+            source: "app-server",
+            target: "sql-db",
+            rule: { calls: [{ kind: "writes" }, { kind: "after_miss", missOf }] },
+          },
+        ],
+      },
+    };
+  }
+
+  const dbCalls = (g: ReturnType<typeof buildReferenceGraph>) => {
+    const db = g.nodes.find((n) => n.data.componentId === "sql-db")!;
+    return (g.edges.find((e) => e.target === db.id)!.data as CustomEdgeData).rule!.calls;
+  };
+
+  it("a reference's missOf names a component; the loader points it at that node", () => {
+    const g = buildReferenceGraph(lookAsideProblem("cache"));
+    const cache = g.nodes.find((n) => n.data.componentId === "cache")!;
+    expect(dbCalls(g)).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: cache.id, callsPerRequest: 1 },
+    ]);
+    expect(
+      (g.edges.find((e) => e.target === cache.id)!.data as CustomEdgeData).rule!.calls,
+    ).toEqual([{ kind: "reads", callsPerRequest: 1 }]);
+    expect(compileGraph(g.nodes, g.edges).warnings).toEqual([]);
+  });
+
+  it("references cache look-aside: only a CDN reads through to its origin (FLW-21)", () => {
+    const readThrough = new Set(["cdn", "origin-shield"]);
+    for (const p of PROBLEMS) {
+      const { edges } = p.referenceSolution;
+      for (const e of edges) {
+        if (!getParamSpec(e.source, PARAM.hitRate)) continue;
+        expect(readThrough.has(e.source), `${p.id}: ${e.source} → ${e.target}`).toBe(true);
+      }
+      // Each look-aside call follows a call to the cache it names, earlier in the list
+      edges.forEach((e, i) => {
+        if (!e.rule || !("calls" in e.rule)) return;
+        for (const c of e.rule.calls) {
+          if (c.kind !== "after_miss") continue;
+          const cacheCall = edges.findIndex(
+            (x) => x.source === e.source && x.target === c.missOf && !x.async,
+          );
+          expect(cacheCall, `${p.id}: ${e.source} → ${e.target}`).toBeGreaterThanOrEqual(0);
+          expect(cacheCall, `${p.id}: ${e.source} → ${e.target}`).toBeLessThan(i);
+        }
+      });
+    }
+  });
+
+  it("a missOf naming no component of the reference is dropped, and the compiler warns", () => {
+    const g = buildReferenceGraph(lookAsideProblem("memcached"));
+    expect(dbCalls(g)).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", callsPerRequest: 1 },
+    ]);
+    expect(compileGraph(g.nodes, g.edges).warnings.join(" ")).toMatch(/names no cache call/);
   });
 });
 

@@ -150,7 +150,7 @@ describe("mitigations (CHS-06)", () => {
     const after = applyDiff(g, fixOf(stopped, "dlq")!.preview(g));
     const dlq = ofType(after, "dlq")!;
     const edge = after.edges.find((e) => e.source === "q" && e.target === dlq.id)!;
-    expect(edgeRuleOf(after, edge).kind).toBe("fraction");
+    expect(edgeRuleOf(after, edge).calls.map((c) => c.kind)).toEqual(["fraction"]);
     // With one already there, no fix.
     expect(fixOf(stopped, "dlq", after)).toBeUndefined();
   });

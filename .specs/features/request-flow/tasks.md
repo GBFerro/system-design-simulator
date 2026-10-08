@@ -1,0 +1,1556 @@
+# Fluxo da requisição — Tasks
+
+## Execution Protocol (MANDATORY -- do not skip)
+
+Implement these tasks with the `tlc-spec-driven` skill: **activate it by name and follow its Execute flow and Critical Rules.** Do not search for skill files by filesystem path. The skill is the source of truth for the full flow (per-task cycle, sub-agent delegation, adequacy review, Verifier, discrimination sensor).
+
+**If the skill cannot be activated, STOP and tell the user - do not proceed without it.**
+
+Regras do repositório que valem em toda tarefa: ler `CLAUDE.md` (invariantes) antes de mexer numa área; commits em Conventional Commits **sem** trailer de co-autoria ou atribuição a IA (`CLAUDE.md`, Conventions); nada de arquivo temporário dentro do repo; `git push` e PR só com autorização explícita.
+
+---
+
+**Spec**: `.specs/features/request-flow/spec.md`
+**Design**: `.specs/features/request-flow/design.md`
+**Status**: Done (fases 1–10: T1–T48 ✅; verificada na rodada 4, PASS)
+
+---
+
+## Test Coverage Matrix
+
+> Generated from codebase, project guidelines, and spec - confirm before Execute. Guidelines found: `CLAUDE.md` (Commands; "Unit tests cover pure logic … editor behavior goes in Playwright"), `AGENTS.md`, `vitest.config.*`, `playwright.config.*`, `.github/workflows/ci.yml` (lint, format:check, typecheck, test, build, bundle:check, test:e2e).
+
+| Code Layer                                                                                                | Required Test Type | Coverage Expectation                                                                                                                  | Location Pattern                                                | Run Command        |
+| --------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------ |
+| Domínio puro (`domain/graph`, `engine/core`, `engine/analyze`, `engine/faults`, `advisor/`, `lib/` puros) | unit               | Todos os ramos; 1:1 com os ACs FLW; todo edge case listado tem teste; invariantes da Spec 04 (finito, served ≤ offered, determinismo) | `tests/unit/*.test.ts`                                          | `npm test`         |
+| Persistência, migrações e stores (`domain/persistence`, `store/`)                                         | unit               | Cada caminho de versão (v1, v2, v3 → v3), idempotência, round-trip export/import, ações em aba somente leitura e undo                 | `tests/unit/persistence.*.test.ts`, `tests/unit/editor.test.ts` | `npm test`         |
+| Dados (`data/problems.ts`, referências)                                                                   | unit               | `data.test.ts`, `scoring.test.ts`, `advisor.test.ts`, `engine-references.test.ts` passam; regra nova "nenhuma aresta cache → banco"   | `tests/unit/data.test.ts`                                       | `npm test`         |
+| UI (`components/panel`, `components/canvas`)                                                              | e2e                | Fluxo feliz + edge cases da spec + caminho de erro de cada tela tocada; snapshots sintéticos via `window.__runtimeStore`              | `tests/e2e/*.spec.ts` (helpers de `helpers.ts`)                 | `npm run test:e2e` |
+| Documentação (`CLAUDE.md` architecture map)                                                               | unit               | `claude-map.test.ts` passa (todo arquivo de `lib/`, `hooks/`, `store/` no mapa)                                                       | `tests/unit/claude-map.test.ts`                                 | `npm test`         |
+| Tipos puros                                                                                               | none               | - (build gate only)                                                                                                                   | -                                                               | build gate only    |
+
+## Gate Check Commands
+
+> Generated from codebase - confirm before Execute.
+
+| Gate Level | When to Use                                                                            | Command                                                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Quick      | Tarefas só com testes unitários (vitest não checa tipos, então o typecheck entra aqui) | `npm run typecheck && npm test`                                                                                                      |
+| Full       | Tarefas com e2e                                                                        | `npm run typecheck && npm test && npm run test:e2e` (com `npm run dev` aberto: `E2E_PORT=3000 npm run test:e2e`)                     |
+| Build      | Fim de fase / antes de PR                                                              | `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` |
+
+---
+
+## Execution Plan
+
+Phases are ordered and run sequentially - each phase completes before the next begins, and tasks within a phase execute in order. As fases 1 a 4 formam o PR 1 do design, a fase 5 o PR 2, a fase 6 o PR 3 e a fase 7 o PR 4.
+
+### Phase 1: Fundação (aditiva, nada muda de comportamento)
+
+```
+T1
+T2 → T3
+```
+
+### Phase 2: Troca do formato da aresta
+
+```
+T4 → T5
+T4 → T6
+```
+
+### Phase 3: Motor
+
+```
+T7 → T8 → T10 → T11
+T7 → T9 → T10
+T7 → T12
+T7 → T13
+```
+
+### Phase 4: Editor
+
+```
+T14 → T15
+T14 → T16
+```
+
+### Phase 5: Referências, advisor e docs
+
+```
+T17 → T18 → T21
+T19 → T20 → T21
+```
+
+### Phase 6: Bolinhas e badges no canvas
+
+```
+T22 → T23 → T24
+T25
+```
+
+### Phase 7: Trace (aba Flow)
+
+```
+T26 → T27 → T30 → T31
+T26 → T29 → T30
+T28 → T30
+```
+
+### Phase 8: Correções da verificação (iteração 1, só testes)
+
+```
+T32 → T33 → T34 → T35 → T36 → T37
+```
+
+### Phase 9: Correções da verificação (iteração 2)
+
+```
+T38 → T39
+T40 → T41 → T42
+```
+
+### Phase 10: Rodada 4 (cola sem teste e trace com faults ativas)
+
+```
+T43 → T44 → T45 → T46 → T47 → T48
+```
+
+---
+
+## Task Breakdown
+
+#### Phase 1: Fundação
+
+### T1: Golden do motor antes da mudança
+
+**What**: Teste que grava (com `UPDATE_GOLDEN=1`) e depois compara deep-equal o `analyze()` e 50 ticks do `TickSimulator` das 35 referências atuais e de 4 designs sintéticos (retries + timeout, `fraction`, read replica, cache read-through), guardando também o grafo de entrada v2 no fixture.
+**Where**: `tests/unit/engine-golden.test.ts` (o fixture gerado fica em `tests/unit/fixtures/`)
+**Depends on**: None
+**Reuses**: `buildReferenceGraph`, `compileGraph`, `analyze`, `TickSimulator`, padrão de `engine-references.test.ts`
+**Requirement**: FLW-32
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O fixture guarda grafos de entrada v2 congelados (as referências vão mudar na T20) e os resultados; o tamanho fica abaixo de 1 MB (um hash por design é aceito, com o resultado completo para os 4 sintéticos)
+- [x] O teste passa na árvore atual e falha se um número do `analyze()` mudar
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos (sem remoções)
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): golden de analyze e tick antes do modelo de chamadas`
+**Status**: ✅ Complete
+
+---
+
+### T2: Tipos de chamada, limites e conversão v2 → v3
+
+**What**: Adicionar `EdgeCallKind`, `EdgeCall`, `EdgeRuleV3` e as constantes `MAX_EDGE_CALLS = 8` / `MAX_CALL_STEP = 20`, mais `sanitizeEdgeCalls(raw, fallback, onWarning?)` e `migrateEdgeRuleV2toV3(raw)` puros, sem trocar ainda o `EdgeRule` em uso.
+**Where**: `src/domain/graph/edgeRules.ts`
+**Depends on**: None
+**Reuses**: `clamp`, `RULE_KINDS`, `sanitizeEdgeRule`
+**Requirement**: FLW-17, FLW-19, FLW-44, FLW-45, FLW-49
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Tipos em `src/domain/components/types.ts`, constantes exportadas só de `edgeRules.ts`
+- [x] `migrateEdgeRuleV2toV3` converte o formato achatado em `{ calls: [uma chamada], networkLatencyMs, packetLoss }`, mantém `on_miss`, é idempotente e nunca lança
+- [x] Sanitização: mais de `MAX_EDGE_CALLS` → corta e avisa; passo fora de 1..`MAX_CALL_STEP` → limita e avisa; condição desconhecida → `always` e avisa; lista vazia → fallback
+- [x] Testes em `edgeRules.test.ts` importam as constantes (nenhum 8 ou 20 literal)
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(graph): tipos de chamada por aresta e conversão de regra v2 para v3`
+**Status**: ✅ Complete
+
+---
+
+### T3: `callPlan`: ordem e dependências das chamadas
+
+**What**: Módulo puro `planFor(sourceId, outEdges, targetHasHitRate)` que devolve `CallPlan` (passos, async, `absorbed`, avisos) com as regras 1 a 6 do design.
+**Where**: `src/domain/graph/callPlan.ts`
+**Depends on**: T2
+**Reuses**: ordem de `forwardEdges` (`engine/core/routing.ts:171`)
+**Requirement**: FLW-26, FLW-29, FLW-42, FLW-43
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Sem passo explícito, a chamada na posição i fica no passo i + 1 (sequencial, como hoje)
+- [x] Com algum passo explícito, chamadas sem passo vão depois do maior passo, uma por passo
+- [x] Dois passos iguais formam um grupo paralelo
+- [x] `after_miss` com `missOf` inexistente, não chamado pela fonte, ou sem `hitRate` → tratado como `reads` + aviso
+- [x] `after_miss` em passo ≤ ao da dependência → passo efetivo = dependência + 1 + aviso
+- [x] `absorbed` contém a aresta da chamada ao cache referenciado
+- [x] LB e fila: passos ignorados
+- [x] `tests/unit/call-plan.test.ts` cobre cada regra; `CLAUDE.md` (Architecture map, `domain/graph`) cita `callPlan.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(graph): plano de chamadas por nó com passos e dependência de miss`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 2: Troca do formato da aresta
+
+### T4: Trocar `EdgeRule` para o formato com `calls`
+
+**What**: `EdgeRule` passa a ser `{ calls, networkLatencyMs, packetLoss }`; `defaultEdgeRule`/`connectEdgeRule`/`sanitizeEdgeRule` (que aceita também o v2 achatado) devolvem o novo formato, e todo leitor de `rule.kind` é adaptado de forma mecânica, iterando chamadas com semântica idêntica à de hoje para uma chamada.
+**Where**: `src/domain/components/types.ts` (tipo) e seus leitores apontados pelo `tsc`
+**Depends on**: T1, T2
+**Reuses**: `sanitizeEdgeCalls`, `migrateEdgeRuleV2toV3` (T2)
+**Requirement**: FLW-17
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Leitores adaptados: `routing.ts` (`ruleFactor` = Σ das chamadas), `settle.ts`, `sampler`/`sampleNodesFor` (itera chamadas na ordem atual), `faultView.ts`, `faults/catalog.ts`, `advisor/graph.ts`, `advisor/patterns.ts`, `CanvasContextMenu.tsx`, `RightPanel.tsx`, `AnimatedEdge.tsx`/`GhostEdge.tsx`/`previewGraph.ts`, `loadReference.ts`, `canvasStore.ts`, `migrate.ts`, `serialize.ts`
+- [x] Nenhum `as any` ou cast para burlar o tipo
+- [x] O golden da T1 passa sem atualizar o fixture (bit-idêntico)
+- [x] Todos os testes existentes passam sem mudança de asserção (só ajuste de formato em fixtures de regra)
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `refactor(graph): regra da aresta vira link com lista de chamadas`
+**Status**: ✅ Complete
+
+---
+
+### T5: Persistência v3
+
+**What**: `SCHEMA_VERSION` 3, cadeia de migração v1 → v2 → v3 (`migrateGraph`) em `canvasStore` e `savedDesignsStore`, envelope exportando 3 e importando 1, 2 e 3.
+**Where**: `src/domain/persistence/migrate.ts`
+**Depends on**: T4
+**Reuses**: `migrateGraphV1toV2`, `migrateCanvasState`, `migrateSavedDesignsState`, `parseEnvelope`
+**Requirement**: FLW-18, FLW-19, FLW-20
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Um design v2 com `cache → DB on_miss` migra sem criar, remover ou mover arestas, e a aresta fica com uma chamada `on_miss`
+- [x] A carga por nó no `analyze()` antes e depois da migração é deep-equal
+- [x] Migração idempotente (rodar duas vezes = uma); nunca lança com entrada inválida
+- [x] Export grava `schemaVersion: 3`; export → import devolve as mesmas chamadas; import de 1, 2 e 3 funciona
+- [x] `persistence.versions.test.ts` passa com `STORE_VERSION` 3
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(persistence): schema v3 com chamadas por aresta`
+**Status**: ✅ Complete
+
+---
+
+### T6: Store: editar chamadas e remapear `missOf`
+
+**What**: `updateEdgeRule` aceita patch com `calls` (uma entrada de undo, no-op em aba somente leitura), e `pasteClipboard`/`duplicateSelection` remapeiam `missOf` pelo mapa de ids dos nós colados ou o removem.
+**Where**: `src/store/canvasStore.ts`
+**Depends on**: T4
+**Reuses**: `applyEdgeRulePatch`, mapa de ids do paste
+**Requirement**: FLW-25, FLW-44
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Editar chamadas empurra exatamente uma entrada de undo; numa aba somente leitura não muda nada
+- [x] Patch com `calls: []` é recusado e mantém a última chamada
+- [x] Colar fonte + cache juntos remapeia `missOf` para o cache colado; colar sem o cache remove `missOf`
+- [x] `editor.test.ts` cobre os quatro casos; `MUTATING_ACTIONS` continua completo
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(editor): editar chamadas da aresta e remapear miss ao colar`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 3: Motor
+
+### T7: Compilador gera o plano de chamadas
+
+**What**: `compileGraph` anexa `plan: CallPlan` a cada `SimNode` com saídas e soma os avisos do plano aos `warnings` do grafo.
+**Where**: `src/domain/graph/compile.ts`
+**Depends on**: T3, T4
+**Reuses**: `planFor` (T3), `hitRateOf`
+**Requirement**: FLW-42, FLW-43, FLW-46
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Plano presente em todo nó com aresta de saída não-`back`; aresta `back` fica fora do plano (sem carga)
+- [x] Avisos de `missOf` inválido e de passo corrigido aparecem em `graph.warnings`
+- [x] Resultado continua structured-clone safe (sem `Map`/`Set` no `SimGraph`: `absorbed` como array)
+- [x] Testes no `engine-analyze.test.ts` (seção compile); golden da T1 inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): compilador anexa o plano de chamadas aos nós`
+**Status**: ✅ Complete
+
+---
+
+### T8: Roteamento: probabilidade de cada chamada
+
+**What**: `callProbability(call, source, ctx)` e `edgeFactor(edge, source, ctx)` com `after_miss` = r × (1 − h_C × (1 − f_{B→C})).
+**Where**: `src/engine/core/routing.ts`
+**Depends on**: T7
+**Reuses**: `ruleProbability`, `callsOf`, `hitRateOf`
+**Requirement**: FLW-09, FLW-13, FLW-14
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] `reads`, `writes`, `fraction`, `always` e `on_miss` dão o mesmo valor de hoje
+- [x] `after_miss` com h = 0,9, r = 0,9, f = 0 → 0,09; com f = 1 → 0,9
+- [x] Com uma chamada só, `edgeFactor` é bit-idêntico ao `ruleFactor` antigo
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): probabilidade por chamada com leituras após miss`
+**Status**: ✅ Complete
+
+---
+
+### T9: Settle: falha do cache vira miss
+
+**What**: `settle()` itera as chamadas síncronas; a chamada a um cache em `plan.absorbed` não reduz sucesso nem disponibilidade, e a `after_miss` entra com a probabilidade da T8.
+**Where**: `src/engine/core/settle.ts`
+**Depends on**: T7
+**Reuses**: `callOk`, `probSojournExceeds`
+**Requirement**: FLW-12, FLW-16
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Com o cache com availability 0, o sucesso do serviço não cai por causa do cache
+- [x] Sem `after_miss`, `success`/`failure`/`avail` iguais aos de hoje (golden)
+- [x] Todo número finito e em [0, 1]
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): falha do cache look-aside não derruba a requisição`
+**Status**: ✅ Complete
+
+---
+
+### T10: `analyze()`: ponto fixo com chamadas após miss
+
+**What**: O ponto fixo roda também quando o grafo tem `after_miss`, passando a `failure` do `settle` ao `edgeFactor`.
+**Where**: `src/engine/analyze.ts`
+**Depends on**: T8, T9
+**Reuses**: laço de retries (`analyze.ts:296-311`)
+**Requirement**: FLW-09, FLW-12, FLW-13, FLW-16
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Client → Service → Redis (`reads`, h 0,9) e Service → DB (`writes` + `after_miss: Redis`) a 10.000 req/s, r 0,9: DB recebe 1.900 req/s (tolerância 1e-6 relativa)
+- [x] Com `effects` derrubando o Redis: DB recebe 10.000 req/s e o availability não cai por causa do Redis
+- [x] Mesmo grafo + seed → deep-equal; served ≤ offered em todo nó; tudo finito
+- [x] Golden da T1 inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): analyze resolve leituras após miss no ponto fixo`
+**Status**: ✅ Complete
+
+---
+
+### T11: Tick: falha do tick anterior nas chamadas após miss
+
+**What**: `TickSimulator` guarda a `failure` do tick anterior e a passa ao `edgeFactor`; `reset()` a limpa.
+**Where**: `src/engine/core/tick.ts`
+**Depends on**: T10
+**Reuses**: padrão de `this.pending`
+**Requirement**: FLW-13, FLW-16
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Fault `kill-node` no Redis no meio de uma execução: em ≤ 2 ticks a carga do DB sobe para todas as leituras
+- [x] `engine-parity.test.ts` passa também para o design look-aside da T10 (analyze ≈ média do tick)
+- [x] Mesmo grafo + seed + faults → snapshots bit-idênticos; golden da T1 inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): tick aplica leituras após miss com a falha do tick anterior`
+**Status**: ✅ Complete
+
+---
+
+### T12: Sampler: passos, paralelo e após miss
+
+**What**: `SampleNode.steps` substitui `edges` para nós de regras; o tempo de um passo é o máximo das chamadas, a falha interrompe os passos seguintes, e `after_miss` sorteia o miss só onde existe.
+**Where**: `src/engine/core/sampler.ts`
+**Depends on**: T7, T1
+**Reuses**: `call()` com retries/timeout, `sampleNodesFor`
+**Requirement**: FLW-10, FLW-11, FLW-12, FLW-27, FLW-28, FLW-32
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Novo `tests/unit/engine-sampler.test.ts`: B → C (passo 1, 10 ms), B → E (passo 1, 30 ms), B → D (passo 2, 20 ms), tempos fixos → latência de B = próprio + 50 ms
+- [x] Falha no passo 1 → passo 2 não é chamado; a outra chamada do passo 1 conta
+- [x] Leitura com hit não chama D; com miss chama D depois de C; C falhando chama D e a requisição não falha
+- [x] Golden da T1 inalterado (mesma sequência de sorteios)
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): sampler com passos paralelos e leituras após miss`
+**Status**: ✅ Complete
+
+---
+
+### T13: Faults: parcela de escrita por chamada
+
+**What**: `writeShareOf` pondera as chamadas da aresta pela probabilidade de cada uma.
+**Where**: `src/engine/faults/catalog.ts`
+**Depends on**: T7
+**Reuses**: `callProbability` (T8 chega antes na ordem da fase)
+**Requirement**: FLW-16
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Aresta `[writes, after_miss]` → parcela de escrita = (1 − r) / ((1 − r) + P(after_miss))
+- [x] Aresta de uma chamada → valor de hoje; `engine-chaos.test.ts` passa
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `fix(chaos): parcela de escrita das faults considera cada chamada`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 4: Editor
+
+### T14: Specs do formulário e badge das chamadas
+
+**What**: `EDGE_CALL_SPECS` (condição, fração, passo, chamadas por requisição), `EDGE_LINK_SPECS` (latência, perda), rótulos ("Read-through (miss do próprio cache)", "Leituras após miss em…") e `edgeCallsBadge(rule, labelOf)`.
+**Where**: `src/domain/graph/edgeRules.ts`
+**Depends on**: T4
+**Reuses**: `EDGE_RULE_SPECS`, `edgeRuleBadge`
+**Requirement**: FLW-08, FLW-14, FLW-15, FLW-26
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Passo limitado por `MAX_CALL_STEP` importado
+- [x] Badge: `"writes · miss: Redis"`, `"reads"`, `"×3"`; `null` para `always` × 1
+- [x] Testes em `edgeRules.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(graph): formulário e badge das chamadas da aresta`
+**Status**: ✅ Complete
+
+---
+
+### T15: `EdgeCallsForm` no painel Props
+
+**What**: Componente que lista as chamadas da aresta selecionada com add/remove, condição "Leituras após miss em…" (só nós com `hitRate` chamados pela fonte) e passo; materializa os passos do nó via `applyGraphEdit` no primeiro passo explícito.
+**Where**: `src/components/panel/EdgeCallsForm.tsx`
+**Depends on**: T14
+**Reuses**: `ParamsForm`, `styles.ts`, `updateEdgeRule`, `applyGraphEdit`, `useIsActiveTabReadOnly`
+**Requirement**: FLW-08, FLW-17, FLW-25, FLW-26, FLW-44
+
+**Tools**:
+
+- MCP: `chrome-devtools` (verificar no browser)
+- Skill: NONE
+
+**Done when**:
+
+- [x] Plugado no bloco "Call rule" de `RightPanel.tsx`, substituindo o `ParamsForm` da regra
+- [x] "Adicionar" desabilitado em `MAX_EDGE_CALLS`; "Remover" desabilitado na última chamada
+- [x] Opção "após miss" ausente quando a fonte não chama nenhum cache
+- [x] Em aba somente leitura os campos ficam desabilitados
+- [x] e2e em `tests/e2e/editor.spec.ts`: adicionar "escritas" + "após miss" numa aresta, desfazer com um undo, aba de referência sem edição
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `feat(panel): editor de chamadas da aresta`
+**Status**: ✅ Complete
+
+---
+
+### T16: Menu de contexto com várias chamadas
+
+**What**: Com uma chamada, o menu de contexto edita como hoje; com mais de uma, mostra "Editar chamadas no painel", que seleciona a aresta e abre a aba Props.
+**Where**: `src/components/canvas/CanvasContextMenu.tsx`
+**Depends on**: T14
+**Reuses**: `EDGE_CALL_SPECS`, `selectOnly`
+**Requirement**: FLW-17, FLW-25
+
+**Tools**:
+
+- MCP: `chrome-devtools`
+- Skill: NONE
+
+**Done when**:
+
+- [x] e2e: aresta com uma chamada troca a condição pelo menu; aresta com duas mostra o atalho para o painel
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `feat(canvas): menu de contexto remete arestas com várias chamadas ao painel`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 5: Referências, advisor e docs
+
+### T17: Padrão de conexão look-aside
+
+**What**: `connectEdgeRule` devolve `[writes, after_miss(missOf: cache)]` quando a fonte é um serviço, o alvo é um banco e a fonte já chama um nó com `hitRate`; o padrão de saída de cache/CDN continua `on_miss` (read-through).
+**Where**: `src/domain/graph/edgeRules.ts`
+**Depends on**: T4
+**Reuses**: `isCaller`, `hasReadReplica`
+**Requirement**: FLW-24
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Conectar Service → SQL DB com Service → Redis existente gera as duas chamadas
+- [x] Sem cache, o padrão é o de hoje (`always`, ou `writes` com read replica)
+- [x] Testes em `edgeRules.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(graph): conectar serviço a banco com cache já usa look-aside`
+**Status**: ✅ Complete
+
+---
+
+### T18: Fix "add cache" do advisor em look-aside
+
+**What**: `readCacheDiff` cria a chamada `reads` ao cache e troca a aresta do leitor ao banco por `[writes, after_miss]` (ou só `after_miss` se ela era só `reads`), sem aresta cache → banco.
+**Where**: `src/advisor/patterns.ts`
+**Depends on**: T17
+**Reuses**: `newEdge`, `GraphDiff`, `applyGraphEdit`
+**Requirement**: FLW-23
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] `advisor.test.ts`: aplicar o fix gera o formato look-aside num único passo de undo e ids derivados (sem aleatório)
+- [x] O preview (ghosts) mostra a mesma forma
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(advisor): fix de cache constrói o look-aside`
+**Status**: ✅ Complete
+
+---
+
+### T19: Loader de referências resolve `missOf`
+
+**What**: `ReferenceSolution.edges[].rule` aceita `calls`, e `buildReferenceGraph` traduz `missOf` (componentId) para o id do nó.
+**Where**: `src/lib/loadReference.ts`
+**Depends on**: T4
+**Reuses**: `nextInstance`, `newEdgeData`
+**Requirement**: FLW-21
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Tipo em `src/types/problem.ts` atualizado
+- [x] Referência sintética com `missOf: "cache"` resolve para o nó do cache; componentId inexistente → `missOf` removido + aviso do compilador
+- [x] Teste em `data.test.ts` ou `persistence.migrate.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(data): referências declaram chamadas com miss por componente`
+**Status**: ✅ Complete
+
+---
+
+### T20: Referências em look-aside
+
+**What**: Os 30 pares cache → banco de `problems.ts` viram serviço → cache `reads` + serviço → banco `[writes, after_miss: cache]`, com right-size e `budgetMonthlyUsd` recalibrados onde saírem da faixa.
+**Where**: `src/data/problems.ts`
+**Depends on**: T19, T10, T12
+**Reuses**: convenções de "Data conventions" do `CLAUDE.md`
+**Requirement**: FLW-21, FLW-22
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Novo teste em `data.test.ts`: nenhuma referência tem aresta de nó com `hitRate` para banco, exceto CDN → origem (read-through legítimo)
+- [x] `data.test.ts` (SLO, orçamento em [b/1,5, b/1,3]), `scoring.test.ts` (≥ 16), `advisor.test.ts` e `engine-references.test.ts` passam
+- [x] Golden da T1 inalterado (lê grafos congelados)
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `fix(data): referências usam cache look-aside`
+**Status**: ✅ Complete
+
+---
+
+### T21: `CLAUDE.md` e specs com o modelo de chamadas
+
+**What**: Atualizar no `CLAUDE.md` as invariantes do motor (chamadas, passos, após miss, ponto fixo), as convenções de arestas de referência (look-aside novo), o padrão de conexão e o mapa; atualizar `docs/03` (regras de aresta) e `docs/04` (roteamento e sampler).
+**Where**: `CLAUDE.md`
+**Depends on**: T18, T20
+**Reuses**: texto atual das seções
+**Requirement**: FLW-21, FLW-24
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Nenhuma menção restante a "cache → its database (default `on_miss`)" como padrão das referências
+- [x] `claude-map.test.ts` passa
+- [x] Gate de build da fase passa antes de abrir o PR 2
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e`
+
+**Tests**: unit
+**Gate**: build
+**Commit**: `docs: modelo de chamadas e cache look-aside no CLAUDE.md e nas specs`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 6: Bolinhas e badges no canvas
+
+### T22: `readRatio` no snapshot
+
+**What**: `TickSnapshot.global.readRatio` com o read ratio resolvido, no tick e no `steadyStateToSnapshot`.
+**Where**: `src/engine/snapshot.ts`
+**Depends on**: T11
+**Reuses**: `resolveConfig`
+**Requirement**: FLW-01
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Analyze e tick expõem o mesmo valor para o mesmo grafo
+- [x] `pushSnapshot` continua compartilhando `global` quando nada muda
+- [x] Testes em `runtime.test.ts` / `metrics.test.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): snapshot expõe o read ratio resolvido`
+**Status**: ✅ Complete
+
+---
+
+### T23: Bolinhas com frames: ida, espera e volta
+
+**What**: `FlowBalls` com frames por requisição: lança as chamadas passo a passo pelo `callPlan`, espera as respostas, devolve resposta (ok ou erro) pela mesma aresta, async sem volta, ramificação por requisição (classe, regra, `hitRatio`), TTL de frames.
+**Where**: `src/lib/flowBalls.ts`
+**Depends on**: T22
+**Reuses**: `pick`, `dispatch`, quantum adaptativo, `planFor` (T3)
+**Requirement**: FLW-01, FLW-03, FLW-05, FLW-06, FLW-07, FLW-31, FLW-47, FLW-48
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] `flow-balls.test.ts`: chamada síncrona gera resposta na mesma aresta em sentido inverso; async não gera
+- [x] O passo 2 só sai depois de todas as respostas do passo 1; a resposta à entrada fecha o frame
+- [x] Falha no nó gera burst + resposta de erro; falha de cache referenciado segue para o banco
+- [x] Respostas contam no `MAX_BALLS`; frames voltam a 0 após `FRAME_TTL_SEC` sem spawn; a resposta volta ao card de origem com instâncias expandidas
+- [x] O teste antigo "cache first" é substituído pelo equivalente com passos (nenhum outro removido)
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(canvas): bolinhas fazem ida e volta em cada chamada`
+**Status**: ✅ Complete
+
+---
+
+### T24: Desenho das respostas e legenda
+
+**What**: `FlowParticles` desenha `dir: "res"` como anel vazado andando de volta (`len − pos`), erro na cor de erro, e a legenda mostra "request ● / response ○"; o canvas expõe contagens por direção em `data-balls-req`/`data-balls-res` para o e2e.
+**Where**: `src/components/canvas/FlowParticles.tsx`
+**Depends on**: T23
+**Reuses**: cache de paths, transform do viewport, legenda atual
+**Requirement**: FLW-02, FLW-04, FLW-07
+
+**Tools**:
+
+- MCP: `chrome-devtools`
+- Skill: `run`
+
+**Done when**:
+
+- [x] e2e em `traffic.spec.ts`: com a referência do URL Shortener rodando, `data-balls-res` > 0 e a legenda mostra os dois símbolos
+- [x] Com `prefers-reduced-motion`, nenhuma bolinha; arestas async seguem tracejadas
+- [x] Verificado no browser a 60 fps com 100 arestas (critério da Spec 07)
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `feat(canvas): desenho das respostas e legenda de requisição e resposta`
+**Status**: ✅ Complete
+
+---
+
+### T25: Badges de passo e de condição nas arestas
+
+**What**: `AnimatedEdge` mostra o passo (`"2"` ou `"2∥"`) e o rótulo de condição (`edgeCallsBadge`, ex. "miss: Redis"), com largura máxima fixa e aviso quando o plano corrigiu algo.
+**Where**: `src/components/canvas/edges/AnimatedEdge.tsx`
+**Depends on**: None
+**Reuses**: `edgeCallsBadge` (T14), `planFor` (T3), badge de protocolo
+**Requirement**: FLW-15, FLW-29, FLW-30
+
+**Tools**:
+
+- MCP: `chrome-devtools`
+- Skill: NONE
+
+**Done when**:
+
+- [x] e2e em `editor.spec.ts`: duas chamadas no mesmo passo mostram "1∥"; aresta após miss mostra "miss: <cache>"
+- [x] O badge não muda de tamanho entre ticks (sem re-medição do ReactFlow)
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `feat(canvas): badges de passo e de condição nas arestas`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 7: Trace (aba Flow)
+
+### T26: Recorder no sampler e `traceRequest`
+
+**What**: `sampleLatency` aceita um `Recorder` opcional; `traceRequest(model, seed, index, cls)` grava eventos de chamada, async e hit/miss com `t0`/`t1`, e o tipo `Trace` vira `RequestTrace`.
+**Where**: `src/engine/core/trace.ts`
+**Depends on**: None
+**Reuses**: `sampleLatency` (T12), `mulberry32`
+**Requirement**: FLW-34, FLW-35, FLW-36, FLW-38
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Mesmo modelo + seed + índice → mesmo trace; índices diferentes podem divergir
+- [x] Leitura com miss registra cache `miss`, depois a chamada ao banco; com hit, sem chamada ao banco
+- [x] Async aparece como evento sem `t1`; o total é igual ao fim da última chamada síncrona da entrada
+- [x] Sem recorder, o golden da T1 continua inalterado
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): trace de uma requisição a partir do sampler`
+**Status**: ✅ Complete
+
+---
+
+### T27: `traceCanvas` no worker
+
+**What**: `traceCanvas(nodes, edges, { rps, config, cls, index })` em `client.ts`/`worker.ts`, lazy, com fallback em thread.
+**Where**: `src/engine/client.ts`
+**Depends on**: T26
+**Reuses**: `simulateCanvas`, Comlink worker, `analyze`
+**Requirement**: FLW-36, FLW-37, FLW-40
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Sem entrada → `events: []` + aviso
+- [x] Teste no `sim-controller.test.ts` (fallback sem `Worker`)
+- [x] `bundle:check` não acusa o motor no chunk inicial
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): traceCanvas no worker`
+**Status**: ✅ Complete
+
+---
+
+### T28: Destaque de aresta vindo do trace
+
+**What**: `flowHighlightStore` (não persistido, `useFlowHighlight(edgeId)`, `setFlowHighlight`) e o destaque de traço + sentido no `AnimatedEdge`, exposto como `window.__flowHighlightStore` em dev ou `?e2e`.
+**Where**: `src/store/flowHighlightStore.ts`
+**Depends on**: None
+**Reuses**: padrão de seletor por entidade do `runtimeStore`, exposição de `window.__runtimeStore`
+**Requirement**: FLW-39
+
+**Tools**:
+
+- MCP: `chrome-devtools`
+- Skill: NONE
+
+**Done when**:
+
+- [x] Teste unitário do store; mudar o destaque re-renderiza só a aresta afetada
+- [x] e2e: setar o destaque pelo `window` marca `data-edge-highlight="req"`/`"res"` e não cria entrada de undo nem escreve no `canvasStore`
+- [x] `CLAUDE.md` (mapa de `store/`) lista o arquivo; `claude-map.test.ts` passa
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: unit, e2e
+**Gate**: full
+**Commit**: `feat(canvas): destaque de aresta comandado pelo trace`
+**Status**: ✅ Complete
+
+---
+
+### T29: Layout do diagrama de sequência
+
+**What**: Função pura `sequenceLayout(trace, labels)` que devolve linhas de vida, setas (chamada, resposta, async), números de passo e marcas de hit/miss com coordenadas.
+**Where**: `src/lib/sequenceLayout.ts`
+**Depends on**: T26
+**Reuses**: `RequestTrace`
+**Requirement**: FLW-34, FLW-35
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Uma linha de vida por nó tocado, na ordem do primeiro contato
+- [x] Cada chamada síncrona gera uma seta de ida e uma de volta; async só a de ida; chamada não feita não aparece
+- [x] Numeração na ordem de início
+- [x] `tests/unit/sequence-layout.test.ts`; `CLAUDE.md` (mapa de `lib/`) lista o arquivo
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(trace): layout puro do diagrama de sequência`
+**Status**: ✅ Complete
+
+---
+
+### T30: Aba "Flow"
+
+**What**: `FlowPanel` (lazy) com Leitura/Escrita, "Another request", o `SequenceDiagram` em SVG, tempos por passo e total quando há snapshot, mensagens de sem-snapshot e sem-entrada, hover/toque que destaca a aresta; registrado no `RightPanel`.
+**Where**: `src/components/panel/FlowPanel.tsx`
+**Depends on**: T27, T28, T29
+**Reuses**: `styles.ts`, `traceCanvas`, `sequenceLayout`, `setFlowHighlight`, `topologySignature`
+**Requirement**: FLW-33, FLW-34, FLW-35, FLW-36, FLW-37, FLW-38, FLW-39, FLW-40, FLW-41
+
+**Tools**:
+
+- MCP: `chrome-devtools`
+- Skill: `run`
+
+**Done when**:
+
+- [x] Novo `tests/e2e/flow.spec.ts`: referência do URL Shortener, leitura → passos com cache e banco, monitoramento async sem volta; com Analyze, ms por passo e total; sem snapshot, a mensagem da FLW-37; canvas sem entrada, a mensagem da FLW-40; hover destaca a aresta; funciona em aba somente leitura e no viewport de celular (bottom sheet)
+- [x] Não recalcula a cada tick (só com mudança de topologia ou de snapshot existente/rps)
+- [x] `bundle:check` passa sem re-baseline
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `feat(panel): aba Flow com o diagrama de sequência de uma requisição`
+**Status**: ✅ Complete
+
+---
+
+### T31: Docs da Spec 07 e do `CLAUDE.md` para bolinhas e trace
+
+**What**: Atualizar no `CLAUDE.md` a seção de runtime (bolinhas com frames, resposta, ramificação por requisição) e o painel (aba Flow), e na `docs/07` marcar o OBS-06 como entregue pela aba Flow; atualizar o índice em `docs/00`.
+**Where**: `CLAUDE.md`
+**Depends on**: T30
+**Reuses**: texto atual das seções
+**Requirement**: FLW-33
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] `claude-map.test.ts` passa
+- [x] Gate de build passa antes de abrir o PR 4
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e`
+
+**Tests**: unit
+**Gate**: build
+**Commit**: `docs: bolinhas de ida e volta e aba Flow no CLAUDE.md e na Spec 07`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 8: Correções da verificação (iteração 1, só testes)
+
+Achados do Verifier (`validation.md`): dois mutantes sobreviveram em ACs P1 e há lacunas menores de teste. O código está correto; faltam testes. Cada tarefa abaixo só escreve testes (nenhuma mudança em `src/`); se uma sonda revelar um defeito real no código, PARE e relate.
+
+### T32: Teste de que a resposta espera as chamadas do alvo
+
+**What**: Com a cadeia `a → b → c`, provar que para cada requisição a primeira bolinha de resposta em `a-b` aparece depois do último quadro (chamada ou resposta) de `b-c` (mata M6b: o alvo responde ao chegar, antes das próprias chamadas).
+**Where**: `tests/unit/flow-balls.test.ts`
+**Depends on**: None
+**Reuses**: helpers `record`, `ce`, `call`, `snap`, `node`, `env` do arquivo; `t.first`/`t.last`
+**Requirement**: FLW-01
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código atual
+- [x] O teste falha numa cópia em scratch com M6b (`src/lib/flowBalls.ts`: o alvo responde em `open` antes de `advance`)
+- [x] Nenhum teste existente alterado ou removido
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(canvas): resposta só sai depois das chamadas do alvo`
+**Status**: ✅ Complete
+
+---
+
+### T33: Teste de que quem chama não espera a chamada async
+
+**What**: Com `c → a`, `a → m` (async) e `a → d` (sync), provar que toda requisição em `c-a` recebe resposta antes de `FRAME_TTL_SEC` e no mesmo tempo que no design sem `a → m` (mata M6a: a chamada async entra em `pending`).
+**Where**: `tests/unit/flow-balls.test.ts`
+**Depends on**: T32
+**Reuses**: os mesmos helpers; `FRAME_TTL_SEC`
+**Requirement**: FLW-03
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código atual
+- [x] O teste falha numa cópia em scratch com M6a (`src/lib/flowBalls.ts`: remover o `if (async) continue;` de `call`)
+- [x] Nenhum teste existente alterado ou removido
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(canvas): quem chama segue sem esperar a chamada async`
+**Status**: ✅ Complete
+
+---
+
+### T34: O trace reproduz o sampler também com chamadas async
+
+**What**: No teste "times come from the sampler", acrescentar `asyncCalls` com `fraction` e `callsPerRequest` fracionário ao modelo e manter `trace.totalMs === sampled.latency.meanMs` com latência amostrada (mata M9: o recorder consome o stream principal).
+**Where**: `tests/unit/engine-trace.test.ts`
+**Depends on**: T33
+**Reuses**: o modelo e os helpers do teste existente (em torno da linha 183)
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código atual
+- [x] O teste falha numa cópia em scratch com M9 (`src/engine/core/trace.ts`: o recorder usa o `rng` principal do sampler)
+- [x] Nenhum teste existente alterado ou removido
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): trace reproduz o sampler com chamadas async`
+**Status**: ✅ Complete
+
+---
+
+### T35: Teste das opções de cache do formulário de chamadas
+
+**What**: Testar `callFormContext` (de `EdgeCallsForm.tsx`): uma aresta async para um cache e uma sync para um nó sem `hitRate` ficam fora de `caches`, e uma sync para um cache entra.
+**Where**: `tests/unit/edge-calls-form.test.ts`
+**Depends on**: T34
+**Reuses**: `callFormContext`, fixtures de `engineFixtures.ts`
+**Requirement**: FLW-08
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Os três casos asseridos pelo valor de `caches`
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(panel): opções de cache do formulário de chamadas`
+**Status**: ✅ Complete
+
+---
+
+### T36: Teste da parcela de escrita das faults com `callsPerRequest` diferente de 1
+
+**What**: Caso em `engine-chaos.test.ts` com `writes` de `callsPerRequest` 2 e `after_miss` de 1, asserindo `2(1 − r) / (2(1 − r) + r(1 − h))` para a parcela de escrita (cobre o SPEC_DEVIATION da T13).
+**Where**: `tests/unit/engine-chaos.test.ts`
+**Depends on**: T35
+**Reuses**: os helpers e o grafo look-aside do teste em torno da linha 529
+**Requirement**: FLW-16
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código atual com a fórmula acima, com tolerância 1e-9
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(chaos): parcela de escrita com chamadas por requisição`
+**Status**: ✅ Complete
+
+---
+
+### T37: E2E usa a constante do limite de chamadas
+
+**What**: Trocar o literal `8` de `editor.spec.ts` (em torno da linha 278) pela importação de `MAX_EDGE_CALLS`.
+**Where**: `tests/e2e/editor.spec.ts`
+**Depends on**: T36
+**Reuses**: `MAX_EDGE_CALLS` de `src/domain/graph/edgeRules.ts`
+**Requirement**: FLW-49
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Nenhum literal 8 ou 20 do limite em `tests/e2e/editor.spec.ts`
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(editor): e2e usa MAX_EDGE_CALLS em vez do literal`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 9: Correções da verificação (iteração 2)
+
+Achados do Verifier na iteração 2 (`validation.md`): o canvas não mostra a falha por timeout de quem chamou (FLW-05: comportamento faltando), e três trechos de AC não têm teste que discrimine (FLW-36, FLW-30, FLW-35: mutantes N4, N9/N10 e N13 sobreviveram). T38 e T39 mudam código; T40–T42 só testes.
+
+### T38: Snapshot publica a falha do link por aresta
+
+**What**: O motor publica no snapshot, num campo de topo novo e opcional `edgeLinkFailure: Record<edgeId, number>`, a parte da falha de cada aresta que é do link e de quem chama: 1 − (1 − perda de pacote) × (1 − P(timeout de quem chama)), sem a falha da cadeia abaixo do alvo (que as bolinhas já modelam andando por ela). Preenchido no tick e no `steadyStateToSnapshot`.
+**Where**: `src/engine/core/settle.ts`
+**Depends on**: None
+**Reuses**: o cálculo de `timedOut` e `packetLoss` que o `settle` já faz por aresta; `snapshot.ts`, `tick.ts` e `types.ts` só para levar o valor ao snapshot
+**Requirement**: FLW-05
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Com `timeoutMs` 5 no chamador e um banco de 200 ms, `edgeLinkFailure` da aresta chamador → banco ≈ 1 no tick e no Analyze; sem timeout nem perda, 0
+- [x] Um alvo que falha por conta própria (fault no banco) NÃO aparece em `edgeLinkFailure` da aresta (só na métrica do nó)
+- [x] O campo é de topo no `TickSnapshot` (não dentro de `edges`), então o golden da T1 passa sem mudar fixture nem teste; nenhum valor existente do `settle` muda
+- [x] `pushSnapshot` não passa a re-renderizar arestas a cada tick (o campo não entra nos objetos por aresta)
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): snapshot publica a falha do link por aresta`
+**Status**: ✅ Complete
+
+---
+
+### T39: Bolinhas mostram o timeout de quem chamou
+
+**What**: Quando uma chamada chega ao alvo, ela falha com a probabilidade `edgeLinkFailure` da sua aresta (antes do sorteio da falha do nó), com o burst atual e uma resposta de erro voltando até quem chamou (FLW-05).
+**Where**: `src/lib/flowBalls.ts`
+**Depends on**: T38
+**Reuses**: `arrive`, `respond`, `bursts`
+**Requirement**: FLW-05
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Teste em `flow-balls.test.ts`: aresta com `edgeLinkFailure` 1 e alvo saudável ⇒ todas as chamadas nela geram burst e resposta de erro, nenhuma resposta ok; com 0 ⇒ nenhum burst
+- [x] O teste falha num mutante em scratch que ignora `edgeLinkFailure`
+- [x] Snapshots sem o campo (testes antigos, snapshots feitos à mão) continuam funcionando como antes
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(canvas): bolinhas mostram o timeout de quem chamou`
+**Status**: ✅ Complete
+
+---
+
+### T40: Teste do trace na carga do último snapshot
+
+**What**: Provar que o trace usa a carga pedida: o mesmo design com um nó perto da saturação dá tempo de fila maior (total maior) em rps alto do que em 1 req/s (mata N4: `src/engine/core/trace.ts`, sempre 1 req/s).
+**Where**: `tests/unit/engine-trace.test.ts`
+**Depends on**: None
+**Reuses**: `traceGraph`, fixtures de `engineFixtures.ts`
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código real e falha num mutante em scratch com N4
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): trace usa a carga pedida`
+**Status**: ✅ Complete
+
+---
+
+### T41: E2E dos casos em que o badge de passo não aparece
+
+**What**: Provar que o badge de passo não aparece numa aresta de um nó com uma só chamada síncrona, nem nas arestas de saída de um balanceador (mata N9 e N10: `src/components/canvas/edges/AnimatedEdge.tsx`).
+**Where**: `tests/e2e/editor.spec.ts`
+**Depends on**: T40
+**Reuses**: os helpers de `tests/e2e/helpers.ts` e do próprio arquivo (`serviceWithDbAndCache`)
+**Requirement**: FLW-30
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Os dois casos asseridos pela ausência do badge de passo, ao lado de um caso positivo no mesmo teste
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(editor): badge de passo some com uma chamada e no LB`
+**Status**: ✅ Complete
+
+---
+
+### T42: Teste do hit/miss do read-through no trace
+
+**What**: Num design com read-through (CDN → origem, `on_miss`), o trace de uma leitura marca o resultado da CDN como `hit` ou `miss`, e a chamada à origem só aparece no `miss` (mata N13: `src/engine/core/sampler.ts`).
+**Where**: `tests/unit/engine-trace.test.ts`
+**Depends on**: T41
+**Reuses**: `traceRequest`/`traceGraph`
+**Requirement**: FLW-35
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Asserido para um índice com hit e outro com miss (`cache` event e presença/ausência da chamada à origem)
+- [x] O teste falha num mutante em scratch com N13
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): trace marca hit e miss do read-through`
+**Status**: ✅ Complete
+
+---
+
+#### Phase 10: Rodada 4 (cola sem teste e trace com faults ativas)
+
+A iteração 3 do Verifier deu FAIL por 4 mutantes vivos na cola entre UI, cliente e motor (X9–X12; código correto, testes faltando). O usuário autorizou uma 4ª rodada (2026-10-05) e decidiu: o limite de 25% fica simétrico (razão > 1,25 em qualquer sentido), os textos da interface ficam em inglês e **o trace passa a refletir as faults ativas** (FLW-36 ajustado, FLW-50 novo). T43–T46 são só testes; T47–T48 mudam código.
+
+### T43: Teste de que o traceCanvas usa a carga pedida
+
+**What**: Teste unitário em que `traceCanvas` com `rps: 95` difere de `rps: 1` num design com um nó perto da saturação (mata X12: `client.traceCanvas` descartando `options.rps`).
+**Where**: `tests/unit/sim-controller.test.ts`
+**Depends on**: None
+**Reuses**: o teste "without a snapshot's load the trace runs at 1 req/s" e seus fixtures
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código real e falha num mutante em scratch que descarta `options.rps` em `src/engine/client.ts`
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): traceCanvas usa a carga pedida`
+**Status**: ✅ Complete
+
+---
+
+### T44: E2E de que a aba Flow leva a carga do snapshot ao trace
+
+**What**: Na aba Flow, depois de um Analyze, empurrar via `window.__runtimeStore` um snapshot com `offeredRps` bem diferente e esperar o `data-total-ms` mudar (mata X11: `FlowPanel` chamando `traceCanvas` sem `rps`).
+**Where**: `tests/e2e/flow.spec.ts`
+**Depends on**: T43
+**Reuses**: helpers de `tests/e2e/helpers.ts` e do próprio arquivo
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código real e falha (em scratch, com `node_modules` copiado por `robocopy /XJ`, porque junção de C: para Z: quebra o Next) com o mutante X11
+- [x] Esperas por asserção (`expect(...).toPass`/`toHaveAttribute`), nunca `waitForTimeout`
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(panel): aba Flow leva a carga do snapshot ao trace`
+**Status**: ✅ Complete
+
+---
+
+### T45: E2E dos dois lados do limite de recálculo do trace
+
+**What**: Com a mesma base de carga, asserir que ×1,2 e ÷1,2 não geram trace novo e que ×1,32 e ÷1,32 geram (razão > 1,25 em qualquer sentido, como a spec emendada diz), contando os traces pelo atributo que a aba já expõe ou por um contador de teste (mata X10: `RPS_STEP` 1,25 → 1,9).
+**Where**: `tests/e2e/flow.spec.ts`
+**Depends on**: T44
+**Reuses**: o snapshot sintético da T44
+**Requirement**: FLW-36
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Os quatro lados asseridos; o teste falha em scratch com X10
+- [x] Se precisar de um atributo de teste novo para contar traces, ele fica em `FlowPanel.tsx` no mesmo commit e não muda nada visível
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(panel): limite de recálculo do trace nos dois sentidos`
+**Status**: ✅ Complete
+
+---
+
+### T46: E2E de que o Analyze publica a falha de link
+
+**What**: Um design em que o chamador estoura o timeout contra o banco (`timeoutMs` baixo, banco lento); depois do Analyze, `window.__runtimeStore.getState().latest.edgeLinkFailure` da aresta chamador → banco é > 0,99 (mata X9: `AppShell` montando o snapshot do Analyze sem `linkFailure`).
+**Where**: `tests/e2e/metrics.spec.ts`
+**Depends on**: T45
+**Reuses**: helpers de `tests/e2e/helpers.ts`
+**Requirement**: FLW-05
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] O teste passa no código real e falha em scratch com X9
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(metrics): analyze publica a falha de link por aresta`
+**Status**: ✅ Complete
+
+---
+
+### T47: O trace aplica as faults ativas no motor
+
+**What**: `traceGraph` (e `traceCanvas` no worker/cliente) aceita `faults?: FaultSpec[]`; compila cada uma (como `analyzeUnderFault`: `compileFault` a partir de t = 0, efeitos lidos em regime, logo antes do fim da janela mais curta) e roda `analyzeWithModel(graph, rps, config, effects)` antes de traçar. Sem faults, o resultado é idêntico ao de hoje.
+**Where**: `src/engine/core/trace.ts`
+**Depends on**: T46
+**Reuses**: `compileFault`, `effectsAt`, `analyzeUnderFault` (`faults/steady.ts`), `analyzeWithModel`; `client.ts`/`worker.ts` só para levar o parâmetro (structured-clone safe)
+**Requirement**: FLW-36, FLW-50
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Teste em `engine-trace.test.ts`: Client → App → Redis (`reads`) e App → DB (`writes` + `after_miss` Redis); com a fault `kill-node` no Redis, o trace de uma leitura mostra a chamada ao Redis com falha (`ok: false` ou `cache` com `viaFailure`) e depois a chamada ao DB; sem a fault, um índice com hit não chama o DB
+- [x] Sem `faults` (ou lista vazia), o trace é deep-equal ao de antes; golden da T1 intocado
+- [x] Gate check passes: `npm run typecheck && npm test`
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `feat(engine): trace aplica as faults ativas da execução`
+**Status**: ✅ Complete
+
+---
+
+### T48: A aba Flow passa as faults ativas e recalcula quando elas mudam
+
+**What**: `FlowPanel` lê as faults ativas do `chaosStore` (`faults` com `active`), passa as `spec` a `traceCanvas` e recalcula quando o conjunto de faults ativas muda (chave estável, ex.: ids ativos ordenados), além dos gatilhos de hoje; nunca a cada tick.
+**Where**: `src/components/panel/FlowPanel.tsx`
+**Depends on**: T47
+**Reuses**: `useChaosStore`, `simActions` (no e2e), o padrão de recálculo atual
+**Requirement**: FLW-36, FLW-50
+
+**Tools**:
+
+- MCP: `chrome-devtools`
+- Skill: `run`
+
+**Done when**:
+
+- [x] e2e em `flow.spec.ts`: referência do URL Shortener em execução ao vivo; matar o Redis (atalho Kill do nó ou `simActions`); na aba Flow, uma leitura mostra o Redis com falha e a chamada ao NoSQL; curar a fault volta ao trace sem falha
+- [x] O trace não recalcula a cada tick com faults ativas (mesma garantia do teste de histerese)
+- [x] Verificado no browser
+- [x] `CLAUDE.md` (parágrafo do Flow tab e do Request trace) diz que o trace usa as faults ativas
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `feat(panel): aba Flow reflete as faults ativas da execução`
+**Status**: ✅ Complete
+
+---
+
+## Phase Execution Map
+
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10. As dependências dentro de cada fase estão nos diagramas do Execution Plan; as dependências entre fases apontam sempre para trás.
+
+Execução estritamente sequencial dentro de cada fase, na ordem numérica. Gate de build no fim de cada fase (e antes de cada PR: fim das fases 4, 5, 6 e 7).
+
+**Lotes para sub-agentes (~7 tarefas, fases inteiras):** Lote A = fases 1 e 2 (6 tarefas) · Lote B = fase 3 (7) · Lote C = fases 4 e 5 (8) · Lote D = fase 6 (4) · Lote E = fase 7 (6).
+
+---
+
+## Task Granularity Check
+
+| Task | Scope                                | Status                                                                                                   |
+| ---- | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| T1   | 1 teste + fixture gerado             | ✅ Granular                                                                                              |
+| T2   | tipos + 2 funções no mesmo módulo    | ⚠️ OK (coeso: o formato v3)                                                                              |
+| T3   | 1 módulo puro                        | ✅ Granular                                                                                              |
+| T4   | troca de 1 tipo + leitores mecânicos | ⚠️ Grande de propósito: a troca de tipo precisa ser atômica para o `tsc` ficar verde; sem semântica nova |
+| T5   | 1 cadeia de migração                 | ✅ Granular                                                                                              |
+| T6   | 2 ações do mesmo store               | ⚠️ OK (coeso: edição de chamadas)                                                                        |
+| T7   | 1 função (compile)                   | ✅ Granular                                                                                              |
+| T8   | 2 funções irmãs                      | ✅ Granular                                                                                              |
+| T9   | 1 função (settle)                    | ✅ Granular                                                                                              |
+| T10  | 1 laço (ponto fixo)                  | ✅ Granular                                                                                              |
+| T11  | 1 classe, 1 campo                    | ✅ Granular                                                                                              |
+| T12  | 1 função (sampler)                   | ✅ Granular                                                                                              |
+| T13  | 1 função                             | ✅ Granular                                                                                              |
+| T14  | specs + 1 função de badge            | ⚠️ OK (coeso: apresentação das chamadas)                                                                 |
+| T15  | 1 componente                         | ✅ Granular                                                                                              |
+| T16  | 1 componente                         | ✅ Granular                                                                                              |
+| T17  | 1 função                             | ✅ Granular                                                                                              |
+| T18  | 1 função                             | ✅ Granular                                                                                              |
+| T19  | 1 função + 1 tipo                    | ✅ Granular                                                                                              |
+| T20  | 1 arquivo de dados                   | ✅ Granular                                                                                              |
+| T21  | docs                                 | ✅ Granular                                                                                              |
+| T22  | 1 campo do snapshot                  | ✅ Granular                                                                                              |
+| T23  | 1 classe                             | ✅ Granular                                                                                              |
+| T24  | 1 componente                         | ✅ Granular                                                                                              |
+| T25  | 1 componente                         | ✅ Granular                                                                                              |
+| T26  | 1 módulo                             | ✅ Granular                                                                                              |
+| T27  | 1 função de cliente                  | ✅ Granular                                                                                              |
+| T28  | 1 store + seu leitor                 | ⚠️ OK (o store sem leitor não é testável no e2e)                                                         |
+| T29  | 1 função pura                        | ✅ Granular                                                                                              |
+| T30  | 1 painel (+ seu SVG)                 | ✅ Granular                                                                                              |
+| T31  | docs                                 | ✅ Granular                                                                                              |
+
+---
+
+## Diagram-Definition Cross-Check
+
+| Task | Depends On (task body)                         | Diagram Shows                   | Status   |
+| ---- | ---------------------------------------------- | ------------------------------- | -------- |
+| T1   | None                                           | —                               | ✅ Match |
+| T2   | None                                           | —                               | ✅ Match |
+| T3   | T2                                             | T2 → T3                         | ✅ Match |
+| T4   | T1, T2 (fase 1)                                | início da fase 2                | ✅ Match |
+| T5   | T4                                             | T4 → T5                         | ✅ Match |
+| T6   | T4                                             | T4 → T6                         | ✅ Match |
+| T7   | T3, T4 (fases anteriores)                      | início da fase 3                | ✅ Match |
+| T8   | T7                                             | T7 → T8                         | ✅ Match |
+| T9   | T7                                             | T7 → T9                         | ✅ Match |
+| T10  | T8, T9                                         | T8 → T10, T9 → T10              | ✅ Match |
+| T11  | T10                                            | T10 → T11                       | ✅ Match |
+| T12  | T7, T1 (fase 1)                                | T7 → T12                        | ✅ Match |
+| T13  | T7                                             | T7 → T13                        | ✅ Match |
+| T14  | T4 (fase 2)                                    | início da fase 4                | ✅ Match |
+| T15  | T14                                            | T14 → T15                       | ✅ Match |
+| T16  | T14                                            | T14 → T16                       | ✅ Match |
+| T17  | T4 (fase 2)                                    | início da fase 5                | ✅ Match |
+| T18  | T17                                            | T17 → T18                       | ✅ Match |
+| T19  | T4 (fase 2)                                    | início da fase 5                | ✅ Match |
+| T20  | T19, T10, T12 (fase 3)                         | T19 → T20                       | ✅ Match |
+| T21  | T18, T20                                       | T18 → T21, T20 → T21            | ✅ Match |
+| T22  | T11 (fase 3)                                   | início da fase 6                | ✅ Match |
+| T23  | T22                                            | T22 → T23                       | ✅ Match |
+| T24  | T23                                            | T23 → T24                       | ✅ Match |
+| T25  | None na fase (usa T3, T14 de fases anteriores) | —                               | ✅ Match |
+| T26  | None na fase (usa T12)                         | —                               | ✅ Match |
+| T27  | T26                                            | T26 → T27                       | ✅ Match |
+| T28  | None na fase (usa T25)                         | —                               | ✅ Match |
+| T29  | T26                                            | T26 → T29                       | ✅ Match |
+| T30  | T27, T28, T29                                  | T27 → T30, T28 → T30, T29 → T30 | ✅ Match |
+| T31  | T30                                            | T30 → T31                       | ✅ Match |
+
+---
+
+## Test Co-location Validation
+
+| Task   | Code Layer Created/Modified              | Matrix Requires                                        | Task Says | Status |
+| ------ | ---------------------------------------- | ------------------------------------------------------ | --------- | ------ |
+| T1     | teste do motor                           | unit                                                   | unit      | ✅ OK  |
+| T2     | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T3     | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T4     | domínio puro + leitores (UI só mecânico) | unit (UI coberta pelos e2e existentes no gate de fase) | unit      | ✅ OK  |
+| T5     | persistência                             | unit                                                   | unit      | ✅ OK  |
+| T6     | store                                    | unit                                                   | unit      | ✅ OK  |
+| T7–T13 | motor (domínio puro)                     | unit                                                   | unit      | ✅ OK  |
+| T14    | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T15    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T16    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T17    | domínio puro                             | unit                                                   | unit      | ✅ OK  |
+| T18    | advisor (domínio puro)                   | unit                                                   | unit      | ✅ OK  |
+| T19    | lib + tipo                               | unit                                                   | unit      | ✅ OK  |
+| T20    | dados                                    | unit                                                   | unit      | ✅ OK  |
+| T21    | docs                                     | unit (claude-map)                                      | unit      | ✅ OK  |
+| T22    | motor                                    | unit                                                   | unit      | ✅ OK  |
+| T23    | lib pura                                 | unit                                                   | unit      | ✅ OK  |
+| T24    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T25    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T26    | motor                                    | unit                                                   | unit      | ✅ OK  |
+| T27    | motor (cliente)                          | unit                                                   | unit      | ✅ OK  |
+| T28    | store + UI                               | unit + e2e                                             | unit, e2e | ✅ OK  |
+| T29    | lib pura                                 | unit                                                   | unit      | ✅ OK  |
+| T30    | UI                                       | e2e                                                    | e2e       | ✅ OK  |
+| T31    | docs                                     | unit (claude-map)                                      | unit      | ✅ OK  |

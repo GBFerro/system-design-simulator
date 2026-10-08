@@ -85,7 +85,7 @@ function expectNoLoss(v1: Graph, graph: { nodes: Node[] | V1Node[]; edges: Edge[
     expect(after.source).toBe(before.source);
     expect(after.target).toBe(before.target);
     expect(after.data).toMatchObject(before.data ?? {});
-    expect(after.data?.rule).toMatchObject({ callsPerRequest: 1 });
+    expect(after.data?.rule).toMatchObject({ calls: [{ callsPerRequest: 1 }] });
   }
 }
 
@@ -104,9 +104,11 @@ describe("v1 localStorage → v2 stores", () => {
 
     // cache → db is on_miss; the async pubsub edge keeps async/protocol
     const rule = (id: string) => state.edges.find((e) => e.id === id)!.data!.rule;
-    expect(rule("xy-edge__cache-27ab4c-sql-db-6c7d8e")).toMatchObject({ kind: "on_miss" });
+    expect(rule("xy-edge__cache-27ab4c-sql-db-6c7d8e")).toMatchObject({
+      calls: [{ kind: "on_miss" }],
+    });
     expect(rule("xy-edge__load-balancer-5f1c2a-app-server-9d0e11")).toMatchObject({
-      kind: "always",
+      calls: [{ kind: "always" }],
     });
 
     const ref = state.tabs.find((t) => t.id === "ref-url-shortener")!;
@@ -115,9 +117,9 @@ describe("v1 localStorage → v2 stores", () => {
     // Active tab snapshot is rebuilt from the live graph
     expect(state.tabs.find((t) => t.id === "my-design")!.nodes).toBe(state.nodes);
 
-    // Written back as v2
+    // Written back as v3
     const persisted = JSON.parse(storage.get("systemsim-canvas")!);
-    expect(persisted.version).toBe(2);
+    expect(persisted.version).toBe(3);
     expect(persisted.state.nodes[1].data.params[PARAM.instances]).toBe(4);
   });
 
@@ -132,7 +134,7 @@ describe("v1 localStorage → v2 stores", () => {
       expect(design.strokes).toEqual(before.strokes);
       expectNoLoss(before, design as unknown as Graph);
     });
-    expect(JSON.parse(storage.get("systemsim-saved-designs")!).version).toBe(2);
+    expect(JSON.parse(storage.get("systemsim-saved-designs")!).version).toBe(3);
   });
 
   it("pen strokes and app state pass through unchanged", async () => {
@@ -142,7 +144,7 @@ describe("v1 localStorage → v2 stores", () => {
     await useAppStore.persist.rehydrate();
     expect(usePenStore.getState().strokes).toEqual(v1Pen.strokes);
     expect(useAppStore.getState().selectedProblemId).toBe("url-shortener");
-    expect(JSON.parse(storage.get("systemsim-pen-strokes")!).version).toBe(2);
+    expect(JSON.parse(storage.get("systemsim-pen-strokes")!).version).toBe(3);
   });
 
   it("loading a migrated saved design puts the same graph on the canvas", async () => {
@@ -156,7 +158,7 @@ describe("v1 localStorage → v2 stores", () => {
     expect(usePenStore.getState().strokes).toEqual(v1Saved.designs[0].strokes);
   });
 
-  it("imports a v1 JSON export into saved designs and exports it back as v2", async () => {
+  it("imports a v1 JSON export into saved designs and exports it back as v3", async () => {
     const { useSavedDesignsStore } = await import("@/store/savedDesignsStore");
     const v1File = JSON.stringify({
       schemaVersion: 1,
@@ -169,7 +171,7 @@ describe("v1 localStorage → v2 stores", () => {
     expectNoLoss(v1Saved.designs[0], imported as unknown as Graph);
 
     const exported = JSON.parse(useSavedDesignsStore.getState().exportDesign(imported.id));
-    expect(exported.schemaVersion).toBe(2);
+    expect(exported.schemaVersion).toBe(3);
     expect(exported.nodes).toEqual(imported.nodes);
     expect(exported.edges).toEqual(imported.edges);
     expect(exported.strokes).toEqual(imported.strokes);

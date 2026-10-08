@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
 import { PARAM } from "@/domain/components/registry";
+import type { EdgeRule } from "@/domain/components/types";
+import { MAX_CALL_STEP, MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
 import {
   parseEnvelope,
   parseEnvelopeJson,
@@ -44,9 +46,7 @@ function canvasGraph() {
       protocol: "grpc",
       async: true,
       rule: {
-        kind: "fraction",
-        fraction: 0.3,
-        callsPerRequest: 2,
+        calls: [{ kind: "fraction", fraction: 0.3, callsPerRequest: 2 }],
         networkLatencyMs: 4,
         packetLoss: 0.01,
       },
@@ -68,7 +68,7 @@ describe("export envelope v2", () => {
       slo: { percentile: 95, thresholdMs: 200, availability: 0.9999 },
     });
     const exported = JSON.parse(json) as DesignEnvelope;
-    expect(exported.schemaVersion).toBe(2);
+    expect(exported.schemaVersion).toBe(3);
     expect(Object.keys(exported).sort()).toEqual(
       [
         "chaosScript",
@@ -85,7 +85,7 @@ describe("export envelope v2", () => {
     const result = parseEnvelopeJson(json);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.fromVersion).toBe(2);
+    expect(result.fromVersion).toBe(3);
     expect(result.warnings).toEqual([]);
     expect(result.design).toEqual(exported);
 
@@ -169,7 +169,7 @@ describe("export envelope v2", () => {
       label: "miss",
       protocol: "tcp",
       async: false,
-      rule: { kind: "on_miss", callsPerRequest: 1 },
+      rule: { calls: [{ kind: "on_miss", callsPerRequest: 1 }] },
     });
     expect(result.design.strokes).toEqual(STROKES);
   });
@@ -243,6 +243,107 @@ describe("export envelope v2", () => {
         edges: [],
       }),
     ).toMatch(/Duplicate/);
-    expect(bad({ schemaVersion: 3, nodes: [], edges: [] })).toMatch(/newer version/);
+    expect(bad({ schemaVersion: 4, nodes: [], edges: [] })).toMatch(/newer version/);
+  });
+});
+
+// request-flow, FLW-19/20/45: schema v3 envelopes carry each edge's call list.
+describe("export envelope v3", () => {
+  const LOOK_ASIDE: EdgeRule = {
+    calls: [
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: "cache-1", step: 3, callsPerRequest: 1 },
+    ],
+    networkLatencyMs: 2,
+    packetLoss: 0,
+  };
+
+  function design(rule: unknown, schemaVersion: number) {
+    return {
+      schemaVersion,
+      name: "Look-aside",
+      problemId: null,
+      nodes: [
+        {
+          id: "app-1",
+          type: "component",
+          position: { x: 0, y: 0 },
+          data: { componentId: "app-server", label: "App" },
+        },
+        {
+          id: "cache-1",
+          type: "component",
+          position: { x: 0, y: 100 },
+          data: { componentId: "cache", label: "Redis" },
+        },
+        {
+          id: "db-1",
+          type: "component",
+          position: { x: 0, y: 200 },
+          data: { componentId: "sql-db", label: "DB" },
+        },
+      ],
+      edges: [
+        {
+          id: "e-app-cache",
+          source: "app-1",
+          target: "cache-1",
+          data: { protocol: "http", async: false },
+        },
+        {
+          id: "e-app-db",
+          source: "app-1",
+          target: "db-1",
+          data: { protocol: "http", async: false, rule },
+        },
+      ],
+      strokes: [],
+    };
+  }
+
+  const dbRule = (d: DesignEnvelope) => d.edges.find((e) => e.id === "e-app-db")!.data!.rule;
+
+  it("exports schemaVersion 3 and an export → import returns the same calls", () => {
+    const first = parseEnvelope(design(LOOK_ASIDE, 3));
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const json = stringifyEnvelope(first.design);
+    expect((JSON.parse(json) as DesignEnvelope).schemaVersion).toBe(3);
+    const again = parseEnvelopeJson(json);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.fromVersion).toBe(3);
+    expect(dbRule(again.design)).toEqual(LOOK_ASIDE);
+    expect(again.warnings).toEqual([]);
+  });
+
+  it("imports schemaVersion 2 (flat rule) as one call with the same condition", () => {
+    const result = parseEnvelope(
+      design({ kind: "writes", callsPerRequest: 1, networkLatencyMs: 2, packetLoss: 0 }, 2),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fromVersion).toBe(2);
+    expect(dbRule(result.design)).toEqual({
+      calls: [{ kind: "writes", callsPerRequest: 1 }],
+      networkLatencyMs: 2,
+      packetLoss: 0,
+    });
+  });
+
+  it("an imported call list beyond the limits is normalized with warnings", () => {
+    const calls = [
+      { kind: "sometimes", callsPerRequest: 1 },
+      { kind: "reads", callsPerRequest: 1, step: MAX_CALL_STEP + 7 },
+      ...Array.from({ length: MAX_EDGE_CALLS }, () => ({ kind: "writes", callsPerRequest: 1 })),
+    ];
+    const result = parseEnvelope(design({ calls, networkLatencyMs: 1, packetLoss: 0 }, 3));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const rule = dbRule(result.design)!;
+    expect(rule.calls).toHaveLength(MAX_EDGE_CALLS);
+    expect(rule.calls[0].kind).toBe("always");
+    expect(rule.calls[1].step).toBe(MAX_CALL_STEP);
+    expect(result.warnings).toHaveLength(3);
   });
 });

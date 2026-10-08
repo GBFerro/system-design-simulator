@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { open } from "./helpers";
+import { analyze, connect, open, quickAdd } from "./helpers";
 
 // Spec 07 (OBS-01..04): runtime metrics on nodes, in the Sim panel, and the
 // particle overlay — all read from runtimeStore, never from node.data.
@@ -23,8 +23,7 @@ interface RuntimeHandle {
 async function loadReferenceAndSimulate(page: Page) {
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("button", { name: "Simulate", exact: true }).click();
-  await expect(page.getByText("Simulation complete!")).toBeVisible();
+  await analyze(page);
 }
 
 const particleCount = (page: Page) =>
@@ -187,7 +186,7 @@ test("tab switch clears runtime metrics", async ({ page }) => {
 
 // Performance sanity (NFR: 60 fps with 100 edges + 2,000 particles). Headless
 // frame pacing varies by machine, so the bound is loose; the p95 is logged.
-test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", async ({ page }) => {
+test("ball overlay keeps frame time low with 100 edges near the 2,000 cap", async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem("seeded")) return;
     sessionStorage.setItem("seeded", "1");
@@ -210,8 +209,21 @@ test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", as
         });
       }
     }
+    // Every call at step 1: a node calls all its dependencies in parallel
+    // (without a step they'd go one after another, request-flow FLW-31).
+    const parallel = {
+      calls: [{ kind: "always", step: 1, callsPerRequest: 1 }],
+      networkLatencyMs: 1,
+      packetLoss: 0,
+    };
     const link = (a: string, b: string) =>
-      edges.push({ id: `p-${a}-${b}`, source: a, target: b, type: "animated", data: {} });
+      edges.push({
+        id: `p-${a}-${b}`,
+        source: a,
+        target: b,
+        type: "animated",
+        data: { rule: parallel },
+      });
     for (let c = 0; c < 9; c++) {
       for (let r = 0; r < 5; r++) {
         link(`n${c}-${r}`, `n${c + 1}-${r}`);
@@ -260,7 +272,8 @@ test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", as
       },
     });
   });
-  await expect.poll(() => particleCount(page)).toBe(2000);
+  // Every node fans out ×2–3 at full load: the balls pile up toward the cap.
+  await expect.poll(() => particleCount(page), { timeout: 15_000 }).toBeGreaterThan(1000);
 
   const p95 = await page.evaluate(
     () =>
@@ -284,8 +297,143 @@ test("particle overlay keeps frame time low with 100 edges at the 2,000 cap", as
     .not.toBeNull();
   const drawMs = Number(await page.getByTestId("flow-particles").getAttribute("data-draw-ms"));
   console.log(
-    `particles (100 edges, 2000): draw ${drawMs.toFixed(2)} ms/frame, rAF p95 ${p95.toFixed(1)} ms`,
+    `balls (100 edges, ≤ 2000): draw ${drawMs.toFixed(2)} ms/frame, rAF p95 ${p95.toFixed(1)} ms`,
   );
   expect(drawMs).toBeLessThan(8);
+  expect(await particleCount(page)).toBeLessThanOrEqual(2000);
   expect(p95).toBeLessThan(100);
+});
+
+// OBS-04: the ×N badge opens a node into one card per instance, each with its own edges.
+test("the ×N badge opens a node into instance cards, also on a read-only reference, without an undo entry", async ({
+  page,
+}) => {
+  await open(page, "/?e2e=1");
+  await page.getByTitle("Load reference solution").click();
+  const app = page.locator('.react-flow__node[data-id^="app-server-"]');
+  await expect(app).toBeVisible();
+  const edgesBefore = await page.locator(".react-flow__edge").count();
+
+  await app.getByRole("button", { name: "Show the 45 instances" }).click();
+  const cards = page.getByTestId("instance-card");
+  // 4 instance cards and one stacked card with the other 41.
+  await expect(cards).toHaveCount(5);
+  await expect(cards.last()).toContainText("+41 instances");
+  await expect(cards.first()).toContainText("App Server #1");
+  // Every edge of the node is drawn once per card.
+  const appEdges = await page.locator('.react-flow__edge[data-id^="e-"]').count();
+  expect(await page.locator(".react-flow__edge").count()).toBeGreaterThan(edgesBefore);
+  expect(appEdges).toBeLessThan(edgesBefore);
+
+  // Dragging a card moves the group, on a read-only tab too, with no undo entry.
+  const first = cards.first();
+  const box = (await first.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + 60, { steps: 6 });
+  await page.mouse.up();
+  const moved = (await first.boundingBox())!;
+  expect(moved.x).toBeGreaterThan(box.x + 60);
+  const second = (await cards.nth(1).boundingBox())!;
+  expect(Math.abs(second.x - moved.x)).toBeLessThan(2);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  await first.getByRole("button", { name: "Hide the 45 instances" }).click();
+  await expect(cards).toHaveCount(0);
+  await expect(app).toBeVisible();
+});
+
+// The selected resource's metrics in a card beside it on the canvas.
+test("selecting a node during a run shows its metrics in a card beside it", async ({ page }) => {
+  await open(page, "/?e2e=1");
+  await page.getByTitle("Load reference solution").click();
+  const lb = page.locator('.react-flow__node[data-id^="load-balancer-"]');
+  await expect(lb).toBeVisible();
+
+  // No run yet: selecting shows nothing.
+  await lb.click();
+  const card = page.getByTestId("node-insight-card");
+  await expect(card).toHaveCount(0);
+
+  await analyze(page);
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Load Balancer");
+  await expect(card.getByTestId("node-throughput")).toContainText("req/s");
+  await expect(card.getByTestId("node-latency")).toContainText("p99");
+  // Beside the node, to its right.
+  const nodeBox = (await lb.boundingBox())!;
+  const cardBox = (await card.boundingBox())!;
+  expect(cardBox.x).toBeGreaterThan(nodeBox.x + nodeBox.width);
+
+  await card.getByRole("button", { name: "Close metrics" }).click();
+  await expect(card).toHaveCount(0);
+
+  // Another node opens it again; Escape (clear selection) closes it.
+  await page.locator('.react-flow__node[data-id^="dns-"]').click();
+  await expect(card).toContainText("DNS");
+  await page.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
+});
+
+test("Analyze publishes each edge's link failure: the caller's timeout fails its calls (FLW-05)", async ({
+  page,
+}) => {
+  await open(page, "/?e2e=1");
+  // client → app (timeout 5 ms) → SQL (200 ms per request, room to spare): every app → SQL call times out.
+  await quickAdd(page, "Client");
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "SQL Database");
+  await connect(page, "client", "app-server");
+  await connect(page, "app-server", "sql-db");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+
+  const setParam = async (node: string, label: string, value: string) => {
+    await page.locator(`.react-flow__node[data-id^="${node}-"]`).click();
+    const field = page.getByLabel(label, { exact: true });
+    await field.fill(value);
+    await field.press("Enter");
+    await expect(field).toHaveValue(value);
+  };
+  await setParam("app-server", "Instances", "4");
+  await setParam("app-server", "Timeout", "5");
+  await setParam("sql-db", "Instances", "4");
+  await setParam("sql-db", "Read service time", "200");
+  await setParam("sql-db", "Write service time", "200");
+
+  const edgeId = (source: string, target: string) =>
+    page.evaluate(
+      ([s, t]) => {
+        const { state } = JSON.parse(localStorage.getItem("systemsim-canvas")!) as {
+          state: { edges: { id: string; source: string; target: string }[] };
+        };
+        return state.edges.find((e) => e.source.startsWith(`${s}-`) && e.target.startsWith(`${t}-`))
+          ?.id;
+      },
+      [source, target] as const,
+    );
+  const appToDb = await edgeId("app-server", "sql-db");
+  const clientToApp = await edgeId("client", "app-server");
+  expect(appToDb).toBeTruthy();
+  expect(clientToApp).toBeTruthy();
+
+  await page.getByRole("tab", { name: "Simulate" }).click();
+  await page.getByRole("button", { name: "Analyze", exact: true }).click();
+  // the first Analyze loads the engine lazily (cold chunk in dev)
+  await expect(page.getByText("Analysis complete!")).toBeVisible({ timeout: 20_000 });
+  const linkFailure = () =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __runtimeStore: {
+              getState(): { latest: { edgeLinkFailure?: Record<string, number> } | null };
+            };
+          }
+        ).__runtimeStore.getState().latest?.edgeLinkFailure ?? null,
+    );
+  await expect.poll(linkFailure, { timeout: 20_000 }).not.toBeNull();
+  const failure = (await linkFailure())!;
+  expect(failure[appToDb!]).toBeGreaterThan(0.99);
+  // No timeout and no loss on client → app: its link doesn't fail.
+  expect(failure[clientToApp!]).toBe(0);
 });

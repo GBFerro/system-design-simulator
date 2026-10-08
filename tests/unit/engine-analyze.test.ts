@@ -2,16 +2,37 @@ import { describe, expect, it } from "vitest";
 import { defaultParams, PARAM } from "@/domain/components/registry";
 import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
-import { retryAmplification } from "@/engine/core/queueing";
+import { retryAmplification, station } from "@/engine/core/queueing";
+import { callProbability, edgeFactor, forwardEdges } from "@/engine/core/routing";
+import { settle, type FlowView, type Topology } from "@/engine/core/settle";
 import { simulateCanvas } from "@/engine/client";
 import { createEngine } from "@/engine/engine";
 import { FaultError } from "@/engine/faults/runner";
+import { analyzeUnderFault } from "@/engine/faults/steady";
+import type { EdgeCall } from "@/domain/components/types";
 import type { SteadyState } from "@/engine/types";
+import type { Edge } from "@xyflow/react";
 import { comp, text, wire } from "./engineFixtures";
 
 const byId = (s: SteadyState, id: string) => s.nodes.find((n) => n.nodeId === id)!;
 const edgeOf = (s: SteadyState, source: string, target: string) =>
   s.edges.find((e) => e.source === source && e.target === target)!;
+
+/** An edge carrying an explicit call list (schema v3). */
+function callWire(source: string, target: string, calls: EdgeCall[], async = false): Edge {
+  return {
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    data: { protocol: "http", async, rule: { calls, networkLatencyMs: 1, packetLoss: 0 } },
+  };
+}
+
+const call = (kind: EdgeCall["kind"], extra: Partial<EdgeCall> = {}): EdgeCall => ({
+  kind,
+  callsPerRequest: 1,
+  ...extra,
+});
 
 describe("analyze(): queueing through the graph", () => {
   it("M/M/1 node at ρ = 0.5 waits S·ρ/(1−ρ)", () => {
@@ -322,6 +343,353 @@ describe("analyze(): graph hygiene and entry points", () => {
       db[PARAM.capacityPerInstance],
       db[PARAM.serviceTimeMs],
     ]);
+  });
+});
+
+describe("compileGraph: call plan (request-flow)", () => {
+  const lookAside = [
+    comp("client", "client"),
+    comp("svc", "app-server", { instances: 10 }),
+    comp("redis", "cache", { hitRate: 0.9 }),
+    comp("db", "sql-db", { instances: 4 }),
+    comp("log", "monitoring"),
+  ];
+
+  it("every node with a forward outgoing edge carries its plan; leaves don't", () => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+      callWire("svc", "log", [call("always")], true),
+    ]);
+    const plan = (id: string) => graph.nodes.find((n) => n.id === id)!.plan;
+    expect(
+      plan("client")!
+        .steps.flat()
+        .map((p) => p.edgeId),
+    ).toEqual(["e-client-svc"]);
+    const svc = plan("svc")!;
+    expect(svc.steps.map((g) => g.map((p) => `${p.edgeId}#${p.index}@${p.step}`))).toEqual([
+      ["e-svc-redis#0@1"],
+      ["e-svc-db#0@2"],
+      ["e-svc-db#1@3"],
+    ]);
+    expect(svc.async.map((p) => p.edgeId)).toEqual(["e-svc-log"]);
+    expect(svc.steps[2][0].dependsOn).toBe("e-svc-redis");
+    expect(svc.absorbed).toEqual(["e-svc-redis"]);
+    expect(plan("redis")).toBeUndefined();
+    expect(plan("db")).toBeUndefined();
+    expect(plan("log")).toBeUndefined();
+    expect(graph.warnings).toEqual([]);
+  });
+
+  it("a back edge stays out of the plan and carries no load (FLW-46)", () => {
+    const graph = compileGraph(
+      [
+        comp("client", "client"),
+        comp("a", "app-server", { instances: 10 }),
+        comp("redis", "cache", { hitRate: 0.5 }),
+        comp("b", "app-server", { instances: 10 }),
+      ],
+      [
+        wire("client", "a"),
+        callWire("a", "redis", [call("reads")]),
+        callWire("a", "b", [call("always")]),
+        // closes the cycle a → b → a: a conditional call on the back edge
+        callWire("b", "a", [call("after_miss", { missOf: "redis" })]),
+      ],
+    );
+    const back = graph.edges.find((e) => e.back)!;
+    expect([back.source, back.target]).toEqual(["b", "a"]);
+    expect(graph.nodes.find((n) => n.id === "b")!.plan).toBeUndefined();
+    const a = graph.nodes.find((n) => n.id === "a")!.plan!;
+    expect(a.steps.flat().map((p) => p.edgeId)).toEqual(["e-a-redis", "e-a-b"]);
+    expect(edgeOf(analyze(graph, 1000), "b", "a").rps).toBe(0);
+  });
+
+  it.each([
+    ["missOf names a node the graph doesn't have (FLW-42)", "ghost"],
+    ["missOf names a node without hit rate (FLW-43)", "log"],
+  ])("%s: graph.warnings says so and the call counts as reads", (_name, missOf) => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "log", [call("always")]),
+      callWire("svc", "db", [call("after_miss", { missOf })]),
+    ]);
+    const svc = graph.nodes.find((n) => n.id === "svc")!.plan!;
+    expect(svc.steps.flat().find((p) => p.target === "db")!.call.kind).toBe("reads");
+    expect(svc.warnings).toHaveLength(1);
+    expect(graph.warnings).toContain(svc.warnings[0]);
+    expect(svc.warnings[0]).toMatch(/svc → db: "reads after a miss" .*treated as reads/);
+  });
+
+  it("a raised after-miss step shows up in graph.warnings (FLW-29)", () => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads", { step: 2 })]),
+      callWire("svc", "db", [call("after_miss", { missOf: "redis", step: 1 })]),
+    ]);
+    const svc = graph.nodes.find((n) => n.id === "svc")!.plan!;
+    expect(svc.steps.flat().find((p) => p.target === "db")!.step).toBe(3);
+    expect(svc.warnings).toHaveLength(1);
+    expect(svc.warnings[0]).toMatch(/svc → db: .*at step 1; it runs at step 3/);
+    expect(graph.warnings).toContain(svc.warnings[0]);
+  });
+
+  it("stays structured-clone safe: plain arrays and objects only", () => {
+    const graph = compileGraph(lookAside, [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+    ]);
+    const svc = graph.nodes.find((n) => n.id === "svc")!.plan!;
+    expect(Array.isArray(svc.absorbed)).toBe(true);
+    expect(structuredClone(graph)).toEqual(graph);
+    expect(JSON.parse(JSON.stringify(graph))).toEqual(graph);
+  });
+});
+
+describe("routing: probability of each call (request-flow)", () => {
+  // svc reads redis (h 0.9), then writes the db and reads it after a miss
+  const graph = compileGraph(
+    [
+      comp("client", "client"),
+      comp("svc", "app-server", { instances: 10 }),
+      comp("redis", "cache", { hitRate: 0.9 }),
+      comp("cdn", "cdn", { hitRate: 0.85 }),
+      comp("db", "sql-db", { instances: 4 }),
+    ],
+    [
+      wire("client", "svc"),
+      callWire("svc", "redis", [call("reads")]),
+      callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+      callWire("cdn", "db", [call("on_miss")]),
+    ],
+  );
+  const nodeOf = (id: string) => graph.nodes.find((n) => n.id === id)!;
+  const edge = (source: string, target: string) =>
+    graph.edges.find((e) => e.source === source && e.target === target)!;
+  const byIdMap = new Map(graph.nodes.map((n) => [n.id, n]));
+  const svc = nodeOf("svc");
+
+  it("reads, writes, fraction, always and read-through keep their Spec 04 values (FLW-14)", () => {
+    const ctx = { readRatio: 0.9 };
+    expect(callProbability(call("reads"), svc, ctx)).toBe(0.9);
+    expect(callProbability(call("writes"), svc, ctx)).toBe(1 - 0.9);
+    expect(callProbability(call("fraction", { fraction: 0.2 }), svc, ctx)).toBe(0.2);
+    expect(callProbability(call("always"), svc, ctx)).toBe(1);
+    // read-through: the calling cache's own misses
+    expect(callProbability(call("on_miss"), nodeOf("cdn"), ctx)).toBe(1 - 0.85);
+  });
+
+  it("after_miss is r × (1 − h × (1 − f)): 0.09 with a healthy cache, every read when it fails (FLW-09, FLW-13)", () => {
+    const afterMiss = call("after_miss", { missOf: "redis" });
+    const cacheCall = edge("svc", "redis").id;
+    const at = (f: number) =>
+      callProbability(
+        afterMiss,
+        svc,
+        { readRatio: 0.9, byId: byIdMap, failure: new Map([[cacheCall, f]]) },
+        cacheCall,
+      );
+    expect(at(0)).toBeCloseTo(0.09, 12);
+    expect(at(1)).toBeCloseTo(0.9, 12);
+    expect(at(0.5)).toBeCloseTo(0.9 * (1 - 0.9 * 0.5), 12);
+  });
+
+  it("with one call, the edge factor is exactly P(taken) × callsPerRequest", () => {
+    const one = (calls: EdgeCall[], source = "svc") =>
+      compileGraph(
+        [comp("svc", "app-server"), comp("cdn", "cdn", { hitRate: 0.85 }), comp("db", "sql-db")],
+        [callWire(source, "db", calls)],
+      );
+    const factor = (calls: EdgeCall[], source = "svc") => {
+      const g = one(calls, source);
+      return edgeFactor(
+        g.edges[0],
+        g.nodes.find((n) => n.id === source)!,
+        { readRatio: 0.9 },
+      );
+    };
+    expect(factor([call("reads", { callsPerRequest: 3 })])).toBe(0.9 * 3);
+    expect(factor([call("writes", { callsPerRequest: 2.5 })])).toBe((1 - 0.9) * 2.5);
+    expect(factor([call("fraction", { fraction: 0.1, callsPerRequest: 4 })])).toBe(0.1 * 4);
+    expect(factor([call("always", { callsPerRequest: 0 })])).toBe(0);
+    expect(factor([call("on_miss", { callsPerRequest: 2 })], "cdn")).toBe((1 - 0.85) * 2);
+  });
+
+  it("an edge with several calls sums them: writes + reads after a miss", () => {
+    const ctx = { readRatio: 0.9, byId: byIdMap };
+    expect(edgeFactor(edge("svc", "db"), svc, ctx)).toBeCloseTo(0.1 + 0.09, 12);
+    const down = new Map([[edge("svc", "redis").id, 1]]);
+    expect(edgeFactor(edge("svc", "db"), svc, { ...ctx, failure: down })).toBeCloseTo(1, 12);
+  });
+});
+
+describe("settle: a look-aside cache's failure is a miss (request-flow)", () => {
+  const nodes = [
+    comp("client", "client"),
+    comp("svc", "app-server", { instances: 10 }),
+    comp("redis", "cache", { hitRate: 0.9 }),
+    comp("db", "sql-db", { instances: 4 }),
+  ];
+
+  /** settle() over a compiled graph with each node serving `servedShare` of its arrivals. */
+  function settleOf(
+    edges: Edge[],
+    servedShare: Record<string, number>,
+    availability: Record<string, number> = {},
+  ) {
+    const graph = compileGraph(nodes, edges);
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    for (const [id, a] of Object.entries(availability)) byId.get(id)!.params.availability = a;
+    const topo: Topology = {
+      byId,
+      order: graph.order,
+      entries: graph.entryIds,
+      out: forwardEdges(graph.edges),
+      readRatio: 0.9,
+    };
+    const flows = new Map<string, FlowView>();
+    for (const n of graph.nodes) {
+      const offered = 1000;
+      const served = offered * (servedShare[n.id] ?? 1);
+      const st = station({
+        lambda: served,
+        instances: n.instances,
+        capacityPerInstance: n.capacityPerInstance,
+        serviceTimeMs: n.serviceTimeMs,
+        maxQueue: Infinity,
+        horizonSec: 10,
+      });
+      flows.set(n.id, { st, offered, served, dropped: offered - served });
+    }
+    return { graph, settled: settle(topo, flows, new Map()) };
+  }
+
+  const lookAside = [
+    wire("client", "svc"),
+    callWire("svc", "redis", [call("reads")]),
+    callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+  ];
+  // The same service without a cache: every read goes to the database.
+  const noCache = [wire("client", "svc"), callWire("svc", "db", [call("writes"), call("reads")])];
+
+  it("a dead cache (every call fails, availability 0) doesn't fail the request (FLW-12)", () => {
+    const { graph, settled } = settleOf(lookAside, { redis: 0 }, { redis: 0 });
+    const cacheCall = graph.edges.find((e) => e.target === "redis")!.id;
+    expect(settled.failure.get(cacheCall)).toBe(1);
+    expect(settled.success.get("svc")).toBeCloseTo(1, 12);
+    expect(settled.success.get("client")).toBeCloseTo(1, 12);
+    // availability as if the cache weren't there and every read hit the database
+    const without = settleOf(noCache, {}).settled;
+    expect(settled.avail.get("svc")).toBeCloseTo(without.avail.get("svc")!, 12);
+    expect(settled.avail.get("client")).toBeCloseTo(without.avail.get("client")!, 12);
+  });
+
+  it("the call after a miss still fails the request when the database fails", () => {
+    const { settled } = settleOf(lookAside, { db: 0 });
+    // writes always reach the db; reads only on a miss
+    expect(settled.success.get("svc")!).toBeLessThan(1);
+    expect(settled.success.get("svc")!).toBeGreaterThan(0);
+    const allReads = settleOf(lookAside, { db: 0, redis: 0 }).settled;
+    expect(allReads.success.get("svc")!).toBeLessThan(settled.success.get("svc")!);
+  });
+
+  it("every number stays finite and within [0, 1]", () => {
+    for (const redis of [0, 0.3, 1]) {
+      for (const db of [0, 0.5, 1]) {
+        const { settled } = settleOf(lookAside, { redis, db }, { redis: redis, db: db });
+        for (const m of [settled.success, settled.failure, settled.avail]) {
+          for (const v of m.values()) {
+            expect(Number.isFinite(v)).toBe(true);
+            expect(v).toBeGreaterThanOrEqual(0);
+            expect(v).toBeLessThanOrEqual(1);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe("analyze(): reads after a cache miss (request-flow)", () => {
+  const RPS = 10_000;
+  const config = { readRatio: 0.9 };
+  const nodes = [
+    comp("client", "client"),
+    comp("svc", "app-server", { instances: 10 }),
+    comp("redis", "cache", { hitRate: 0.9, instances: 2, capacityPerInstance: 50_000 }),
+    comp("db", "sql-db", { instances: 4, capacityPerInstance: 5000 }),
+  ];
+  const lookAside = [
+    wire("client", "svc"),
+    callWire("svc", "redis", [call("reads")]),
+    callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
+  ];
+  const graph = compileGraph(nodes, lookAside);
+
+  it("the database gets the writes plus the reads that missed: 1,900 req/s at 10k (FLW-09)", () => {
+    const s = analyze(graph, RPS, config);
+    expect(byId(s, "db").offeredRps / 1900).toBeCloseTo(1, 6);
+    expect(edgeOf(s, "svc", "db").rps / 1900).toBeCloseTo(1, 6);
+    // the same load as the read-through model it replaces
+    const readThrough = analyze(
+      compileGraph(nodes, [
+        wire("client", "svc"),
+        wire("svc", "redis", { rule: { kind: "reads" } }),
+        wire("redis", "db", { rule: { kind: "on_miss" } }),
+        wire("svc", "db", { rule: { kind: "writes" } }),
+      ]),
+      RPS,
+      config,
+    );
+    expect(byId(s, "db").offeredRps).toBeCloseTo(byId(readThrough, "db").offeredRps, 6);
+  });
+
+  it("with the cache killed, every read goes to the database and no request fails for it (FLW-12, FLW-13)", () => {
+    const r = analyzeUnderFault(
+      graph,
+      RPS,
+      { type: "kill-node", target: { kind: "node", id: "redis" } },
+      config,
+    );
+    if (!r.ok) throw new Error(r.error);
+    const s = r.steady;
+    expect(byId(s, "redis").servedRps).toBe(0);
+    expect(edgeOf(s, "svc", "redis").failureRate).toBe(1);
+    expect(byId(s, "db").offeredRps / RPS).toBeCloseTo(1, 6);
+    expect(s.errorRate).toBeCloseTo(0, 9);
+    expect(s.throughputRps / RPS).toBeCloseTo(1, 9);
+    // availability as if the design had no cache and read the database every time
+    const noCache = analyze(
+      compileGraph(nodes, [
+        wire("client", "svc"),
+        callWire("svc", "db", [call("writes"), call("reads")]),
+      ]),
+      RPS,
+      config,
+    );
+    expect(s.availability).toBeCloseTo(noCache.availability, 12);
+    expect(s.warnings).not.toContain("Retry load did not fully settle; figures are approximate.");
+  });
+
+  it("keeps the Spec 04 invariants: deterministic, served ≤ offered, every number finite (FLW-16)", () => {
+    const a = analyze(compileGraph(nodes, lookAside), RPS, { ...config, seed: 5 });
+    const b = analyze(compileGraph(nodes, lookAside), RPS, { ...config, seed: 5 });
+    expect(a).toEqual(b);
+    for (const s of [a, analyze(graph, RPS * 20, config)]) {
+      expect(s.throughputRps).toBeLessThanOrEqual(s.offeredRps);
+      for (const n of s.nodes) {
+        expect(n.servedRps).toBeLessThanOrEqual(n.offeredRps);
+        for (const v of [n.offeredRps, n.servedRps, n.utilization, n.p99Ms, n.queueDepth]) {
+          expect(Number.isFinite(v)).toBe(true);
+        }
+      }
+      for (const e of s.edges) expect(Number.isFinite(e.rps)).toBe(true);
+      for (const v of [s.availability, s.errorRate, s.latency.p99Ms, s.goodputRps]) {
+        expect(Number.isFinite(v)).toBe(true);
+      }
+    }
   });
 });
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { MOD, center, open, quickAdd } from "./helpers";
+import { MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
+import { MOD, center, connect, edgePoint, open, quickAdd } from "./helpers";
 
 // Spec 02: one test per editor bug from the diagnosis (B1–B6) plus the CAN-05 shortcuts.
 
@@ -212,4 +213,266 @@ test("CAN-05: copy/paste, duplicate, select all and arrow nudges", async ({ page
 
   await page.keyboard.press("?");
   await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+});
+
+// Request-flow (FLW-08/17/25/26/44): the Props panel edits every call an edge carries.
+
+/** App Server → SQL DB, then App Server → Cache: the DB call runs at step 1, the cache's at 2. */
+async function serviceWithDbAndCache(page: Page, path = "/") {
+  await open(page, path);
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "Cache / Redis");
+  await quickAdd(page, "SQL Database");
+  await expect(nodes(page)).toHaveCount(3);
+  await connect(page, "app-server", "sql-db");
+  await connect(page, "app-server", "cache");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+}
+
+const edgeTo = (page: Page, target: string) =>
+  page.locator(`.react-flow__edge[data-id*="${target}-"]`);
+
+async function selectEdge(page: Page, target?: string) {
+  const point = await edgePoint(page, target ? edgeTo(page, target) : undefined);
+  await page.mouse.click(point.x, point.y);
+  await expect(page.getByTestId("edge-calls")).toBeVisible();
+}
+
+const call = (page: Page, n: number) => page.getByRole("group", { name: `Call ${n}` });
+
+test("FLW-25: the Props panel edits an edge's calls, one undo step per edit", async ({ page }) => {
+  await serviceWithDbAndCache(page);
+
+  // The cache call: its source calls no other cache, so no "reads after a miss" (FLW-08)
+  await selectEdge(page, "cache");
+  await expect(
+    call(page, 1).getByLabel("Call rule").locator("option", { hasText: "Reads after a miss in" }),
+  ).toHaveCount(0);
+
+  await selectEdge(page, "sql-db");
+  await expect(call(page, 2)).toHaveCount(0);
+  // An edge keeps at least one call (FLW-44)
+  await expect(call(page, 1).getByRole("button", { name: "Remove call 1" })).toBeDisabled();
+  await call(page, 1).getByLabel("Call rule").selectOption("writes");
+
+  await page.getByRole("button", { name: "Add call" }).click();
+  await expect(call(page, 2)).toBeVisible();
+  await expect(call(page, 1).getByRole("button", { name: "Remove call 1" })).toBeEnabled();
+  await call(page, 2).getByLabel("Call rule").selectOption("after_miss");
+  // The look-aside call names the cache the service calls (FLW-08)
+  await expect(call(page, 2).getByLabel("Cache")).toHaveValue(/^cache-/);
+  await expect(call(page, 2).getByLabel("Cache").locator("option:checked")).toHaveText(
+    "Cache / Redis",
+  );
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+
+  // One undo reverts exactly the last edit
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(call(page, 2).getByLabel("Call rule")).toHaveValue("always");
+  await expect(call(page, 2).getByLabel("Cache")).toHaveCount(0);
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(call(page, 2)).toHaveCount(0);
+
+  // At most MAX_EDGE_CALLS calls per edge
+  const add = page.getByRole("button", { name: "Add call" });
+  for (let n = 2; n <= MAX_EDGE_CALLS; n++) {
+    await add.click();
+    await expect(call(page, n)).toBeVisible();
+  }
+  await expect(add).toBeDisabled();
+});
+
+test("FLW-26: the first explicit step pins the node's other calls where they run", async ({
+  page,
+}) => {
+  await serviceWithDbAndCache(page);
+  await selectEdge(page, "cache");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("2");
+
+  await selectEdge(page, "sql-db");
+  const step = call(page, 1).getByLabel("Step");
+  await expect(step).toHaveValue("1");
+  await step.fill("2");
+  await step.press("Enter");
+  await expect(step).toHaveValue("2");
+  // The cache call keeps step 2 (pinned) instead of moving after the explicit one
+  await selectEdge(page, "cache");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("2");
+
+  // Pinning and the edit are one undo step
+  await page.getByRole("button", { name: "Undo" }).click();
+  await selectEdge(page, "sql-db");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("1");
+  await selectEdge(page, "cache");
+  await expect(call(page, 1).getByLabel("Step")).toHaveValue("2");
+});
+
+test("FLW-25: on a read-only reference the calls can't be edited", async ({ page }) => {
+  await open(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(nodes(page).first()).toBeVisible();
+  await selectEdge(page);
+  await expect(call(page, 1).getByLabel("Call rule")).toBeDisabled();
+  await expect(call(page, 1).getByLabel("Calls per request")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Add call" })).toBeDisabled();
+  await expect(call(page, 1).getByRole("button", { name: "Remove call 1" })).toBeDisabled();
+});
+
+test("FLW-17: the context menu edits a one-call edge and sends a several-call edge to the panel", async ({
+  page,
+}) => {
+  await serviceWithDbAndCache(page);
+  const menu = page.getByRole("menu", { name: "Canvas actions" });
+  const rightClick = async (target: string) => {
+    const point = await edgePoint(page, edgeTo(page, target));
+    await page.mouse.click(point.x, point.y, { button: "right" });
+    await expect(menu).toBeVisible();
+  };
+
+  // One call: the menu switches its condition, the look-aside included
+  await rightClick("sql-db");
+  await expect(
+    menu.getByRole("menuitemradio", { name: "Reads after a miss in Cache / Redis" }),
+  ).toBeVisible();
+  await menu.getByRole("menuitemradio", { name: "Writes only" }).click();
+  await expect(menu).toHaveCount(0);
+  await selectEdge(page, "sql-db");
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+
+  // Two calls: the menu offers the panel instead of one call's condition
+  await page.getByRole("button", { name: "Add call" }).click();
+  await expect(call(page, 2)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } });
+  await expect(page.getByTestId("edge-calls")).toHaveCount(0);
+  await rightClick("sql-db");
+  await expect(menu.getByRole("menuitemradio", { name: "Writes only" })).toHaveCount(0);
+  await menu.getByRole("menuitem", { name: /Edit calls in the panel/ }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(call(page, 2)).toBeVisible();
+  await expect(call(page, 1).getByLabel("Call rule")).toHaveValue("writes");
+});
+
+/* ---------- edge badges: step and condition (FLW-15, FLW-29, FLW-30) ---------- */
+
+/** The badges of the edge into `target` (labels render in a portal, keyed by edge id). */
+const badges = (page: Page, target: string) => page.locator(`[data-edge-label*="${target}-"]`);
+const stepBadge = (page: Page, target: string) => badges(page, target).locator("[data-edge-step]");
+const condBadge = (page: Page, target: string) => badges(page, target).locator("[data-edge-rule]");
+const planWarning = (page: Page, target: string) =>
+  badges(page, target).locator("[data-edge-plan-warning]");
+
+async function setStep(page: Page, target: string, value: string) {
+  await selectEdge(page, target);
+  const step = call(page, 1).getByLabel("Step");
+  await step.fill(value);
+  await step.press("Enter");
+  await expect(step).toHaveValue(value);
+}
+
+test("FLW-30: each call shows its step, with ∥ when another call of the node runs in the same step", async ({
+  page,
+}) => {
+  await serviceWithDbAndCache(page);
+  // Implicit steps: the edges in the order they were drawn, one after another.
+  await expect(stepBadge(page, "sql-db")).toHaveText("1");
+  await expect(stepBadge(page, "cache")).toHaveText("2");
+
+  // Both at step 1: they run in parallel.
+  await setStep(page, "sql-db", "1");
+  await setStep(page, "cache", "1");
+  await expect(stepBadge(page, "sql-db")).toHaveText("1∥");
+  await expect(stepBadge(page, "cache")).toHaveText("1∥");
+});
+
+test("FLW-30: no step badge on a node's only sync call, nor on a load balancer's edges", async ({
+  page,
+}) => {
+  await open(page);
+  const labels = ["App Server", "Cache / Redis", "SQL Database"];
+  labels.push("Load Balancer", "Auth Service", "WebSocket Server");
+  for (const label of labels) await quickAdd(page, label);
+  await expect(nodes(page)).toHaveCount(6);
+
+  // App Server's only sync call: its label shows the condition, no step.
+  await connect(page, "app-server", "sql-db");
+  await selectEdge(page, "sql-db");
+  await call(page, 1).getByLabel("Call rule").selectOption("writes");
+  await expect(condBadge(page, "sql-db")).toHaveText("writes");
+  await expect(stepBadge(page, "sql-db")).toHaveCount(0);
+
+  // A second sync call: now both show their step.
+  await connect(page, "app-server", "cache");
+  await expect(stepBadge(page, "sql-db")).toHaveText("1");
+  await expect(stepBadge(page, "cache")).toHaveText("2");
+
+  // A load balancer sends each request down one edge: no steps on its two edges.
+  await connect(page, "load-balancer", "auth-service");
+  await connect(page, "load-balancer", "websocket-server");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+  await expect(stepBadge(page, "auth-service")).toHaveCount(0);
+  await expect(stepBadge(page, "websocket-server")).toHaveCount(0);
+});
+
+test("FLW-15/29: a call after a miss names its cache, and the edge warns when the plan moved it", async ({
+  page,
+}) => {
+  // ?e2e: the test pushes metrics through window.__runtimeStore (any build).
+  await serviceWithDbAndCache(page, "/?e2e=1");
+  await selectEdge(page, "sql-db");
+  await call(page, 1).getByLabel("Call rule").selectOption("writes");
+  await page.getByRole("button", { name: "Add call" }).click();
+  await call(page, 2).getByLabel("Call rule").selectOption("after_miss");
+
+  await expect(condBadge(page, "sql-db")).toHaveText("writes · miss: Cache / Redis");
+  // The database edge was drawn before the cache's: the call after the miss
+  // would run before the cache call, so the plan moves it after it and warns.
+  const warning = planWarning(page, "sql-db");
+  await expect(warning).toBeVisible();
+  await expect(warning).toHaveAttribute("title", /after the cache call/);
+  await expect(stepBadge(page, "sql-db")).toHaveText("1,4");
+  await expect(planWarning(page, "cache")).toHaveCount(0);
+
+  // Long labels are truncated inside a fixed maximum width.
+  const box = (await condBadge(page, "sql-db").boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(144);
+
+  // The badges keep their size while metrics stream in (no ReactFlow re-measure).
+  const before = [
+    await condBadge(page, "sql-db").boundingBox(),
+    await stepBadge(page, "sql-db").boundingBox(),
+  ];
+  await page.evaluate(() => {
+    const store = (
+      window as unknown as {
+        __runtimeStore: { getState(): { pushSnapshot(s: unknown): void } };
+      }
+    ).__runtimeStore;
+    const ids = [...document.querySelectorAll(".react-flow__edge[data-id]")].map(
+      (e) => (e as SVGGElement).dataset.id!,
+    );
+    const global = {
+      throughput: 1,
+      goodput: 1,
+      errorRate: 0,
+      p50: 1,
+      p95: 2,
+      p99: 3,
+      availability: 1,
+    };
+    for (const [t, rps, status] of [
+      [0, 10, "ok"],
+      [0.5, 98_765, "error"],
+    ] as const) {
+      const edges = Object.fromEntries(ids.map((id) => [id, { rps, status }]));
+      store.getState().pushSnapshot({ t, offeredRps: rps, nodes: {}, edges, global });
+    }
+  });
+  await expect(page.locator(`[data-edge-status="error"]`).first()).toBeAttached();
+  const after = [
+    await condBadge(page, "sql-db").boundingBox(),
+    await stepBadge(page, "sql-db").boundingBox(),
+  ];
+  expect(after.map((b) => [b!.width, b!.height])).toEqual(before.map((b) => [b!.width, b!.height]));
 });

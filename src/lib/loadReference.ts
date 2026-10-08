@@ -7,6 +7,7 @@ import { createComponentNode } from "@/lib/nodeFactory";
 import {
   canvasRuleGraph,
   defaultEdgeRule,
+  edgeRuleV2Of,
   newEdgeData,
   sanitizeEdgeRule,
 } from "@/domain/graph/edgeRules";
@@ -70,9 +71,24 @@ export function buildReferenceGraph(problem: Problem): {
         // The reference states its async flag; its rules default by component ids alone.
         data: newEdgeData(sourceId, targetId, canvasRuleGraph(refNodes, refEdges), {
           async: ref.async === true,
-          rule: ref.rule
-            ? sanitizeEdgeRule({ ...fallbackRule, ...ref.rule }, fallbackRule)
-            : fallbackRule,
+          rule: !ref.rule
+            ? fallbackRule
+            : "calls" in ref.rule
+              ? sanitizeEdgeRule(
+                  {
+                    ...ref.rule,
+                    // `missOf` is a componentId here: point it at that node (a
+                    // reference uses each component once); unknown → dropped,
+                    // and the compiler warns.
+                    calls: ref.rule.calls.map(({ missOf, ...call }) => {
+                      const node = missOf ? instancesByComponent.get(missOf)?.[0] : undefined;
+                      return node ? { ...call, missOf: node } : call;
+                    }),
+                  },
+                  fallbackRule,
+                )
+              : // (the v2 flat shape: one call)
+                sanitizeEdgeRule({ ...edgeRuleV2Of(fallbackRule), ...ref.rule }, fallbackRule),
         }),
       });
     }

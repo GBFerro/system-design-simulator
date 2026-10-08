@@ -15,7 +15,8 @@ import {
 import { DATABASES } from "@/domain/components/traits";
 import { freePositionNear, nodeRect } from "@/lib/placement";
 import { ms, pct, rps } from "@/scoring/steady";
-import { edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
+import type { EdgeCall } from "@/domain/components/types";
+import { edgeRuleOf, isAsyncEdge, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
 import { emptyDiff, insertBetween, newComponentNode, newEdge, uniqueId } from "./graph";
 import type { AdvisorContext, CanvasGraph, Finding, GraphDiff } from "./types";
 import type { DesignView } from "./view";
@@ -59,8 +60,7 @@ function readCacheFindings(view: DesignView, ctx: AdvisorContext): Finding[] {
     const readers = into.filter((e) => {
       if (isAsyncEdge(e) || !path.onPath.has(e.source)) return false;
       if (routingFor(componentOf(e.source)) !== "service") return false;
-      const kind = edgeRuleOf(graph, e).kind;
-      return kind === "always" || kind === "reads";
+      return edgeRuleOf(graph, e).calls.some((c) => c.kind === "always" || c.kind === "reads");
     });
     if (readers.length === 0) continue;
 
@@ -92,8 +92,11 @@ function readCacheFindings(view: DesignView, ctx: AdvisorContext): Finding[] {
 }
 
 /**
- * Look-aside cache: callers read the cache (`reads`), misses go on to the
- * database (`on_miss`), and the callers' own edge to it keeps the writes.
+ * Look-aside cache (FLW-23): each caller reads the cache (`reads`) and calls
+ * the database for its writes and for the reads that missed that cache
+ * (`after_miss`); nothing goes from the cache to the database. The caller's
+ * database edge keeps its id, label and link but moves after the new cache
+ * edge, so the plan runs the cache call first (no step warning).
  */
 function readCacheDiff(
   graph: CanvasGraph,
@@ -128,8 +131,7 @@ function readCacheDiff(
   const added: Edge[] = [];
   for (const e of readers) {
     const rule = edgeRuleOf(graph, e);
-    if (rule.kind === "reads") diff.removeEdgeIds.push(e.id);
-    else diff.edgeRules[e.id] = { kind: "writes" };
+    const readCall = rule.calls.find((c) => c.kind === "reads" || c.kind === "always")!;
     added.push(
       newEdge(
         nodes,
@@ -137,16 +139,25 @@ function readCacheDiff(
         edgeId(`e-${e.source}-${cache.id}`),
         e.source,
         cache.id,
-        {
-          kind: "reads",
-          callsPerRequest: rule.callsPerRequest,
-        },
+        { calls: [{ kind: "reads", callsPerRequest: readCall.callsPerRequest }] },
       ),
     );
+    // Reads now go to the database only after a miss; `always` keeps its writes.
+    const afterMiss = (c: EdgeCall): EdgeCall => ({
+      kind: "after_miss",
+      missOf: cache.id,
+      callsPerRequest: c.callsPerRequest,
+    });
+    const calls = rule.calls.flatMap((c): EdgeCall[] =>
+      c.kind === "always"
+        ? [{ ...c, kind: "writes" }, afterMiss(c)]
+        : c.kind === "reads"
+          ? [afterMiss(c)]
+          : [c],
+    );
+    diff.removeEdgeIds.push(e.id);
+    added.push({ ...e, data: { ...e.data, rule: sanitizeEdgeRule({ ...rule, calls }, rule) } });
   }
-  added.push(
-    newEdge(nodes, [...graph.edges, ...added], edgeId(`e-${cache.id}-${dbId}`), cache.id, dbId),
-  );
   diff.addNodes.push(cache);
   diff.addEdges.push(...added);
   return diff;

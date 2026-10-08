@@ -7,7 +7,15 @@
 import { PARAM } from "@/domain/components/params";
 import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
 import type { SimEdge, SimGraph, SimNode } from "@/domain/graph/compile";
-import { hitRateOf, lookupShareOf, paramNumber } from "../core/routing";
+import type { EdgeCallKind } from "@/domain/components/types";
+import {
+  callProbability,
+  callsOf,
+  edgeCallsOf,
+  hitRateOf,
+  lookupShareOf,
+  paramNumber,
+} from "../core/routing";
 import type { FaultCategory, FaultSpec, FaultTargetKind, FaultType, ModifierKind } from "./types";
 
 export interface IntensitySpec {
@@ -158,16 +166,40 @@ function delayed(modifiers: RelativeModifier[], seconds: number): RelativeModifi
   }));
 }
 
+/** Write share of one call: `writes` all, reads (`reads`, and cache misses: `on_miss`, `after_miss`) none, the rest by the mix. */
+function callWriteShare(kind: EdgeCallKind, readRatio: number): number {
+  if (kind === "writes") return 1;
+  if (kind === "reads" || kind === "on_miss" || kind === "after_miss") return 0;
+  return 1 - readRatio;
+}
+
 /**
  * Share of the calls on `e` that write to its target: a queue's every
- * publish, a `writes` edge entirely, `always`/`fraction` by the write share,
- * `reads` and `on_miss` (cache misses are reads) none.
+ * publish; otherwise each call's write share (`callWriteShare`), weighted by
+ * how many of the edge's calls it makes (P(taken) × callsPerRequest). One
+ * call gives that call's share as is.
  */
-function writeShareOf(e: SimEdge, target: SimNode, readRatio: number): number {
+// SPEC_DEVIATION: design.md weights each call by its probability only.
+// Reason: the fault fails a share of the CALLS on the edge, so a call made k
+// times per request weighs k times; with callsPerRequest 1 (the formula in
+// tasks.md T13) both are the same.
+function writeShareOf(e: SimEdge, source: SimNode, target: SimNode, ctx: BuildContext): number {
   if (target.routing === "queue") return 1;
-  if (e.rule.kind === "writes") return 1;
-  if (e.rule.kind === "reads" || e.rule.kind === "on_miss") return 0;
-  return 1 - readRatio;
+  const calls = edgeCallsOf(e, source);
+  if (calls.length === 1) return callWriteShare(calls[0].call.kind, ctx.readRatio);
+  const callCtx = { readRatio: ctx.readRatio, byId: ctx.byId };
+  let total = 0;
+  let writes = 0;
+  for (const c of calls) {
+    const w = callProbability(c.call, source, callCtx, c.dependsOn) * callsOf(c.call);
+    total += w;
+    writes += w * callWriteShare(c.call.kind, ctx.readRatio);
+  }
+  if (total > 0) return writes / total;
+  // No call expected under this mix: the kinds alone.
+  if (calls.every((c) => c.call.kind === "writes")) return 1;
+  if (calls.every((c) => callWriteShare(c.call.kind, ctx.readRatio) === 0)) return 0;
+  return 1 - ctx.readRatio;
 }
 
 /** Error modifiers failing `share` of the writes on every edge into `n`. */
@@ -180,7 +212,7 @@ function failWrites(
   const out: RelativeModifier[] = [];
   for (const e of ctx.graph.edges) {
     if (e.target !== n.id || e.back || !ctx.byId.has(e.source)) continue;
-    const w = writeShareOf(e, n, ctx.readRatio) * share;
+    const w = writeShareOf(e, ctx.byId.get(e.source)!, n, ctx) * share;
     if (w > 0) {
       out.push({
         kind: "errorRate",

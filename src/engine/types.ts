@@ -120,6 +120,15 @@ export interface SteadyState {
   iterations: number;
 }
 
+/**
+ * What the Analyze button gets from the engine: the steady state and each
+ * edge's link failure for the snapshot's `edgeLinkFailure` (request-flow).
+ */
+export interface AnalyzedGraph {
+  steady: SteadyState;
+  linkFailure: Record<string, number>;
+}
+
 /* ---------- Spec 06 (traffic) and Spec 08 (chaos) ---------- */
 
 export type { TrafficPattern, SimSpeed } from "./traffic/types";
@@ -184,14 +193,45 @@ export interface GlobalRuntimeMetrics {
   p95: number;
   p99: number;
   availability: number;
+  /**
+   * Share of requests that are reads, as the engine resolved it
+   * (`resolveConfig`: config, else the entry's `readRatio` param, else the
+   * default). The flow balls draw reads and writes with it (request-flow).
+   * Absent in snapshots built by hand (tests).
+   */
+  readRatio?: number;
 }
 
-/** One sampled request (OBS-06, Phase 5). */
-export interface Trace {
-  id: string;
+/**
+ * What happened to one sampled request (request-flow, OBS-06: the Flow tab).
+ * Times are ms since the request started. A `call` is one attempt of a sync
+ * call; its response is implied by `t1` (when it got back to the caller).
+ * An `async` call has no response. A `cache` event is a look-aside or
+ * read-through hit or miss (`viaFailure`: the cache call failed, so a miss).
+ */
+export type TraceEvent =
+  | {
+      type: "call";
+      edgeId: string;
+      from: string;
+      to: string;
+      step: number;
+      t0: number;
+      t1: number;
+      ok: boolean;
+      attempt: number;
+    }
+  | { type: "async"; edgeId: string; from: string; to: string; step: number; t0: number }
+  | { type: "cache"; nodeId: string; hit: boolean; viaFailure: boolean };
+
+/** One sampled request, as a sequence of events (`core/trace.ts`). */
+export interface RequestTrace {
+  cls: "read" | "write";
   ok: boolean;
+  /** End to end: when the response got back to the entry. */
   totalMs: number;
-  hops: { nodeId: string; startMs: number; durationMs: number }[];
+  /** In start order; responses are implied by `call.t1`. */
+  events: TraceEvent[];
 }
 
 /**
@@ -206,7 +246,15 @@ export interface TickSnapshot {
   nodes: Record<string, NodeRuntimeMetrics>;
   edges: Record<string, EdgeRuntimeMetrics>;
   global: GlobalRuntimeMetrics;
-  traces?: Trace[];
+  /**
+   * Per edge id: probability a call fails on the link or by the caller's
+   * timeout, 1 − (1 − packet loss) × (1 − P(timeout)), without the target's
+   * own failure (request-flow FLW-05: the balls fail the call with it). Kept
+   * out of `edges` so a tick doesn't re-render edges for it. Absent in
+   * snapshots built by hand (tests): no call fails on its link.
+   */
+  edgeLinkFailure?: Record<string, number>;
+  traces?: RequestTrace[];
 }
 
 export type Unsubscribe = () => void;

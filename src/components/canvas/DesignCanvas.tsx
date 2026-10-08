@@ -24,6 +24,8 @@ import { edgeTypes } from "./edges/edgeTypes";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { useAdvisorStore } from "@/store/advisorStore";
 import { isGhostId, withoutGhostChanges, withPreview } from "./previewGraph";
+import { toEdgeChanges, toNodeChanges, withInstances } from "./instanceGraph";
+import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
 import { useAppStore } from "@/store/appStore";
@@ -52,6 +54,7 @@ const emptyItem = {
 import { CanvasTabBar } from "./CanvasTabBar";
 import { PenOverlay } from "./PenOverlay";
 import { FlowParticles } from "./FlowParticles";
+import { NodeInsightCard } from "./NodeInsightCard";
 import { PenToolbar } from "./PenToolbar";
 import { CANVAS_DROP_ATTR } from "./PaletteDnd";
 import { CanvasContextMenu, type ContextMenuState, type ContextTarget } from "./CanvasContextMenu";
@@ -99,20 +102,22 @@ export function DesignCanvas({
   const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
   // Advisor quick-fix preview (Spec 12): ghosts drawn over the graph, never stored.
   const previewDiff = useAdvisorStore((s) => s.preview?.diff);
-  const rendered = useMemo(
-    () => withPreview(nodes, edges, previewDiff),
-    [nodes, edges, previewDiff],
-  );
+  // Expanded nodes (OBS-04): one card per instance, also only in what ReactFlow renders.
+  const expanded = useExpandedNodesStore((s) => s.expanded);
+  const rendered = useMemo(() => {
+    const opened = withInstances(nodes, edges, expanded);
+    return withPreview(opened.nodes, opened.edges, previewDiff);
+  }, [nodes, edges, expanded, previewDiff]);
   const handleNodesChange = useCallback<typeof onNodesChange>(
     (changes) => {
-      const real = previewDiff ? withoutGhostChanges(changes) : changes;
+      const real = toNodeChanges(previewDiff ? withoutGhostChanges(changes) : changes, nodes);
       if (real.length > 0) onNodesChange(real);
     },
-    [onNodesChange, previewDiff],
+    [onNodesChange, previewDiff, nodes],
   );
   const handleEdgesChange = useCallback<typeof onEdgesChange>(
     (changes) => {
-      const real = previewDiff ? withoutGhostChanges(changes) : changes;
+      const real = toEdgeChanges(previewDiff ? withoutGhostChanges(changes) : changes);
       if (real.length > 0) onEdgesChange(real);
     },
     [onEdgesChange, previewDiff],
@@ -301,7 +306,7 @@ export function DesignCanvas({
           panOnDrag={penActive ? false : [1]}
           zoomOnScroll={!penActive}
           zoomOnPinch={!penActive}
-          nodesDraggable={!penActive && !isReadOnly}
+          nodesDraggable={!penActive}
           nodesConnectable={!penActive && !isReadOnly}
           elementsSelectable={!penActive}
           connectionRadius={30}
@@ -339,6 +344,7 @@ export function DesignCanvas({
             style={{ width: 140, height: 90, bottom: 72 }}
           />
           <FlowParticles />
+          <NodeInsightCard />
         </ReactFlow>
 
         <PenOverlay />

@@ -36,6 +36,7 @@ import {
   sanitizeEdgeRule,
   splitReadsOnReplicaConnect,
   type EdgeProtocol,
+  type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
 
 export { edgeRuleOf } from "@/domain/graph/edgeRules";
@@ -128,11 +129,16 @@ export function isActiveTabReadOnly(state: { tabs: CanvasTab[]; activeTabId: str
 
 /**
  * ReactFlow changes that only touch view state (selection, measured size) and
- * so still apply on a read-only tab; moves, removals, additions and
- * replacements are dropped there.
+ * so still apply on a read-only tab; removals, additions and replacements are
+ * dropped there.
  */
 function isViewChange(change: NodeChange | EdgeChange): boolean {
   return change.type === "select" || change.type === "dimensions";
+}
+
+/** On a read-only tab nodes can also be moved: layout only, never an undo entry. */
+function isReadOnlyNodeChange(change: NodeChange): boolean {
+  return isViewChange(change) || change.type === "position";
 }
 
 interface Clipboard {
@@ -191,9 +197,26 @@ function cloneSubgraph(clip: Clipboard, existing: Node[], targetTopLeft: XYPosit
     id: `e-${randomId()}`,
     source: idMap.get(e.source)!,
     target: idMap.get(e.target)!,
+    data: remapMissOf(e.data, idMap),
     selected: true,
   }));
   return { nodes, edges };
+}
+
+/**
+ * "After miss" calls of a cloned edge point at the cloned cache; when the
+ * cache wasn't cloned with it, `missOf` is dropped (the call plan then
+ * treats the call as reads, with a warning).
+ */
+function remapMissOf(data: Edge["data"], idMap: ReadonlyMap<string, string>): Edge["data"] {
+  const rule = (data as CustomEdgeData | undefined)?.rule;
+  if (!rule?.calls.some((c) => c.missOf !== undefined)) return data;
+  const calls = rule.calls.map(({ missOf, ...call }) => {
+    if (missOf === undefined) return call;
+    const cloned = idMap.get(missOf);
+    return cloned ? { ...call, missOf: cloned } : call;
+  });
+  return { ...data, rule: { ...rule, calls } };
 }
 
 /** Deselect everything, then append the (selected) clones in one undo step. */
@@ -276,8 +299,11 @@ interface CanvasState {
   applyGraphEdit: (edit: (graph: { nodes: Node[]; edges: Edge[] }) => GraphEditResult) => void;
   /** Merge a params edit (validated by the node's schema) in one undo step. */
   updateNodeParams: (nodeId: string, patch: Params) => void;
-  /** Merge an edge rule edit (normalized) in one undo step. */
-  updateEdgeRule: (edgeId: string, patch: Partial<EdgeRule>) => void;
+  /**
+   * Merge an edge rule edit (normalized) in one undo step: link fields, the
+   * first call's fields, or a whole call list (`calls`; an empty list is refused).
+   */
+  updateEdgeRule: (edgeId: string, patch: EdgeRulePatch) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
   clearCanvas: () => void;
@@ -421,7 +447,7 @@ export const useCanvasStore = create<CanvasState>()(
       onNodesChange: (changes) => {
         set((state) => {
           if (isActiveTabReadOnly(state)) {
-            const view = changes.filter(isViewChange);
+            const view = changes.filter(isReadOnlyNodeChange);
             return view.length === 0 ? state : { nodes: applyNodeChanges(view, state.nodes) };
           }
           const dragStart = changes.some((c) => c.type === "position" && c.dragging === true);
@@ -633,6 +659,8 @@ export const useCanvasStore = create<CanvasState>()(
         set((state) => {
           const edge = state.edges.find((e) => e.id === edgeId);
           if (!edge || isActiveTabReadOnly(state)) return state;
+          // An edge always keeps at least one call (FLW-44).
+          if (patch.calls !== undefined && patch.calls.length === 0) return state;
           const data = (edge.data ?? {}) as CustomEdgeData;
           const fallback = connectEdgeRule(
             edge.source,

@@ -33,12 +33,11 @@ test("top bar groups never overlap and the problem selector stays readable", asy
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  // A live run (paused) adds the SLO chip (Spec 11) and the widest Simulate state (Resume | Stop | clock).
   await page.getByRole("button", { name: "Simulate", exact: true }).click();
-  await expect(page.getByText("Simulation complete!")).toBeVisible();
-  // A live run (paused) adds the SLO chip (Spec 11).
-  await page.getByRole("button", { name: "Play live traffic" }).first().click();
   await expect(page.getByTestId("slo-mini")).toBeVisible();
-  await page.getByRole("button", { name: "Pause live traffic" }).first().click();
+  await page.getByRole("button", { name: "Pause live traffic" }).click();
+  await expect(page.getByRole("button", { name: "Resume live traffic" })).toBeVisible();
 
   const left = page.getByTestId("topbar-left");
   const right = page.getByTestId("topbar-right");

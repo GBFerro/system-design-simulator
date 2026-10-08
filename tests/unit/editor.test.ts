@@ -4,6 +4,8 @@ import { MUTATING_ACTIONS, READ_ONLY_EXEMPT_ACTIONS, useCanvasStore } from "@/st
 import { DEFAULT_NODE_SIZE, findFreePosition, freePositionNear, nodeRect } from "@/lib/placement";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { SYSTEM_COMPONENTS } from "@/data/components";
+import type { EdgeCall, EdgeRule } from "@/domain/components/types";
+import type { CustomEdgeData } from "@/store/canvasStore";
 
 const comp = (id: string) => SYSTEM_COMPONENTS.find((c) => c.id === id)!;
 
@@ -167,7 +169,6 @@ describe("canvas store editing", () => {
   const EDIT_CALLS: { [K in MutatingAction]: Parameters<Store[K]> } = {
     onNodesChange: [
       [
-        { type: "position", id: "a", position: { x: 50, y: 50 }, dragging: true },
         { type: "remove", id: "b" },
         { type: "add", item: node("x", 900, 0) },
       ],
@@ -215,6 +216,15 @@ describe("canvas store editing", () => {
     expect(s().history).toHaveLength(0);
   });
 
+  it("read-only tabs let nodes be moved (layout), with no undo entry", () => {
+    setCanvas([node("a", 0, 0), node("b", 300, 0)], [edge("a", "b")], true);
+    s().onNodesChange([{ type: "position", id: "a", position: { x: 40, y: 60 }, dragging: true }]);
+    s().onNodesChange([{ type: "position", id: "a", position: { x: 50, y: 70 }, dragging: false }]);
+    expect(s().nodes[0].position).toEqual({ x: 50, y: 70 });
+    expect(s().edges).toHaveLength(1);
+    expect(s().history).toHaveLength(0);
+  });
+
   it("every store action is either gated on read-only tabs or explicitly exempt", () => {
     const actions = Object.keys(s()).filter((k) => typeof s()[k as keyof Store] === "function");
     const mutating = new Set<string>(MUTATING_ACTIONS);
@@ -232,5 +242,111 @@ describe("canvas store editing", () => {
     expect(s().history).toHaveLength(1);
     s().undo();
     expect(s().nodes[0].position).toEqual({ x: 0, y: 0 });
+  });
+});
+
+// request-flow, FLW-25/44: editing an edge's calls, and "after miss" calls on copy/paste.
+describe("edge calls in the store", () => {
+  const typed = (id: string, componentId: string, x: number, selected = false): Node => ({
+    ...createComponentNode(comp(componentId), { x, y: 0 }),
+    id,
+    selected,
+  });
+  const rule = (calls: EdgeCall[]): EdgeRule => ({ calls, networkLatencyMs: 1, packetLoss: 0 });
+  const LOOK_ASIDE: EdgeCall[] = [
+    { kind: "writes", callsPerRequest: 1 },
+    { kind: "after_miss", missOf: "cache", callsPerRequest: 1 },
+  ];
+  const wired = (source: string, target: string, calls: EdgeCall[], selected = false): Edge => ({
+    ...edge(source, target, selected),
+    data: { label: "", protocol: "http", async: false, rule: rule(calls) },
+  });
+  const callsOf = (e: Edge | undefined) => (e?.data as CustomEdgeData | undefined)?.rule?.calls;
+  const edgeBetween = (source: string, target: string) =>
+    s().edges.find((e) => e.source === source && e.target === target);
+
+  /** App → Cache (reads) and App → DB (writes + reads after a miss in Cache). */
+  function lookAside(selected: { app: boolean; cache: boolean; db: boolean }, readOnly = false) {
+    setCanvas(
+      [
+        typed("app", "app-server", 0, selected.app),
+        typed("cache", "cache", 300, selected.cache),
+        typed("db", "sql-db", 600, selected.db),
+      ],
+      [
+        wired("app", "cache", [{ kind: "reads", callsPerRequest: 1 }]),
+        wired("app", "db", [{ kind: "always", callsPerRequest: 1 }]),
+      ],
+      readOnly,
+    );
+  }
+
+  it("editing the calls pushes exactly one undo entry, and undo restores them", () => {
+    lookAside({ app: false, cache: false, db: false });
+    s().updateEdgeRule("app->db", { calls: LOOK_ASIDE });
+    expect(callsOf(edgeBetween("app", "db"))).toEqual(LOOK_ASIDE);
+    expect(s().history).toHaveLength(1);
+    s().undo();
+    expect(callsOf(edgeBetween("app", "db"))).toEqual([{ kind: "always", callsPerRequest: 1 }]);
+  });
+
+  it("on a read-only tab, editing the calls changes nothing", () => {
+    lookAside({ app: false, cache: false, db: false }, true);
+    s().updateEdgeRule("app->db", { calls: LOOK_ASIDE });
+    expect(callsOf(edgeBetween("app", "db"))).toEqual([{ kind: "always", callsPerRequest: 1 }]);
+    expect(s().history).toHaveLength(0);
+  });
+
+  it("an edit leaving no calls is refused: the edge keeps its last calls", () => {
+    lookAside({ app: false, cache: false, db: false });
+    s().updateEdgeRule("app->db", { calls: LOOK_ASIDE });
+    s().updateEdgeRule("app->db", { calls: [] });
+    expect(callsOf(edgeBetween("app", "db"))).toEqual(LOOK_ASIDE);
+    expect(s().history).toHaveLength(1);
+  });
+
+  /** The pasted copy of `original`'s edge to `target` (ids of the clones are fresh). */
+  function pastedCalls(before: Set<string>, sourceType: string, targetType: string) {
+    const fresh = s().nodes.filter((n) => !before.has(n.id));
+    const idOf = (componentId: string) =>
+      fresh.find((n) => (n.data as { componentId: string }).componentId === componentId)?.id;
+    return { calls: callsOf(edgeBetween(idOf(sourceType)!, idOf(targetType)!)), idOf };
+  }
+
+  it("pasting the source together with its cache points the copy at the pasted cache", () => {
+    lookAside({ app: true, cache: true, db: true });
+    s().updateEdgeRule("app->db", { calls: LOOK_ASIDE });
+    const before = new Set(s().nodes.map((n) => n.id));
+    s().copySelection();
+    s().pasteClipboard({ x: 0, y: 600 });
+    const { calls, idOf } = pastedCalls(before, "app-server", "sql-db");
+    expect(calls).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", missOf: idOf("cache"), callsPerRequest: 1 },
+    ]);
+    expect(idOf("cache")).not.toBe("cache");
+    // The original keeps pointing at the original cache.
+    expect(callsOf(edgeBetween("app", "db"))).toEqual(LOOK_ASIDE);
+  });
+
+  it("pasting the source without its cache drops missOf", () => {
+    lookAside({ app: true, cache: false, db: true });
+    s().updateEdgeRule("app->db", { calls: LOOK_ASIDE });
+    const before = new Set(s().nodes.map((n) => n.id));
+    s().copySelection();
+    s().pasteClipboard({ x: 0, y: 600 });
+    expect(pastedCalls(before, "app-server", "sql-db").calls).toEqual([
+      { kind: "writes", callsPerRequest: 1 },
+      { kind: "after_miss", callsPerRequest: 1 },
+    ]);
+  });
+
+  it("duplicating the source with its cache points the copy at the duplicated cache", () => {
+    lookAside({ app: true, cache: true, db: true });
+    s().updateEdgeRule("app->db", { calls: LOOK_ASIDE });
+    const before = new Set(s().nodes.map((n) => n.id));
+    s().duplicateSelection();
+    const { calls, idOf } = pastedCalls(before, "app-server", "sql-db");
+    expect(calls?.[1]).toEqual({ kind: "after_miss", missOf: idOf("cache"), callsPerRequest: 1 });
   });
 });

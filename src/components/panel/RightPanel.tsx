@@ -22,7 +22,6 @@ import {
   CopyPlus,
 } from "lucide-react";
 import {
-  edgeRuleOf,
   useCanvasStore,
   useIsActiveTabReadOnly,
   type ComponentNodeData,
@@ -34,9 +33,8 @@ import {
   instancesOf,
   resolvedParams,
 } from "@/domain/components/registry";
-import type { EdgeRule } from "@/domain/components/types";
-import { EDGE_RULE_SPECS, edgeRuleValues } from "@/domain/graph/edgeRules";
 import { ParamsForm } from "./ParamsForm";
+import { EdgeCallsForm } from "./EdgeCallsForm";
 import { CostPanel } from "./CostPanel";
 import { formatMoney } from "@/cost/currency";
 import { useAppStore } from "@/store/appStore";
@@ -58,10 +56,17 @@ import { useAdvisorStore } from "@/store/advisorStore";
 import { useChaosStore } from "@/store/chaosStore";
 import { useInterviewStore } from "@/store/interviewStore";
 import { InterviewPhasePanel } from "@/components/interview/InterviewPhasePanel";
+import dynamic from "next/dynamic";
+
+// The Flow tab (request-flow): the panel, its diagram and the trace load on demand.
+const FlowPanel = dynamic(() => import("./FlowPanel").then((m) => m.FlowPanel), {
+  ssr: false,
+  loading: () => <p className="text-[11px] text-zinc-400">Loading…</p>,
+});
 
 interface RightPanelProps {
   open?: boolean;
-  onSimulate: () => void;
+  onAnalyze: () => void;
   variant?: "desktop" | "mobile";
 }
 
@@ -87,7 +92,7 @@ function TabCount({ n, tone, label }: { n: number; tone: string; label: string }
   );
 }
 
-function RightTabs({ onSimulate }: { onSimulate: () => void }) {
+function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
   const activeRightTab = useAppStore((s) => s.activeRightTab);
   const setActiveRightTab = useAppStore((s) => s.setActiveRightTab);
   const activeFaults = useChaosStore((s) => s.faults.filter((f) => f.active).length);
@@ -113,6 +118,9 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
             className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
           >
             Simulate
+          </TabsTrigger>
+          <TabsTrigger value="flow" className={TAB_TRIGGER}>
+            Flow
           </TabsTrigger>
           <TabsTrigger value="chaos" className={TAB_TRIGGER}>
             Chaos
@@ -170,9 +178,17 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
           <div className={`${TAB_BODY} space-y-4`}>
             <TrafficControls />
             <Separator className="bg-zinc-800" />
-            <SimulationControls onSimulate={onSimulate} />
+            <SimulationControls onAnalyze={onAnalyze} />
             <Separator className="bg-zinc-800" />
             <MetricsDisplay />
+          </div>
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent value="flow" className="mt-0 flex-1 overflow-hidden min-h-0">
+        <ScrollArea className="h-full">
+          <div className={TAB_BODY}>
+            <FlowPanel />
           </div>
         </ScrollArea>
       </TabsContent>
@@ -236,7 +252,7 @@ function RightTabs({ onSimulate }: { onSimulate: () => void }) {
   );
 }
 
-export function RightPanel({ open = true, onSimulate, variant = "desktop" }: RightPanelProps) {
+export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: RightPanelProps) {
   const interviewMode = useInterviewStore((s) => s.mode);
   const currentPhase = useInterviewStore((s) => s.currentPhase);
 
@@ -246,7 +262,7 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
   if (variant === "mobile") {
     return (
       <div className="flex h-full w-full flex-col bg-zinc-900">
-        {showInterviewPhasePanel ? <InterviewPhasePanel /> : <RightTabs onSimulate={onSimulate} />}
+        {showInterviewPhasePanel ? <InterviewPhasePanel /> : <RightTabs onAnalyze={onAnalyze} />}
       </div>
     );
   }
@@ -263,7 +279,7 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
         <InterviewPhasePanel />
       ) : (
         <div className="flex w-[300px] flex-1 flex-col min-h-0">
-          <RightTabs onSimulate={onSimulate} />
+          <RightTabs onAnalyze={onAnalyze} />
         </div>
       )}
     </aside>
@@ -272,11 +288,7 @@ export function RightPanel({ open = true, onSimulate, variant = "desktop" }: Rig
 
 function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
-  const updateEdgeRule = useCanvasStore((s) => s.updateEdgeRule);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const edges = useCanvasStore((s) => s.edges);
-  const rule = edgeRuleOf({ nodes, edges }, selectedEdge);
   const readOnly = useIsActiveTabReadOnly();
 
   const data = (selectedEdge.data ?? {}) as CustomEdgeData;
@@ -374,16 +386,8 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           </p>
         </div>
 
-        {/* Call rule (Spec 03): which requests take this edge */}
-        <ParamsForm
-          specs={EDGE_RULE_SPECS}
-          values={edgeRuleValues(rule)}
-          grouped={false}
-          disabled={readOnly}
-          onCommit={(key, value) =>
-            updateEdgeRule(selectedEdge.id, { [key]: value } as Partial<EdgeRule>)
-          }
-        />
+        {/* Calls (request-flow): which requests make each call over this edge, and in what order */}
+        <EdgeCallsForm edge={selectedEdge} />
 
         {/* Remove connection — clears selection via the store */}
         <Button

@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { analyze } from "./helpers";
 
-// Spec 04: the "Simulate" button runs analyze() in the engine Web Worker.
-test("Simulate analyzes a reference solution in a Web Worker", async ({ page }) => {
+// Spec 04: the Sim panel's "Analyze" button runs analyze() in the engine Web Worker.
+test("Analyze runs a reference solution in a Web Worker", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   page.on("console", (msg) => {
@@ -18,11 +19,9 @@ test("Simulate analyzes a reference solution in a Web Worker", async ({ page }) 
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Simulate", exact: true }).click();
-  await expect(page.getByText("Simulation complete!")).toBeVisible();
+  await analyze(page);
   expect(workers).toHaveLength(1);
 
-  await page.getByRole("tab", { name: "Simulate" }).click();
   await expect(page.getByText("Latency p50")).toBeVisible();
   await expect(page.getByText(/p95 \d+ · p99 \d+ ms/)).toBeVisible();
   await expect(page.getByText("Error rate")).toBeVisible();

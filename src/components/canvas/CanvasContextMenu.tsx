@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { instancesOf, MAX_INSTANCES } from "@/domain/components/registry";
-import type { EdgeRule, ParamSpec, ParamValue } from "@/domain/components/types";
-import { EDGE_RULE_KIND_OPTIONS, EDGE_RULE_SPECS, edgeRuleValues } from "@/domain/graph/edgeRules";
+import type { EdgeCall, EdgeCallKind, ParamSpec, ParamValue } from "@/domain/components/types";
+import {
+  DEFAULT_RULE_FRACTION,
+  EDGE_LINK_SPECS,
+  edgeCallSpecsFor,
+  type EdgeRulePatch,
+} from "@/domain/graph/edgeRules";
 import { useReactFlow } from "@xyflow/react";
 import {
   ClipboardPaste,
@@ -29,6 +34,7 @@ import {
   type CustomEdgeData,
 } from "@/store/canvasStore";
 import { ParamField } from "@/components/panel/ParamsForm";
+import { callFormContext } from "@/components/panel/EdgeCallsForm";
 import { useAppStore } from "@/store/appStore";
 import { createTextNode } from "@/lib/nodeFactory";
 import { useRuntimeStore } from "@/store/runtimeStore";
@@ -145,7 +151,6 @@ function useMenuEntries(
     if (!edge) return [];
     const data = (edge.data ?? {}) as CustomEdgeData;
     const rule = edgeRuleOf(store, edge);
-    const ruleValues = edgeRuleValues(rule);
     if (readOnly) {
       return [
         {
@@ -153,6 +158,67 @@ function useMenuEntries(
           icon: <PanelRight className={ICON} />,
           onSelect: () => openPropertiesPanel(),
         },
+      ];
+    }
+    const linkEntries = EDGE_LINK_SPECS.map<MenuEntry>((spec) => ({
+      field: spec,
+      value: rule[spec.key as "networkLatencyMs" | "packetLoss"],
+      onCommit: (value) => store.updateEdgeRule(edge.id, { [spec.key]: value } as EdgeRulePatch),
+    }));
+    let callEntries: MenuEntry[];
+    if (rule.calls.length > 1) {
+      // Several calls don't fit a menu: the Props panel edits them (FLW-17)
+      callEntries = [
+        {
+          label: "Edit calls in the panel",
+          icon: <PanelRight className={ICON} />,
+          tag: `${rule.calls.length} calls`,
+          onSelect: () => {
+            store.selectOnly([], [edge.id]);
+            openPropertiesPanel();
+          },
+        },
+      ];
+    } else {
+      const call = rule.calls[0];
+      const ctx = callFormContext(store, edge);
+      const specs = edgeCallSpecsFor(ctx, call);
+      const setCall = (patch: Partial<EdgeCall>) =>
+        store.updateEdgeRule(edge.id, { calls: [{ ...call, ...patch }] });
+      const kinds = specs.find((s) => s.key === "kind")?.options ?? [];
+      const values: Record<string, ParamValue> = {
+        kind: call.kind,
+        fraction: call.fraction ?? DEFAULT_RULE_FRACTION,
+        callsPerRequest: call.callsPerRequest,
+      };
+      callEntries = [
+        ...kinds.flatMap<MenuEntry>((o) =>
+          o.value === "after_miss"
+            ? // one choice per cache the source calls (look-aside, FLW-08)
+              ctx.caches.map<MenuEntry>((c) => ({
+                label: `Reads after a miss in ${c.label}`,
+                checked: call.kind === "after_miss" && call.missOf === c.id,
+                onSelect: () => setCall({ kind: "after_miss", missOf: c.id }),
+              }))
+            : [
+                {
+                  label: o.label,
+                  checked: call.kind === o.value,
+                  onSelect: () => setCall({ kind: o.value as EdgeCallKind }),
+                },
+              ],
+        ),
+        ...specs
+          .filter(
+            (spec) =>
+              (spec.key === "fraction" || spec.key === "callsPerRequest") &&
+              (!spec.visibleIf || spec.visibleIf(values)),
+          )
+          .map<MenuEntry>((spec) => ({
+            field: spec,
+            value: values[spec.key],
+            onCommit: (value) => setCall({ [spec.key]: value }),
+          })),
       ];
     }
     return [
@@ -174,19 +240,8 @@ function useMenuEntries(
         onSelect: () => store.updateEdgeData(edge.id, { protocol: p.value }),
       })),
       { heading: "Call rule" },
-      ...EDGE_RULE_KIND_OPTIONS.map<MenuEntry>((o) => ({
-        label: o.label,
-        checked: rule.kind === o.value,
-        onSelect: () => store.updateEdgeRule(edge.id, { kind: o.value }),
-      })),
-      ...EDGE_RULE_SPECS.filter(
-        (spec) => spec.key !== "kind" && (!spec.visibleIf || spec.visibleIf(ruleValues)),
-      ).map<MenuEntry>((spec) => ({
-        field: spec,
-        value: ruleValues[spec.key],
-        onCommit: (value) =>
-          store.updateEdgeRule(edge.id, { [spec.key]: value } as Partial<EdgeRule>),
-      })),
+      ...callEntries,
+      ...linkEntries,
       "separator",
       {
         label: "Open in panel",

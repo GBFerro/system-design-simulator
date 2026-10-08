@@ -1,25 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
-import { MOD, connect, open, quickAdd } from "./helpers";
+import { expect, test } from "@playwright/test";
+import { MOD, connect, edgePoint, open, quickAdd } from "./helpers";
 
 // Spec 03: the Props form is generated from the component schema, and edges carry a call rule.
-
-/** A point on the edge path that isn't covered by a node or the label. */
-async function edgePoint(page: Page) {
-  return page
-    .locator(".react-flow__edge path.react-flow__edge-interaction")
-    .first()
-    .evaluate((path: SVGPathElement) => {
-      const m = path.getScreenCTM()!;
-      const length = path.getTotalLength();
-      for (let i = 1; i < 20; i++) {
-        const p = path.getPointAtLength((length * i) / 20);
-        const x = p.x * m.a + p.y * m.c + m.e;
-        const y = p.x * m.b + p.y * m.d + m.f;
-        if (document.elementFromPoint(x, y)?.closest(".react-flow__edge")) return { x, y };
-      }
-      throw new Error("edge is fully covered");
-    });
-}
 
 test("CMP-01: the Props form is generated from the schema and edits are validated and undoable", async ({
   page,

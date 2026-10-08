@@ -2,9 +2,19 @@ import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
 import { PARAM, defaultParams } from "@/domain/components/registry";
-import { migrateGraphV1toV2, migrateV1toV2 } from "@/domain/persistence/migrate";
+import type { EdgeRule } from "@/domain/components/types";
+import { compileGraph } from "@/domain/graph/compile";
+import {
+  migrateGraph,
+  migrateGraphV1toV2,
+  migrateV1toV2,
+  type MigratedGraph,
+} from "@/domain/persistence/migrate";
 import { serializeEdges, serializeNodes } from "@/domain/persistence/serialize";
+import { analyze } from "@/engine/analyze";
 import { buildReferenceGraph } from "@/lib/loadReference";
+import { migrateCanvasState, migrateSavedDesignsState } from "@/store/migrations";
+import { comp } from "./engineFixtures";
 
 // Spec 05, PER-01: migrateV1toV2 fixtures, idempotence, and the 35 references.
 
@@ -274,5 +284,144 @@ describe("migrateV1toV2", () => {
       expect(live.nodes as unknown as Node[], problem.id).toEqual(nodes);
       expect(live.edges as unknown as Edge[], problem.id).toEqual(edges);
     }
+  });
+});
+
+// request-flow, FLW-18/19: schema v3 turns every edge rule into the link plus a list of calls.
+describe("migrateGraph: v1 → v2 → v3", () => {
+  const v2Rule = (kind: string, extra: Record<string, unknown> = {}) => ({
+    kind,
+    callsPerRequest: 1,
+    networkLatencyMs: 1,
+    packetLoss: 0,
+    ...extra,
+  });
+  const v2Edge = (source: string, target: string, rule: unknown) => ({
+    id: `e-${source}-${target}`,
+    type: "animated",
+    source,
+    target,
+    data: { label: "", protocol: "http", async: false, rule },
+  });
+
+  /** A v2 design: Client → App → Cache (reads), Cache → DB (on_miss), App → DB (writes), App → Search. */
+  function v2Design() {
+    return {
+      nodes: [
+        comp("client", "client"),
+        comp("app", "app-server", { instances: 4 }),
+        comp("cache", "cache", { hitRate: 0.8 }),
+        comp("db", "sql-db"),
+        comp("search", "search"),
+      ],
+      edges: [
+        v2Edge("client", "app", v2Rule("always")),
+        v2Edge("app", "cache", v2Rule("reads")),
+        v2Edge("cache", "db", v2Rule("on_miss")),
+        v2Edge("app", "db", v2Rule("writes")),
+        v2Edge("app", "search", v2Rule("fraction", { fraction: 0.3, callsPerRequest: 2 })),
+      ],
+    };
+  }
+
+  const ruleOf = (g: MigratedGraph, source: string, target: string) =>
+    g.edges.find((e) => e.source === source && e.target === target)!.data.rule as EdgeRule;
+
+  it("a v2 cache → DB on_miss keeps every edge where it was and becomes one read-through call", () => {
+    const { nodes, edges } = v2Design();
+    const out = migrateGraph(nodes, edges);
+    expect(out.nodes.map((n) => n.id)).toEqual(nodes.map((n) => n.id));
+    expect(out.edges.map((e) => [e.id, e.source, e.target])).toEqual(
+      edges.map((e) => [e.id, e.source, e.target]),
+    );
+    expect(ruleOf(out, "cache", "db")).toEqual({
+      calls: [{ kind: "on_miss", callsPerRequest: 1 }],
+      networkLatencyMs: 1,
+      packetLoss: 0,
+    });
+    expect(out.edges.map((e) => (e.data.rule as EdgeRule).calls)).toEqual([
+      [{ kind: "always", callsPerRequest: 1 }],
+      [{ kind: "reads", callsPerRequest: 1 }],
+      [{ kind: "on_miss", callsPerRequest: 1 }],
+      [{ kind: "writes", callsPerRequest: 1 }],
+      [{ kind: "fraction", fraction: 0.3, callsPerRequest: 2 }],
+    ]);
+  });
+
+  it("analyze() gives every node and edge the same load before and after the migration", () => {
+    const { nodes, edges } = v2Design();
+    const out = migrateGraph(nodes, edges);
+    const before = analyze(compileGraph(nodes, edges), 5000);
+    const after = analyze(compileGraph(out.nodes, out.edges), 5000);
+    expect(before.nodes.find((n) => n.nodeId === "db")!.offeredRps).toBeGreaterThan(0);
+    expect(after.nodes).toEqual(before.nodes);
+    expect(after.edges).toEqual(before.edges);
+  });
+
+  it("is idempotent for v1, v2 and v3 input, with no new warnings", () => {
+    const v3 = migrateGraph(v2Design().nodes, v2Design().edges);
+    const fixtures: { nodes: unknown; edges: unknown }[] = [
+      SMALL,
+      v2Design(),
+      v3,
+      { nodes: SMALL.nodes, edges: [...SMALL.edges, v1Edge("x", "app", "ghost")] },
+    ];
+    for (const fixture of fixtures) {
+      const once = migrateGraph(fixture.nodes, fixture.edges);
+      const warnings: string[] = [];
+      const twice = migrateGraph(once.nodes, once.edges, { onWarning: (w) => warnings.push(w) });
+      expect(twice).toEqual(once);
+      expect(warnings).toEqual([]);
+    }
+  });
+
+  it("never throws on invalid input, and every edge it keeps has at least one call", () => {
+    const { nodes } = v2Design();
+    const garbageRules: unknown[] = [
+      "nope",
+      42,
+      { calls: 5 },
+      { calls: [null, "x"] },
+      { calls: [{ kind: 7, step: "a", callsPerRequest: "b" }], packetLoss: 9 },
+      { kind: "bogus", fraction: NaN },
+    ];
+    const inputs: [unknown, unknown][] = [
+      [null, undefined],
+      ["x", 42],
+      [
+        [null, { id: 3 }],
+        [null, { source: 1 }],
+      ],
+      [nodes, garbageRules.map((rule) => ({ ...v2Edge("app", "db", rule), id: String(rule) }))],
+    ];
+    for (const [n, e] of inputs) {
+      expect(() => migrateGraph(n, e)).not.toThrow();
+      for (const edge of migrateGraph(n, e).edges) {
+        expect((edge.data.rule as EdgeRule).calls.length).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it("canvas and saved-design stores persisted at v2 come out with call lists", () => {
+    const { nodes, edges } = v2Design();
+    const expected = migrateGraph(nodes, edges).edges;
+    expect(expected.map((e) => (e.data.rule as EdgeRule).calls.map((c) => c.kind))).toEqual([
+      ["always"],
+      ["reads"],
+      ["on_miss"],
+      ["writes"],
+      ["fraction"],
+    ]);
+    const canvas = migrateCanvasState<{ edges: unknown[]; tabs: { edges: unknown[] }[] }>(
+      { nodes, edges, tabs: [{ id: "t", label: "T", nodes, edges }], activeTabId: "t" },
+      2,
+    );
+    expect(canvas.edges).toEqual(expected);
+    expect(canvas.tabs[0].edges).toEqual(expected);
+    const saved = migrateSavedDesignsState<{ designs: { edges: unknown[] }[] }>(
+      { designs: [{ id: "d", name: "D", nodes, edges, strokes: [] }] },
+      2,
+    );
+    expect(saved.designs[0].edges).toEqual(expected);
   });
 });

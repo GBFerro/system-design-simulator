@@ -8,26 +8,26 @@
  *    λ(1 − f^{R+1})/(1 − f), where f is the call's failure fraction (drops,
  *    timeouts, packet loss, downstream failure). f depends on the load it
  *    creates, so steps 1–2 iterate to a fixed point (monotone: from f = 0 the
- *    load only grows, bounded by (R+1)×).
+ *    load only grows, bounded by (R+1)×). Reads after a cache miss join the
+ *    same loop: a failed cache call is a miss, so the database's share
+ *    r × (1 − h × (1 − f)) needs the cache call's f.
  * 3. End-to-end success and availability by a reverse pass over the sync
  *    path; latency percentiles by sampling requests (core/sampler.ts).
  *
  * Deterministic for a given graph + config (seeded PRNG). Never throws.
  */
-import type { SimEdge, SimGraph, SimNode } from "@/domain/graph/compile";
-import { PARAM } from "@/domain/components/registry";
+import type { SimEdge, SimGraph } from "@/domain/graph/compile";
 import { UTILIZATION_CRITICAL, UTILIZATION_WARNING } from "./constants";
 import {
-  DEFAULT_HORIZON_SEC,
   clamp01,
   hopPercentileMs,
   retryAmplification,
   station,
   type StationState,
 } from "./core/queueing";
-import { DEFAULT_SEED, mulberry32 } from "./core/rng";
+import { resolveConfig } from "./config";
+import { mulberry32 } from "./core/rng";
 import {
-  DEFAULT_READ_RATIO,
   availabilityOf,
   consumerCapacity,
   forwardEdges,
@@ -35,60 +35,32 @@ import {
   lookupShareOf,
   maxQueueOf,
   maxRetriesOf,
-  paramNumber,
   rateLimit,
-  ruleFactor,
+  edgeFactor,
+  type CallContext,
 } from "./core/routing";
-import { sampleLatency } from "./core/sampler";
+import { sampleLatency, type SampleModel } from "./core/sampler";
 import { sampleNodesFor, settle, type Topology } from "./core/settle";
 import { sanitizeLatencySlo, slowShareOf } from "./core/slo";
 import { drainShares, entryShares, withEffects } from "./core/faultView";
 import type { TickEffects } from "./faults/effects";
-import type { EdgeSteadyState, NodeSteadyState, SimConfig, SteadyState } from "./types";
+import type {
+  AnalyzedGraph,
+  EdgeSteadyState,
+  NodeSteadyState,
+  SimConfig,
+  SteadyState,
+} from "./types";
 import type { NodeStatus } from "@/types/simulation";
 
-export const DEFAULT_SAMPLES = 2000;
-export const DEFAULT_MAX_ITERATIONS = 200;
-const MAX_SAMPLES = 20_000;
+export {
+  DEFAULT_MAX_ITERATIONS,
+  DEFAULT_SAMPLES,
+  resolveConfig,
+  type ResolvedConfig,
+} from "./config";
+
 const CONVERGENCE_TOLERANCE = 1e-10;
-
-export interface ResolvedConfig {
-  seed: number;
-  samples: number;
-  horizonSec: number;
-  readRatio: number;
-  maxIterations: number;
-}
-
-export function resolveConfig(
-  graph: SimGraph,
-  byId: Map<string, SimNode>,
-  config?: SimConfig,
-): ResolvedConfig {
-  const c = config ?? {};
-  const entryRatio = graph.entryIds
-    .map((id) => byId.get(id))
-    .map((n) => (n ? paramNumber(n, PARAM.readRatio, NaN) : NaN))
-    .find((v) => v >= 0 && v <= 1);
-  const resolved: ResolvedConfig = {
-    seed: Number.isFinite(c.seed) ? Math.trunc(c.seed!) : DEFAULT_SEED,
-    samples:
-      Number.isFinite(c.samples) && c.samples! >= 1
-        ? Math.min(MAX_SAMPLES, Math.floor(c.samples!))
-        : DEFAULT_SAMPLES,
-    horizonSec:
-      Number.isFinite(c.horizonSec) && c.horizonSec! > 0 ? c.horizonSec! : DEFAULT_HORIZON_SEC,
-    readRatio:
-      Number.isFinite(c.readRatio) && c.readRatio! >= 0 && c.readRatio! <= 1
-        ? c.readRatio!
-        : (entryRatio ?? DEFAULT_READ_RATIO),
-    maxIterations:
-      Number.isFinite(c.maxIterations) && c.maxIterations! >= 1
-        ? Math.floor(c.maxIterations!)
-        : DEFAULT_MAX_ITERATIONS,
-  };
-  return resolved;
-}
 
 /** Per-node result of one propagation pass. */
 interface NodeFlow {
@@ -136,6 +108,32 @@ export function analyze(
   config?: SimConfig,
   effects: TickEffects | null = null,
 ): SteadyState {
+  return analyzeWithModel(graph, rps, config, effects).steady;
+}
+
+/** `analyze()` plus each edge's link failure (what the Analyze button's snapshot needs). */
+export function analyzeGraphWithLinks(
+  graph: SimGraph,
+  rps: number,
+  config?: SimConfig,
+): AnalyzedGraph {
+  const { steady, linkFailure } = analyzeWithModel(graph, rps, config);
+  return { steady, linkFailure };
+}
+
+/**
+ * `analyze()` plus the sampler's model at that steady state (the stations,
+ * drops and call plans its percentiles were sampled from), so one request
+ * can be traced through the same model (`core/trace.ts`, request-flow), and
+ * each edge's link failure (`Settled.linkFailure`, the snapshot's
+ * `edgeLinkFailure`), kept out of `steady` so its shape doesn't change.
+ */
+export function analyzeWithModel(
+  graph: SimGraph,
+  rps: number,
+  config?: SimConfig,
+  effects: TickEffects | null = null,
+): { steady: SteadyState; model: SampleModel; linkFailure: Record<string, number> } {
   const graphById = new Map(graph.nodes.map((n) => [n.id, n]));
   const cfg = resolveConfig(graph, graphById, config);
   const requestedRps = Number.isFinite(rps) && rps > 0 ? rps : 0;
@@ -163,9 +161,13 @@ export function analyze(
   const retrying = order.some(
     (id) => maxRetriesOf(byId.get(id)!) > 0 && (out.get(id)?.length ?? 0) > 0,
   );
+  // Reads after a cache miss depend on the cache call's failure (a failed
+  // call is a miss), which comes out of the reverse pass: same fixed point.
+  const lookAside = order.some((id) => (byId.get(id)!.plan?.absorbed.length ?? 0) > 0);
 
   /* ---------- forward pass: load propagation ---------- */
   const propagate = (failure: Map<string, number>): Pass => {
+    const callCtx: CallContext = { readRatio: cfg.readRatio, byId, failure };
     const inflow = new Map<string, number>();
     entries.forEach((id, i) =>
       inflow.set(
@@ -272,7 +274,7 @@ export function analyze(
         // the rest piles up as lag (bounded by maxQueue, then lost).
         let lag = 0;
         for (const e of edges) {
-          const demand = served * ruleFactor(e.rule, node, cfg.readRatio);
+          const demand = served * edgeFactor(e, node, callCtx);
           const pull = edgeFx(e)?.severed ? 0 : consumerCapacity(node, byId.get(e.target)!);
           const drained = Math.min(demand, pull);
           lag += demand - drained;
@@ -281,7 +283,7 @@ export function analyze(
         flow.backlog = Math.min(maxQueue, lag * cfg.horizonSec);
         flow.lagging = lag > 1e-9;
       } else {
-        for (const e of edges) push(e, served * ruleFactor(e.rule, node, cfg.readRatio));
+        for (const e of edges) push(e, served * edgeFactor(e, node, callCtx));
       }
     }
     return { flows, base, load, shares };
@@ -290,12 +292,12 @@ export function analyze(
   /* ---------- reverse pass: success, call failure, availability ---------- */
   const settleOf = (p: Pass) => settle(topo, p.flows, p.shares);
 
-  /* ---------- fixed point for retry amplification ---------- */
+  /* ---------- fixed point: retry amplification and reads after a miss ---------- */
   let failure = new Map<string, number>();
   let pass = propagate(failure);
   let settled = settleOf(pass);
   let iterations = 1;
-  if (retrying) {
+  if (retrying || lookAside) {
     for (; iterations < cfg.maxIterations; iterations++) {
       failure = settled.failure;
       const next = propagate(failure);
@@ -361,9 +363,11 @@ export function analyze(
     };
   });
 
+  const linkFailure: Record<string, number> = {};
   const edges: EdgeSteadyState[] = graph.edges
     .filter((e) => byId.has(e.source) && byId.has(e.target))
     .map((e) => {
+      linkFailure[e.id] = e.back ? 0 : clamp01(settled.linkFailure.get(e.id) ?? 0);
       const b = pass.base.get(e.id) ?? 0;
       const l = pass.load.get(e.id) ?? 0;
       return {
@@ -386,12 +390,8 @@ export function analyze(
 
   const sampleNodes = sampleNodesFor(topo, pass.flows, pass.shares);
   const latencySlo = sanitizeLatencySlo(config?.latencySlo);
-  const sampled = sampleLatency(
-    { nodes: sampleNodes, entries, readRatio: cfg.readRatio },
-    cfg.samples,
-    mulberry32(cfg.seed),
-    latencySlo?.thresholdMs,
-  );
+  const model: SampleModel = { nodes: sampleNodes, entries, readRatio: cfg.readRatio };
+  const sampled = sampleLatency(model, cfg.samples, mulberry32(cfg.seed), latencySlo?.thresholdMs);
   const slowShare = slowShareOf(latencySlo, sampled.slowShare, byId.values(), pass.flows);
   if (sampled.truncated) {
     warnings.push("Very large fan-out: latency sampling was truncated for some requests.");
@@ -406,7 +406,7 @@ export function analyze(
     }
   }
 
-  return {
+  const steady: SteadyState = {
     requestedRps,
     offeredRps,
     throughputRps: finite(throughputRps),
@@ -427,4 +427,5 @@ export function analyze(
     seed: cfg.seed,
     iterations,
   };
+  return { steady, model, linkFailure };
 }

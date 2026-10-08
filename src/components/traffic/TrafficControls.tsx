@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Pause, Play, Square } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { baseRateOf, rpsToSlider, sliderToRps } from "@/engine/traffic/patterns";
 import { MAX_RPS, MIN_RPS } from "@/engine/traffic/types";
@@ -31,7 +31,7 @@ function SimClock() {
   );
 }
 
-/** Play/pause/reset and speed (TRF-01). */
+/** Play/pause/stop and speed (TRF-01). Stop rewinds to 00:00 and clears the metrics. */
 function PlaybackBar() {
   const playback = useRuntimeStore((s) => s.playback);
   const simTime = useRuntimeStore((s) => s.simTimeSec);
@@ -57,11 +57,11 @@ function PlaybackBar() {
         type="button"
         onClick={resetSimulation}
         disabled={playback === "idle" && simTime === 0}
-        className="flex h-9 w-9 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40"
-        aria-label="Reset simulation"
-        title="Reset to 00:00"
+        className="flex h-9 w-9 items-center justify-center rounded-md border border-zinc-700 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-rose-300 disabled:opacity-40"
+        aria-label="Stop simulation"
+        title="Stop and reset to 00:00"
       >
-        <RotateCcw className="h-3.5 w-3.5" />
+        <Square className="h-3.5 w-3.5" />
       </button>
 
       <SpeedToggle label="Simulation speed" />

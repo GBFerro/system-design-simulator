@@ -78,28 +78,43 @@ Os demais tipos atuais (service mesh, monitoring, graph DB, vector DB, etc.) com
 
 ### Regras de aresta
 
-Cada aresta ganha, além de `label`, `protocol` e `async` (que já existem em `SerializedEdge.data`):
+Cada aresta ganha, além de `label`, `protocol` e `async` (que já existem em `SerializedEdge.data`), uma regra. Desde o schema v3 ([fluxo da requisição](../.specs/features/request-flow/spec.md)), a regra é um **link com uma lista de chamadas**: o link guarda o que é da rede, e cada chamada guarda o que é de quem chama.
 
 ```ts
-interface EdgeRule {
-  kind: "always" | "on_miss" | "reads" | "writes" | "fraction";
+type EdgeCallKind = "always" | "reads" | "writes" | "fraction" | "on_miss" | "after_miss";
+
+interface EdgeCall {
+  kind: EdgeCallKind;
   fraction?: number; // 0–1, só para kind = "fraction"
-  callsPerRequest: number; // default 1
+  missOf?: string; // kind = "after_miss": id do nó do cache que a fonte chama antes
+  step?: number; // 1..MAX_CALL_STEP; sem passo = implícito (callPlan)
+  callsPerRequest: number; // default 1; 0 = link de controle
+}
+
+interface EdgeRule {
+  calls: EdgeCall[]; // 1..MAX_EDGE_CALLS
   networkLatencyMs: number; // default por protocolo
   packetLoss: number; // 0–1, default 0
 }
 ```
 
-Isso substitui o "fan-out 100% para cada filho". O motor aplica a regra conforme o tipo do nó de origem ([Spec 04](04-motor-de-simulacao.md), roteamento).
+Isso substitui o "fan-out 100% para cada filho". O motor aplica as chamadas conforme o tipo do nó de origem ([Spec 04](04-motor-de-simulacao.md), roteamento). As condições:
+
+- `always`: toda requisição; `reads`/`writes`: pelo mix de leitura; `fraction`: uma parcela fixa.
+- `on_miss` (read-through, "miss do próprio cache"): só sai de um nó com `hitRate`, como CDN → origem.
+- `after_miss` (look-aside, "leituras após miss em…"): as leituras que deram miss na chamada da mesma fonte ao cache `missOf`. Se a chamada ao cache falhar, conta como miss e a requisição não falha por causa do cache.
+
+Os limites existem só como as constantes `MAX_EDGE_CALLS` (8) e `MAX_CALL_STEP` (20) de `domain/graph/edgeRules.ts`. A ordem das chamadas de um nó é resolvida só em `domain/graph/callPlan.ts`: sem passo explícito, as chamadas rodam em sequência na ordem das arestas; chamadas no mesmo passo rodam em paralelo.
 
 **Defaults ao conectar:**
 
-- Saída de Cache ou CDN → `on_miss`
+- Saída de Cache ou CDN → `on_miss` (read-through)
 - Saída de LB → `always` (o LB divide por algoritmo, a regra da aresta não se aplica)
 - Service → SQL DB com read replica: aresta para o primary `writes`, para a réplica `reads`
+- Service → banco (SQL ou NoSQL) quando o serviço já chama um cache de forma síncrona → `[writes, after_miss(missOf: esse cache)]` (look-aside); com read replica, o banco fica só com `writes`
 - Qualquer outro caso → `always`
 
-O painel da aresta e o menu de contexto ([Spec 02](02-editor-confiavel.md), CAN-04) editam a regra.
+O painel Props da aresta (`EdgeCallsForm`) edita as chamadas: condição, cache da chamada look-aside, passo e chamadas por requisição, além de adicionar e remover chamadas (uma aresta tem sempre ao menos uma). O menu de contexto ([Spec 02](02-editor-confiavel.md), CAN-04) edita uma aresta de uma chamada e, com mais de uma, leva ao painel.
 
 ### Novos componentes
 
@@ -128,7 +143,7 @@ O componente `custom` ganha um editor de schema simples: o usuário escolhe o `r
 - [x] O painel Props é gerado pelo schema; nenhum formulário por tipo escrito à mão
 - [x] Os ids referenciados em `problems.ts`, `conceptLibrary.ts` e `learningPath.ts` continuam existindo
 - [x] Toda aresta tem `EdgeRule` depois da migração ([Spec 05](05-persistencia-e-compartilhamento.md))
-- [x] Cache → DB criado pela UI nasce com `on_miss`
+- [x] Cache → DB criado pela UI nasce com `on_miss` (read-through); o look-aside é Service → Cache `reads` + Service → DB `[writes, after_miss]`
 - [x] Os 6 componentes novos aparecem na paleta com entrada na Concept Library
 
 ## Testes

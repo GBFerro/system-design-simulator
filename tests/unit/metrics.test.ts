@@ -6,13 +6,7 @@ import { analyze } from "@/engine/analyze";
 import { steadyStateToSnapshot } from "@/engine/snapshot";
 import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import {
-  MAX_PARTICLES,
-  MAX_PARTICLES_PER_EDGE,
-  edgeStrokeWidth,
-  particleBudget,
-  particleDensity,
-} from "@/lib/particles";
+import { edgeStrokeWidth } from "@/lib/particles";
 import { recentWindow, shareUnchanged, sparklinePath } from "@/lib/runtimeMetrics";
 import { useRuntimeStore } from "@/store/runtimeStore";
 
@@ -179,6 +173,44 @@ describe("runtimeStore structural sharing", () => {
     s().clear();
   });
 
+  it("shares global while the read ratio holds, and replaces it when the ratio changes", () => {
+    const s = () => useRuntimeStore.getState();
+    s().clear();
+    const at = (t: number, readRatio: number): TickSnapshot => {
+      const base = snap(t);
+      return { ...base, global: { ...base.global, readRatio } };
+    };
+    s().pushSnapshot(at(0, 0.9));
+    const first = s().latest!;
+    s().pushSnapshot(at(0.05, 0.9));
+    const second = s().latest!;
+    expect(second.global).toBe(first.global);
+    expect(second.global.readRatio).toBe(0.9);
+    s().pushSnapshot(at(0.1, 0.6));
+    const third = s().latest!;
+    expect(third.global).not.toBe(second.global);
+    expect(third.global.readRatio).toBe(0.6);
+    s().clear();
+  });
+
+  it("keeps the edges record when only edgeLinkFailure changes (FLW-05: no edge re-render)", () => {
+    const s = () => useRuntimeStore.getState();
+    s().clear();
+    const at = (t: number, link: number): TickSnapshot => ({
+      ...snap(t, { a: metrics() }),
+      edges: { e1: { rps: 10, status: "ok" } },
+      edgeLinkFailure: { e1: link },
+    });
+    s().pushSnapshot(at(0, 0.1));
+    const first = s().latest!;
+    s().pushSnapshot(at(0.05, 0.4));
+    const second = s().latest!;
+    expect(second.edges).toBe(first.edges);
+    expect(second.edges.e1).toBe(first.edges.e1);
+    expect(second.edgeLinkFailure).toEqual({ e1: 0.4 });
+    s().clear();
+  });
+
   it("treats a changed OBS-03 extra as a change, and a new node as a new record", () => {
     const prev = snap(0, { a: metrics({ extra: { hitRatio: 0.9 } }) });
     const next = shareUnchanged(prev, snap(1, { a: metrics({ extra: { hitRatio: 0.8 } }) }));
@@ -192,54 +224,9 @@ describe("runtimeStore structural sharing", () => {
   });
 });
 
-/* ---------- particle budget ---------- */
+/* ---------- edge styling ---------- */
 
-describe("particleBudget (OBS-04)", () => {
-  it("density grows with log(rps) and is 0 without load", () => {
-    expect(particleDensity(0)).toBe(0);
-    expect(particleDensity(-5)).toBe(0);
-    expect(particleDensity(NaN)).toBe(0);
-    const d10 = particleDensity(9);
-    const d100 = particleDensity(99);
-    const d1000 = particleDensity(999);
-    expect(d100 / d10).toBeCloseTo(2);
-    expect(d1000 / d10).toBeCloseTo(3);
-  });
-
-  it("gives more particles to busier and longer edges, ≥ 1 for any loaded edge", () => {
-    const [idle, low, high, long] = particleBudget([
-      { rps: 0, length: 200 },
-      { rps: 10, length: 200 },
-      { rps: 100_000, length: 200 },
-      { rps: 100_000, length: 400 },
-    ]);
-    expect(idle).toBe(0);
-    expect(low).toBeGreaterThanOrEqual(1);
-    expect(high).toBeGreaterThan(low);
-    expect(long).toBeGreaterThan(high);
-    expect(particleBudget([{ rps: 1, length: 1 }])).toEqual([1]);
-  });
-
-  it("caps each edge and the global total at 2,000", () => {
-    expect(particleBudget([{ rps: 1e9, length: 1e6 }])[0]).toBe(MAX_PARTICLES_PER_EDGE);
-    const many = Array.from({ length: 100 }, () => ({ rps: 1_000_000, length: 800 }));
-    const counts = particleBudget(many);
-    const total = counts.reduce((s, n) => s + n, 0);
-    expect(total).toBe(MAX_PARTICLES);
-    // Scaled uniformly (equal edges differ by at most the rounding unit).
-    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
-    // Busier edges keep more particles after scaling.
-    const mixed = particleBudget([
-      ...Array.from({ length: 99 }, () => ({ rps: 1_000_000, length: 800 })),
-      { rps: 10, length: 800 },
-    ]);
-    expect(mixed.reduce((s, n) => s + n, 0)).toBe(MAX_PARTICLES);
-    expect(mixed[99]).toBeLessThan(mixed[0]);
-    // More loaded edges than the cap: still never above it.
-    const huge = Array.from({ length: 3000 }, () => ({ rps: 100, length: 300 }));
-    expect(particleBudget(huge).reduce((s, n) => s + n, 0)).toBe(MAX_PARTICLES);
-  });
-
+describe("edge styling (OBS-04)", () => {
   it("edge width grows with load within [1.5, 6]", () => {
     expect(edgeStrokeWidth(undefined)).toBe(1.5);
     expect(edgeStrokeWidth(0)).toBe(1.5);

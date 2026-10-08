@@ -1,8 +1,8 @@
 import type { Edge, Node } from "@xyflow/react";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { defaultParams } from "@/domain/components/registry";
-import type { EdgeRule, EdgeRuleKind, Params } from "@/domain/components/types";
-import { defaultEdgeRule } from "@/domain/graph/edgeRules";
+import type { EdgeRuleKind, EdgeRuleV2, Params } from "@/domain/components/types";
+import { defaultEdgeRule, edgeRuleV2Of, migrateEdgeRuleV2toV3 } from "@/domain/graph/edgeRules";
 import { mulberry32, type Rng } from "@/engine/core/rng";
 
 /**
@@ -35,7 +35,7 @@ export function text(id: string): Node {
 export function wire(
   source: string,
   target: string,
-  opts: { rule?: Partial<EdgeRule>; async?: boolean; sourceComponent?: string } = {},
+  opts: { rule?: Partial<EdgeRuleV2>; async?: boolean; sourceComponent?: string } = {},
 ): Edge {
   const base = defaultEdgeRule(opts.sourceComponent, undefined, "http");
   return {
@@ -46,7 +46,8 @@ export function wire(
       label: "",
       protocol: "http",
       async: opts.async ?? false,
-      rule: opts.rule ? { ...base, ...opts.rule } : undefined,
+      // (fixtures write the flat fields; the edge stores the call-list shape)
+      rule: opts.rule ? migrateEdgeRuleV2toV3({ ...edgeRuleV2Of(base), ...opts.rule }) : undefined,
     },
   };
 }

@@ -92,7 +92,7 @@ const LOAD_REFRESH_MS = 1000;
 /**
  * Mean `rpsIn` per node over the newest snapshots of the current run (the
  * trailing stretch where the clock only goes back, within LOAD_WINDOW_SEC);
- * a Simulate snapshot (t = 0) stands alone.
+ * an Analyze snapshot (t = 0) stands alone.
  */
 export function recentLoad(
   history: readonly TickSnapshot[],
