@@ -14,7 +14,7 @@ import { useEdgeRuntime } from "@/store/runtimeStore";
 import { EDGE_STATUS_COLOR, edgeStrokeWidth } from "@/lib/particles";
 import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
-import { PARAM, routingFor } from "@/domain/components/registry";
+import { hasHitRateParam, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
 import { edgeCallsBadge, edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
 import { planFor, type PlanEdge } from "@/domain/graph/callPlan";
@@ -80,7 +80,7 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
     const plan = planFor(
       source,
       outs,
-      (id) => typeof data.get(id)?.params?.[PARAM.hitRate] === "number",
+      (id) => hasHitRateParam(data.get(id)?.componentId ?? "custom"),
       { routing, labelOf },
     );
     // Steps mean something only where a node makes several sync calls (an LB splits, a queue decouples).

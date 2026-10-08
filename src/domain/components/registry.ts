@@ -142,6 +142,18 @@ export function getParamSpec(componentId: string, key: string): ParamSpec | unde
   return getSchema(componentId).params.find((p) => p.key === key);
 }
 
+/**
+ * Whether the component declares a hit rate: what makes a node a valid
+ * `missOf` target of an `after_miss` call (AD-002). Every reader that builds a
+ * call plan from the canvas asks this, so the badges, the balls and the
+ * editor agree with the compiler, which checks the sanitized params instead
+ * (same answer: `sanitizeParams` gives every declared key a value;
+ * `call-plan.test.ts` checks it for the whole catalog).
+ */
+export function hasHitRateParam(componentId: string): boolean {
+  return getParamSpec(componentId, PARAM.hitRate) !== undefined;
+}
+
 /* ---------- typed readers (used by UI, scoring and engine) ---------- */
 
 /**

@@ -2,7 +2,7 @@
 
 import type { Edge, Node } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
-import { getParamSpec, PARAM, routingFor } from "@/domain/components/registry";
+import { hasHitRateParam, routingFor } from "@/domain/components/registry";
 import type { EdgeCall, ParamValue } from "@/domain/components/types";
 import { planFor, type CallPlan } from "@/domain/graph/callPlan";
 import {
@@ -40,7 +40,7 @@ const componentIdOf = (graph: Graph, nodeId: string) =>
 
 function hasHitRate(graph: Graph, nodeId: string): boolean {
   const componentId = componentIdOf(graph, nodeId);
-  return componentId !== undefined && getParamSpec(componentId, PARAM.hitRate) !== undefined;
+  return componentId !== undefined && hasHitRateParam(componentId);
 }
 
 function labelOf(graph: Graph, nodeId: string): string {
