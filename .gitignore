@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# skill installs for other agents (the source is .claude/skills)
+/.agents/
+/.cursor/
+/.windsurf/
