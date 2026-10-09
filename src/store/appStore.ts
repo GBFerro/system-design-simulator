@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
 import { passThroughMigration, STORE_VERSION } from "./persistVersion";
 import { isCurrency, type Currency } from "@/cost/currency";
+import type { RightTab } from "@/lib/steps";
 
 export type ToastType = "success" | "error" | "info";
 export type Theme = "dark" | "light";
@@ -24,17 +25,7 @@ interface AppState {
   leftSidebarOpen: boolean;
   rightPanelOpen: boolean;
   activeLeftTab: "components" | "problems" | "learn";
-  activeRightTab:
-    | "properties"
-    | "simulation"
-    | "flow"
-    | "chaos"
-    | "slo"
-    | "score"
-    | "advisor"
-    | "cost"
-    | "capacity"
-    | "tradeoffs";
+  activeRightTab: RightTab;
   /** Display currency of the cost estimates (Spec 10, CST-04). */
   currency: Currency;
   toast: ToastData | null;

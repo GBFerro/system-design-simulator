@@ -1074,11 +1074,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `STEPS`, `TOOLS_BY_STEP`, `canvasVisible`, `paletteVisible`, `sanitizeStep` exportados
-- [ ] Teste: tabela da spec (Design: Props, Flow; Simulate: Sim, Flow, Props; Failures: Chaos, SLO, Props; Evaluate: Score, Advisor, Cost, Tradeoffs, Props)
-- [ ] Teste: toda aba existente aparece em ao menos um passo e Capacity/Learning Path/seletor ficam no passo Problem
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `STEPS`, `TOOLS_BY_STEP`, `canvasVisible`, `paletteVisible`, `sanitizeStep` exportados
+- [x] Teste: tabela da spec (Design: Props, Flow; Simulate: Sim, Flow, Props; Failures: Chaos, SLO, Props; Evaluate: Score, Advisor, Cost, Tradeoffs, Props)
+- [x] Teste: toda aba existente aparece em ao menos um passo e Capacity/Learning Path/seletor ficam no passo Problem
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

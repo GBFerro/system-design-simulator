@@ -122,6 +122,7 @@ src/
                   report.ts (buildReport: the final report, also what the attempt history stores)
   hooks/          useBreakpoint (useIsMobile/useIsCoarsePointer/usePrefersReducedMotion/useMinWidth)
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils, ringBuffer,
+                  steps (the wizard's steps and which tools each shows, pure: TOOLS_BY_STEP, canvasVisible, paletteVisible),
                   topology (topologySignature: what structure-dependent views recompute on),
                   particles (edge width/status color), flowBalls (request balls of the flow overlay), instances (instance cards/lanes, edge-copy ids, instances down under faults), runtimeMetrics (snapshot sharing, sparklines, formatters),
                   sequenceLayout (request-flow: a RequestTrace → lifelines, call/response/async arrows, hit/miss marks for the Flow tab)
