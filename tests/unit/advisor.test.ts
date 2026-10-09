@@ -9,7 +9,6 @@ import type { AdvisorContext } from "@/advisor/types";
 import { suggestedInstances } from "@/cost/rightSize";
 import { PROBLEMS } from "@/data/problems";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import type { GlobalRuntimeMetrics, NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
@@ -24,7 +23,7 @@ import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 import { GHOST_PREFIX, isGhostId, withPreview } from "@/components/canvas/previewGraph";
 import { useSimulationStore } from "@/store/simulationStore";
 import type { ScoreResult } from "@/types/scoring";
-import { comp as node, text, wire } from "./engineFixtures";
+import { comp as node, text, wire, compileV3 } from "./engineFixtures";
 
 const ids = (nodes: Node[], edges: Edge[]) => structureFindings(nodes, edges).map((f) => f.id);
 
@@ -228,12 +227,12 @@ describe("pattern findings (ADV-01)", () => {
     // The cache edge comes first, so the plan has nothing to correct
     const toCache = after.edges.findIndex((e) => e.source === "app" && e.target === cache.id);
     expect(toCache).toBeLessThan(after.edges.indexOf(toDb));
-    expect(compileGraph(after.nodes, after.edges).warnings).toEqual([]);
+    expect(compileV3(after.nodes, after.edges).warnings).toEqual([]);
     expect(find(after, { readRatio: 0.9 }, "read-cache:db")).toBeUndefined();
 
     // The database now sees the writes and the cache's misses only.
     const dbLoad = (x: Graph) =>
-      analyze(compileGraph(x.nodes, x.edges), 1000, { readRatio: 0.9 }).nodes.find(
+      analyze(compileV3(x.nodes, x.edges), 1000, { readRatio: 0.9 }).nodes.find(
         (n) => n.nodeId === "db",
       )!.offeredRps;
     expect(dbLoad(after)).toBeLessThan(dbLoad(g) * 0.5);
@@ -295,7 +294,7 @@ describe("pattern findings (ADV-01)", () => {
     expect(ruleKind(after, q.id, "n")).toBe("always");
     expect(find(after, {}, "async:e-app-n")).toBeUndefined();
 
-    const p99 = (x: Graph) => analyze(compileGraph(x.nodes, x.edges), 100).latency.p99Ms;
+    const p99 = (x: Graph) => analyze(compileV3(x.nodes, x.edges), 100).latency.p99Ms;
     expect(p99(after)).toBeLessThan(p99(g));
   });
 });
@@ -350,7 +349,7 @@ describe("quick fixes (ADV-02)", () => {
       expect(f.fix!.preview(graph), f.id).toEqual(diff);
       expect(JSON.stringify(graph), f.id).toBe(before);
       const after = applyDiff(graph, diff);
-      expect(compileGraph(after.nodes, after.edges).warnings, f.id).toEqual([]);
+      expect(compileV3(after.nodes, after.edges).warnings, f.id).toEqual([]);
       expect(new Set(after.nodes.map((n) => n.id)).size, f.id).toBe(after.nodes.length);
     }
   });
@@ -358,7 +357,7 @@ describe("quick fixes (ADV-02)", () => {
   it("apply all: every fix in sequence, each finding gone, nothing left to fix", () => {
     const { graph, ctx } = messy();
     const after = applyAllFixes(graph, ctx)!;
-    expect(compileGraph(after.nodes, after.edges).warnings).toEqual([]);
+    expect(compileV3(after.nodes, after.edges).warnings).toEqual([]);
     expect(computeFindings(after, ctx).filter((f) => f.fix)).toEqual([]);
     expect(applyAllFixes(after, ctx)).toBeNull();
   });
@@ -367,7 +366,7 @@ describe("quick fixes (ADV-02)", () => {
     for (const p of PROBLEMS) {
       const { nodes, edges } = buildReferenceGraph(p);
       const peak = p.requirements.readsPerSec + p.requirements.writesPerSec;
-      const steady = analyze(compileGraph(nodes, edges), peak, {
+      const steady = analyze(compileV3(nodes, edges), peak, {
         readRatio: p.requirements.readsPerSec / peak,
         samples: 200,
       });
@@ -382,7 +381,7 @@ describe("quick fixes (ADV-02)", () => {
         p.id,
       ).toEqual([]);
       const after = applyAllFixes(graph, ctx);
-      if (after) expect(compileGraph(after.nodes, after.edges).warnings, p.id).toEqual([]);
+      if (after) expect(compileV3(after.nodes, after.edges).warnings, p.id).toEqual([]);
     }
   });
 });

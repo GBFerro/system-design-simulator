@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { compileGraph } from "@/domain/graph/compile";
 import { parseEnvelope } from "@/domain/persistence/envelope";
 import { analyze } from "@/engine/analyze";
 import { FlowEngine } from "@/engine/engine";
@@ -19,7 +18,7 @@ import {
 } from "@/slo/slo";
 import { DEFAULT_AVAILABILITY, DEFAULT_WINDOW_SEC, type Slo } from "@/slo/types";
 import type { ProblemRequirements } from "@/types/problem";
-import { comp, wire } from "./engineFixtures";
+import { comp, wire, compileV3 } from "./engineFixtures";
 
 const REQ: ProblemRequirements = {
   readsPerSec: 900,
@@ -228,7 +227,7 @@ describe("goodput in the engine", () => {
     comp("app", "app-server", { instances: 4 }),
     comp("db", "sql-db", { instances: 2 }),
   ];
-  const graph = compileGraph(nodes, [wire("lb", "app"), wire("app", "db")]);
+  const graph = compileV3(nodes, [wire("lb", "app"), wire("app", "db")]);
 
   it("analyze(): every success is good without an SLO, none under an impossible one", () => {
     const loose = analyze(graph, 500, { samples: 500 });

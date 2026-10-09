@@ -352,11 +352,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Toda chamada de `compileGraph` em `tests/unit/*.test.ts` que monta arestas Ã  mÃ£o usa `compileV3`
-- [ ] Nenhum teste apagado, pulado ou com assert enfraquecido; contagem de testes igual Ã  anterior
-- [ ] `npm test` inteiro verde e `engine-golden.test.ts` sem mudanÃ§a de fixture
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Toda chamada de `compileGraph` em `tests/unit/*.test.ts` que monta arestas Ã  mÃ£o usa `compileV3`
+- [x] Nenhum teste apagado, pulado ou com assert enfraquecido; contagem de testes igual Ã  anterior
+- [x] `npm test` inteiro verde e `engine-golden.test.ts` sem mudanÃ§a de fixture
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

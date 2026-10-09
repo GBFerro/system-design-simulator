@@ -1,7 +1,7 @@
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
-import { compileGraph, type SimGraph } from "@/domain/graph/compile";
+import { type SimGraph } from "@/domain/graph/compile";
 import { retryAmplification } from "@/engine/core/queueing";
 import { TickSimulator } from "@/engine/core/tick";
 import { FlowEngine, type EngineClock } from "@/engine/engine";
@@ -13,7 +13,7 @@ import { HISTORY_TICKS, TICK_SEC, type TrafficPattern } from "@/engine/traffic/t
 import type { EdgeCall } from "@/domain/components/types";
 import type { TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import { comp, randomCanvas, wire } from "./engineFixtures";
+import { comp, randomCanvas, wire, compileV3 } from "./engineFixtures";
 
 const TICKS_PER_SEC = Math.round(1 / TICK_SEC);
 
@@ -57,7 +57,7 @@ function engineFor(graph: SimGraph, pattern: TrafficPattern, tickSamples = 100):
 
 /** API → queue → workers: consumers drain 2000 msg/s. */
 function queueGraph(): SimGraph {
-  return compileGraph(
+  return compileV3(
     [
       comp("lb", "load-balancer"),
       comp("api", "app-server", { instances: 10, capacityPerInstance: 2000, maxRetries: 0 }),
@@ -70,7 +70,7 @@ function queueGraph(): SimGraph {
 
 /** One app server with capacity 1000 rps and a deep buffer. */
 function overloadGraph(): SimGraph {
-  return compileGraph(
+  return compileV3(
     [
       comp("lb", "load-balancer", { maxRetries: 0 }),
       comp("app", "app-server", {
@@ -151,7 +151,7 @@ describe("tick loop: spike ×5 for 30 s", () => {
   });
 
   it("a bounded queue drops the excess instead of growing without limit", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer", { maxRetries: 0 }),
         comp("app", "app-server", { instances: 1, capacityPerInstance: 1000, maxQueue: 500 }),
@@ -183,7 +183,7 @@ describe("tick loop: arrivals and retries", () => {
   });
 
   it("retries carry over to the next tick and converge to λ(1 − f^{R+1})/(1 − f)", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer", { maxRetries: 0 }),
         comp("api", "app-server", { instances: 50, maxRetries: 3, timeoutMs: 60_000 }),
@@ -203,11 +203,11 @@ describe("tick loop: invariants", () => {
   it("throughput ≤ offered load every tick; every number finite (references + random graphs)", () => {
     const graphs: SimGraph[] = PROBLEMS.map((p) => {
       const { nodes, edges } = buildReferenceGraph(p);
-      return compileGraph(nodes, edges);
+      return compileV3(nodes, edges);
     });
     for (let seed = 1; seed <= 60; seed++) {
       const { nodes, edges } = randomCanvas(seed);
-      graphs.push(compileGraph(nodes as Node[], edges as Edge[]));
+      graphs.push(compileV3(nodes as Node[], edges as Edge[]));
     }
     const pattern: TrafficPattern = {
       kind: "spike",
@@ -249,7 +249,7 @@ describe("tick loop: invariants", () => {
 
   it("same graph + seed + pattern → bit-identical snapshots", () => {
     const { nodes, edges } = buildReferenceGraph(PROBLEMS[0]);
-    const graph = compileGraph(nodes, edges);
+    const graph = compileV3(nodes, edges);
     const run = () => {
       const engine = engineFor(graph, SPIKE, 200);
       const a = runFor(engine, 5);
@@ -296,7 +296,7 @@ describe("tick loop: invariants", () => {
       }
     }
     while (edges.length < 80) edges.push(wire("lb", layers[6][edges.length % 7]));
-    const graph = compileGraph(nodes, edges);
+    const graph = compileV3(nodes, edges);
     expect(graph.nodes).toHaveLength(50);
     expect(graph.edges).toHaveLength(80);
 
@@ -324,7 +324,7 @@ describe("tick loop: reads after a cache miss (request-flow)", () => {
     target,
     data: { protocol: "http", async: false, rule: { calls, networkLatencyMs: 1, packetLoss: 0 } },
   });
-  const graph = compileGraph(
+  const graph = compileV3(
     [
       comp("client", "client"),
       comp("svc", "app-server", { instances: 10 }),
@@ -483,7 +483,7 @@ describe("FlowEngine playback (in-thread)", () => {
     const backlog = engine.history.last()!.nodes.app.queueDepth;
     expect(backlog).toBeGreaterThan(5000);
     // scale out mid-run: 4 instances drain the backlog
-    const scaled = compileGraph(
+    const scaled = compileV3(
       [
         comp("lb", "load-balancer", { maxRetries: 0 }),
         comp("app", "app-server", {

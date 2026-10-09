@@ -1,7 +1,6 @@
 import type { Edge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import type { EdgeCall, EdgeCallKind } from "@/domain/components/types";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyzeWithModel } from "@/engine/analyze";
 import { station } from "@/engine/core/queueing";
 import { mulberry32, type Rng } from "@/engine/core/rng";
@@ -15,7 +14,7 @@ import {
 import { requestSeed, traceGraph, traceRequest, type GraphTrace } from "@/engine/core/trace";
 import type { FaultSpec } from "@/engine/faults/types";
 import type { TraceEvent } from "@/engine/types";
-import { comp, wire } from "./engineFixtures";
+import { comp, wire, compileV3 } from "./engineFixtures";
 
 /**
  * Trace of one request (request-flow, FLW-34/35/36/38): the sampler with a
@@ -373,7 +372,7 @@ describe("the recorder never changes the sampling (FLW-32 golden)", () => {
 describe("traceGraph: the trace at the requested load (FLW-36)", () => {
   it("near saturation the same requests take longer at the snapshot's load than at 1 req/s", () => {
     // client → app: 100 req/s (5 slots of 50 ms); at 95 req/s requests queue.
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("client", "client"),
         comp("app", "app-server", {
@@ -408,7 +407,7 @@ describe("traceGraph: the run's active faults (FLW-36, FLW-50)", () => {
     target,
     data: { protocol: "http", async: false, rule: { calls, networkLatencyMs: 1, packetLoss: 0 } },
   });
-  const graph = compileGraph(
+  const graph = compileV3(
     [
       comp("client", "client"),
       comp("app", "app-server", { instances: 4 }),

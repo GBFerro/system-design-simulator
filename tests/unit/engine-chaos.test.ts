@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GENERIC_DRILL_QA } from "@/data/interviewData";
-import { compileGraph, type SimGraph } from "@/domain/graph/compile";
+import { type SimGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { FlowEngine } from "@/engine/engine";
 import { analyzeUnderFault } from "@/engine/faults/steady";
@@ -13,7 +13,7 @@ import { TICK_SEC } from "@/engine/traffic/types";
 import type { TickSnapshot } from "@/engine/types";
 import type { Edge } from "@xyflow/react";
 import type { EdgeCall } from "@/domain/components/types";
-import { comp, wire } from "./engineFixtures";
+import { comp, wire, compileV3 } from "./engineFixtures";
 
 const TICKS_PER_SEC = Math.round(1 / TICK_SEC);
 const RPS = 1500;
@@ -25,7 +25,7 @@ const RPS = 1500;
  *   App → Queue → Workers                    (async consumers)
  */
 function shop(dbInstances = 2): SimGraph {
-  return compileGraph(
+  return compileV3(
     [
       comp("lb", "load-balancer", { healthCheckIntervalSec: 5, unhealthyThreshold: 2 }),
       comp("app", "app-server", {
@@ -60,7 +60,7 @@ function shop(dbInstances = 2): SimGraph {
  * what `shop()` lacks for the CHS-03 faults (a resolver, an LB with two targets).
  */
 function wide(): SimGraph {
-  return compileGraph(
+  return compileV3(
     [
       comp("dns", "dns", { lookupShare: 0.1, capacityPerInstance: 100_000 }),
       comp("lb", "load-balancer", { healthCheckIntervalSec: 5, unhealthyThreshold: 2 }),
@@ -265,7 +265,7 @@ describe("chaos in the tick loop (each MVP fault: baseline → inject → heal �
   });
 
   it("kill node behind an LB with a second target: routed around after the health check", () => {
-    const g = compileGraph(
+    const g = compileV3(
       [
         comp("lb", "load-balancer", { healthCheckIntervalSec: 5, unhealthyThreshold: 2 }),
         comp("a", "app-server", { instances: 2, capacityPerInstance: 1000, maxRetries: 0 }),
@@ -468,7 +468,7 @@ describe("FlowEngine faults", () => {
     run(engine, 1);
     engine.inject({ type: "kill-node", target: { kind: "node", id: "wk" } });
     engine.load(
-      compileGraph([comp("lb", "load-balancer"), comp("app", "app-server")], [wire("lb", "app")]),
+      compileV3([comp("lb", "load-balancer"), comp("app", "app-server")], [wire("lb", "app")]),
     );
     expect(engine.faults[0]).toMatchObject({ active: false });
     expect(engine.faults[0].notes.join(" ")).toMatch(/left the design/);
@@ -494,7 +494,7 @@ describe("faults that fail writes: write share per call (request-flow)", () => {
   });
   /** The error rate disk-full puts on each edge into the database, by edge source. */
   function diskFullShares(edges: Edge[]): Record<string, number> {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("client", "client"),
         comp("svc", "app-server", { instances: 10 }),
@@ -619,7 +619,7 @@ describe("analyzeUnderFault (Spec 09 scoring)", () => {
 
 describe("DNS resolver (lookupShare)", () => {
   const dnsGraph = (share: number) =>
-    compileGraph(
+    compileV3(
       [
         comp("dns", "dns", { lookupShare: share, capacityPerInstance: 1000, serviceTimeMs: 20 }),
         comp("app", "app-server", { instances: 10, capacityPerInstance: 5000, serviceTimeMs: 5 }),
@@ -653,7 +653,7 @@ describe("DNS resolver (lookupShare)", () => {
 
 describe("CHS-03 faults in the tick loop (baseline → inject → heal → baseline)", () => {
   it("zone outage: every tier loses ⌈n/zones⌉ instances; a single-instance tier is down", () => {
-    const g = compileGraph(
+    const g = compileV3(
       [
         comp("lb", "load-balancer", { healthCheckIntervalSec: 1, unhealthyThreshold: 1 }),
         comp("app", "app-server", { instances: 3, capacityPerInstance: 1000, maxRetries: 0 }),
@@ -675,7 +675,7 @@ describe("CHS-03 faults in the tick loop (baseline → inject → heal → basel
   });
 
   it("zone outage with redundant tiers: survivors carry it after the health check", () => {
-    const g = compileGraph(
+    const g = compileV3(
       [
         comp("lb", "load-balancer", {
           instances: 2,
@@ -744,7 +744,7 @@ describe("CHS-03 faults in the tick loop (baseline → inject → heal → basel
     expect(mean(run(engine, 2), errorRate)).toBeLessThan(0.01);
 
     // With 3 retries on the caller, the target sees λ(1 − f⁴)/(1 − f) ≈ 1.42 λ.
-    const g = compileGraph(
+    const g = compileV3(
       [
         comp("api", "api-gateway", { instances: 4, capacityPerInstance: 10_000, maxRetries: 3 }),
         comp("app", "app-server", { instances: 4, capacityPerInstance: 1000 }),
@@ -848,7 +848,7 @@ describe("CHS-03 faults in the tick loop (baseline → inject → heal → basel
 describe("circuit breaker (tick loop)", () => {
   /** Client → App (no retries) → Breaker → Payments. */
   const guarded = (breaker: Record<string, number> = {}) =>
-    compileGraph(
+    compileV3(
       [
         comp("app", "app-server", { instances: 4, capacityPerInstance: 1000, maxRetries: 0 }),
         comp("cb", "circuit-breaker", {

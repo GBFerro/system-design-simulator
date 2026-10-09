@@ -7,13 +7,12 @@ import {
   STABLE_UNHEALTHY_THRESHOLD,
 } from "@/advisor/mitigation";
 import type { AdvisorContext } from "@/advisor/types";
-import { compileGraph } from "@/domain/graph/compile";
 import { edgeRuleOf } from "@/domain/graph/edgeRules";
 import { FlowEngine } from "@/engine/engine";
 import { edgeTargets, FAULT_CATALOG, nodeTargets } from "@/engine/faults/catalog";
 import type { FaultSpec } from "@/engine/faults/types";
 import { TICK_SEC } from "@/engine/traffic/types";
-import { comp, wire } from "./engineFixtures";
+import { comp, wire, compileV3 } from "./engineFixtures";
 
 type Graph = { nodes: Node[]; edges: Edge[] };
 
@@ -54,7 +53,7 @@ function design(): Graph {
 
 /** A fault of every type on its first valid target in `design()`. */
 function everyFault(): FaultSpec[] {
-  const sim = compileGraph(design().nodes, design().edges);
+  const sim = compileV3(design().nodes, design().edges);
   return FAULT_CATALOG.map((f) => ({
     type: f.type,
     target: f.targets.includes("global")
@@ -86,7 +85,7 @@ describe("mitigations (CHS-06)", () => {
         expect(t.fix!.preview(g), t.id).toEqual(diff);
         expect(JSON.stringify(g), t.id).toBe(before);
         const after = applyDiff(g, diff);
-        expect(compileGraph(after.nodes, after.edges).warnings, t.id).toEqual([]);
+        expect(compileV3(after.nodes, after.edges).warnings, t.id).toEqual([]);
       }
     }
   });
@@ -123,7 +122,7 @@ describe("mitigations (CHS-06)", () => {
     expect(after.edges.some((e) => e.source === "a" && e.target === cb.id)).toBe(true);
 
     const engine = new FlowEngine({ tickSamples: 50 });
-    engine.load(compileGraph(after.nodes, after.edges), { seed: 2 });
+    engine.load(compileV3(after.nodes, after.edges), { seed: 2 });
     engine.setTraffic({ kind: "constant", rps: 1000 });
     engine.step(Math.round(2 / TICK_SEC));
     engine.inject(partition);

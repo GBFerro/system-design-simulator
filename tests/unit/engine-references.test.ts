@@ -2,13 +2,13 @@ import { requestEdges } from "@/domain/graph/returns";
 import type { Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { runSimulation } from "@/engine/legacy/simulator";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { SteadyState } from "@/engine/types";
 import type { EdgeRule } from "@/domain/components/types";
+import { compileV3 } from "./engineFixtures";
 
 function assertFinite(s: SteadyState) {
   const numbers: number[] = [
@@ -47,7 +47,7 @@ describe("reference solutions through analyze()", () => {
 
   it.each(PROBLEMS.map((p) => [p.id, p] as const))("%s simulates without error", (_id, problem) => {
     const { nodes, edges } = buildReferenceGraph(problem);
-    const graph = compileGraph(nodes, edges);
+    const graph = compileV3(nodes, edges);
     for (const rps of [
       problem.requirements.readsPerSec + problem.requirements.writesPerSec,
       10_000,
@@ -74,7 +74,7 @@ describe("reference solutions through analyze()", () => {
       // (the legacy engine predates responses: it reads the requests)
       const edges = requestEdges(built.edges);
       const legacy = runSimulation(nodes as Node<ComponentNodeData>[], edges, 10_000);
-      const steady = analyze(compileGraph(nodes, edges), 10_000);
+      const steady = analyze(compileV3(nodes, edges), 10_000);
       const incoming = (id: string) => edges.filter((e) => e.target === id);
       const controlOnly = (id: string) =>
         incoming(id).length > 0 &&

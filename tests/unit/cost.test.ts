@@ -10,7 +10,6 @@ import {
   suggestedInstances,
   TARGET_UTILIZATION,
 } from "@/cost/rightSize";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { buildScoringGraph } from "@/scoring/scorer";
@@ -18,6 +17,7 @@ import { SURGE_FACTOR } from "@/scoring/budget";
 import { BUDGET, budgetPoints, scoreCost } from "@/scoring/rules/cost";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { Measurements } from "@/types/scoring";
+import { compileV3 } from "./engineFixtures";
 
 function node(
   componentId: string,
@@ -155,7 +155,7 @@ describe("cost rule (CST-05)", () => {
   ];
   const graph = buildScoringGraph(nodes, edges);
   const measure = (budgetMonthlyUsd?: number, rps = 3000): Measurements => {
-    const g = compileGraph(nodes, edges);
+    const g = compileV3(nodes, edges);
     return {
       peakRps: rps,
       slo: { latency: { percentile: 99, thresholdMs: 1000 }, availability: 0.999, windowSec: 300 },
@@ -196,7 +196,7 @@ describe("cost rule (CST-05)", () => {
 
   it("a design no request reaches scores 0", () => {
     const lone = [node("app-server", "solo", { instances: 3 })];
-    const g = compileGraph(lone, []);
+    const g = compileV3(lone, []);
     const m: Measurements = {
       peakRps: 1000,
       slo: { latency: { percentile: 99, thresholdMs: 1000 }, availability: 0.999, windowSec: 300 },

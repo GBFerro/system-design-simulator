@@ -1,12 +1,12 @@
 import type { Edge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { TickSimulator } from "@/engine/core/tick";
+import type { SimGraph } from "@/domain/graph/compile";
 import type { TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import { comp, wire } from "./engineFixtures";
+import { comp, wire, compileV3 } from "./engineFixtures";
 
 // analyze() and the tick loop share core/settle.ts and the routing. At a steady
 // load below capacity they must show the same picture, or the Simulate button
@@ -16,7 +16,7 @@ const WARMUP_TICKS = 100;
 const MEASURE_TICKS = 200;
 const REL_TOL = 0.05;
 
-function tickAverage(graphNodes: ReturnType<typeof compileGraph>, ticks: TickSnapshot[]) {
+function tickAverage(graphNodes: SimGraph, ticks: TickSnapshot[]) {
   const rpsIn = new Map<string, number>();
   for (const n of graphNodes.nodes) {
     rpsIn.set(n.id, ticks.reduce((a, s) => a + s.nodes[n.id].rpsIn, 0) / ticks.length);
@@ -28,7 +28,7 @@ function tickAverage(graphNodes: ReturnType<typeof compileGraph>, ticks: TickSna
 describe("tick loop vs analyze() at steady state", () => {
   const healthy = PROBLEMS.flatMap((p) => {
     const { nodes, edges } = buildReferenceGraph(p);
-    const graph = compileGraph(nodes, edges);
+    const graph = compileV3(nodes, edges);
     const steady = analyze(graph, RPS);
     const ok = steady.offeredRps > 0 && steady.nodes.every((n) => n.utilization < 0.7);
     return ok ? [{ id: p.id, graph, steady }] : [];
@@ -45,7 +45,7 @@ describe("tick loop vs analyze() at steady state", () => {
     target,
     data: { protocol: "http", async: false, rule },
   });
-  const lookAsideGraph = compileGraph(
+  const lookAsideGraph = compileV3(
     [
       comp("client", "client"),
       comp("svc", "app-server", { instances: 10 }),
