@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { MOD, connect, open, quickAdd } from "./helpers";
+import { MOD, connectSync, open, quickAdd } from "./helpers";
 
 // Request flow, the trace (FLW-33..41): the Flow tab and the edge highlight it drives.
 
@@ -22,26 +22,33 @@ test("a highlight set from the trace marks the edge and its direction, without a
   await open(page, "/?e2e");
   await quickAdd(page, "Client");
   await quickAdd(page, "App Server");
-  await connect(page, "client", "app-server");
-  const edge = page.locator(".react-flow__edge");
-  await expect(edge).toHaveCount(1);
-  const edgeId = (await edge.getAttribute("data-id"))!;
+  await connectSync(page, "client", "app-server");
+  // a call is two lines: the request and its response
+  const edges = page.locator(".react-flow__edge");
+  await expect(edges).toHaveCount(2);
+  const response = edges.filter({ has: page.locator("[data-edge-response]") });
+  const request = edges.filter({ hasNot: page.locator("[data-edge-response]") });
+  const edgeId = (await request.getAttribute("data-id"))!;
   const saved = () => page.evaluate(() => localStorage.getItem("systemsim-canvas"));
   await expect.poll(saved).toContain(edgeId);
   const before = await saved();
 
+  // `req` marks the request line, `res` the response line (RET-04)
   await setHighlight(page, { edgeId, dir: "req" });
-  await expect(edge.locator('[data-edge-highlight="req"]')).toHaveCount(1);
+  await expect(request.locator('[data-edge-highlight="req"]')).toHaveCount(1);
+  await expect(response.locator("[data-edge-highlight]")).toHaveCount(0);
   await setHighlight(page, { edgeId, dir: "res" });
-  await expect(edge.locator('[data-edge-highlight="res"]')).toHaveCount(1);
+  await expect(response.locator('[data-edge-highlight="res"]')).toHaveCount(1);
+  await expect(request.locator("[data-edge-highlight]")).toHaveCount(0);
   expect(await saved()).toBe(before); // canvasStore untouched
   await setHighlight(page, null);
   await expect(page.locator("[data-edge-highlight]")).toHaveCount(0);
 
-  // No undo entry: one undo still removes the connection itself.
+  // No undo entry: two undos (the response, then the request) remove the call itself.
   await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
   await page.keyboard.press(`${MOD}+z`);
-  await expect(edge).toHaveCount(0);
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(edges).toHaveCount(0);
 });
 
 const NO_TIMINGS = "Run the simulation or Analyze to see the timings";

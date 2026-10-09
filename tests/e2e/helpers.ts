@@ -26,8 +26,12 @@ export async function center(locator: Locator) {
 
 /** Drag from one node's source handle to another's target handle (node ids start with the component id). */
 export async function connect(page: Page, from: string, to: string) {
-  const a = await center(page.locator(`.react-flow__node[data-id^="${from}-"] .source`));
-  const b = await center(page.locator(`.react-flow__node[data-id^="${to}-"] .target`));
+  const a = await center(
+    page.locator(`.react-flow__node[data-id^="${from}-"] .source:not([data-return-handle])`),
+  );
+  const b = await center(
+    page.locator(`.react-flow__node[data-id^="${to}-"] .target:not([data-return-handle])`),
+  );
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
   await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 5 });
@@ -59,4 +63,25 @@ export async function analyze(page: Page) {
   await page.getByRole("tab", { name: "Simulate" }).click();
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page.getByText("Analysis complete!")).toBeVisible();
+}
+
+/** Draw the response of a call: drag from the callee's return handle to the caller's (guided-ui, RET-01). */
+export async function answer(page: Page, callee: string, caller: string) {
+  const a = await center(
+    page.locator(`.react-flow__node[data-id^="${callee}-"] [data-return-handle="out"]`),
+  );
+  const b = await center(
+    page.locator(`.react-flow__node[data-id^="${caller}-"] [data-return-handle="in"]`),
+  );
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 5 });
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+}
+
+/** A synchronous call: the request, then its response. A bare `connect` is an async call. */
+export async function connectSync(page: Page, from: string, to: string) {
+  await connect(page, from, to);
+  await answer(page, to, from);
 }

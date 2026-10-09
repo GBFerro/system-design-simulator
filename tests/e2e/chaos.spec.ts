@@ -105,8 +105,8 @@ test("Advisor: structure hints appear and go away when fixed", async ({ page }) 
   // Wire Client → App Server: an entry point, everything reachable.
   const client = nodes(page).filter({ hasText: "Client" });
   const app = nodes(page).filter({ hasText: "App Server" });
-  const from = await center(client.locator(".react-flow__handle.source"));
-  const to = await center(app.locator(".react-flow__handle.target"));
+  const from = await center(client.locator(".react-flow__handle.source:not([data-return-handle])"));
+  const to = await center(app.locator(".react-flow__handle.target:not([data-return-handle])"));
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 12 });

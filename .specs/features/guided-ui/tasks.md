@@ -1018,12 +1018,12 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Client → Service pela alça de ida: só bolas ●; desenhar a volta: bolas ○ voltam pela segunda linha
-- [ ] Volta sem ida mostra o toast; volta duplicada não cria nada
-- [ ] Apagar a ida leva a volta; Async no menu apaga a volta; aba de referência sem alça de volta
-- [ ] `npm run test:e2e` verde
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Client → Service pela alça de ida: só bolas ●; desenhar a volta: bolas ○ voltam pela segunda linha
+- [x] Volta sem ida mostra o toast; volta duplicada não cria nada
+- [x] Apagar a ida leva a volta; Async no menu apaga a volta; aba de referência sem alça de volta
+- [x] `npm run test:e2e` verde
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: e2e
 **Gate**: full
@@ -1047,10 +1047,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Documenta a volta (`ret:<id>`, `responseTo`), `async` derivado, schema v4 e `returns.ts` no mapa
-- [ ] `claude-map.test.ts` verde
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Documenta a volta (`ret:<id>`, `responseTo`), `async` derivado, schema v4 e `returns.ts` no mapa
+- [x] `claude-map.test.ts` verde
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: build

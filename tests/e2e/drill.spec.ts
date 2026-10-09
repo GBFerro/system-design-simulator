@@ -59,8 +59,12 @@ test("a design without the scripted target gets the fallback; edits count as the
   const nodes = page.locator(".react-flow__node");
   const client = nodes.filter({ hasText: "Client" });
   const app = nodes.filter({ hasText: "App Server" });
-  const from = (await client.locator(".react-flow__handle.source").boundingBox())!;
-  const to = (await app.locator(".react-flow__handle.target").boundingBox())!;
+  const from = (await client
+    .locator(".react-flow__handle.source:not([data-return-handle])")
+    .boundingBox())!;
+  const to = (await app
+    .locator(".react-flow__handle.target:not([data-return-handle])")
+    .boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
