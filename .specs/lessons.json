@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 13,
+  "next_id": 15,
   "lessons": [
     {
       "id": "L-001",
@@ -180,6 +180,34 @@
       ],
       "created": "2026-10-05T22:49:20Z",
       "last_seen": "2026-10-05T22:49:20Z"
+    },
+    {
+      "id": "L-013",
+      "key": "spec_precision_gap::when a criterion states a geometric or visual property lines that do not overlap assert it on the rendered geometry or say in the spec that it is checked by eye",
+      "text": "When a criterion states a geometric or visual property (lines that do not overlap), assert it on the rendered geometry or say in the spec that it is checked by eye.",
+      "signal": "spec_precision_gap",
+      "scope": "canvas",
+      "status": "candidate",
+      "features": ["guided-ui"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["RET-04 (canvas)"],
+      "created": "2026-10-09T20:50:26Z",
+      "last_seen": "2026-10-09T20:50:26Z"
+    },
+    {
+      "id": "L-014",
+      "key": "gate_fail::after a change to navigation or layout run the whole e2e suite before committing a spec that reaches its screen by a removed control only fails far from the change",
+      "text": "After a change to navigation or layout, run the whole e2e suite before committing: a spec that reaches its screen by a removed control only fails far from the change.",
+      "signal": "gate_fail",
+      "scope": "e2e",
+      "status": "candidate",
+      "features": ["guided-ui"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["tests/e2e/drill.spec.ts (e2e)"],
+      "created": "2026-10-09T20:50:26Z",
+      "last_seen": "2026-10-09T20:50:26Z"
     }
   ]
 }

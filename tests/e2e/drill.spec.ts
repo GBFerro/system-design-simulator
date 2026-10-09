@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { open } from "./helpers";
+import { open, goToDeepDive } from "./helpers";
 
 // Spec 09 (phase 6): the failure drill injects the problem's scripted faults
 // into the running design and scores each one. Run at 20× so the three
@@ -18,7 +18,7 @@ test("failure drill: scripted faults, answers, per-fault results and summary", a
 
   await page.getByTitle("Start a guided interview practice").click();
   await page.getByRole("button", { name: "Start Interview" }).click();
-  await page.getByRole("button", { name: "Go to phase 6: Deep Dive" }).click();
+  await goToDeepDive(page);
 
   const drill = page.getByTestId("drill-panel");
   await expect(drill.getByText("Failure drill", { exact: true })).toBeVisible();
@@ -74,7 +74,7 @@ test("a design without the scripted target gets the fallback; edits count as the
 
   await page.getByTitle("Start a guided interview practice").click();
   await page.getByRole("button", { name: "Start Interview" }).click();
-  await page.getByRole("button", { name: "Go to phase 6: Deep Dive" }).click();
+  await goToDeepDive(page);
   const drill = page.getByTestId("drill-panel");
   await drill.getByTestId("drill-start").click();
   await drill.getByRole("button", { name: "Speed 5×" }).click();

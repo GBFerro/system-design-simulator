@@ -98,6 +98,20 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: Y8 src/components/panel/FlowPanel.tsx:61; tests/e2e/flow.spec.ts:335 (FLW-36, rodada 4) (ui)
 - last seen: 2026-10-05T22:49:20Z
 
+### L-013 - When a criterion states a geometric or visual property (lines that do not overlap), assert it on the rendered geometry or say in the spec that it is checked by eye.
+
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `canvas` · harmful: 0
+- features: guided-ui
+- evidence: RET-04 (canvas)
+- last seen: 2026-10-09T20:50:26Z
+
+### L-014 - After a change to navigation or layout, run the whole e2e suite before committing: a spec that reaches its screen by a removed control only fails far from the change.
+
+- signal: `gate_fail` · recurrence: 1 feature(s) · scope: `e2e` · harmful: 0
+- features: guided-ui
+- evidence: tests/e2e/drill.spec.ts (e2e)
+- last seen: 2026-10-09T20:50:26Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

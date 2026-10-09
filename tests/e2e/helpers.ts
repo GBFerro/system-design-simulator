@@ -145,3 +145,14 @@ export async function connectSync(page: Page, from: string, to: string) {
   await connect(page, from, to);
   await answer(page, to, from);
 }
+
+/** In an interview, walk the phase bar forward to the Deep Dive (a later phase is not a button that works). */
+export async function goToDeepDive(page: Page) {
+  const bar = page.getByTestId("step-bar");
+  for (let i = 0; i < 6; i++) {
+    if (((await bar.locator('[aria-current="step"]').textContent()) ?? "").includes("Deep Dive"))
+      return;
+    await bar.getByRole("button", { name: "Next", exact: true }).click();
+  }
+  throw new Error("could not reach the Deep Dive");
+}

@@ -1,6 +1,6 @@
 # Interface guiada e ida/volta separadas — Specification
 
-Oct 8, 2026 · Status: rascunho · Escopo: Complex (layout inteiro + modelo de aresta + persistência v4)
+Oct 8, 2026 · Status: implementada (ver validation.md) · Escopo: Complex (layout inteiro + modelo de aresta + persistência v4)
 
 ## Problem Statement
 

@@ -1,7 +1,7 @@
 ﻿# Interface guiada e ida/volta — Design
 
 **Spec**: `.specs/features/guided-ui/spec.md`
-**Status**: Draft
+**Status**: Done
 
 ---
 
