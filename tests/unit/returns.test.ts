@@ -87,3 +87,14 @@ describe("serialization of responses (RET-23)", () => {
     expect(isReturnEdge(back[0])).toBe(false);
   });
 });
+
+describe("handle pairs (RET-02, RET-14)", () => {
+  it("a response is drawn ret-out → ret-in and a request between the plain handles, never mixed", async () => {
+    const { isValidHandlePair } = await import("@/domain/graph/returns");
+    expect(isValidHandlePair({ sourceHandle: "ret-out", targetHandle: "ret-in" })).toBe(true);
+    expect(isValidHandlePair({ sourceHandle: null, targetHandle: null })).toBe(true);
+    expect(isValidHandlePair({ sourceHandle: undefined, targetHandle: undefined })).toBe(true);
+    expect(isValidHandlePair({ sourceHandle: "ret-out", targetHandle: null })).toBe(false);
+    expect(isValidHandlePair({ sourceHandle: null, targetHandle: "ret-in" })).toBe(false);
+  });
+});

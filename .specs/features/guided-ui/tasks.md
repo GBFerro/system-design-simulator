@@ -882,10 +882,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `ret-out` só liga a `ret-in` e as alças principais só entre si
-- [ ] Em aba somente leitura nenhuma alça de volta é conectável
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `ret-out` só liga a `ret-in` e as alças principais só entre si
+- [x] Em aba somente leitura nenhuma alça de volta é conectável
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build

@@ -17,6 +17,21 @@ const RETURN_ID_PREFIX = "ret:";
 
 type EdgeLike = { id: string; data?: unknown };
 
+/**
+ * May a connection be drawn between these handles? A response is drawn from a
+ * `ret-out` to a `ret-in` and a request between the plain handles, never mixed
+ * (RET-02): the handle says what the edge is.
+ */
+export function isValidHandlePair(connection: {
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}): boolean {
+  return (
+    (connection.sourceHandle === RETURN_SOURCE_HANDLE) ===
+    (connection.targetHandle === RETURN_TARGET_HANDLE)
+  );
+}
+
 /** The request an edge answers, when the edge is a response. */
 export function responseToOf(edge: { data?: unknown }): string | undefined {
   const to = (edge.data as { responseTo?: unknown } | undefined)?.responseTo;
