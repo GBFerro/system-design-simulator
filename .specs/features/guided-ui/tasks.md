@@ -1268,10 +1268,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Um passo do tour aponta para a `StepBar`; nenhum passo aponta para elemento que não existe mais
-- [ ] Teste: cada alvo do tour existe no passo em que o tour roda
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Um passo do tour aponta para a `StepBar`; nenhum passo aponta para elemento que não existe mais
+- [x] Teste: cada alvo do tour existe no passo em que o tour roda
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: e2e
 **Gate**: full
@@ -1295,10 +1295,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] O texto descreve os 5 passos e a regra ida/volta/async
-- [ ] Nenhuma menção à aba escondida que não existe
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] O texto descreve os 5 passos e a regra ida/volta/async
+- [x] Nenhuma menção à aba escondida que não existe
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -1322,11 +1322,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] App limpo abre em Problem em tela cheia e avança até Evaluate só com Next; cada passo mostra só as abas da tabela
-- [ ] Passo posterior não é clicável; reload reabre no passo; viewport 390 px mostra "n / 5"
-- [ ] Simulação ao vivo continua ao trocar de passo; trocar o problema pela top bar mantém o passo
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] App limpo abre em Problem em tela cheia e avança até Evaluate só com Next; cada passo mostra só as abas da tabela
+- [x] Passo posterior não é clicável; reload reabre no passo; viewport 390 px mostra "n / 5"
+- [x] Simulação ao vivo continua ao trocar de passo; trocar o problema pela top bar mantém o passo
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: e2e
 **Gate**: full
