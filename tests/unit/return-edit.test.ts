@@ -182,3 +182,61 @@ describe("deleting calls and responses (RET-07, RET-08)", () => {
     expect(s().edges).toEqual([]);
   });
 });
+
+describe("Sync / Async shortcut (RET-12, RET-13, RET-17)", () => {
+  beforeEach(() => {
+    setCanvas([node("client", "a"), node("app-server", "b")]);
+    request("a", "b");
+    useCanvasStore.setState({ history: [] });
+  });
+
+  it("Sync draws the response, in one undo step (RET-12)", () => {
+    const ida = s().edges[0];
+    const history = s().history.length;
+    s().setEdgeSync(ida.id, true);
+    expect(responseOf(s().edges).get(ida.id)?.id).toBe(`ret:${ida.id}`);
+    expect(s().history).toHaveLength(history + 1);
+    s().undo();
+    expect(s().edges.map((e) => e.id)).toEqual([ida.id]);
+  });
+
+  it("Async deletes the response, in one undo step (RET-13)", () => {
+    const ida = s().edges[0];
+    s().setEdgeSync(ida.id, true);
+    const history = s().history.length;
+    s().setEdgeSync(ida.id, false);
+    expect(s().edges.map((e) => e.id)).toEqual([ida.id]);
+    expect(s().history).toHaveLength(history + 1);
+    s().undo();
+    expect(s().edges).toHaveLength(2);
+  });
+
+  it("asking for the state it already has changes nothing and records no undo entry", () => {
+    const ida = s().edges[0];
+    s().setEdgeSync(ida.id, false);
+    expect(s().history).toHaveLength(0);
+    s().setEdgeSync(ida.id, true);
+    const history = s().history.length;
+    const edges = s().edges;
+    s().setEdgeSync(ida.id, true);
+    expect(s().edges).toBe(edges);
+    expect(s().history).toHaveLength(history);
+  });
+
+  it("accepts the id of the response too", () => {
+    const ida = s().edges[0];
+    s().setEdgeSync(ida.id, true);
+    s().setEdgeSync(`ret:${ida.id}`, false);
+    expect(s().edges.map((e) => e.id)).toEqual([ida.id]);
+  });
+
+  it("does nothing on a read-only tab (RET-17)", () => {
+    useCanvasStore.setState({
+      tabs: [{ id: "t", label: "T", nodes: [], edges: [], readOnly: true }],
+    });
+    const edges = s().edges;
+    s().setEdgeSync(edges[0].id, true);
+    expect(s().edges).toBe(edges);
+    expect(s().history).toHaveLength(0);
+  });
+});

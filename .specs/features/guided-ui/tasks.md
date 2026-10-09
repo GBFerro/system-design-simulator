@@ -438,11 +438,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `setEdgeSync(id, true)` cria a volta e `false` a apaga, uma entrada de undo cada
-- [ ] No-op em aba somente leitura; ação listada em `MUTATING_ACTIONS` (`editor.test.ts` verde)
-- [ ] `updateEdgeData(id, { async })` removido e sem chamadores de código
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `setEdgeSync(id, true)` cria a volta e `false` a apaga, uma entrada de undo cada
+- [x] No-op em aba somente leitura; ação listada em `MUTATING_ACTIONS` (`editor.test.ts` verde)
+- [x] `updateEdgeData(id, { async })` removido e sem chamadores de código
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

@@ -379,6 +379,12 @@ interface CanvasState {
   updateEdgeRule: (edgeId: string, patch: EdgeRulePatch) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
+  /**
+   * Sync / Async shortcut (RET-12, RET-13): draws (`true`) or deletes (`false`)
+   * the response of the call `edgeId` (or of the call a response answers), in
+   * one undo step.
+   */
+  setEdgeSync: (edgeId: string, sync: boolean) => void;
   clearCanvas: () => void;
   /** The single delete path: selected nodes/edges (plus edges touching removed nodes) in one undo step. */
   deleteSelection: () => void;
@@ -786,6 +792,30 @@ export const useCanvasStore = create<CanvasState>()(
           };
         });
       },
+      setEdgeSync: (edgeId, sync) => {
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          const picked = state.edges.find((e) => e.id === edgeId);
+          const requestId = picked ? (responseToOf(picked) ?? picked.id) : undefined;
+          const request = state.edges.find((e) => e.id === requestId && !isReturnEdge(e));
+          if (!request) return state;
+          const response = responseOf(state.edges).get(request.id);
+          if (sync === (response !== undefined)) return state;
+          const flag = (e: Edge) => ({ ...e, data: { ...e.data, async: !sync } });
+          return {
+            history: pushedHistory(state),
+            future: [],
+            edges: sync
+              ? [
+                  ...state.edges.map((e) => (e.id === request.id ? flag(e) : e)),
+                  makeReturnEdge(request),
+                ]
+              : state.edges
+                  .filter((e) => e.id !== response!.id)
+                  .map((e) => (e.id === request.id ? flag(e) : e)),
+          };
+        });
+      },
       clearCanvas: () => {
         if (isActiveTabReadOnly(get())) return;
         set((state) => ({
@@ -892,6 +922,7 @@ export const MUTATING_ACTIONS = [
   "updateEdgeRule",
   "updateNodeData",
   "updateEdgeData",
+  "setEdgeSync",
   "clearCanvas",
   "deleteSelection",
 ] as const satisfies readonly CanvasAction[];

@@ -187,6 +187,7 @@ describe("canvas store editing", () => {
     updateEdgeRule: ["a->b", { kind: "reads" }],
     updateNodeData: ["a", { label: "Renamed" }],
     updateEdgeData: ["a->b", { label: "renamed" }],
+    setEdgeSync: ["a->b", true],
     clearCanvas: [],
     deleteSelection: [],
   };
