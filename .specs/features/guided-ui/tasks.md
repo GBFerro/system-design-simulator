@@ -773,10 +773,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Alças `ret-out` (source, esquerda) e `ret-in` (target, direita) abaixo das principais
-- [ ] Escondidas em aba somente leitura (`useIsActiveTabReadOnly`); tamanho fixo (sem re-medir)
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Alças `ret-out` (source, esquerda) e `ret-in` (target, direita) abaixo das principais
+- [x] Escondidas em aba somente leitura (`useIsActiveTabReadOnly`); tamanho fixo (sem re-medir)
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -800,10 +800,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Mesmas alças nos cards de instância
-- [ ] Tamanho fixo dos cards preservado
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Mesmas alças nos cards de instância
+- [x] Tamanho fixo dos cards preservado
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -827,11 +827,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Ida contínua com seta no alvo; volta tracejada com seta em quem chamou, sem sobreposição
-- [ ] Ida sem volta desenha uma linha só
-- [ ] Largura e cor da volta lidas da ida (`useEdgeRuntime`); volta sem rótulo editável
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Ida contínua com seta no alvo; volta tracejada com seta em quem chamou, sem sobreposição
+- [x] Ida sem volta desenha uma linha só
+- [x] Largura e cor da volta lidas da ida (`useEdgeRuntime`); volta sem rótulo editável
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -855,10 +855,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Cada cópia de ida por card ganha a cópia da sua volta
-- [ ] Teste: nó expandido com N cards gera N idas e N voltas, ids determinísticos
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Cada cópia de ida por card ganha a cópia da sua volta
+- [x] Teste: nó expandido com N cards gera N idas e N voltas, ids determinísticos
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

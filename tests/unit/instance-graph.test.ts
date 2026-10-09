@@ -90,3 +90,45 @@ describe("expanded nodes as instance cards (OBS-04)", () => {
     ).toEqual([{ type: "select", id: "lb->app", selected: true }]);
   });
 });
+
+// guided-ui, RET-15: the response of a call is drawn once per card too.
+describe("instance cards and responses (RET-15)", () => {
+  const nodes = [comp("lb", "load-balancer", 1), comp("app", "app-server", 3)];
+  const request = edge("lb", "app");
+  const response: Edge = {
+    id: "ret:lb->app",
+    type: "animated",
+    source: "app",
+    target: "lb",
+    sourceHandle: "ret-out",
+    targetHandle: "ret-in",
+    data: { responseTo: request.id },
+  };
+
+  it("an expanded node gets one copy of the response per card, each between the same cards as its request", () => {
+    const out = withInstances(nodes, [request, response], { app: true });
+    const requests = out.edges.filter(
+      (e) => (e.data as { instanceOf?: string }).instanceOf === request.id,
+    );
+    const responses = out.edges.filter(
+      (e) => (e.data as { instanceOf?: string }).instanceOf === response.id,
+    );
+    expect(requests).toHaveLength(3);
+    expect(responses).toHaveLength(3);
+    expect(responses.map((r) => [r.source, r.target])).toEqual(
+      requests.map((r) => [r.target, r.source]),
+    );
+    expect(
+      responses.every((r) => r.sourceHandle === "ret-out" && r.targetHandle === "ret-in"),
+    ).toBe(true);
+    expect(
+      responses.every((r) => (r.data as { responseTo: string }).responseTo === request.id),
+    ).toBe(true);
+    expect(new Set(out.edges.map((e) => e.id)).size).toBe(out.edges.length);
+    expect(responses.map((r) => (r.data as { share: number }).share)).toEqual([
+      1 / 3,
+      1 / 3,
+      1 / 3,
+    ]);
+  });
+});

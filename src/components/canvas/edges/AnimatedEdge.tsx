@@ -13,11 +13,11 @@ import { TriangleAlert } from "lucide-react";
 import { useEdgeRuntime } from "@/store/runtimeStore";
 import { EDGE_STATUS_COLOR, edgeStrokeWidth } from "@/lib/particles";
 import { useAppStore } from "@/store/appStore";
-import { useCanvasStore, useHasResponse, type CustomEdgeData } from "@/store/canvasStore";
+import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 import { PARAM, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
 import { edgeCallsBadge, edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
-import { requestsWithAsync } from "@/domain/graph/returns";
+import { isReturnEdge, requestsWithAsync } from "@/domain/graph/returns";
 import { planFor, type PlanEdge } from "@/domain/graph/callPlan";
 import { useFlowHighlight, type FlowDirection } from "@/store/flowHighlightStore";
 import { usePrefersReducedMotion } from "@/hooks/useBreakpoint";
@@ -116,6 +116,28 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
 
 const HIGHLIGHT_COLOR = "#22d3ee";
 
+/** Arrowhead of a call (at the callee) or of its response (at the caller), the color of the line. */
+function ArrowMarker({ id, color }: { id: string; color: string }) {
+  return (
+    <defs>
+      <marker
+        id={id}
+        viewBox="0 0 10 10"
+        refX="9"
+        refY="5"
+        markerWidth="6"
+        markerHeight="6"
+        orient="auto"
+        markerUnits="userSpaceOnUse"
+      >
+        <path d="M1,1 L9,5 L1,9 z" fill={color} />
+      </marker>
+    </defs>
+  );
+}
+
+const markerIdOf = (edgeId: string) => `arrow-${edgeId.replace(/[^\w-]/g, "_")}`;
+
 /**
  * The edge the Flow tab's trace points at (FLW-39): a bright dashed trace
  * with an arrowhead the way the step goes (`req` toward the callee, `res`
@@ -175,7 +197,12 @@ function FlowHighlightPath({
   );
 }
 
-function AnimatedEdgeInner({
+/**
+ * The response of a call (RET-04): a dashed line back from the callee to the
+ * caller, arrow at the caller. It has no parameters of its own, so it draws
+ * the load and status of the call it answers and nothing else.
+ */
+function ReturnEdgeInner({
   id,
   sourceX,
   sourceY,
@@ -184,7 +211,66 @@ function AnimatedEdgeInner({
   sourcePosition,
   targetPosition,
   style,
-  markerEnd,
+  data,
+}: EdgeProps) {
+  // A copy drawn between instance cards carries its share of the load (`instanceGraph.ts`).
+  const { responseTo, share } = data as { responseTo?: string; share?: number };
+  const requestId = responseTo ?? id;
+  const runtime = useEdgeRuntime(requestId);
+  const rps = runtime ? runtime.rps * (share ?? 1) : undefined;
+  const highlight = useFlowHighlight(requestId);
+  const isDark = useAppStore((s) => s.theme) === "dark";
+  const idleStroke = isDark ? "rgba(150, 165, 195, 0.32)" : "rgba(90, 105, 130, 0.45)";
+  const flowing = runtime !== undefined && runtime.rps > 0;
+  const stroke = flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke;
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+  const marker = markerIdOf(id);
+  return (
+    <g
+      data-edge-response={requestId}
+      data-edge-status={runtime?.status}
+      data-edge-highlight={highlight === "res" ? "res" : undefined}
+    >
+      <ArrowMarker id={marker} color={stroke} />
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        markerEnd={`url(#${marker})`}
+        style={{
+          ...style,
+          stroke,
+          strokeOpacity: flowing ? 0.6 : 1,
+          strokeWidth: edgeStrokeWidth(rps),
+          strokeDasharray: "6 4",
+        }}
+      />
+      {highlight === "res" && (
+        <FlowHighlightPath edgeId={id} path={edgePath} dir="req" width={edgeStrokeWidth(rps) + 3} />
+      )}
+    </g>
+  );
+}
+
+function AnimatedEdgeInner(props: EdgeProps) {
+  return isReturnEdge(props) ? <ReturnEdgeInner {...props} /> : <RequestEdgeInner {...props} />;
+}
+
+function RequestEdgeInner({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style,
   data,
 }: EdgeProps) {
   // Per-edge runtime metrics (Spec 07): thickness ∝ load, color by status.
@@ -202,9 +288,7 @@ function AnimatedEdgeInner({
   const flowing = runtime !== undefined && runtime.rps > 0;
   const isDark = useAppStore((s) => s.theme) === "dark";
   const idleStroke = isDark ? "rgba(150, 165, 195, 0.32)" : "rgba(90, 105, 130, 0.45)";
-  const hasResponse = useHasResponse(copy?.instanceOf ?? id);
   const edgeData = (data ?? {}) as CustomEdgeData;
-  const isAsync = !hasResponse;
   const protocol = edgeData.protocol;
   const label = edgeData.label;
 
@@ -230,7 +314,7 @@ function AnimatedEdgeInner({
       data-edge-status={runtime?.status}
       data-edge-rps={runtime ? Math.round(runtime.rps) : undefined}
       data-edge-blast={blast}
-      data-edge-highlight={highlight ?? undefined}
+      data-edge-highlight={highlight === "req" ? "req" : undefined}
     >
       {blast && (
         <path
@@ -245,20 +329,23 @@ function AnimatedEdgeInner({
           aria-hidden
         />
       )}
-      {/* Main edge */}
+      <ArrowMarker
+        id={markerIdOf(id)}
+        color={flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke}
+      />
+      {/* Main edge: always a solid line with the arrow at the callee; no response drawn = async */}
       <BaseEdge
         id={id}
         path={edgePath}
-        markerEnd={markerEnd}
+        markerEnd={`url(#${markerIdOf(id)})`}
         style={{
           ...style,
           stroke: flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke,
           strokeOpacity: flowing ? 0.6 : 1,
           strokeWidth: edgeStrokeWidth(rps),
-          ...(isAsync ? { strokeDasharray: "6 4" } : {}),
         }}
       />
-      {highlight && (
+      {highlight === "req" && (
         <FlowHighlightPath
           edgeId={id}
           path={edgePath}
