@@ -1131,11 +1131,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Mostra os 5 passos, destaca o atual, Back/Next com disable nos extremos
-- [ ] Passo anterior clicável, posterior não
-- [ ] Abaixo de 768 px: nome do passo, "n / 5", Back e Next
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Mostra os 5 passos, destaca o atual, Back/Next com disable nos extremos
+- [x] Passo anterior clicável, posterior não
+- [x] Abaixo de 768 px: nome do passo, "n / 5", Back e Next
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -1159,10 +1159,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Só os `TabsTrigger` do passo; aba ativa fora da lista cai na primeira do passo
-- [ ] Trocar de passo não desmonta painéis ao vivo nem para a execução
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Só os `TabsTrigger` do passo; aba ativa fora da lista cai na primeira do passo
+- [x] Trocar de passo não desmonta painéis ao vivo nem para a execução
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -1186,10 +1186,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Seletor de problema, enunciado com requisitos, Capacity e Learning Path em tela cheia, rolável no celular
-- [ ] Canvas escondido sem desmontar a execução ao vivo
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Seletor de problema, enunciado com requisitos, Capacity e Learning Path em tela cheia, rolável no celular
+- [x] Canvas escondido sem desmontar a execução ao vivo
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
