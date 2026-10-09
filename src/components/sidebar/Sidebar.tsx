@@ -1,79 +1,39 @@
 "use client";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ComponentPalette } from "./ComponentPalette";
-import { ProblemSelector } from "./ProblemSelector";
-import { LearningPath } from "./LearningPath";
-import { useAppStore } from "@/store/appStore";
 
 interface SidebarProps {
   open?: boolean;
-  onCreateProblem?: () => void;
   onCreateCustomComponent?: () => void;
   /** Called after a component is added from the palette (closes the mobile drawer). */
   onComponentAdded?: () => void;
   variant?: "desktop" | "mobile";
 }
 
-function SidebarTabs({
-  onCreateProblem,
+/**
+ * The palette: the Design step's tool (the Problem step has the problems and the
+ * learning path on its own screen). The canvas stays editable in the other steps
+ * through Props, the context menu, shortcuts and the advisor's fixes.
+ */
+function SidebarPalette({
   onCreateCustomComponent,
   onComponentAdded,
 }: {
-  onCreateProblem?: () => void;
   onCreateCustomComponent?: () => void;
   onComponentAdded?: () => void;
 }) {
-  const activeLeftTab = useAppStore((s) => s.activeLeftTab);
-  const setActiveLeftTab = useAppStore((s) => s.setActiveLeftTab);
   return (
-    <Tabs
-      value={activeLeftTab}
-      onValueChange={(v) => setActiveLeftTab(v as typeof activeLeftTab)}
-      className="flex flex-1 flex-col min-h-0"
-    >
-      <TabsList className="mx-2 mt-2 h-9 w-auto shrink-0 bg-zinc-800">
-        <TabsTrigger
-          value="components"
-          className="h-7 px-3 text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-        >
-          Components
-        </TabsTrigger>
-        <TabsTrigger
-          value="problems"
-          className="h-7 px-3 text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-        >
-          Problems
-        </TabsTrigger>
-        <TabsTrigger
-          value="learn"
-          className="h-7 px-3 text-xs data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-        >
-          Learn
-        </TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="components" className="mt-0 flex-1 min-h-0 overflow-hidden">
-        <ComponentPalette
-          onCreateCustomComponent={onCreateCustomComponent}
-          onComponentAdded={onComponentAdded}
-        />
-      </TabsContent>
-
-      <TabsContent value="problems" className="mt-0 flex-1 min-h-0 overflow-hidden">
-        <ProblemSelector onCreateProblem={onCreateProblem} />
-      </TabsContent>
-
-      <TabsContent value="learn" className="mt-0 flex-1 min-h-0 overflow-hidden">
-        <LearningPath />
-      </TabsContent>
-    </Tabs>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ComponentPalette
+        onCreateCustomComponent={onCreateCustomComponent}
+        onComponentAdded={onComponentAdded}
+      />
+    </div>
   );
 }
 
 export function Sidebar({
   open = true,
-  onCreateProblem,
   onCreateCustomComponent,
   onComponentAdded,
   variant = "desktop",
@@ -81,8 +41,7 @@ export function Sidebar({
   if (variant === "mobile") {
     return (
       <div className="flex h-full w-full flex-col bg-zinc-900">
-        <SidebarTabs
-          onCreateProblem={onCreateProblem}
+        <SidebarPalette
           onCreateCustomComponent={onCreateCustomComponent}
           onComponentAdded={onComponentAdded}
         />
@@ -99,10 +58,7 @@ export function Sidebar({
       inert={!open || undefined}
     >
       <div className="flex w-[280px] flex-1 flex-col min-h-0">
-        <SidebarTabs
-          onCreateProblem={onCreateProblem}
-          onCreateCustomComponent={onCreateCustomComponent}
-        />
+        <SidebarPalette onCreateCustomComponent={onCreateCustomComponent} />
       </div>
     </aside>
   );

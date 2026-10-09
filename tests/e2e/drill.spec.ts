@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { open } from "./helpers";
 
 // Spec 09 (phase 6): the failure drill injects the problem's scripted faults
 // into the running design and scores each one. Run at 20× so the three
@@ -10,7 +11,7 @@ test("failure drill: scripted faults, answers, per-fault results and summary", a
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
 
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
@@ -52,7 +53,7 @@ test("a design without the scripted target gets the fallback; edits count as the
   page,
 }) => {
   test.setTimeout(90_000);
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByRole("button", { name: "Add Client to canvas" }).first().click();
   await page.getByRole("button", { name: "Add App Server to canvas" }).first().click();

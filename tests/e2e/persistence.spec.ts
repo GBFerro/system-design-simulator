@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Download, type Page } from "@playwright/test";
-import { open } from "./helpers";
+import { open, goToStep } from "./helpers";
 
 // Spec 05: export → fresh storage → import, and a real v1 localStorage opening in v2.
 
@@ -107,7 +107,9 @@ test("a v1 localStorage opens in v2 and saved designs move to IndexedDB", async 
     sessionStorage.setItem("seeded", "1");
     for (const [k, v] of Object.entries(fixture)) localStorage.setItem(k, v);
   }, V1_FIXTURE);
-  await open(page);
+  // (the v1 fixture carries its own app state: it opens on the Problem step)
+  await open(page, "/", "problem");
+  await goToStep(page, "design");
 
   // Live canvas: 5 components + 1 text note, 5 calls (labels intact); the 4 that are
   // not async come out of the v4 migration with their response drawn
@@ -146,7 +148,9 @@ test("SVG export includes the pen strokes", async ({ page }) => {
     sessionStorage.setItem("seeded", "1");
     for (const [k, v] of Object.entries(fixture)) localStorage.setItem(k, v);
   }, V1_FIXTURE);
-  await open(page);
+  // (the v1 fixture carries its own app state: it opens on the Problem step)
+  await open(page, "/", "problem");
+  await goToStep(page, "design");
   await expect(nodes(page)).toHaveCount(6);
 
   const download = await exportMenu(page, "Export as SVG");

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { open } from "./helpers";
+import { open, openTab } from "./helpers";
 
 // Spec 06 (TRF-01..03): live traffic runs the tick loop in the engine worker.
 
@@ -13,11 +13,11 @@ async function readClock(clock: Locator): Promise<number> {
 }
 
 async function openLiveTraffic(page: Page): Promise<Locator> {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   const panel = page.getByRole("region", { name: "Live traffic" });
   await expect(panel).toBeVisible();
   return panel;
@@ -142,7 +142,7 @@ async function playReference(page: Page): Promise<Locator> {
   await open(page, "/?e2e=1");
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   const panel = page.getByRole("region", { name: "Live traffic" });
   await panel.getByRole("button", { name: "Play live traffic" }).click();
   await expect(panel.getByRole("button", { name: "Pause live traffic" })).toBeVisible();

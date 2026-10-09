@@ -64,7 +64,9 @@ src/
     cost/         useCostEstimate (canvas × latest snapshot, 1 Hz while playing), CostMini (top bar $/month)
     slo/          useSloEvaluation (one evaluation per snapshot push, shared), SloMini (top bar budget while a run exists)
     sidebar/      Sidebar: ComponentPalette, ProblemSelector, LearningPath
-    layout/       AppShell (orchestrator + keyboard shortcuts), TopBar, SupportFAB
+    layout/       AppShell (orchestrator + keyboard shortcuts), TopBar, SupportFAB, StepBar (the steps of free mode or the
+                  phases of an interview, Back/Next; below 768 px: name, n / total, Back/Next), ProblemStep (the
+                  Problem step, full screen: problems, statement, Capacity, Learning Path)
     interview/    InterviewBar, phase panel, start dialog, PhaseForms (phase 1–4 answers, lazy),
                   DrillPanel + drillDriver (phase 6 failure drill, Spec 09), scoreNow (measure + score),
                   finishInterview + ReportDialog (final report and attempt history, lazy)
@@ -116,7 +118,8 @@ src/
                   fix preview, recomputed when the design, the run's load, the problem or the score change), drillStore (unpersisted failure drill of phase 6),
                   reportStore (open interview report; attempt history in IndexedDB via createDurableKV),
                   sloStore (persisted SLO overrides per problem + the SLO in force: useEffectiveSlo/getEffectiveSlo);
-                  persistVersion, migrations, hydration, safeStorage, durableStorage (IndexedDB)
+                  persistVersion, migrations, hydration, safeStorage, durableStorage (IndexedDB),
+                  openTool (open a right-panel tool: moves to the step that has it, free mode only)
   interview/      drill.ts (Spec 09: resolve a scripted fault against the candidate's design, evaluate the SLO per step),
                   checks.ts (grade the phase 1–4 answers against interviewData, process score),
                   report.ts (buildReport: the final report, also what the attempt history stores)

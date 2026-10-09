@@ -39,7 +39,7 @@ export function ProblemStep({ onCreateProblem }: { onCreateProblem?: () => void 
       data-testid="problem-step"
       className="min-h-0 flex-1 overflow-y-auto bg-zinc-950 md:overflow-hidden"
     >
-      <div className="mx-auto grid h-full max-w-[1500px] grid-cols-1 gap-px bg-zinc-800 md:grid-cols-[320px_minmax(0,1fr)_340px]">
+      <div className="grid h-full grid-cols-1 gap-px bg-zinc-800 md:grid-cols-[320px_minmax(0,1fr)_340px]">
         <section className="flex min-h-[28rem] flex-col bg-zinc-900 md:min-h-0">
           <div
             role="tablist"

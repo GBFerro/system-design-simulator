@@ -21,6 +21,17 @@ describe("the step of free mode", () => {
     expect(seen.at(-1)).toBe("evaluate");
   });
 
+  it("each step opens with its first tool (WIZ-08)", () => {
+    const opened: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      app().nextStep();
+      opened.push(app().activeRightTab);
+    }
+    expect(opened).toEqual(["properties", "simulation", "chaos", "score"]);
+    app().backStep();
+    expect(app().activeRightTab).toBe("chaos");
+  });
+
   it("Back goes to the previous step and stops at the first (WIZ-03, WIZ-04)", () => {
     useAppStore.setState({ step: "failures" });
     app().backStep();

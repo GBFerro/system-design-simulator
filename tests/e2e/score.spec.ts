@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { open } from "./helpers";
 
 // Spec 09: the Score button measures the design (analyze() at the problem's
 // peak, 2× and under its drill faults) before applying the rubric.
@@ -6,7 +7,7 @@ import { expect, test } from "@playwright/test";
 test("the reference solution holds its own peak: full scalability and latency", async ({
   page,
 }) => {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
@@ -22,7 +23,7 @@ test("the reference solution holds its own peak: full scalability and latency", 
 });
 
 test("an unwired component scores nothing on the measured checks", async ({ page }) => {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByRole("button", { name: "Add App Server to canvas" }).first().click();
   await page.getByRole("button", { name: "Score" }).click();

@@ -5,10 +5,70 @@ import { expect, type Locator, type Page } from "@playwright/test";
 /** The platform's shortcut modifier (⌘ on macOS, Ctrl elsewhere). */
 export const MOD = process.platform === "darwin" ? "Meta" : "Control";
 
-/** Open the app and wait for the canvas. `?e2e` installs the test store handles in any build. */
-export async function open(page: Page, path = "/") {
+export type StepId = "problem" | "design" | "simulate" | "failures" | "evaluate";
+const STEP_ORDER: StepId[] = ["problem", "design", "simulate", "failures", "evaluate"];
+
+/**
+ * Open the app and wait for its first screen. `?e2e` installs the test store handles in any
+ * build. A fresh browser opens on the Problem step (the guided layout); most specs work on
+ * the canvas, so unless the test says otherwise the saved step is Design (the palette's step).
+ */
+export async function open(page: Page, path = "/", step: StepId = "design") {
+  await page.addInitScript((initial) => {
+    try {
+      if (!localStorage.getItem("systemsim-app")) {
+        localStorage.setItem(
+          "systemsim-app",
+          JSON.stringify({ state: { step: initial }, version: 4 }),
+        );
+      }
+    } catch {
+      // storage blocked: the app starts on its default step
+    }
+  }, step);
   await page.goto(path);
-  await expect(page.locator(".react-flow")).toBeVisible();
+  if (step === "problem") await expect(page.getByTestId("problem-step")).toBeVisible();
+  else await expect(page.locator(".react-flow")).toBeVisible();
+}
+
+/** The current step of the step bar. */
+export async function currentStep(page: Page): Promise<StepId> {
+  const id = await page
+    .locator('[data-testid="step-bar"] [aria-current="step"]')
+    .getAttribute("data-step");
+  return id as StepId;
+}
+
+/** Walk to a step: back by its button, forward with Next (the only way ahead). */
+export async function goToStep(page: Page, target: StepId) {
+  const bar = page.getByTestId("step-bar");
+  for (let i = 0; i < STEP_ORDER.length; i++) {
+    const here = await currentStep(page);
+    if (here === target) return;
+    if (STEP_ORDER.indexOf(target) < STEP_ORDER.indexOf(here)) {
+      await bar.locator(`[data-step="${target}"]`).click();
+    } else {
+      await bar.getByRole("button", { name: "Next", exact: true }).click();
+    }
+  }
+  throw new Error(`could not reach step ${target}`);
+}
+
+const STEP_OF_TAB: [RegExp, StepId][] = [
+  [/^Props$/, "design"],
+  [/^Simulate$/, "simulate"],
+  [/^Flow$/, "simulate"],
+  [/^(Chaos|SLO)/, "failures"],
+  [/^(Score|Advisor|Cost|Trade-offs)/, "evaluate"],
+];
+
+/** Click a tab of the right panel, moving to the step that shows it first. */
+export async function openTab(page: Page, name: string | RegExp) {
+  const label = typeof name === "string" ? name : (name.source.replace(/[\^$]/g, "") as string);
+  const step = STEP_OF_TAB.find(([re]) => re.test(label))?.[1];
+  const tab = page.getByRole("tab", { name });
+  if (step && !(await tab.isVisible())) await goToStep(page, step);
+  await tab.click();
 }
 
 /** Add a component through the palette's "Add X to canvas" button. */
@@ -60,7 +120,7 @@ export async function edgePoint(
 
 /** Instant steady-state analysis: the Sim panel's Analyze button (the top bar's Simulate starts the live run). */
 export async function analyze(page: Page) {
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page.getByText("Analysis complete!")).toBeVisible();
 }

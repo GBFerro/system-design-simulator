@@ -1213,10 +1213,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Paleta só no passo Design (e na fase 5 da entrevista); nos outros passos o canvas segue editável
-- [ ] Trocar o problema fora do passo Problem mantém o passo atual
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Paleta só no passo Design (e na fase 5 da entrevista); nos outros passos o canvas segue editável
+- [x] Trocar o problema fora do passo Problem mantém o passo atual
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -1240,11 +1240,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `StepBar` no topo, canvas/painel/paleta conforme o passo, `ProblemStep` no passo Problem
-- [ ] Controles da top bar (seletor, Simulate, custo, SLO) continuam acessíveis e `smoke.spec.ts` (largura) passa
-- [ ] Execução ao vivo continua no passo Problem com o canvas escondido
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `StepBar` no topo, canvas/painel/paleta conforme o passo, `ProblemStep` no passo Problem
+- [x] Controles da top bar (seletor, Simulate, custo, SLO) continuam acessíveis e `smoke.spec.ts` (largura) passa
+- [x] Execução ao vivo continua no passo Problem com o canvas escondido
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: full

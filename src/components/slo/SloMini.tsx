@@ -1,5 +1,6 @@
 "use client";
 
+import { openTool } from "@/store/openTool";
 import { Flame, Gauge } from "lucide-react";
 import { useMinWidth } from "@/hooks/useBreakpoint";
 import { formatBurn } from "@/slo/slo";
@@ -38,7 +39,7 @@ function SloChip({ slo }: { slo: Slo }) {
   const open = () => {
     const app = useAppStore.getState();
     if (!app.rightPanelOpen) app.toggleRightPanel();
-    app.setActiveRightTab("slo");
+    openTool("slo");
   };
   const label = `Error budget ${Math.round(remaining * 100)}% left, burn rate ${formatBurn(ev.burnRate)}${
     ev.verdict === "violated" ? ", SLO violated" : ""

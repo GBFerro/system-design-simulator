@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { MOD, connectSync, quickAdd } from "./helpers";
+import { MOD, connectSync, quickAdd, openTab, open } from "./helpers";
 
 // Spec 12 (ADV-01/02): findings with quick fixes, previewed as ghosts on the
 // canvas and applied — one or all — as a single undo step. The structure
 // hints of ADV-03 are covered in chaos.spec.ts.
 
 test("quick fixes: ghost preview, apply in one undo step, apply all", async ({ page }) => {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   // The default problem (URL shortener) is read-heavy: reads straight to a lone SQL DB.
   await quickAdd(page, "Client");
@@ -16,7 +16,7 @@ test("quick fixes: ghost preview, apply in one undo step, apply all", async ({ p
   await connectSync(page, "app-server", "sql-db");
   await expect(page.locator(".react-flow__edge")).toHaveCount(4);
 
-  await page.getByRole("tab", { name: /Advisor/ }).click();
+  await openTab(page, /Advisor/);
   const panel = page.getByTestId("advisor-panel");
   const spof = panel.locator('[data-finding^="spof:"]');
   const readCache = panel.locator('[data-finding^="read-cache:"]');

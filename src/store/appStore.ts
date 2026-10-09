@@ -3,7 +3,14 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
 import { passThroughMigration, STORE_VERSION } from "./persistVersion";
 import { isCurrency, type Currency } from "@/cost/currency";
-import { STEPS, sanitizeStep, stepForTab, stepIndex, type RightTab, type Step } from "@/lib/steps";
+import {
+  STEPS,
+  TOOLS_BY_STEP,
+  sanitizeStep,
+  stepIndex,
+  type RightTab,
+  type Step,
+} from "@/lib/steps";
 
 export type ToastType = "success" | "error" | "info";
 export type Theme = "dark" | "light";
@@ -24,7 +31,6 @@ interface AppState {
   theme: Theme;
   leftSidebarOpen: boolean;
   rightPanelOpen: boolean;
-  activeLeftTab: "components" | "problems" | "learn";
   activeRightTab: RightTab;
   /** The step of the guided layout in free mode (WIZ-*); an interview has its own phase. Persisted. */
   step: Step;
@@ -38,7 +44,6 @@ interface AppState {
   toggleLeftSidebar: () => void;
   toggleRightPanel: () => void;
   setLeftSidebarOpen: (open: boolean) => void;
-  setActiveLeftTab: (tab: AppState["activeLeftTab"]) => void;
   setActiveRightTab: (tab: AppState["activeRightTab"]) => void;
   /** The next step; the last has none (WIZ-02, WIZ-15). */
   nextStep: () => void;
@@ -53,6 +58,14 @@ interface AppState {
   clearToast: () => void;
 }
 
+/** The patch that moves to `step`: its first tool opens with it. */
+function withStep(
+  s: { activeRightTab: RightTab },
+  step: Step,
+): Pick<AppState, "step" | "activeRightTab"> {
+  return { step, activeRightTab: TOOLS_BY_STEP[step][0] ?? s.activeRightTab };
+}
+
 // Single owner of the toast auto-dismiss timer (4s). showToast resets it,
 // clearToast cancels it — no other code should schedule toast dismissal.
 let toastTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -64,7 +77,6 @@ export const useAppStore = create<AppState>()(
       theme: "dark",
       leftSidebarOpen: true,
       rightPanelOpen: true,
-      activeLeftTab: "components",
       activeRightTab: "properties",
       step: "problem",
       currency: "USD",
@@ -84,16 +96,15 @@ export const useAppStore = create<AppState>()(
       toggleLeftSidebar: () => set((s) => ({ leftSidebarOpen: !s.leftSidebarOpen })),
       toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
       setLeftSidebarOpen: (open) => set({ leftSidebarOpen: open }),
-      setActiveLeftTab: (tab) => set({ activeLeftTab: tab }),
-      // Asking for a tool the step does not show moves to the step that has it (Cost chip → Evaluate).
-      setActiveRightTab: (tab) =>
-        set((s) => ({ activeRightTab: tab, step: stepForTab(tab, s.step) })),
+      setActiveRightTab: (tab) => set({ activeRightTab: tab }),
       // Changing step only changes what is visible: never the graph, the history or a live run (AD-004).
+      // The step's first tool opens with it.
       nextStep: () =>
-        set((s) => ({ step: STEPS[Math.min(STEPS.length - 1, stepIndex(s.step) + 1)] })),
-      backStep: () => set((s) => ({ step: STEPS[Math.max(0, stepIndex(s.step) - 1)] })),
-      goToStep: (step) => set((s) => (stepIndex(step) <= stepIndex(s.step) ? { step } : s)),
-      setStep: (step) => set({ step: sanitizeStep(step) }),
+        set((s) => withStep(s, STEPS[Math.min(STEPS.length - 1, stepIndex(s.step) + 1)])),
+      backStep: () => set((s) => withStep(s, STEPS[Math.max(0, stepIndex(s.step) - 1)])),
+      goToStep: (step) =>
+        set((s) => (stepIndex(step) <= stepIndex(s.step) ? withStep(s, step) : s)),
+      setStep: (step) => set((s) => withStep(s, sanitizeStep(step))),
       setCurrency: (currency) => set({ currency: isCurrency(currency) ? currency : "USD" }),
       showToast: (message, type) => {
         if (toastTimeoutId !== null) {

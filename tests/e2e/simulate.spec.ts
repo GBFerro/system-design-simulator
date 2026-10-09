@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { analyze } from "./helpers";
+import { analyze, open } from "./helpers";
 
 // Spec 04: the Sim panel's "Analyze" button runs analyze() in the engine Web Worker.
 test("Analyze runs a reference solution in a Web Worker", async ({ page }) => {
@@ -11,7 +11,7 @@ test("Analyze runs a reference solution in a Web Worker", async ({ page }) => {
   const workers: string[] = [];
   page.on("worker", (w) => workers.push(w.url()));
 
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   // The worker is lazy: nothing is spawned before the first simulation.
   expect(workers).toEqual([]);

@@ -4,12 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { X } from "lucide-react";
 import { TopBar } from "./top-bar";
+import { StepBar } from "./StepBar";
+import { ProblemStep } from "./ProblemStep";
 import { SupportFAB } from "./SupportFAB";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { RightPanel } from "@/components/panel/RightPanel";
 import { DesignCanvas } from "@/components/canvas/DesignCanvas";
 import { useAppStore } from "@/store/appStore";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
+import { STEPS, STEP_LABELS, canvasVisible, paletteVisible } from "@/lib/steps";
+import { openTool } from "@/store/openTool";
 import { useSimulationStore } from "@/store/simulationStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
 import { PROBLEMS } from "@/data/problems";
@@ -48,6 +52,7 @@ export function AppShell() {
   const isMobile = useIsMobile();
   const leftSidebarOpen = useAppStore((s) => s.leftSidebarOpen);
   const rightPanelOpen = useAppStore((s) => s.rightPanelOpen);
+  const step = useAppStore((s) => s.step);
   const toggleLeftSidebar = useAppStore((s) => s.toggleLeftSidebar);
   const toggleRightPanel = useAppStore((s) => s.toggleRightPanel);
 
@@ -124,7 +129,7 @@ export function AppShell() {
   // "Open in panel" / "Rename" from the canvas context menu
   useEffect(() => {
     function onOpenProperties() {
-      useAppStore.getState().setActiveRightTab("properties");
+      openTool("properties");
       if (isMobile) setMobileRightOpen(true);
       else if (!useAppStore.getState().rightPanelOpen) toggleRightPanel();
     }
@@ -200,7 +205,7 @@ export function AppShell() {
         }
         useSimulationStore.getState().setScoreResult(scored.result);
         useSimulationStore.getState().setShowScore(true);
-        useAppStore.getState().setActiveRightTab("score");
+        openTool("score");
 
         // On mobile, auto-open the right sheet so the score is visible
         if (isMobile) setMobileRightOpen(true);
@@ -221,11 +226,10 @@ export function AppShell() {
     useAppStore.getState().showToast("Canvas cleared", "info");
   }, []);
 
+  // "Pick a problem" lives on the Problem step.
   const handlePickProblem = useCallback(() => {
-    useAppStore.getState().setActiveLeftTab("problems");
-    if (isMobile) setMobileSidebarOpen(true);
-    else useAppStore.getState().setLeftSidebarOpen(true);
-  }, [isMobile]);
+    useAppStore.getState().setStep("problem");
+  }, []);
 
   const handleLoadReference = useCallback(() => {
     const problemId = useAppStore.getState().selectedProblemId;
@@ -325,6 +329,11 @@ export function AppShell() {
     return () => clearInterval(id);
   }, [timerRunning, tickTimer]);
 
+  // Free mode walks the steps; an interview has its own phases (and keeps the canvas for now).
+  const freeMode = interviewMode !== "interview";
+  const showCanvas = !freeMode || canvasVisible(step);
+  const showPalette = !freeMode || paletteVisible(step);
+
   return (
     <ReactFlowProvider>
       <PaletteDndProvider onPaletteDragStart={() => setMobileSidebarOpen(false)}>
@@ -340,109 +349,123 @@ export function AppShell() {
             onOpenSupport={() => setSupportDialogOpen(true)}
             onToggleLeft={handleToggleLeft}
             onToggleRight={handleToggleRight}
+            showPaletteToggle={showPalette}
+            showPanelToggle={showCanvas}
           />
 
-          <div className="relative flex flex-1 overflow-hidden">
-            {/* Desktop inline sidebar (hidden on mobile) */}
-            <Sidebar
-              open={leftSidebarOpen}
-              onCreateProblem={() => setCreateProblemDialogOpen(true)}
-              onCreateCustomComponent={() => setCreateComponentDialogOpen(true)}
-              variant="desktop"
+          {freeMode && (
+            <StepBar
+              steps={STEPS.map((id) => ({ id, label: STEP_LABELS[id] }))}
+              current={STEPS.indexOf(step)}
+              onGo={(i) => useAppStore.getState().goToStep(STEPS[i])}
+              onBack={() => useAppStore.getState().backStep()}
+              onNext={() => useAppStore.getState().nextStep()}
+              label="Steps"
             />
+          )}
 
-            <DesignCanvas
-              onPickProblem={handlePickProblem}
-              onLoadReference={handleLoadReference}
-              onStartInterview={() => setInterviewDialogOpen(true)}
-              onShowGuide={() => setHowItWorksOpen(true)}
-            />
-
-            {/* Desktop inline right panel (hidden on mobile) */}
-            <RightPanel open={rightPanelOpen} onAnalyze={handleAnalyze} variant="desktop" />
-
-            {/* Mobile: sidebar drawer from left */}
-            {isMobile && (
-              <>
-                {/* Backdrop */}
-                <div
-                  className={`absolute inset-0 z-30 bg-black/60 transition-opacity md:hidden ${
-                    mobileSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
-                  }`}
-                  onClick={() => setMobileSidebarOpen(false)}
+          {!showCanvas ? (
+            <ProblemStep onCreateProblem={() => setCreateProblemDialogOpen(true)} />
+          ) : (
+            <div className="relative flex flex-1 overflow-hidden">
+              {/* Desktop inline sidebar (hidden on mobile) */}
+              {showPalette && (
+                <Sidebar
+                  open={leftSidebarOpen}
+                  onCreateCustomComponent={() => setCreateComponentDialogOpen(true)}
+                  variant="desktop"
                 />
-                {/* Drawer */}
-                <div
-                  className={`absolute inset-y-0 left-0 z-40 flex w-[85%] max-w-[320px] flex-col border-r border-zinc-800 bg-zinc-900 shadow-xl transition-transform md:hidden ${
-                    mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
-                  }`}
-                  aria-hidden={!mobileSidebarOpen}
-                  inert={!mobileSidebarOpen || undefined}
-                >
-                  <div className="flex h-10 shrink-0 items-center justify-between border-b border-zinc-800 px-3">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                      Library
-                    </span>
-                    <button
-                      onClick={() => setMobileSidebarOpen(false)}
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                      aria-label="Close sidebar"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="min-h-0 flex-1">
-                    <Sidebar
-                      onCreateProblem={() => {
-                        setCreateProblemDialogOpen(true);
-                        setMobileSidebarOpen(false);
-                      }}
-                      onCreateCustomComponent={() => {
-                        setCreateComponentDialogOpen(true);
-                        setMobileSidebarOpen(false);
-                      }}
-                      onComponentAdded={() => setMobileSidebarOpen(false)}
-                      variant="mobile"
-                    />
-                  </div>
-                </div>
+              )}
 
-                {/* Mobile: right panel as bottom sheet */}
-                <div
-                  className={`absolute inset-0 z-30 bg-black/60 transition-opacity md:hidden ${
-                    mobileRightOpen ? "opacity-100" : "pointer-events-none opacity-0"
-                  }`}
-                  onClick={() => setMobileRightOpen(false)}
-                />
-                <div
-                  className={`absolute inset-x-0 bottom-0 z-40 flex h-[70dvh] max-h-[85dvh] flex-col rounded-t-2xl border-t border-zinc-800 bg-zinc-900 shadow-2xl transition-transform md:hidden ${
-                    mobileRightOpen ? "translate-y-0" : "translate-y-full"
-                  }`}
-                  aria-hidden={!mobileRightOpen}
-                  inert={!mobileRightOpen || undefined}
-                  // Covers the canvas: panels frame nodes above it (`paddingAboveSheet`).
-                  {...{ [BOTTOM_SHEET_ATTR]: "" }}
-                >
-                  <div className="flex shrink-0 items-center justify-between pt-2">
-                    <div className="flex-1" />
-                    <div className="sheet-handle" />
-                    <div className="flex flex-1 justify-end pr-3">
+              <DesignCanvas
+                onPickProblem={handlePickProblem}
+                onLoadReference={handleLoadReference}
+                onStartInterview={() => setInterviewDialogOpen(true)}
+                onShowGuide={() => setHowItWorksOpen(true)}
+              />
+
+              {/* Desktop inline right panel (hidden on mobile) */}
+              <RightPanel open={rightPanelOpen} onAnalyze={handleAnalyze} variant="desktop" />
+
+              {/* Mobile: sidebar drawer from left */}
+              {isMobile && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className={`absolute inset-0 z-30 bg-black/60 transition-opacity md:hidden ${
+                      mobileSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
+                    }`}
+                    onClick={() => setMobileSidebarOpen(false)}
+                  />
+                  {/* Drawer */}
+                  <div
+                    className={`absolute inset-y-0 left-0 z-40 flex w-[85%] max-w-[320px] flex-col border-r border-zinc-800 bg-zinc-900 shadow-xl transition-transform md:hidden ${
+                      mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+                    }`}
+                    aria-hidden={!mobileSidebarOpen}
+                    inert={!mobileSidebarOpen || undefined}
+                  >
+                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-zinc-800 px-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                        Library
+                      </span>
                       <button
-                        onClick={() => setMobileRightOpen(false)}
+                        onClick={() => setMobileSidebarOpen(false)}
                         className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                        aria-label="Close panel"
+                        aria-label="Close sidebar"
                       >
                         <X className="h-4 w-4" />
                       </button>
                     </div>
+                    <div className="min-h-0 flex-1">
+                      <Sidebar
+                        onCreateCustomComponent={() => {
+                          setCreateComponentDialogOpen(true);
+                          setMobileSidebarOpen(false);
+                        }}
+                        onComponentAdded={() => setMobileSidebarOpen(false)}
+                        variant="mobile"
+                      />
+                    </div>
                   </div>
-                  <div className="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">
-                    <RightPanel onAnalyze={handleAnalyze} variant="mobile" />
+
+                  {/* Mobile: right panel as bottom sheet */}
+                  <div
+                    className={`absolute inset-0 z-30 bg-black/60 transition-opacity md:hidden ${
+                      mobileRightOpen ? "opacity-100" : "pointer-events-none opacity-0"
+                    }`}
+                    onClick={() => setMobileRightOpen(false)}
+                  />
+                  <div
+                    className={`absolute inset-x-0 bottom-0 z-40 flex h-[70dvh] max-h-[85dvh] flex-col rounded-t-2xl border-t border-zinc-800 bg-zinc-900 shadow-2xl transition-transform md:hidden ${
+                      mobileRightOpen ? "translate-y-0" : "translate-y-full"
+                    }`}
+                    aria-hidden={!mobileRightOpen}
+                    inert={!mobileRightOpen || undefined}
+                    // Covers the canvas: panels frame nodes above it (`paddingAboveSheet`).
+                    {...{ [BOTTOM_SHEET_ATTR]: "" }}
+                  >
+                    <div className="flex shrink-0 items-center justify-between pt-2">
+                      <div className="flex-1" />
+                      <div className="sheet-handle" />
+                      <div className="flex flex-1 justify-end pr-3">
+                        <button
+                          onClick={() => setMobileRightOpen(false)}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                          aria-label="Close panel"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">
+                      <RightPanel onAnalyze={handleAnalyze} variant="mobile" />
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          )}
 
           <SupportFAB
             onClick={() => setSupportDialogOpen(true)}

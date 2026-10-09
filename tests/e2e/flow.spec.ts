@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { MOD, connectSync, open, quickAdd } from "./helpers";
+import { MOD, connectSync, open, quickAdd, openTab } from "./helpers";
 
 // Request flow, the trace (FLW-33..41): the Flow tab and the edge highlight it drives.
 
@@ -122,11 +122,11 @@ test("after Analyze each call shows its time and the total matches the entry's r
   await open(page, "/?e2e");
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page.getByText("Analysis complete!")).toBeVisible({ timeout: 20_000 });
 
-  await page.getByRole("tab", { name: "Flow" }).click();
+  await openTab(page, "Flow");
   const panel = page.getByTestId("flow-panel");
   const total = panel.getByTestId("flow-total");
   await expect(total).toBeVisible({ timeout: 20_000 });
@@ -183,10 +183,10 @@ function pushLoads(page: Page, loads: number[]) {
 async function analyzedFlow(page: Page) {
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page.getByText("Analysis complete!")).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("tab", { name: "Flow" }).click();
+  await openTab(page, "Flow");
   const panel = page.getByTestId("flow-panel");
   await expect(panel.getByTestId("flow-total")).toBeVisible({ timeout: 20_000 });
   const load = await page.evaluate(
@@ -227,10 +227,10 @@ test("the trace isn't recomputed on every tick, only when the load really moves"
   await open(page, "/?e2e");
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page.getByText("Analysis complete!")).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("tab", { name: "Flow" }).click();
+  await openTab(page, "Flow");
   const panel = page.getByTestId("flow-panel");
   await expect(panel.getByTestId("flow-total")).toBeVisible({ timeout: 20_000 });
   const runs = async () => Number(await panel.getAttribute("data-traces"));
@@ -287,11 +287,11 @@ test("the trace follows the run's active faults: the cache killed fails and read
   await page.getByTitle("Load reference solution").click();
   const cacheNode = page.locator(".react-flow__node").filter({ hasText: CACHE });
   await expect(cacheNode).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   const live = page.getByRole("region", { name: "Live traffic" });
   await live.getByRole("button", { name: "Play live traffic" }).click();
   await expect(live.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
-  await page.getByRole("tab", { name: "Flow" }).click();
+  await openTab(page, "Flow");
   const panel = page.getByTestId("flow-panel");
   await expect(panel.getByTestId("flow-total")).toBeVisible({ timeout: 20_000 });
 
@@ -351,7 +351,7 @@ test("the trace follows the run's active faults: the cache killed fails and read
 test("a design without an entry point says so instead of a diagram (FLW-40)", async ({ page }) => {
   await open(page, "/?e2e");
   await quickAdd(page, "App Server");
-  await page.getByRole("tab", { name: "Flow" }).click();
+  await openTab(page, "Flow");
   const panel = page.getByTestId("flow-panel");
   await expect(panel.getByText(NO_ENTRY)).toBeVisible({ timeout: 20_000 });
   await expect(panel.getByTestId("sequence-diagram")).toHaveCount(0);

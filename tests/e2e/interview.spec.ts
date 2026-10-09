@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { open } from "./helpers";
 
 // Spec 09: a whole interview on URL Shortener — answer phases 1–4, run the
 // failure drill at 20× (~12 s of wall time), finish, and read the report
@@ -9,7 +10,7 @@ test("full interview: phase answers, drill, report and attempt history", async (
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
 
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();

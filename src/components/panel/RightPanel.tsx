@@ -120,6 +120,7 @@ function RightTabs({
         <TabsList className="h-8 w-max bg-zinc-800">
           {show("properties") && (
             <TabsTrigger
+              style={{ order: tools.indexOf("properties") }}
               value="properties"
               className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
             >
@@ -128,6 +129,7 @@ function RightTabs({
           )}
           {show("simulation") && (
             <TabsTrigger
+              style={{ order: tools.indexOf("simulation") }}
               value="simulation"
               className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
             >
@@ -135,12 +137,20 @@ function RightTabs({
             </TabsTrigger>
           )}
           {show("flow") && (
-            <TabsTrigger value="flow" className={TAB_TRIGGER}>
+            <TabsTrigger
+              style={{ order: tools.indexOf("flow") }}
+              value="flow"
+              className={TAB_TRIGGER}
+            >
               Flow
             </TabsTrigger>
           )}
           {show("chaos") && (
-            <TabsTrigger value="chaos" className={TAB_TRIGGER}>
+            <TabsTrigger
+              style={{ order: tools.indexOf("chaos") }}
+              value="chaos"
+              className={TAB_TRIGGER}
+            >
               Chaos
               <TabCount
                 n={activeFaults}
@@ -150,12 +160,17 @@ function RightTabs({
             </TabsTrigger>
           )}
           {show("slo") && (
-            <TabsTrigger value="slo" className={TAB_TRIGGER}>
+            <TabsTrigger
+              style={{ order: tools.indexOf("slo") }}
+              value="slo"
+              className={TAB_TRIGGER}
+            >
               SLO
             </TabsTrigger>
           )}
           {show("score") && (
             <TabsTrigger
+              style={{ order: tools.indexOf("score") }}
               value="score"
               className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
             >
@@ -163,7 +178,11 @@ function RightTabs({
             </TabsTrigger>
           )}
           {show("advisor") && (
-            <TabsTrigger value="advisor" className={TAB_TRIGGER}>
+            <TabsTrigger
+              style={{ order: tools.indexOf("advisor") }}
+              value="advisor"
+              className={TAB_TRIGGER}
+            >
               Advisor
               <TabCount
                 n={findings}
@@ -173,12 +192,17 @@ function RightTabs({
             </TabsTrigger>
           )}
           {show("cost") && (
-            <TabsTrigger value="cost" className={TAB_TRIGGER}>
+            <TabsTrigger
+              style={{ order: tools.indexOf("cost") }}
+              value="cost"
+              className={TAB_TRIGGER}
+            >
               Cost
             </TabsTrigger>
           )}
           {show("capacity") && (
             <TabsTrigger
+              style={{ order: tools.indexOf("capacity") }}
               value="capacity"
               className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
             >
@@ -187,6 +211,7 @@ function RightTabs({
           )}
           {show("tradeoffs") && (
             <TabsTrigger
+              style={{ order: tools.indexOf("tradeoffs") }}
               value="tradeoffs"
               className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
             >

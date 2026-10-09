@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { open } from "./helpers";
 
 test("app loads with an empty canvas and no runtime errors", async ({ page }) => {
   const errors: string[] = [];
@@ -7,7 +8,7 @@ test("app loads with an empty canvas and no runtime errors", async ({ page }) =>
     if (msg.type() === "error") errors.push(msg.text());
   });
 
-  await page.goto("/");
+  await open(page, "/");
 
   await expect(page.locator(".react-flow")).toBeVisible();
   await expect(
@@ -29,7 +30,7 @@ const MIN_SELECTOR_PX = 80;
 const LOCAL_MARGIN_PX = process.platform === "linux" ? 0 : 25;
 test("top bar groups never overlap and the problem selector stays readable", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 800 });
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();

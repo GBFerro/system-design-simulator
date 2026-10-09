@@ -1,5 +1,6 @@
 "use client";
 
+import { openTool } from "@/store/openTool";
 import { Wallet } from "lucide-react";
 import { formatMoney } from "@/cost/currency";
 import { useAppStore } from "@/store/appStore";
@@ -23,7 +24,7 @@ function CostChip() {
   const open = () => {
     const app = useAppStore.getState();
     if (!app.rightPanelOpen) app.toggleRightPanel();
-    app.setActiveRightTab("cost");
+    openTool("cost");
   };
   const monthly = formatMoney(estimate.monthly, currency, true);
   const perM = perMillion === null ? null : formatMoney(perMillion, currency);
