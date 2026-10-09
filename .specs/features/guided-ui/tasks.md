@@ -1102,12 +1102,12 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `step`, `nextStep`, `backStep`, `goToStep(i)` (só atual ou anterior), persistido e sanitizado
-- [ ] Back no primeiro e Next no último não mudam o passo
-- [ ] Teste: trocar de passo não toca `canvasStore`, `runtimeStore` nem cria entrada de undo
-- [ ] Teste: reidratar reabre no passo salvo; valor inválido volta a `problem`
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `step`, `nextStep`, `backStep`, `goToStep(i)` (só atual ou anterior), persistido e sanitizado
+- [x] Back no primeiro e Next no último não mudam o passo
+- [x] Teste: trocar de passo não toca `canvasStore`, `runtimeStore` nem cria entrada de undo
+- [x] Teste: reidratar reabre no passo salvo; valor inválido volta a `problem`
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
