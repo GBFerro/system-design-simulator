@@ -909,10 +909,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Recebe o mapa ida → volta; bola `res` percorre o caminho da volta, `req` o da ida
-- [ ] Teste: nenhuma bola `res` anda sobre a ida; ida sem volta não gera `res`; contadores `balls-req`/`balls-res` coerentes
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Recebe o mapa ida → volta; bola `res` percorre o caminho da volta, `req` o da ida
+- [x] Teste: nenhuma bola `res` anda sobre a ida; ida sem volta não gera `res`; contadores `balls-req`/`balls-res` coerentes
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -936,10 +936,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Amostra o path renderizado de `ret:<ida>` e o entrega ao `flowBalls`
-- [ ] Sem snapshot ou com `prefers-reduced-motion`, nada novo é desenhado
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Amostra o path renderizado de `ret:<ida>` e o entrega ao `flowBalls`
+- [x] Sem snapshot ou com `prefers-reduced-motion`, nada novo é desenhado
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build

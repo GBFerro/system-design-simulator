@@ -302,7 +302,7 @@ export function FlowParticles() {
         ctx.stroke();
       }
 
-      // Responses, batched by outcome: a hollow ring walking the edge back (len − pos).
+      // Responses, batched by outcome: a hollow ring walking its own line, callee → caller.
       for (const error of [false, true]) {
         ctx.beginPath();
         let any = false;
@@ -310,7 +310,7 @@ export function FlowParticles() {
           if ((b.error === true) !== error) continue;
           const geo = geometry.get(b.drawn);
           if (!geo) continue;
-          pointAt(geo, Math.max(0, 1 - b.pos / geo.length), tmp);
+          pointAt(geo, Math.min(1, b.pos / geo.length), tmp);
           ctx.moveTo(tmp[0] + BALL_RADIUS, tmp[1]);
           ctx.arc(tmp[0], tmp[1], BALL_RADIUS, 0, Math.PI * 2);
           any = true;
