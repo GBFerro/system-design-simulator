@@ -29,7 +29,6 @@ describe("insertBetween keeps the response of the link it splits (RET-26, RET-27
     const ab = wire("a", "b", { async: true });
     const diff = insertBetween({ nodes, edges: [ab] }, ab, "message-queue", { idBase: "q" });
     expect(diff.addEdges.some((e) => e.id.startsWith("ret:"))).toBe(false);
-    expect(diff.addEdges.every((e) => (e.data as { async?: boolean }).async === true)).toBe(true);
     expect(diff.removeEdgeIds).toEqual([ab.id]);
   });
 

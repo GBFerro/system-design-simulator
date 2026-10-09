@@ -10,6 +10,7 @@ import {
   edgeCallSpecsFor,
   type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
+import { responseToOf } from "@/domain/graph/returns";
 import { useReactFlow } from "@xyflow/react";
 import {
   ClipboardPaste,
@@ -150,6 +151,7 @@ function useMenuEntries(
     const edge = store.edges.find((e) => e.id === target.id);
     if (!edge) return [];
     const data = (edge.data ?? {}) as CustomEdgeData;
+    const isAsync = !store.edges.some((e) => responseToOf(e) === edge.id);
     const rule = edgeRuleOf(store, edge);
     if (readOnly) {
       return [
@@ -225,13 +227,13 @@ function useMenuEntries(
       { heading: "Communication" },
       {
         label: "Sync",
-        checked: !data.async,
-        onSelect: () => store.updateEdgeData(edge.id, { async: false }),
+        checked: !isAsync,
+        onSelect: () => store.setEdgeSync(edge.id, true),
       },
       {
         label: "Async",
-        checked: !!data.async,
-        onSelect: () => store.updateEdgeData(edge.id, { async: true }),
+        checked: isAsync,
+        onSelect: () => store.setEdgeSync(edge.id, false),
       },
       { heading: "Protocol" },
       ...PROTOCOLS.map<MenuEntry>((p) => ({

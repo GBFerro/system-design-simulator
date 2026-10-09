@@ -76,7 +76,6 @@ export interface TextNodeData {
 export interface CustomEdgeData {
   label?: string;
   protocol?: EdgeProtocol;
-  async?: boolean;
   /** Call rule (Spec 03). Edges saved before v2 get one on migration. */
   rule?: EdgeRule;
   [key: string]: unknown;
@@ -302,33 +301,21 @@ function connectResponse(
   return {
     history: pushedHistory(state),
     future: [],
-    // (answered, the request is no longer async)
-    edges: [
-      ...state.edges.map((e) =>
-        e.id === open.id ? { ...e, data: { ...e.data, async: false } } : e,
-      ),
-      makeReturnEdge(open),
-    ],
+    edges: [...state.edges, makeReturnEdge(open)],
   };
 }
 
 /**
  * The edges after a removal, kept consistent: a response whose request is gone
- * goes with it (RET-08), and a request that lost its response is async (RET-07).
+ * goes with it (RET-08). A request that lost its response simply has none, so
+ * it is async (RET-07).
  */
-function reconcileResponses(prev: readonly Edge[], next: Edge[]): Edge[] {
+function withoutOrphanResponses(next: Edge[]): Edge[] {
   const ids = new Set(next.map((e) => e.id));
-  const kept = next.filter((e) => {
+  return next.filter((e) => {
     const to = responseToOf(e);
     return to === undefined || ids.has(to);
   });
-  const before = responseOf(prev);
-  const after = responseOf(kept);
-  return kept.map((e) =>
-    !isReturnEdge(e) && before.has(e.id) && !after.has(e.id)
-      ? { ...e, data: { ...e.data, async: true } }
-      : e,
-  );
 }
 
 const ruleGraph = (state: { nodes: Node[]; edges: Edge[] }) =>
@@ -589,7 +576,7 @@ export const useCanvasStore = create<CanvasState>()(
           const hasRemove = changes.some((c) => c.type === "remove");
           const applied = applyEdgeChanges(changes, state.edges);
           return {
-            edges: hasRemove ? reconcileResponses(state.edges, applied) : applied,
+            edges: hasRemove ? withoutOrphanResponses(applied) : applied,
             ...(hasRemove ? { history: pushedHistory(state), future: [] } : null),
           };
         });
@@ -602,10 +589,7 @@ export const useCanvasStore = create<CanvasState>()(
             return connectResponse(state, connection);
           const graph = ruleGraph(state);
           // A new call has no response yet, so it is async until one is drawn.
-          const data: CustomEdgeData = {
-            ...newEdgeData(connection.source, connection.target, graph),
-            async: true,
-          };
+          const data: CustomEdgeData = newEdgeData(connection.source, connection.target, graph);
           // Service → Read Replica: the service's `always` edges to SQL DBs become `writes`
           const split = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
           // (the rule graph holds the requests only: the responses stay where they are)
@@ -824,18 +808,12 @@ export const useCanvasStore = create<CanvasState>()(
           if (!request) return state;
           const response = responseOf(state.edges).get(request.id);
           if (sync === (response !== undefined)) return state;
-          const flag = (e: Edge) => ({ ...e, data: { ...e.data, async: !sync } });
           return {
             history: pushedHistory(state),
             future: [],
             edges: sync
-              ? [
-                  ...state.edges.map((e) => (e.id === request.id ? flag(e) : e)),
-                  makeReturnEdge(request),
-                ]
-              : state.edges
-                  .filter((e) => e.id !== response!.id)
-                  .map((e) => (e.id === request.id ? flag(e) : e)),
+              ? [...state.edges, makeReturnEdge(request)]
+              : state.edges.filter((e) => e.id !== response!.id),
           };
         });
       },
@@ -859,8 +837,7 @@ export const useCanvasStore = create<CanvasState>()(
             history: pushedHistory(state),
             future: [],
             nodes: state.nodes.filter((n) => !nodeIds.has(n.id)),
-            edges: reconcileResponses(
-              state.edges,
+            edges: withoutOrphanResponses(
               state.edges.filter(
                 (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
               ),
@@ -916,6 +893,11 @@ export const useCanvasStore = create<CanvasState>()(
 /** Reactive form of `isActiveTabReadOnly` (re-renders only when the flag flips). */
 export function useIsActiveTabReadOnly(): boolean {
   return useCanvasStore(isActiveTabReadOnly);
+}
+
+/** Does the call `requestId` have its response drawn? (No response: it is async.) */
+export function useHasResponse(requestId: string): boolean {
+  return useCanvasStore((s) => s.edges.some((e) => responseToOf(e) === requestId));
 }
 
 type CanvasAction = {

@@ -13,7 +13,7 @@ import { TriangleAlert } from "lucide-react";
 import { useEdgeRuntime } from "@/store/runtimeStore";
 import { EDGE_STATUS_COLOR, edgeStrokeWidth } from "@/lib/particles";
 import { useAppStore } from "@/store/appStore";
-import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
+import { useCanvasStore, useHasResponse, type CustomEdgeData } from "@/store/canvasStore";
 import { PARAM, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
 import { edgeCallsBadge, edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
@@ -202,8 +202,9 @@ function AnimatedEdgeInner({
   const flowing = runtime !== undefined && runtime.rps > 0;
   const isDark = useAppStore((s) => s.theme) === "dark";
   const idleStroke = isDark ? "rgba(150, 165, 195, 0.32)" : "rgba(90, 105, 130, 0.45)";
+  const hasResponse = useHasResponse(copy?.instanceOf ?? id);
   const edgeData = (data ?? {}) as CustomEdgeData;
-  const isAsync = edgeData.async === true;
+  const isAsync = !hasResponse;
   const protocol = edgeData.protocol;
   const label = edgeData.label;
 

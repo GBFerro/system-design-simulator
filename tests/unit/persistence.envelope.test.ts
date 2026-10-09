@@ -45,7 +45,6 @@ function canvasGraph() {
       ...edges[0].data,
       label: "HTTPS",
       protocol: "grpc",
-      async: true,
       rule: {
         calls: [{ kind: "fraction", fraction: 0.3, callsPerRequest: 2 }],
         networkLatencyMs: 4,
@@ -172,9 +171,11 @@ describe("export envelope v2", () => {
     expect(result.design.edges[0].data).toMatchObject({
       label: "miss",
       protocol: "tcp",
-      async: false,
       rule: { calls: [{ kind: "on_miss", callsPerRequest: 1 }] },
     });
+    // (a v1 call that was not async comes with its response: the v3 flag is gone)
+    expect(result.design.edges[0].data).not.toHaveProperty("async");
+    expect(result.design.edges.map((e) => e.id)).toEqual(["e1", "ret:e1"]);
     expect(result.design.strokes).toEqual(STROKES);
   });
 

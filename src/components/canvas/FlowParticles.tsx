@@ -21,6 +21,7 @@ import type { ComponentNodeData } from "@/store/canvasStore";
 import { PARAM, instancesOf, routingFor } from "@/domain/components/registry";
 import { formatRps } from "@/components/traffic/format";
 import { edgeRuleOf } from "@/domain/graph/edgeRules";
+import { asyncRequestIds, isReturnEdge } from "@/domain/graph/returns";
 import type { RuntimeEdgeStatus, TickSnapshot } from "@/engine/types";
 
 /**
@@ -225,14 +226,16 @@ export function FlowParticles() {
       );
       // Each edge's calls (normalized like the compiler reads them), so the
       // balls follow the same call plan as the engine (AD-002).
+      const asyncIds = asyncRequestIds(edges);
       topology = buildTopology(
         edges
+          .filter((e) => !isReturnEdge(e))
           .filter((e) => componentOf.has(e.source) && componentOf.has(e.target))
           .map((e) => ({
             id: e.id,
             source: e.source,
             target: e.target,
-            async: e.data?.async === true,
+            async: asyncIds.has(e.id),
             calls: edgeRuleOf({ nodes, edges }, e).calls,
           })),
         (id) => routingFor(componentOf.get(id) ?? "custom"),

@@ -692,10 +692,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] As idas async nÃ£o carregam mais `data.async` depois de migradas
-- [ ] Teste: grafo migrado compila igual ao v3 original (mesmo `SimGraph`, bit-idÃªntico)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] As idas async nÃ£o carregam mais `data.async` depois de migradas
+- [x] Teste: grafo migrado compila igual ao v3 original (mesmo `SimGraph`, bit-idÃªntico)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -719,10 +719,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `SerializedEdgeData` perde `async`; export e save nÃ£o gravam o flag
-- [ ] Teste: round-trip de ida com e sem volta preserva a semÃ¢ntica sync/async
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `SerializedEdgeData` perde `async`; export e save nÃ£o gravam o flag
+- [x] Teste: round-trip de ida com e sem volta preserva a semÃ¢ntica sync/async
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -746,10 +746,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `NewEdgeData` perde `async`; `defaultEdgeAsync` sai ou fica sÃ³ para decidir se uma aresta de referÃªncia ganha volta
-- [ ] Nenhum chamador escreve `data.async`; `npm run typecheck` limpo
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `NewEdgeData` perde `async`; `defaultEdgeAsync` sai ou fica sÃ³ para decidir se uma aresta de referÃªncia ganha volta
+- [x] Nenhum chamador escreve `data.async`; `npm run typecheck` limpo
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: build

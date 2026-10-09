@@ -12,9 +12,18 @@ describe("reference solutions open with their responses (RET-25)", () => {
       const responses = responseOf(edges);
       const nodeIds = new Set(nodes.map((n) => n.id));
       expect(requests.length, problem.id).toBeGreaterThan(0);
+      const componentOf = new Map(
+        nodes.map((n) => [n.id, (n.data as { componentId: string }).componentId]),
+      );
+      const asyncPairs = new Set(
+        problem.referenceSolution.edges
+          .filter((e) => e.async === true)
+          .map((e) => `${e.source}>${e.target}`),
+      );
       for (const r of requests) {
-        const flagged = (r.data as { async?: boolean }).async === true;
-        expect(responses.has(r.id), `${problem.id}: ${r.id}`).toBe(!flagged);
+        const isAsync = asyncPairs.has(`${componentOf.get(r.source)}>${componentOf.get(r.target)}`);
+        expect(responses.has(r.id), `${problem.id}: ${r.id}`).toBe(!isAsync);
+        expect(r.data).not.toHaveProperty("async");
       }
       for (const res of edges.filter(isReturnEdge)) {
         const req = requests.find((r) => r.id === (res.data as { responseTo: string }).responseTo)!;

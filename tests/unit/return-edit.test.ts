@@ -59,7 +59,7 @@ describe("drawing the response of a call", () => {
     request("a", "b");
     expect(s().edges).toHaveLength(1);
     expect(responseOf(s().edges).size).toBe(0);
-    expect((s().edges[0].data as { async?: boolean }).async).toBe(true);
+    expect(s().edges[0].data).not.toHaveProperty("async"); // (the response is the only source of truth)
   });
 
   it("dragging from B's return handle to A creates the response of A → B, in one undo step (RET-01)", () => {
@@ -72,7 +72,6 @@ describe("drawing the response of a call", () => {
     const volta = responseOf(edges).get(ida.id)!;
     expect([volta.id, volta.source, volta.target]).toEqual([`ret:${ida.id}`, "b", "a"]);
     expect([volta.sourceHandle, volta.targetHandle]).toEqual(["ret-out", "ret-in"]);
-    expect((ida.data as { async?: boolean }).async).toBe(false);
     expect(s().history.length).toBe(before + 1);
     s().undo();
     expect(s().edges).toHaveLength(1);
@@ -162,7 +161,6 @@ describe("deleting calls and responses (RET-07, RET-08)", () => {
     select([`ret:${ida.id}`]);
     s().deleteSelection();
     expect(s().edges.map((e) => e.id)).toEqual([ida.id]);
-    expect((s().edges[0].data as { async?: boolean }).async).toBe(true);
     expect(responseOf(s().edges).size).toBe(0);
   });
 

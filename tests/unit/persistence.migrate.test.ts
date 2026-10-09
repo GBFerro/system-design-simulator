@@ -466,7 +466,16 @@ describe("migrateGraphV3toV4", () => {
     const g = design() as unknown as MigratedGraph;
     const out = migrateGraphV3toV4(g);
     expect(out.nodes).toEqual(g.nodes);
-    expect(out.edges.filter((e) => !e.id.startsWith("ret:"))).toEqual(g.edges);
+    // (the edges between components lose the v3 flag; the one touching the text node is as it was)
+    const strip = (data: Record<string, unknown>) => {
+      const rest = { ...data };
+      delete rest.async;
+      return rest;
+    };
+    const expected = g.edges.map((e) =>
+      e.source === "note" || e.target === "note" ? e : { ...e, data: strip(e.data) },
+    );
+    expect(out.edges.filter((e) => !e.id.startsWith("ret:"))).toEqual(expected);
     expect(out.edges.some((e) => e.source === "app" && e.target === "note")).toBe(false);
     expect(responseOf(out.edges).has("e-note-app")).toBe(false);
   });

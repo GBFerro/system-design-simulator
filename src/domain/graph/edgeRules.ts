@@ -225,29 +225,26 @@ export type EdgeProtocol = "http" | "grpc" | "websocket" | "pubsub" | "tcp" | "c
 export interface NewEdgeData {
   label: string;
   protocol: EdgeProtocol;
-  async: boolean;
   rule: EdgeRule;
   [key: string]: unknown;
 }
 
 /**
  * `data` of a new edge, the one shape the editor (connect), the advisor's
- * quick fixes and the reference loader create: no label, HTTP, the default
- * async flag and the connect rule for `source` → `target` in `graph`.
- * `overrides` win (a reference's own async flag and rule).
+ * quick fixes and the reference loader create: no label, HTTP and the connect rule for `source` → `target` in `graph`.
+ * `overrides` win (a reference's own rule). Whether the call is sync is not data
+ * of the edge: it is the response drawn next to it.
  */
 export function newEdgeData(
   source: string,
   target: string,
   graph: RuleGraph,
-  overrides: Partial<Pick<NewEdgeData, "protocol" | "async" | "rule">> = {},
+  overrides: Partial<Pick<NewEdgeData, "protocol" | "rule">> = {},
 ): NewEdgeData {
   const protocol = overrides.protocol ?? "http";
   return {
     label: "",
     protocol,
-    async:
-      overrides.async ?? defaultEdgeAsync(graph.componentIdOf(source), graph.componentIdOf(target)),
     rule: overrides.rule ?? connectEdgeRule(source, target, graph, protocol),
   };
 }

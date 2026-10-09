@@ -144,10 +144,8 @@ export function insertBetween(
     { ...(keepLinkOnOut ? { networkLatencyMs, packetLoss } : {}), ...outRule },
     keepLinkOnOut ? protocol : "http",
   );
-  const half = (e: Edge): Edge[] =>
-    withResponse(sync ? e : { ...e, data: { ...e.data, async: true } }, sync);
   diff.addNodes.push(node);
-  diff.addEdges.push(...half(into), ...half(out));
+  diff.addEdges.push(...withResponse(into, sync), ...withResponse(out, sync));
   diff.removeEdgeIds.push(edge.id);
   if (oldResponse) diff.removeEdgeIds.push(oldResponse.id);
   return diff;

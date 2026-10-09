@@ -22,7 +22,7 @@ import {
   sanitizeEdgeCalls,
 } from "@/domain/graph/edgeRules";
 import { planFor } from "@/domain/graph/callPlan";
-import { requestEdges } from "@/domain/graph/returns";
+import { requestEdges, responseOf } from "@/domain/graph/returns";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 
@@ -137,7 +137,7 @@ describe("connecting from the UI", () => {
     setCanvas([node("app-server"), node("sql-db"), node("read-replica")]);
     connect("sql-db", "read-replica");
     expect(ruleOf("sql-db", "read-replica")?.kind).toBe("writes");
-    expect((s().edges[0].data as CustomEdgeData).async).toBe(true);
+    expect(responseOf(s().edges).size).toBe(0); // (a replication link is async: no response)
     connect("app-server", "sql-db");
     expect(ruleOf("app-server", "sql-db")?.kind).toBe("writes");
   });

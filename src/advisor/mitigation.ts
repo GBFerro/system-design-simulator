@@ -14,14 +14,7 @@ import type { FaultSpec } from "@/engine/faults/types";
 import { isComponentNode } from "@/lib/nodeFactory";
 import { INHERENTLY_REDUNDANT } from "@/scoring/paths";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import {
-  emptyDiff,
-  insertBetween,
-  newComponentNode,
-  newEdge,
-  uniqueId,
-  withResponse,
-} from "./graph";
+import { emptyDiff, insertBetween, newComponentNode, newEdge, uniqueId } from "./graph";
 import { hasRateLimit, rateLimitFix } from "./load";
 import type { AdvisorContext, CanvasGraph, GraphDiff, QuickFix } from "./types";
 import { viewOf } from "./view";
@@ -132,7 +125,8 @@ function dlqFix(graph: CanvasGraph, queueId: string): QuickFix | undefined {
       const dlq = newComponentNode("dlq", uniqueId(`dlq-${queueId}`, g), position);
       const nodes = [...g.nodes, dlq];
       const edge = newEdge(nodes, g.edges, uniqueId(`e-${queueId}-${dlq.id}`, g), queueId, dlq.id);
-      return { ...emptyDiff(), addNodes: [dlq], addEdges: withResponse(edge, !isAsyncEdge(edge)) };
+      // (a dead-letter edge is async by nature: it has no response)
+      return { ...emptyDiff(), addNodes: [dlq], addEdges: [edge] };
     },
   };
 }

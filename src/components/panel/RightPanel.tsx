@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import {
   useCanvasStore,
+  useHasResponse,
   useIsActiveTabReadOnly,
   type ComponentNodeData,
   type CustomEdgeData,
@@ -288,6 +289,8 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
 
 function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
+  const setEdgeSync = useCanvasStore((s) => s.setEdgeSync);
+  const isAsync = !useHasResponse(selectedEdge.id);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
   const readOnly = useIsActiveTabReadOnly();
 
@@ -358,9 +361,9 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           <div className="flex gap-1">
             <button
               disabled={readOnly}
-              onClick={() => updateEdgeData(selectedEdge.id, { async: false })}
+              onClick={() => setEdgeSync(selectedEdge.id, true)}
               className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                !data.async
+                !isAsync
                   ? "bg-cyan-600/20 text-cyan-400 border border-cyan-500/30"
                   : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700"
               }`}
@@ -369,9 +372,9 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
             </button>
             <button
               disabled={readOnly}
-              onClick={() => updateEdgeData(selectedEdge.id, { async: true })}
+              onClick={() => setEdgeSync(selectedEdge.id, false)}
               className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                data.async
+                isAsync
                   ? "bg-cyan-600/20 text-cyan-400 border border-cyan-500/30"
                   : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700"
               }`}
@@ -380,7 +383,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
             </button>
           </div>
           <p className="mt-1 text-[11px] text-zinc-500">
-            {data.async
+            {isAsync
               ? "Dashed line — asynchronous (e.g. message queue)"
               : "Solid line — synchronous (e.g. HTTP call)"}
           </p>

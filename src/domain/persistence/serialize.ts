@@ -34,7 +34,6 @@ export interface SerializedEdgeData {
   responseTo?: string;
   label?: string;
   protocol?: string;
-  async?: boolean;
   /** Call rule (Spec 03). Always present after migration. */
   rule?: EdgeRule;
 }
@@ -109,7 +108,6 @@ export function serializeEdges(edges: readonly EdgeLike[]): SerializedEdge[] {
       : {
           label: typeof e.data?.label === "string" ? e.data.label : "",
           protocol: typeof e.data?.protocol === "string" ? e.data.protocol : "http",
-          async: e.data?.async === true,
           ...(e.data?.rule ? { rule: e.data.rule as EdgeRule } : {}),
         },
   }));
@@ -138,7 +136,7 @@ export function deserializeNodes(nodes: readonly SerializedNode[]): Node[] {
   });
 }
 
-/** Serialized edges → canvas edges (edge.data keeps label/protocol/async/rule). */
+/** Serialized edges → canvas edges (edge.data keeps label/protocol/rule; a response keeps only responseTo). */
 export function deserializeEdges(edges: readonly SerializedEdge[]): Edge[] {
   return edges.map((e) => ({
     id: e.id,
@@ -152,7 +150,6 @@ export function deserializeEdges(edges: readonly SerializedEdge[]): Edge[] {
       : {
           label: e.data?.label ?? "",
           protocol: e.data?.protocol ?? "http",
-          async: e.data?.async ?? false,
           ...(e.data?.rule ? { rule: { ...e.data.rule } } : {}),
         },
   }));

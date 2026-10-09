@@ -298,11 +298,13 @@ export function migrateGraphV2toV3(
 
 /**
  * v3 → v4: every edge between component nodes that is not async gets its
- * response (`ret:<id>`, see `domain/graph/returns.ts`). Nothing else changes:
- * text nodes, strokes and the edges touching text nodes are left as they are.
- * Pure and never throws; a graph that already holds a response is v4 and comes
- * back untouched (v3 had none), which makes it idempotent. The `async: true` of
- * an async call is kept here (the engine and the editor still read it).
+ * response (`ret:<id>`, see `domain/graph/returns.ts`) and loses the `async`
+ * flag: from here on a call is async because nothing answers it. Nothing else
+ * changes: text nodes, strokes and the edges touching text nodes are left as
+ * they are. Pure and never throws. v3 had no responses, so a graph that holds
+ * one is already v4 and comes back untouched (this is what makes a second pass
+ * a no-op); `migrateGraph` skips the step by `fromVersion` too, because a v4
+ * design whose calls are all async has no response to tell it apart.
  */
 export function migrateGraphV3toV4(
   graph: MigratedGraph,
@@ -314,15 +316,19 @@ export function migrateGraphV3toV4(
     const component = new Set(graph.nodes.filter((n) => n.type !== "text").map((n) => n.id));
     const answered = new Set(graph.edges.map((e) => e.id));
     const added: MigratedEdge[] = [];
-    for (const e of graph.edges) {
-      if (!component.has(e.source) || !component.has(e.target)) continue;
-      if (isRecord(e.data) && e.data.async === true) continue;
-      const response = makeReturnEdge(e) as unknown as MigratedEdge;
-      if (answered.has(response.id)) continue;
-      answered.add(response.id);
-      added.push(response);
-    }
-    return added.length === 0 ? graph : { nodes: graph.nodes, edges: [...graph.edges, ...added] };
+    const edges = graph.edges.map((e) => {
+      if (!component.has(e.source) || !component.has(e.target)) return e;
+      const { async: flag, ...data } = isRecord(e.data) ? e.data : ({} as Record<string, unknown>);
+      if (flag !== true) {
+        const response = makeReturnEdge(e) as unknown as MigratedEdge;
+        if (!answered.has(response.id)) {
+          answered.add(response.id);
+          added.push(response);
+        }
+      }
+      return { ...e, data };
+    });
+    return { nodes: graph.nodes, edges: [...edges, ...added] };
   } catch (err) {
     warn(`Migration failed: ${err instanceof Error ? err.message : String(err)}`);
     return graph;

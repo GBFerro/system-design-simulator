@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { Edge, Node } from "@xyflow/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PARAM } from "@/domain/components/registry";
-import { requestEdges } from "@/domain/graph/returns";
+import { requestEdges, responseOf } from "@/domain/graph/returns";
 
 // Spec 05 acceptance: a real v1 localStorage (built from the persisted shapes
 // of canvasStore / savedDesignsStore / penStore before the v2 contract)
@@ -86,7 +86,11 @@ function expectNoLoss(v1: Graph, graph: { nodes: Node[] | V1Node[]; edges: Edge[
     const after = requests.find((e) => e.id === before.id)!;
     expect(after.source).toBe(before.source);
     expect(after.target).toBe(before.target);
-    expect(after.data).toMatchObject(before.data ?? {});
+    // The v3 `async` flag is gone (v4): a call is async when nothing answers it.
+    const { async: wasAsync, ...kept } = (before.data ?? {}) as Record<string, unknown>;
+    expect(after.data).toMatchObject(kept);
+    expect(after.data).not.toHaveProperty("async");
+    expect(responseOf(graph.edges as V1Edge[]).has(before.id), before.id).toBe(wasAsync !== true);
     expect(after.data?.rule).toMatchObject({ calls: [{ callsPerRequest: 1 }] });
   }
 }
