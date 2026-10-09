@@ -240,3 +240,53 @@ describe("Sync / Async shortcut (RET-12, RET-13, RET-17)", () => {
     expect(s().history).toHaveLength(0);
   });
 });
+
+describe("copy, paste and duplicate (RET-28)", () => {
+  beforeEach(() => {
+    setCanvas([node("client", "a"), node("app-server", "b"), node("sql-db", "c")]);
+    request("a", "b");
+    respond("b", "a");
+    request("b", "c");
+    useCanvasStore.setState({ history: [] });
+  });
+
+  const selectNodes = (ids: string[]) =>
+    useCanvasStore.setState({
+      nodes: s().nodes.map((n) => ({ ...n, selected: ids.includes(n.id) })),
+    });
+
+  it("duplicating two nodes copies the call, its response (linked to the new call) and the async call as it was", () => {
+    selectNodes(["a", "b", "c"]);
+    s().duplicateSelection();
+    const edges = s().edges;
+    const copies = edges.filter((e) => e.selected);
+    expect(copies).toHaveLength(3);
+    const copiedRequests = requestEdges(copies);
+    expect(copiedRequests).toHaveLength(2);
+    const answered = responseOf(copies);
+    expect(copiedRequests.map((r) => answered.has(r.id))).toEqual([true, false]);
+    const response = [...answered.values()][0];
+    const request = copiedRequests[0];
+    expect([response.id, response.source, response.target]).toEqual([
+      `ret:${request.id}`,
+      request.target,
+      request.source,
+    ]);
+    expect(request.id).not.toBe(requestEdges(edges)[0].id);
+    expect(s().history).toHaveLength(1);
+  });
+
+  it("a response whose call wasn't copied isn't pasted", () => {
+    selectNodes(["b", "c"]);
+    s().copySelection();
+    s().pasteClipboard({ x: 900, y: 900 });
+    const pasted = s().edges.filter((e) => e.selected);
+    expect(pasted).toHaveLength(1);
+    expect(isReturnEdge(pasted[0])).toBe(false);
+  });
+
+  it("a response selected alone isn't copied", () => {
+    useCanvasStore.setState({ edges: s().edges.map((e) => ({ ...e, selected: isReturnEdge(e) })) });
+    expect(s().copySelection()).toBe(0);
+  });
+});

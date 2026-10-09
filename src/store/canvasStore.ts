@@ -48,6 +48,7 @@ import {
   requestEdges,
   responseOf,
   responseToOf,
+  returnIdOf,
 } from "@/domain/graph/returns";
 
 export { edgeRuleOf } from "@/domain/graph/edgeRules";
@@ -203,15 +204,37 @@ function cloneSubgraph(clip: Clipboard, existing: Node[], targetTopLeft: XYPosit
       position: { x: n.position.x - box.x + at.x, y: n.position.y - box.y + at.y },
     };
   });
-  const edges = clip.edges.map((e) => ({
-    ...e,
-    id: `e-${randomId()}`,
-    source: idMap.get(e.source)!,
-    target: idMap.get(e.target)!,
-    data: remapMissOf(e.data, idMap),
-    selected: true,
-  }));
-  return { nodes, edges };
+  const requestIds = new Map<string, string>();
+  const requests = clip.edges
+    .filter((e) => !isReturnEdge(e))
+    .map((e) => {
+      const id = `e-${randomId()}`;
+      requestIds.set(e.id, id);
+      return {
+        ...e,
+        id,
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+        data: remapMissOf(e.data, idMap),
+        selected: true,
+      };
+    });
+  // A response follows its request (RET-28); one whose request wasn't copied is left out.
+  const responses = clip.edges.flatMap((e) => {
+    const request = requestIds.get(responseToOf(e) ?? "");
+    if (request === undefined) return [];
+    return [
+      {
+        ...e,
+        id: returnIdOf(request),
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+        data: { responseTo: request },
+        selected: true,
+      },
+    ];
+  });
+  return { nodes, edges: [...requests, ...responses] };
 }
 
 /**

@@ -466,11 +466,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] A volta vai junto quando os dois nós da ida foram copiados
-- [ ] Uma volta selecionada sozinha não é colada
-- [ ] `missOf` e ids de volta remapeados para a ida clonada
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] A volta vai junto quando os dois nós da ida foram copiados
+- [x] Uma volta selecionada sozinha não é colada
+- [x] `missOf` e ids de volta remapeados para a ida clonada
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: build
