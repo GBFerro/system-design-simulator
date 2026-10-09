@@ -187,10 +187,13 @@ export function canvasRuleGraph<E extends GraphEdge>(
     const id = (n.data as { componentId?: unknown } | undefined)?.componentId;
     if (typeof id === "string") ids.set(n.id, id);
   }
-  // Responses are not calls: the connect defaults read the requests only.
+  // Responses are not calls: the connect defaults read the requests only, and a
+  // call is sync when it has one.
+  const asyncIds = asyncRequestIds(edges.map((e) => ({ id: e.id ?? "", data: e.data })));
   return {
     componentIdOf: (nodeId) => ids.get(nodeId),
     edges: edges.filter((e) => !isReturnEdge(e)),
+    isAsync: (e) => asyncIds.has(e.id ?? ""),
   };
 }
 
