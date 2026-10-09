@@ -10,7 +10,7 @@ import {
   edgeCallSpecsFor,
   type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
-import { responseToOf } from "@/domain/graph/returns";
+import { isReturnEdge, responseToOf } from "@/domain/graph/returns";
 import { useReactFlow } from "@xyflow/react";
 import {
   ClipboardPaste,
@@ -150,6 +150,31 @@ function useMenuEntries(
   if (target.kind === "edge") {
     const edge = store.edges.find((e) => e.id === target.id);
     if (!edge) return [];
+    // A response has no parameters: select the call it answers, or remove it (the call becomes async).
+    if (isReturnEdge(edge)) {
+      return [
+        {
+          label: "Select the request",
+          icon: <PanelRight className={ICON} />,
+          onSelect: () => {
+            store.selectOnly([], [responseToOf(edge) ?? ""]);
+            openPropertiesPanel();
+          },
+        },
+        ...(readOnly
+          ? []
+          : [
+              "separator" as const,
+              {
+                label: "Remove the response",
+                icon: <Trash2 className={ICON} />,
+                shortcut: "⌫",
+                danger: true,
+                onSelect: store.deleteSelection,
+              },
+            ]),
+      ];
+    }
     const data = (edge.data ?? {}) as CustomEdgeData;
     const isAsync = !store.edges.some((e) => responseToOf(e) === edge.id);
     const rule = edgeRuleOf(store, edge);

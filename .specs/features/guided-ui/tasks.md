@@ -963,11 +963,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Volta selecionada mostra "Response to A → B", nenhum campo editável e o botão que seleciona a ida
-- [ ] Sync/Async chamam `setEdgeSync`; desabilitados em aba somente leitura
-- [ ] Marca de async lida da ausência da volta
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Volta selecionada mostra "Response to A → B", nenhum campo editável e o botão que seleciona a ida
+- [x] Sync/Async chamam `setEdgeSync`; desabilitados em aba somente leitura
+- [x] Marca de async lida da ausência da volta
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -991,10 +991,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Sync/Async do menu chamam `setEdgeSync`; desabilitados em aba somente leitura
-- [ ] Menu de uma volta oferece selecionar a ida e apagar
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Sync/Async do menu chamam `setEdgeSync`; desabilitados em aba somente leitura
+- [x] Menu de uma volta oferece selecionar a ida e apagar
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build

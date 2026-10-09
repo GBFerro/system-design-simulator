@@ -21,6 +21,7 @@ import {
   Pencil,
   CopyPlus,
 } from "lucide-react";
+import { isReturnEdge, responseToOf } from "@/domain/graph/returns";
 import {
   useCanvasStore,
   useHasResponse,
@@ -285,6 +286,54 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
       )}
     </aside>
   );
+}
+
+/**
+ * A selected response (RET-11): no field to edit (the link and the calls live on
+ * the request, AD-001), just what it answers and a way to the request.
+ */
+function ResponsePanel({ edge }: { edge: Edge }) {
+  const nodes = useCanvasStore((s) => s.nodes);
+  const selectOnly = useCanvasStore((s) => s.selectOnly);
+  const deleteSelection = useCanvasStore((s) => s.deleteSelection);
+  const readOnly = useIsActiveTabReadOnly();
+  const requestId = responseToOf(edge) ?? "";
+  const labelOf = (id: string) =>
+    (nodes.find((n) => n.id === id)?.data as { label?: string } | undefined)?.label ?? id;
+  // The response runs callee → caller: the request it answers is caller → callee.
+  return (
+    <div className="space-y-3" data-response-panel>
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Response</p>
+      <p className="text-sm text-zinc-200">
+        Response to {labelOf(edge.target)} → {labelOf(edge.source)}
+      </p>
+      <p className="text-[11px] text-zinc-500">
+        The link and the calls are set on the request. Without this response the call is async.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => selectOnly([], [requestId])}
+        className="w-full gap-1.5 border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+      >
+        Select the request
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={readOnly}
+        onClick={deleteSelection}
+        className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
+      >
+        <Trash2 className="h-3 w-3" />
+        Remove the response
+      </Button>
+    </div>
+  );
+}
+
+function EdgePanel({ edge }: { edge: Edge }) {
+  return isReturnEdge(edge) ? <ResponsePanel edge={edge} /> : <EdgePropertiesPanel edge={edge} />;
 }
 
 function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
@@ -664,7 +713,7 @@ function PropertiesTab() {
           );
         })()
       ) : selectedEdge ? (
-        <EdgePropertiesPanel edge={selectedEdge} />
+        <EdgePanel edge={selectedEdge} />
       ) : (
         <div className="flex flex-col items-center gap-3 py-6 text-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800">
