@@ -1,3 +1,4 @@
+import { withReturns } from "@/domain/graph/returns";
 import type { Edge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { callFormContext } from "@/components/panel/EdgeCallsForm";
@@ -18,7 +19,7 @@ const nodes = [
 const toDb = wire("app", "db");
 
 const cachesFor = (others: Edge[]) =>
-  callFormContext({ nodes, edges: [...others, toDb] }, toDb).caches;
+  callFormContext({ nodes, edges: withReturns([...others, toDb]) }, toDb).caches;
 
 describe("callFormContext: the caches a call can depend on (FLW-08)", () => {
   it("an async edge to a cache is left out", () => {

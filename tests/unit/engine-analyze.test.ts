@@ -1,3 +1,4 @@
+import { withReturns } from "@/domain/graph/returns";
 import { describe, expect, it } from "vitest";
 import { defaultParams, PARAM } from "@/domain/components/registry";
 import { analyze } from "@/engine/analyze";
@@ -719,9 +720,14 @@ describe("determinism and the engine contract", () => {
   });
 
   it("client falls back to in-thread analysis without Worker and maps to SimulationResult", async () => {
-    const { steady, result } = await simulateCanvas([...nodes, text("t")], edges, 8000, {
-      seed: 1,
-    });
+    const { steady, result } = await simulateCanvas(
+      [...nodes, text("t")],
+      withReturns(edges),
+      8000,
+      {
+        seed: 1,
+      },
+    );
     expect(steady).toEqual(analyze(compileV3(nodes, edges), 8000, { seed: 1 }));
     expect(result.nodeMetrics).toBeInstanceOf(Map);
     expect(result.nodeMetrics.size).toBe(4);

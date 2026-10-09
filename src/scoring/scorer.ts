@@ -1,4 +1,4 @@
-import { isReturnEdge, requestEdges } from "@/domain/graph/returns";
+import { isReturnEdge, requestsWithAsync } from "@/domain/graph/returns";
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { Measurements, ScoreResult, ScoringGraph } from "@/types/scoring";
@@ -85,7 +85,7 @@ export function scoreDesign(
   m?: Measurements,
 ): ScoreResult {
   // Responses are not calls: the rubric reads the requests only (RET-09).
-  const edges = requestEdges(canvasEdges);
+  const edges = requestsWithAsync(canvasEdges);
   if (nodes.length === 0) {
     return {
       total: 0,

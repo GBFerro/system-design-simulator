@@ -9,6 +9,7 @@
 import type { Edge, Node } from "@xyflow/react";
 import { getParamSpec, instancesOf, numParam, PARAM } from "@/domain/components/registry";
 import { isAsyncEdge } from "@/domain/graph/edgeRules";
+import { requestsWithAsync } from "@/domain/graph/returns";
 import type { FaultSpec } from "@/engine/faults/types";
 import { isComponentNode } from "@/lib/nodeFactory";
 import { INHERENTLY_REDUNDANT } from "@/scoring/paths";
@@ -53,7 +54,7 @@ const paramsFix = (label: string, patch: Record<string, Record<string, unknown>>
 
 /** Sync edges into `targetId`, busiest caller first. */
 function callers(graph: CanvasGraph, targetId: string, ctx: AdvisorContext): Edge[] {
-  return graph.edges
+  return requestsWithAsync(graph.edges)
     .filter((e) => e.target === targetId && !isAsyncEdge(e) && nodeIn(graph, e.source))
     .sort((a, b) => (ctx.load?.[b.source] ?? 0) - (ctx.load?.[a.source] ?? 0));
 }

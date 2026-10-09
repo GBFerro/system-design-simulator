@@ -1,5 +1,6 @@
 "use client";
 
+import { requestsWithAsync } from "@/domain/graph/returns";
 import type { Edge, Node } from "@xyflow/react";
 import { Plus, Trash2 } from "lucide-react";
 import { getParamSpec, PARAM, routingFor } from "@/domain/components/registry";
@@ -53,7 +54,7 @@ function sourcePlan(graph: Graph, sourceId: string): CallPlan {
   const componentId = componentIdOf(graph, sourceId);
   return planFor(
     sourceId,
-    graph.edges
+    requestsWithAsync(graph.edges)
       .filter((e) => e.source === sourceId)
       .map((e) => ({
         id: e.id,
@@ -98,7 +99,7 @@ function pinSteps(graph: Graph, sourceId: string, edgeId: string, index: number,
  */
 export function callFormContext(graph: Graph, edge: Edge): CallFormContext {
   return {
-    caches: graph.edges
+    caches: requestsWithAsync(graph.edges)
       .filter(
         (e) =>
           e.source === edge.source &&

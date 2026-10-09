@@ -80,6 +80,23 @@ export function asyncRequestIds(edges: readonly EdgeLike[]): Set<string> {
 }
 
 /**
+ * The requests of `edges` as the rest of the app reads them: each carries
+ * `data.async`, true when nothing answers it (or the legacy flag says so).
+ * Scoring, the advisor and the panels take this view at their boundary, so
+ * "sync" has one source of truth, the response, and `isAsyncEdge` keeps working.
+ */
+export function requestsWithAsync<E extends Edge>(edges: readonly E[]): E[] {
+  const asyncIds = asyncRequestIds(edges);
+  return edges
+    .filter((e) => !isReturnEdge(e))
+    .map((e) =>
+      (e.data as { async?: unknown } | undefined)?.async === asyncIds.has(e.id)
+        ? e
+        : { ...e, data: { ...e.data, async: asyncIds.has(e.id) } },
+    );
+}
+
+/**
  * `edges` plus the response of every request that does not already have one
  * and is not async (`isAsync` decides; default: the legacy `data.async` flag).
  * Idempotent; the migration, the reference loader and the quick fixes share it.

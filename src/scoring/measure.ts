@@ -11,6 +11,7 @@ import type { Edge, Node } from "@xyflow/react";
 import { INTERVIEW_DATA } from "@/data/interviewData";
 import { getProblemById } from "@/data/problems";
 import { compileGraph, type SimGraph } from "@/domain/graph/compile";
+import { requestsWithAsync } from "@/domain/graph/returns";
 import type { SteadyUnderFault } from "@/engine/faults/steady";
 import type { FaultSpec } from "@/engine/faults/types";
 import { steadyStateToSnapshot } from "@/engine/snapshot";
@@ -41,7 +42,8 @@ export function referenceSyncDepth(problemId: string): number | undefined {
   const problem = getProblemById(problemId);
   if (!problem || problem.referenceSolution.nodes.length === 0) return undefined;
   const { nodes, edges } = buildReferenceGraph(problem);
-  return syncPath(nodes, edges, buildScoringGraph(nodes, edges)).depth;
+  const requests = requestsWithAsync(edges);
+  return syncPath(nodes, requests, buildScoringGraph(nodes, requests)).depth;
 }
 
 export interface MeasureOptions {

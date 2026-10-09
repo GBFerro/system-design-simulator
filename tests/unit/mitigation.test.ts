@@ -1,3 +1,4 @@
+import { withReturns } from "@/domain/graph/returns";
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { applyDiff } from "@/advisor/graph";
@@ -36,7 +37,7 @@ function design(): Graph {
       comp("q", "message-queue"),
       comp("wk", "worker-pool"),
     ],
-    edges: [
+    edges: withReturns([
       wire("dns", "lb"),
       wire("lb", "a"),
       wire("lb", "b"),
@@ -47,7 +48,7 @@ function design(): Graph {
       wire("b", "db"),
       wire("a", "q"),
       wire("q", "wk"),
-    ],
+    ]),
   };
 }
 
@@ -158,7 +159,7 @@ describe("mitigations (CHS-06)", () => {
     const spike: FaultSpec = { type: "traffic-spike", target: { kind: "global" }, intensity: 5 };
     const g: Graph = {
       nodes: [comp("c", "client"), comp("app", "app-server", { instances: 4 })],
-      edges: [wire("c", "app")],
+      edges: withReturns([wire("c", "app")]),
     };
     const spiking = { ...ctx, load: { c: 5000, app: 5000 } };
     const fix = mitigationsFor(spike, g, spiking).find(

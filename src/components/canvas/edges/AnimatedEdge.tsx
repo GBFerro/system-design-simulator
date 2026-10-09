@@ -17,6 +17,7 @@ import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 import { PARAM, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
 import { edgeCallsBadge, edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
+import { requestsWithAsync } from "@/domain/graph/returns";
 import { planFor, type PlanEdge } from "@/domain/graph/callPlan";
 import { useFlowHighlight, type FlowDirection } from "@/store/flowHighlightStore";
 import { usePrefersReducedMotion } from "@/hooks/useBreakpoint";
@@ -67,7 +68,7 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
   const labelOf = (id: string) => data.get(id)?.label ?? id;
   const out = new Map<string, PlanEdge[]>();
   const conditions = new Map<string, string | null>();
-  for (const e of edges) {
+  for (const e of requestsWithAsync(edges)) {
     if (e.source === e.target || !data.has(e.source) || !data.has(e.target)) continue;
     const rule = edgeRuleOf({ nodes, edges }, e);
     conditions.set(e.id, edgeCallsBadge(rule, labelOf));

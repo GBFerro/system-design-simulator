@@ -1,4 +1,4 @@
-import { requestEdges } from "@/domain/graph/returns";
+import { requestEdges, withReturns } from "@/domain/graph/returns";
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { applyAllFixes, applyFix, computeFindings, readRatioFor } from "@/advisor/advisor";
@@ -25,7 +25,8 @@ import { useSimulationStore } from "@/store/simulationStore";
 import type { ScoreResult } from "@/types/scoring";
 import { comp as node, text, wire, compileV3 } from "./engineFixtures";
 
-const ids = (nodes: Node[], edges: Edge[]) => structureFindings(nodes, edges).map((f) => f.id);
+const ids = (nodes: Node[], edges: Edge[]) =>
+  structureFindings(nodes, withReturns(edges)).map((f) => f.id);
 
 describe("structure hints (ADV-03)", () => {
   it("nothing to say about an empty canvas or text-only notes", () => {
@@ -125,7 +126,7 @@ const ruleKind = (g: Graph, source: string, target: string) => {
 function webApp(...rest: { node: Node; from?: string }[]): Graph {
   return {
     nodes: [node("c", "client"), node("app", "app-server"), ...rest.map((r) => r.node)],
-    edges: [wire("c", "app"), ...rest.map((r) => wire(r.from ?? "app", r.node.id))],
+    edges: withReturns([wire("c", "app"), ...rest.map((r) => wire(r.from ?? "app", r.node.id))]),
   };
 }
 
@@ -162,7 +163,7 @@ describe("load findings (ADV-01)", () => {
   it("DNS is hot only on the lookups its caches miss", () => {
     const g: Graph = {
       nodes: [node("dns", "dns", { lookupShare: 0.01 }), node("app", "app-server")],
-      edges: [wire("dns", "app")],
+      edges: withReturns([wire("dns", "app")]),
     };
     const cap = capacityPerInstanceOf(nodeOf(g, "dns").data as never);
     expect(find(g, { load: { dns: 50 * cap, app: 1 } }, "hot:dns")).toBeUndefined();
@@ -182,7 +183,7 @@ describe("load findings (ADV-01)", () => {
   it("no rate limiter: one inserted where traffic leaves the edge tiers, at 2× the load", () => {
     const g: Graph = {
       nodes: [node("c", "client"), node("lb", "load-balancer"), node("app", "app-server")],
-      edges: [wire("c", "lb"), wire("lb", "app")],
+      edges: withReturns([wire("c", "lb"), wire("lb", "app")]),
     };
     const load = { c: 1000, lb: 1000, app: 1000 };
     expect(find(g, { load }, "rate-limit")).toMatchObject({ severity: "info" });
@@ -241,7 +242,10 @@ describe("pattern findings (ADV-01)", () => {
   it("a caller that only read the database calls it only after a miss", () => {
     const g: Graph = {
       nodes: [node("c", "client"), node("app", "app-server"), node("db", "sql-db")],
-      edges: [wire("c", "app"), wire("app", "db", { rule: { kind: "reads", callsPerRequest: 2 } })],
+      edges: withReturns([
+        wire("c", "app"),
+        wire("app", "db", { rule: { kind: "reads", callsPerRequest: 2 } }),
+      ]),
     };
     const after = fixed(g, { readRatio: 0.9 }, "read-cache:db");
     const cache = ofType(after, "cache");

@@ -9,7 +9,7 @@ import {
 import type { EdgeRule, Params, RoutingKind } from "@/domain/components/types";
 import { planFor, type CallPlan } from "./callPlan";
 import { defaultEdgeRule, sanitizeEdgeRule } from "./edgeRules";
-import { isReturnEdge, responseToOf } from "./returns";
+import { asyncRequestIds, isReturnEdge, responseToOf } from "./returns";
 
 /**
  * Graph compilation (Spec 04, "Compilação do grafo").
@@ -133,6 +133,13 @@ export function compileGraph(rawNodes: readonly unknown[], rawEdges: readonly un
 
   /* ---- responses are never calls: they leave the graph before the engine sees it ---- */
   const rawList = Array.isArray(rawEdges) ? rawEdges : [];
+  // A call is async when nothing answers it (RET-06); the legacy flag still counts.
+  const asyncIds = asyncRequestIds(
+    rawList.flatMap((raw) => {
+      const e = asRecord(raw);
+      return typeof e.id === "string" ? [{ id: e.id, data: e.data }] : [];
+    }),
+  );
   const requestIds = new Set(
     rawList.filter((raw) => !isReturnEdge(asRecord(raw))).map((raw) => asRecord(raw).id),
   );
@@ -160,7 +167,7 @@ export function compileGraph(rawNodes: readonly unknown[], rawEdges: readonly un
       continue;
     }
     const data = asRecord(e.data);
-    const isAsync = data.async === true;
+    const isAsync = typeof e.id === "string" ? asyncIds.has(e.id) : data.async === true;
     const key = `${source.id}->${target.id}`;
     const existing = byPair.get(key);
     if (existing) {

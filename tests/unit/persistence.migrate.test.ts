@@ -16,7 +16,7 @@ import { serializeEdges, serializeNodes } from "@/domain/persistence/serialize";
 import { analyze } from "@/engine/analyze";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import { migrateCanvasState, migrateSavedDesignsState } from "@/store/migrations";
-import { comp } from "./engineFixtures";
+import { comp, compileV3 } from "./engineFixtures";
 
 // Spec 05, PER-01: migrateV1toV2 fixtures, idempotence, and the 35 references.
 
@@ -353,7 +353,7 @@ describe("migrateGraph: v1 → v2 → v3", () => {
   it("analyze() gives every node and edge the same load before and after the migration", () => {
     const { nodes, edges } = v2Design();
     const out = migrateGraph(nodes, edges);
-    const before = analyze(compileGraph(nodes, edges), 5000);
+    const before = analyze(compileV3(nodes, edges), 5000);
     const after = analyze(compileGraph(out.nodes, out.edges), 5000);
     expect(before.nodes.find((n) => n.nodeId === "db")!.offeredRps).toBeGreaterThan(0);
     expect(after.nodes).toEqual(before.nodes);
@@ -496,7 +496,7 @@ describe("migrateGraphV3toV4", () => {
 
   it("a migrated v3 design compiles to the same SimGraph as the original (RET-22)", () => {
     const { nodes, edges } = design();
-    const before = compileGraph(nodes, edges);
+    const before = compileV3(nodes, edges);
     const after = compileGraph(
       nodes,
       migrateGraphV3toV4({ nodes, edges } as unknown as MigratedGraph).edges,

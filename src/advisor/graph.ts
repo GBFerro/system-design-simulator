@@ -82,14 +82,9 @@ export function newEdge(
   return { id, source, target, type: "animated", data };
 }
 
-/**
- * Is `edge` a synchronous call in `edges`? It has a response, or (until async
- * is derived from the response alone) it is not marked async.
- */
+/** Is `edge` a synchronous call in `edges`? It has a response. */
 export function isSyncRequest(edges: readonly Edge[], edge: Edge): boolean {
-  return (
-    responseOf(edges).has(edge.id) || (edge.data as { async?: unknown } | undefined)?.async !== true
-  );
+  return responseOf(edges).has(edge.id);
 }
 
 /** `edge` followed by its response when the call is synchronous (RET-26). */

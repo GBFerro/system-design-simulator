@@ -13,6 +13,13 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 ---
 
+## Notas de execução (desvios do plano)
+
+- **Ordem das fases 1 e 2:** o `async` derivado da volta só entrou depois que todo produtor de arestas já emitia a volta (fase 2), para a suíte ficar verde a cada commit.
+- **Serialização junto com a migração:** `serializeEdges`/`deserializeEdges` (T5) entraram no mesmo commit de `migrateGraphV3toV4` (T3); sem elas os designs salvos perdiam o `responseTo`. T4 e T6 também saíram num commit só.
+- **Leitores de arestas (T16–T21):** em vez de trocar cada `isAsyncEdge` por `asyncRequestIds`, a fronteira de cada leitor (scorer, `viewOf` do advisor, mitigações, topologia, painel de chamadas, aresta animada) recebe `requestsWithAsync(edges)`: só as idas, cada uma com `data.async` derivado da falta da volta. `isAsyncEdge` continua valendo sobre essa visão.
+- **`updateEdgeData`** continua para rótulo e protocolo; o `async` sai dos chamadores nas tasks do painel e do menu de contexto.
+
 ## Test Coverage Matrix
 
 > Generated from codebase, project guidelines, and spec - confirm before Execute. Guidelines found: `CLAUDE.md` (Commands, Conventions, "unit tests cover pure logic; editor behavior goes in Playwright"), `AGENTS.md`, `vitest.config.*`, `playwright.config.*`.
@@ -494,12 +501,12 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `SimEdge.async` = ida sem volta (o flag legado `data.async === true` ainda forÃ§a async)
-- [ ] Teste: ida com volta â†’ `async: false`; sem volta â†’ `async: true`; apagar a volta muda para async na prÃ³xima compilaÃ§Ã£o
-- [ ] Todo produtor de arestas jÃ¡ emite a volta, entÃ£o `npm test` inteiro fica verde sem tocar nenhum assert
-- [ ] `engine-golden.test.ts` sem mudanÃ§a de fixture
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `SimEdge.async` = ida sem volta (o flag legado `data.async === true` ainda forÃ§a async)
+- [x] Teste: ida com volta â†’ `async: false`; sem volta â†’ `async: true`; apagar a volta muda para async na prÃ³xima compilaÃ§Ã£o
+- [x] Todo produtor de arestas jÃ¡ emite a volta, entÃ£o `npm test` inteiro fica verde sem tocar nenhum assert
+- [x] `engine-golden.test.ts` sem mudanÃ§a de fixture
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -523,10 +530,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Caminho síncrono, profundidade e SPOFs ignoram voltas e usam `asyncRequestIds`
-- [ ] Teste: adicionar voltas não muda caminho, profundidade nem SPOFs; ida sem volta fica fora do caminho do usuário
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Caminho síncrono, profundidade e SPOFs ignoram voltas e usam `asyncRequestIds`
+- [x] Teste: adicionar voltas não muda caminho, profundidade nem SPOFs; ida sem volta fica fora do caminho do usuário
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -550,10 +557,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Troca `isAsyncEdge(e)` por conjunto derivado e ignora voltas
-- [ ] Teste: findings de carga idênticos com e sem voltas
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Troca `isAsyncEdge(e)` por conjunto derivado e ignora voltas
+- [x] Teste: findings de carga idênticos com e sem voltas
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -577,10 +584,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Leituras sem cache e trabalho lento no caminho leem só idas
-- [ ] Teste: nenhum finding novo por causa de voltas; `advisor.test.ts` continua sem finding acima de info nas referências
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Leituras sem cache e trabalho lento no caminho leem só idas
+- [x] Teste: nenhum finding novo por causa de voltas; `advisor.test.ts` continua sem finding acima de info nas referências
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -604,10 +611,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Chamadores de um alvo são só idas síncronas
-- [ ] Teste: `mitigation.test.ts` continua verde com voltas no grafo
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Chamadores de um alvo são só idas síncronas
+- [x] Teste: `mitigation.test.ts` continua verde com voltas no grafo
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -631,10 +638,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Assinatura inclui o id da volta: criar ou apagar a volta muda a assinatura
-- [ ] Teste: mover nós não muda a assinatura; apagar uma volta muda
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Assinatura inclui o id da volta: criar ou apagar a volta muda a assinatura
+- [x] Teste: mover nós não muda a assinatura; apagar uma volta muda
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -658,10 +665,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `isAsyncEdge` removido (ou delega a `returns.ts`) e o uso da linha 136 passa a ler só idas
-- [ ] Nenhum chamador restante; `npm run typecheck` limpo
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `isAsyncEdge` removido (ou delega a `returns.ts`) e o uso da linha 136 passa a ler só idas
+- [x] Nenhum chamador restante; `npm run typecheck` limpo
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
