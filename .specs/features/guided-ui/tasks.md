@@ -186,10 +186,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `SCHEMA_VERSION` = 4 e `STORE_VERSION` acompanha
-- [ ] `persistence.versions.test.ts` e `persistence.stores.test.ts` passam: `canvasStore` e `savedDesignsStore` migram um estado v3 até v4
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `SCHEMA_VERSION` = 4 e `STORE_VERSION` acompanha
+- [x] `persistence.versions.test.ts` e `persistence.stores.test.ts` passam: `canvasStore` e `savedDesignsStore` migram um estado v3 até v4
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -241,11 +241,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Export usa `schemaVersion: 4` com as voltas como arestas
-- [ ] `importDesign` aceita 1, 2, 3 e 4 (ausente = 1) e migra até v4, devolvendo `{ ok: true }`
-- [ ] Volta sem ida é descartada com aviso em `warnings`
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Export usa `schemaVersion: 4` com as voltas como arestas
+- [x] `importDesign` aceita 1, 2, 3 e 4 (ausente = 1) e migra até v4, devolvendo `{ ok: true }`
+- [x] Volta sem ida é descartada com aviso em `warnings`
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

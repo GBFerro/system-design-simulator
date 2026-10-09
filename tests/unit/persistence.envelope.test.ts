@@ -3,7 +3,6 @@ import { PROBLEMS } from "@/data/problems";
 import { PARAM } from "@/domain/components/registry";
 import type { EdgeRule } from "@/domain/components/types";
 import { MAX_CALL_STEP, MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
-import { requestEdges } from "@/domain/graph/returns";
 import {
   parseEnvelope,
   parseEnvelopeJson,
@@ -69,7 +68,7 @@ describe("export envelope v2", () => {
       slo: { percentile: 95, thresholdMs: 200, availability: 0.9999 },
     });
     const exported = JSON.parse(json) as DesignEnvelope;
-    expect(exported.schemaVersion).toBe(3);
+    expect(exported.schemaVersion).toBe(4);
     expect(Object.keys(exported).sort()).toEqual(
       [
         "chaosScript",
@@ -86,14 +85,13 @@ describe("export envelope v2", () => {
     const result = parseEnvelopeJson(json);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.fromVersion).toBe(3);
+    expect(result.fromVersion).toBe(4);
     expect(result.warnings).toEqual([]);
-    // (a v3 file gets its responses on import: the requests are what the export held)
-    expect({ ...result.design, edges: requestEdges(result.design.edges) }).toEqual(exported);
+    expect(result.design).toEqual(exported);
 
     // Back onto the canvas: same nodes/edges, including params and edge.data.rule
     expect(serializeNodes(deserializeNodes(result.design.nodes))).toEqual(serializeNodes(nodes));
-    expect(deserializeEdges(requestEdges(result.design.edges))).toEqual(
+    expect(deserializeEdges(result.design.edges)).toEqual(
       edges.map((e) => ({ ...e, sourceHandle: undefined, targetHandle: undefined })),
     );
     expect(result.design.edges[0].data).toEqual(edges[0].data);
@@ -245,7 +243,7 @@ describe("export envelope v2", () => {
         edges: [],
       }),
     ).toMatch(/Duplicate/);
-    expect(bad({ schemaVersion: 4, nodes: [], edges: [] })).toMatch(/newer version/);
+    expect(bad({ schemaVersion: 5, nodes: [], edges: [] })).toMatch(/newer version/);
   });
 });
 
@@ -305,16 +303,16 @@ describe("export envelope v3", () => {
 
   const dbRule = (d: DesignEnvelope) => d.edges.find((e) => e.id === "e-app-db")!.data!.rule;
 
-  it("exports schemaVersion 3 and an export → import returns the same calls", () => {
+  it("exports schemaVersion 4 and an export → import returns the same calls", () => {
     const first = parseEnvelope(design(LOOK_ASIDE, 3));
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     const json = stringifyEnvelope(first.design);
-    expect((JSON.parse(json) as DesignEnvelope).schemaVersion).toBe(3);
+    expect((JSON.parse(json) as DesignEnvelope).schemaVersion).toBe(4);
     const again = parseEnvelopeJson(json);
     expect(again.ok).toBe(true);
     if (!again.ok) return;
-    expect(again.fromVersion).toBe(3);
+    expect(again.fromVersion).toBe(4);
     expect(dbRule(again.design)).toEqual(LOOK_ASIDE);
     expect(again.warnings).toEqual([]);
   });
@@ -347,5 +345,101 @@ describe("export envelope v3", () => {
     expect(rule.calls[0].kind).toBe("always");
     expect(rule.calls[1].step).toBe(MAX_CALL_STEP);
     expect(result.warnings).toHaveLength(3);
+  });
+});
+
+describe("envelope v4 and responses (RET-23, RET-24, RET-32)", () => {
+  const nodes = [
+    {
+      id: "a",
+      type: "component",
+      position: { x: 0, y: 0 },
+      data: {
+        componentId: "client",
+        label: "A",
+        icon: "",
+        category: "",
+        scalable: false,
+        params: {},
+      },
+    },
+    {
+      id: "b",
+      type: "component",
+      position: { x: 0, y: 0 },
+      data: {
+        componentId: "app-server",
+        label: "B",
+        icon: "",
+        category: "",
+        scalable: true,
+        params: {},
+      },
+    },
+  ];
+  const request = {
+    id: "e-a-b",
+    type: "animated",
+    source: "a",
+    target: "b",
+    data: { label: "", protocol: "http", async: false },
+  };
+  const response = {
+    id: "ret:e-a-b",
+    type: "animated",
+    source: "b",
+    target: "a",
+    sourceHandle: "ret-out",
+    targetHandle: "ret-in",
+    data: { responseTo: "e-a-b" },
+  };
+
+  it("imports schemaVersion 1, 2, 3 and 4 (missing = 1) and migrates up to v4", () => {
+    for (const schemaVersion of [1, 2, 3, 4, undefined]) {
+      const res = parseEnvelope({
+        schemaVersion,
+        name: "x",
+        nodes,
+        edges: schemaVersion === 4 ? [request, response] : [request],
+      });
+      expect(res.ok, String(schemaVersion)).toBe(true);
+      if (!res.ok) continue;
+      expect(res.design.schemaVersion).toBe(4);
+      expect(res.design.edges.map((e) => e.id)).toEqual(["e-a-b", "ret:e-a-b"]);
+    }
+  });
+
+  it("exports the responses as edges", () => {
+    const json = stringifyEnvelope({
+      name: "x",
+      problemId: null,
+      nodes: serializeNodes(nodes as never),
+      edges: serializeEdges([request, response] as never),
+      strokes: [],
+    });
+    const out = JSON.parse(json) as DesignEnvelope;
+    expect(out.schemaVersion).toBe(4);
+    expect(out.edges.map((e) => e.id)).toEqual(["e-a-b", "ret:e-a-b"]);
+    expect(out.edges[1].data).toEqual({ responseTo: "e-a-b" });
+  });
+
+  it("drops a response whose request is not in the file, with a warning", () => {
+    const res = parseEnvelope({ schemaVersion: 4, name: "x", nodes, edges: [response] });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.design.edges).toEqual([]);
+    expect(res.warnings.some((w) => w.includes("response"))).toBe(true);
+  });
+
+  it("a v4 file keeps an async request async (no response is invented)", () => {
+    const res = parseEnvelope({
+      schemaVersion: 4,
+      name: "x",
+      nodes,
+      edges: [{ ...request, data: { ...request.data, async: true } }],
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.design.edges.map((e) => e.id)).toEqual(["e-a-b"]);
   });
 });

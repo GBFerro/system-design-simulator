@@ -121,7 +121,7 @@ describe("v1 localStorage → v2 stores", () => {
 
     // Written back as v3
     const persisted = JSON.parse(storage.get("systemsim-canvas")!);
-    expect(persisted.version).toBe(3);
+    expect(persisted.version).toBe(4);
     expect(persisted.state.nodes[1].data.params[PARAM.instances]).toBe(4);
   });
 
@@ -136,7 +136,7 @@ describe("v1 localStorage → v2 stores", () => {
       expect(design.strokes).toEqual(before.strokes);
       expectNoLoss(before, design as unknown as Graph);
     });
-    expect(JSON.parse(storage.get("systemsim-saved-designs")!).version).toBe(3);
+    expect(JSON.parse(storage.get("systemsim-saved-designs")!).version).toBe(4);
   });
 
   it("pen strokes and app state pass through unchanged", async () => {
@@ -146,7 +146,7 @@ describe("v1 localStorage → v2 stores", () => {
     await useAppStore.persist.rehydrate();
     expect(usePenStore.getState().strokes).toEqual(v1Pen.strokes);
     expect(useAppStore.getState().selectedProblemId).toBe("url-shortener");
-    expect(JSON.parse(storage.get("systemsim-pen-strokes")!).version).toBe(3);
+    expect(JSON.parse(storage.get("systemsim-pen-strokes")!).version).toBe(4);
   });
 
   it("loading a migrated saved design puts the same graph on the canvas", async () => {
@@ -160,7 +160,7 @@ describe("v1 localStorage → v2 stores", () => {
     expect(usePenStore.getState().strokes).toEqual(v1Saved.designs[0].strokes);
   });
 
-  it("imports a v1 JSON export into saved designs and exports it back as v3", async () => {
+  it("imports a v1 JSON export into saved designs and exports it back as v4", async () => {
     const { useSavedDesignsStore } = await import("@/store/savedDesignsStore");
     const v1File = JSON.stringify({
       schemaVersion: 1,
@@ -173,7 +173,7 @@ describe("v1 localStorage → v2 stores", () => {
     expectNoLoss(v1Saved.designs[0], imported as unknown as Graph);
 
     const exported = JSON.parse(useSavedDesignsStore.getState().exportDesign(imported.id));
-    expect(exported.schemaVersion).toBe(3);
+    expect(exported.schemaVersion).toBe(4);
     expect(exported.nodes).toEqual(imported.nodes);
     expect(exported.edges).toEqual(imported.edges);
     expect(exported.strokes).toEqual(imported.strokes);
