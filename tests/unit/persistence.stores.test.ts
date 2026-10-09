@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { Edge, Node } from "@xyflow/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PARAM } from "@/domain/components/registry";
+import { requestEdges } from "@/domain/graph/returns";
 
 // Spec 05 acceptance: a real v1 localStorage (built from the persisted shapes
 // of canvasStore / savedDesignsStore / penStore before the v2 contract)
@@ -79,9 +80,10 @@ function expectNoLoss(v1: Graph, graph: { nodes: Node[] | V1Node[]; edges: Edge[
       expect(after.data).not.toHaveProperty(f);
   }
 
-  expect(graph.edges.map((e) => e.id)).toEqual(v1.edges.map((e) => e.id));
+  const requests = requestEdges(graph.edges as V1Edge[]);
+  expect(requests.map((e) => e.id)).toEqual(v1.edges.map((e) => e.id));
   for (const before of v1.edges) {
-    const after = (graph.edges as V1Edge[]).find((e) => e.id === before.id)!;
+    const after = requests.find((e) => e.id === before.id)!;
     expect(after.source).toBe(before.source);
     expect(after.target).toBe(before.target);
     expect(after.data).toMatchObject(before.data ?? {});

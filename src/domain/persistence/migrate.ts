@@ -6,6 +6,7 @@ import {
   migrateEdgeRuleV2toV3,
   sanitizeEdgeRule,
 } from "@/domain/graph/edgeRules";
+import { isReturnEdge, makeReturnEdge } from "@/domain/graph/returns";
 
 /**
  * Persistence migrations (Spec 05, PER-01).
@@ -17,8 +18,11 @@ import {
  *
  * v3 (request-flow) turns each edge rule into the link plus a list of calls
  * (`migrateGraphV2toV3`): one call with the same condition, `on_miss` kept
- * (read-through); no edge is created, removed or moved. `migrateGraph` runs
- * the whole chain v1 → v2 → v3 and is what every entry path uses.
+ * (read-through); no edge is created, removed or moved.
+ *
+ * v4 (guided-ui) gives every synchronous call its response, an edge of its own
+ * (`migrateGraphV3toV4`); an async call is a request without one. `migrateGraph`
+ * runs the whole chain v1 → v2 → v3 → v4 and is what every entry path uses.
  *
  * `migrateV1toV2` is pure, idempotent (`migrate(migrate(x))` deep-equals
  * `migrate(x)`) and never throws. It works on both shapes that hold a graph:
@@ -40,6 +44,12 @@ const LEGACY_PARAM_FIELDS: Record<string, string> = {
 const RUNTIME_FIELDS = ["utilization", "status", "isBottleneck"] as const;
 
 export interface MigrateOptions {
+  /**
+   * Schema version the data was saved with. From 4 on a request without a
+   * response is deliberately async, so the v3 → v4 step is skipped (it would
+   * answer it). Unknown (undefined): the step still guards itself.
+   */
+  fromVersion?: number;
   /** Is this component id known (catalog or custom component)? Defaults to `getComponentById`. */
   isKnownComponent?: (componentId: string) => boolean;
   /** Called once per recoverable problem (unknown type, dropped edge, …). */
@@ -208,6 +218,11 @@ function migrateEdges(
 
     // label / protocol / async (and anything else) are preserved as-is.
     const data = isRecord(raw.data) ? raw.data : {};
+    // A response (v4) carries no rule of its own: it only answers its request.
+    if (isReturnEdge(raw)) {
+      edges.push({ ...raw, id, source, target, data });
+      return;
+    }
     // Schema v2 stores the flat rule (one condition per edge). A rule already
     // in the v3 call-list shape is left to the v2 → v3 step (never flattened:
     // no call is lost, and its warnings are reported once).
@@ -265,6 +280,7 @@ export function migrateGraphV2toV3(
       if (typeof n.data?.componentId === "string") componentOf.set(n.id, n.data.componentId);
     }
     const edges = graph.edges.map((e) => {
+      if (isReturnEdge(e)) return e;
       const data = isRecord(e.data) ? e.data : {};
       const rule = sanitizeEdgeRule(
         migrateEdgeRuleV2toV3(data.rule),
@@ -280,13 +296,49 @@ export function migrateGraphV2toV3(
   }
 }
 
-/** The whole chain, v1 → v2 → v3, on a node/edge list pair. Never throws. */
+/**
+ * v3 → v4: every edge between component nodes that is not async gets its
+ * response (`ret:<id>`, see `domain/graph/returns.ts`). Nothing else changes:
+ * text nodes, strokes and the edges touching text nodes are left as they are.
+ * Pure and never throws; a graph that already holds a response is v4 and comes
+ * back untouched (v3 had none), which makes it idempotent. The `async: true` of
+ * an async call is kept here (the engine and the editor still read it).
+ */
+export function migrateGraphV3toV4(
+  graph: MigratedGraph,
+  options: MigrateOptions = {},
+): MigratedGraph {
+  const warn = options.onWarning ?? (() => {});
+  try {
+    if (graph.edges.some((e) => isReturnEdge(e))) return graph;
+    const component = new Set(graph.nodes.filter((n) => n.type !== "text").map((n) => n.id));
+    const answered = new Set(graph.edges.map((e) => e.id));
+    const added: MigratedEdge[] = [];
+    for (const e of graph.edges) {
+      if (!component.has(e.source) || !component.has(e.target)) continue;
+      if (isRecord(e.data) && e.data.async === true) continue;
+      const response = makeReturnEdge(e) as unknown as MigratedEdge;
+      if (answered.has(response.id)) continue;
+      answered.add(response.id);
+      added.push(response);
+    }
+    return added.length === 0 ? graph : { nodes: graph.nodes, edges: [...graph.edges, ...added] };
+  } catch (err) {
+    warn(`Migration failed: ${err instanceof Error ? err.message : String(err)}`);
+    return graph;
+  }
+}
+
+/** The whole chain, v1 → v2 → v3 → v4, on a node/edge list pair. Never throws. */
 export function migrateGraph(
   nodes: unknown,
   edges: unknown,
   options: MigrateOptions = {},
 ): MigratedGraph {
-  return migrateGraphV2toV3(migrateGraphV1toV2(nodes, edges, options), options);
+  const v3 = migrateGraphV2toV3(migrateGraphV1toV2(nodes, edges, options), options);
+  return options.fromVersion !== undefined && options.fromVersion >= 4
+    ? v3
+    : migrateGraphV3toV4(v3, options);
 }
 
 /**

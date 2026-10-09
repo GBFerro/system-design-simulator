@@ -1,5 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { EdgeRule, Params } from "@/domain/components/types";
+import { responseToOf } from "@/domain/graph/returns";
 
 /**
  * Canvas graph ⇄ storage shape (saved designs, JSON export, share link).
@@ -29,6 +30,8 @@ export interface SerializedNode {
 }
 
 export interface SerializedEdgeData {
+  /** A response (v4): the id of the request it answers. Carries no other field. */
+  responseTo?: string;
   label?: string;
   protocol?: string;
   async?: boolean;
@@ -101,12 +104,14 @@ export function serializeEdges(edges: readonly EdgeLike[]): SerializedEdge[] {
     target: e.target,
     sourceHandle: e.sourceHandle ?? null,
     targetHandle: e.targetHandle ?? null,
-    data: {
-      label: typeof e.data?.label === "string" ? e.data.label : "",
-      protocol: typeof e.data?.protocol === "string" ? e.data.protocol : "http",
-      async: e.data?.async === true,
-      ...(e.data?.rule ? { rule: e.data.rule as EdgeRule } : {}),
-    },
+    data: responseToOf(e)
+      ? { responseTo: responseToOf(e) }
+      : {
+          label: typeof e.data?.label === "string" ? e.data.label : "",
+          protocol: typeof e.data?.protocol === "string" ? e.data.protocol : "http",
+          async: e.data?.async === true,
+          ...(e.data?.rule ? { rule: e.data.rule as EdgeRule } : {}),
+        },
   }));
 }
 
@@ -142,11 +147,13 @@ export function deserializeEdges(edges: readonly SerializedEdge[]): Edge[] {
     target: e.target,
     sourceHandle: e.sourceHandle ?? undefined,
     targetHandle: e.targetHandle ?? undefined,
-    data: {
-      label: e.data?.label ?? "",
-      protocol: e.data?.protocol ?? "http",
-      async: e.data?.async ?? false,
-      ...(e.data?.rule ? { rule: { ...e.data.rule } } : {}),
-    },
+    data: e.data?.responseTo
+      ? { responseTo: e.data.responseTo }
+      : {
+          label: e.data?.label ?? "",
+          protocol: e.data?.protocol ?? "http",
+          async: e.data?.async ?? false,
+          ...(e.data?.rule ? { rule: { ...e.data.rule } } : {}),
+        },
   }));
 }

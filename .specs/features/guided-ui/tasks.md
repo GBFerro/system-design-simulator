@@ -155,14 +155,14 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Cria `ret:<ida>` para cada aresta entre nÃ³s de componente sem `async: true` e nenhuma para as async
-- [ ] O flag `async: true` das idas async fica por enquanto (a task de limpeza o remove)
-- [ ] NÃ³s de texto, strokes e arestas que tocam nÃ³s de texto ficam intactos
-- [ ] Puro, idempotente, nunca lanÃ§a (teste com entradas lixo)
-- [ ] `migrateGraph` encadeia v1 â†’ v2 â†’ v3 â†’ v4
-- [ ] `engine-golden.test.ts` passa sem alterar o fixture
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Cria `ret:<ida>` para cada aresta entre nÃ³s de componente sem `async: true` e nenhuma para as async
+- [x] O flag `async: true` das idas async fica por enquanto (a task de limpeza o remove)
+- [x] NÃ³s de texto, strokes e arestas que tocam nÃ³s de texto ficam intactos
+- [x] Puro, idempotente, nunca lanÃ§a (teste com entradas lixo)
+- [x] `migrateGraph` encadeia v1 â†’ v2 â†’ v3 â†’ v4
+- [x] `engine-golden.test.ts` passa sem alterar o fixture
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -213,11 +213,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `SerializedEdgeData` ganha `responseTo` (o `async` legado segue atÃ© a limpeza)
-- [ ] Round-trip preserva voltas e `rule` da ida
-- [ ] Teste: aresta de volta serializa sem `rule`/`protocol` obrigatÃ³rios
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `SerializedEdgeData` ganha `responseTo` (o `async` legado segue atÃ© a limpeza)
+- [x] Round-trip preserva voltas e `rule` da ida
+- [x] Teste: aresta de volta serializa sem `rule`/`protocol` obrigatÃ³rios
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

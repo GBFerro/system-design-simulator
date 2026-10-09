@@ -71,3 +71,19 @@ describe("returns (RET-04, RET-09)", () => {
     expect(withReturns([a], () => true).map((e) => e.id)).toEqual(["e1"]);
   });
 });
+
+describe("serialization of responses (RET-23)", () => {
+  it("a response survives serialize → deserialize with only responseTo in its data", async () => {
+    const { serializeEdges, deserializeEdges } = await import("@/domain/persistence/serialize");
+    const ida = req("e-a-b", "a", "b", { label: "", protocol: "http", async: false });
+    const ret = makeReturnEdge(ida);
+    const stored = serializeEdges([ida, ret]);
+    expect(stored[1].data).toEqual({ responseTo: "e-a-b" });
+    expect(stored[1].sourceHandle).toBe("ret-out");
+    const back = deserializeEdges(stored);
+    expect(back[1].data).toEqual({ responseTo: "e-a-b" });
+    expect(back[1].id).toBe("ret:e-a-b");
+    expect(isReturnEdge(back[1])).toBe(true);
+    expect(isReturnEdge(back[0])).toBe(false);
+  });
+});
