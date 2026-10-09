@@ -1350,11 +1350,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Ir a uma fase posterior pela barra não muda de fase; a fase que se deixa acumula em `phaseSeconds`
-- [ ] `startInterview` guarda o passo do modo livre e `endInterview` (abandono) o restaura
-- [ ] Teste: reidratar durante a entrevista reabre na mesma fase com o cronômetro correto
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Ir a uma fase posterior pela barra não muda de fase; a fase que se deixa acumula em `phaseSeconds`
+- [x] `startInterview` guarda o passo do modo livre e `endInterview` (abandono) o restaura
+- [x] Teste: reidratar durante a entrevista reabre na mesma fase com o cronômetro correto
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -1378,10 +1378,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] A barra mostra as 6 fases no lugar dos 5 passos, clicáveis só para as anteriores, com Back/Next
-- [ ] Cronômetro e metas por fase continuam
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] A barra mostra as 6 fases no lugar dos 5 passos, clicáveis só para as anteriores, com Back/Next
+- [x] Cronômetro e metas por fase continuam
+- [x] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: build
@@ -1405,10 +1405,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Fases 1–4: sem canvas, formulário da fase e guia em tela cheia
-- [ ] Fase 5: canvas com paleta e ferramentas de Design+Simulate; fase 6: canvas com `DrillPanel` e Finish
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Fases 1–4: sem canvas, formulário da fase e guia em tela cheia
+- [x] Fase 5: canvas com paleta e ferramentas de Design+Simulate; fase 6: canvas com `DrillPanel` e Finish
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: none
 **Gate**: full
@@ -1432,10 +1432,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Finish abre o relatório como hoje e deixa o modo livre no passo Evaluate
-- [ ] Teste: `interview-report.test.ts` e `interview-store.test.ts` verdes
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Finish abre o relatório como hoje e deixa o modo livre no passo Evaluate
+- [x] Teste: `interview-report.test.ts` e `interview-store.test.ts` verdes
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
@@ -1459,10 +1459,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Requirements em tela cheia sem canvas; o canvas aparece em High-Level Design
-- [ ] Fase posterior não é clicável; reload na fase 2 reabre na fase 2; abandonar volta ao passo de antes; Finish abre o relatório e deixa em Evaluate
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Requirements em tela cheia sem canvas; o canvas aparece em High-Level Design
+- [x] Fase posterior não é clicável; reload na fase 2 reabre na fase 2; abandonar volta ao passo de antes; Finish abre o relatório e deixa em Evaluate
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: e2e
 **Gate**: full

@@ -17,8 +17,12 @@ const PhaseForm = dynamic(() => import("./PhaseForms").then((m) => m.PhaseForm),
   loading: () => <p className="text-[11px] text-zinc-400">Loading…</p>,
 });
 
-/** Panel content shown during interview phases 0-3 and 5 (not phase 4 = HLD). */
-export function InterviewPhasePanel() {
+/**
+ * Content of an interview phase without a canvas: the answer form and guide of
+ * phases 1–4 (full screen, `variant="screen"`, WIZ-21) and the Deep Dive's drill
+ * (in the side panel, next to the canvas). Phase 5, High-Level Design, is the canvas.
+ */
+export function InterviewPhasePanel({ variant = "panel" }: { variant?: "panel" | "screen" }) {
   const currentPhase = useInterviewStore((s) => s.currentPhase);
   const phases = useInterviewStore((s) => s.phases);
   const nextPhase = useInterviewStore((s) => s.nextPhase);
@@ -28,7 +32,10 @@ export function InterviewPhasePanel() {
   const phase = phases[currentPhase];
 
   return (
-    <div className="flex h-full w-full flex-1 flex-col md:w-[300px]">
+    <div
+      className={`flex h-full w-full flex-1 flex-col ${variant === "screen" ? "mx-auto max-w-3xl" : "md:w-[300px]"}`}
+      data-testid={variant === "screen" ? "interview-screen" : undefined}
+    >
       {/* Phase header */}
       <div className="border-b border-zinc-800 px-3 py-3">
         <div className="flex items-center gap-2">

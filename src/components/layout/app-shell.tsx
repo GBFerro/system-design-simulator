@@ -12,7 +12,15 @@ import { RightPanel } from "@/components/panel/RightPanel";
 import { DesignCanvas } from "@/components/canvas/DesignCanvas";
 import { useAppStore } from "@/store/appStore";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
-import { STEPS, STEP_LABELS, canvasVisible, paletteVisible } from "@/lib/steps";
+import {
+  STEPS,
+  STEP_LABELS,
+  canvasVisible,
+  interviewCanvasVisible,
+  interviewPaletteVisible,
+  paletteVisible,
+} from "@/lib/steps";
+import { InterviewPhasePanel } from "@/components/interview/InterviewPhasePanel";
 import { openTool } from "@/store/openTool";
 import { useSimulationStore } from "@/store/simulationStore";
 import { useRuntimeStore } from "@/store/runtimeStore";
@@ -329,10 +337,12 @@ export function AppShell() {
     return () => clearInterval(id);
   }, [timerRunning, tickTimer]);
 
-  // Free mode walks the steps; an interview has its own phases (and keeps the canvas for now).
+  // Free mode walks the steps; an interview walks its phases: 1–4 fill the screen, 5 and 6 have the canvas.
   const freeMode = interviewMode !== "interview";
-  const showCanvas = !freeMode || canvasVisible(step);
-  const showPalette = !freeMode || paletteVisible(step);
+  const currentPhase = useInterviewStore((s) => s.currentPhase);
+  const phases = useInterviewStore((s) => s.phases);
+  const showCanvas = freeMode ? canvasVisible(step) : interviewCanvasVisible(currentPhase);
+  const showPalette = freeMode ? paletteVisible(step) : interviewPaletteVisible(currentPhase);
 
   return (
     <ReactFlowProvider>
@@ -353,7 +363,7 @@ export function AppShell() {
             showPanelToggle={showCanvas}
           />
 
-          {freeMode && (
+          {freeMode ? (
             <StepBar
               steps={STEPS.map((id) => ({ id, label: STEP_LABELS[id] }))}
               current={STEPS.indexOf(step)}
@@ -362,10 +372,27 @@ export function AppShell() {
               onNext={() => useAppStore.getState().nextStep()}
               label="Steps"
             />
+          ) : (
+            <StepBar
+              steps={phases.map((p) => ({ id: p.name, label: p.name }))}
+              current={currentPhase}
+              onGo={(i) => useInterviewStore.getState().setPhase(i)}
+              onBack={() => useInterviewStore.getState().prevPhase()}
+              onNext={() => useInterviewStore.getState().nextPhase()}
+              label="Interview phases"
+            />
           )}
 
           {!showCanvas ? (
-            <ProblemStep onCreateProblem={() => setCreateProblemDialogOpen(true)} />
+            freeMode ? (
+              <ProblemStep onCreateProblem={() => setCreateProblemDialogOpen(true)} />
+            ) : (
+              <main className="min-h-0 flex-1 overflow-hidden bg-zinc-950">
+                <div className="mx-auto h-full max-w-3xl border-x border-zinc-800 bg-zinc-900">
+                  <InterviewPhasePanel variant="screen" />
+                </div>
+              </main>
+            )
           ) : (
             <div className="relative flex flex-1 overflow-hidden">
               {/* Desktop inline sidebar (hidden on mobile) */}

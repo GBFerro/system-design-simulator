@@ -1,17 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Flag,
-  Loader2,
-  Pause,
-  Play,
-  X,
-} from "lucide-react";
+import { Clock, Flag, Loader2, Pause, Play, X } from "lucide-react";
 import { useInterviewStore } from "@/store/interviewStore";
 
 function formatTime(seconds: number): string {
@@ -27,8 +17,6 @@ export function InterviewBar() {
   const timerSeconds = useInterviewStore((s) => s.timerSeconds);
   const timerRunning = useInterviewStore((s) => s.timerRunning);
   const phaseStartTime = useInterviewStore((s) => s.phaseStartTime);
-  const nextPhase = useInterviewStore((s) => s.nextPhase);
-  const prevPhase = useInterviewStore((s) => s.prevPhase);
   const endInterview = useInterviewStore((s) => s.endInterview);
   const toggleTimer = useInterviewStore((s) => s.toggleTimer);
   const [finishing, setFinishing] = useState(false);
@@ -59,38 +47,10 @@ export function InterviewBar() {
     // Two stacked rows below md so the controls are always on-screen;
     // a single row on md+ — no horizontal scrolling needed anywhere.
     <div className="flex shrink-0 flex-col gap-1.5 border-b border-zinc-800 bg-zinc-900 px-3 py-1.5 md:h-11 md:flex-row md:items-center md:justify-between md:gap-3 md:py-0">
-      {/* Row 1 — phase stepper + phase info */}
+      {/* Row 1 — phase info (the phases themselves are the step bar below the top bar) */}
       <div className="flex min-w-0 items-center justify-between gap-3 md:flex-1">
-        <div className="flex shrink-0 items-center gap-1">
-          {phases.map((phase, i) => (
-            <div key={phase.name} className="flex items-center">
-              {/* Circle */}
-              <button
-                onClick={() => useInterviewStore.getState().setPhase(i)}
-                className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold transition-colors ${
-                  i === currentPhase
-                    ? "bg-cyan-500 text-white"
-                    : i < currentPhase
-                      ? "bg-zinc-600 text-zinc-300"
-                      : "bg-zinc-700 text-zinc-500"
-                }`}
-                title={phase.name}
-                aria-label={`Go to phase ${i + 1}: ${phase.name}`}
-              >
-                {i < currentPhase ? <Check className="h-3 w-3" /> : i + 1}
-              </button>
-              {/* Connector line */}
-              {i < phases.length - 1 && (
-                <div
-                  className={`h-px w-2 md:w-4 ${i < currentPhase ? "bg-zinc-500" : "bg-zinc-700"}`}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-
         {/* Phase info */}
-        <div className="min-w-0 text-right">
+        <div className="min-w-0">
           <p className="truncate text-xs font-medium text-zinc-200">{phases[currentPhase].name}</p>
           <p className="hidden truncate text-[10px] text-zinc-400 sm:block">
             {phases[currentPhase].description}
@@ -130,26 +90,6 @@ export function InterviewBar() {
             aria-label={timerRunning ? "Pause timer" : "Resume timer"}
           >
             {timerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-          </button>
-
-          {/* Prev / Next phase */}
-          <button
-            onClick={prevPhase}
-            disabled={currentPhase === 0}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Previous phase"
-            aria-label="Previous phase"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            onClick={nextPhase}
-            disabled={currentPhase === phases.length - 1}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Next phase"
-            aria-label="Next phase"
-          >
-            <ChevronRight className="h-4 w-4" />
           </button>
 
           <div className="h-4 w-px bg-zinc-700" />
