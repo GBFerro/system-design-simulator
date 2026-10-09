@@ -97,12 +97,12 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 **Done when**:
 
-- [ ] `isReturnEdge`, `returnIdOf`, `makeReturnEdge`, `requestEdges`, `responseOf`, `asyncRequestIds`, `withReturns` exportados
-- [ ] Teste: `makeReturnEdge` inverte source/target, usa handles `ret-out`/`ret-in` e id `ret:<ida>`
-- [ ] Teste: `asyncRequestIds` devolve só as idas sem volta; `requestEdges` não contém voltas
-- [ ] Teste: `withReturns` é idempotente e não cria volta para ida em `async`
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `isReturnEdge`, `returnIdOf`, `makeReturnEdge`, `requestEdges`, `responseOf`, `asyncRequestIds`, `withReturns` exportados
+- [x] Teste: `makeReturnEdge` inverte source/target, usa handles `ret-out`/`ret-in` e id `ret:<ida>`
+- [x] Teste: `asyncRequestIds` devolve só as idas sem volta; `requestEdges` não contém voltas
+- [x] Teste: `withReturns` é idempotente e não cria volta para ida em `async`
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
