@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
 import { passThroughMigration, STORE_VERSION } from "./persistVersion";
 import { isCurrency, type Currency } from "@/cost/currency";
-import { STEPS, sanitizeStep, stepIndex, type RightTab, type Step } from "@/lib/steps";
+import { STEPS, sanitizeStep, stepForTab, stepIndex, type RightTab, type Step } from "@/lib/steps";
 
 export type ToastType = "success" | "error" | "info";
 export type Theme = "dark" | "light";
@@ -85,7 +85,9 @@ export const useAppStore = create<AppState>()(
       toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
       setLeftSidebarOpen: (open) => set({ leftSidebarOpen: open }),
       setActiveLeftTab: (tab) => set({ activeLeftTab: tab }),
-      setActiveRightTab: (tab) => set({ activeRightTab: tab }),
+      // Asking for a tool the step does not show moves to the step that has it (Cost chip → Evaluate).
+      setActiveRightTab: (tab) =>
+        set((s) => ({ activeRightTab: tab, step: stepForTab(tab, s.step) })),
       // Changing step only changes what is visible: never the graph, the history or a live run (AD-004).
       nextStep: () =>
         set((s) => ({ step: STEPS[Math.min(STEPS.length - 1, stepIndex(s.step) + 1)] })),

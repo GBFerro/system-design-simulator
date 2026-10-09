@@ -9,6 +9,7 @@ import {
   interviewTools,
   paletteVisible,
   sanitizeStep,
+  stepForTab,
   type RightTab,
 } from "@/lib/steps";
 
@@ -84,5 +85,18 @@ describe("interview phases (WIZ-21, WIZ-22, WIZ-23)", () => {
     expect(interviewTools(4)).toEqual(["properties", "flow", "simulation"]);
     expect(interviewTools(5)).toEqual([]);
     expect(interviewTools(0)).toEqual([]);
+  });
+});
+
+describe("asking for a tool (WIZ-10)", () => {
+  it("stays in the current step when it has the tool, else moves to the first step that does", () => {
+    expect(stepForTab("flow", "simulate")).toBe("simulate");
+    expect(stepForTab("flow", "evaluate")).toBe("design");
+    expect(stepForTab("properties", "failures")).toBe("failures");
+    expect(stepForTab("cost", "design")).toBe("evaluate");
+    expect(stepForTab("slo", "design")).toBe("failures");
+    expect(stepForTab("score", "simulate")).toBe("evaluate");
+    expect(stepForTab("capacity", "evaluate")).toBe("problem");
+    expect(stepForTab("capacity", "problem")).toBe("problem");
   });
 });

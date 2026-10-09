@@ -59,6 +59,7 @@ import { useChaosStore } from "@/store/chaosStore";
 import { useInterviewStore } from "@/store/interviewStore";
 import { InterviewPhasePanel } from "@/components/interview/InterviewPhasePanel";
 import dynamic from "next/dynamic";
+import { TOOLS_BY_STEP, interviewTools, type RightTab } from "@/lib/steps";
 
 // The Flow tab (request-flow): the panel, its diagram and the trace load on demand.
 const FlowPanel = dynamic(() => import("./FlowPanel").then((m) => m.FlowPanel), {
@@ -94,8 +95,18 @@ function TabCount({ n, tone, label }: { n: number; tone: string; label: string }
   );
 }
 
-function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
-  const activeRightTab = useAppStore((s) => s.activeRightTab);
+function RightTabs({
+  onAnalyze,
+  tools,
+}: {
+  onAnalyze: () => void;
+  /** The tabs the current step (or interview phase) shows, first = the one that opens. */
+  tools: readonly RightTab[];
+}) {
+  const stored = useAppStore((s) => s.activeRightTab);
+  // A tab the step does not show falls back to the step's first one.
+  const activeRightTab = tools.includes(stored) ? stored : tools[0];
+  const show = (tab: RightTab) => tools.includes(tab);
   const setActiveRightTab = useAppStore((s) => s.setActiveRightTab);
   const activeFaults = useChaosStore((s) => s.faults.filter((f) => f.active).length);
   // Info findings (over-provisioning, the score's notes) don't count toward the badge.
@@ -104,152 +115,192 @@ function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
   return (
     <Tabs
       value={activeRightTab}
-      onValueChange={(v) => setActiveRightTab(v as typeof activeRightTab)}
+      onValueChange={(v) => setActiveRightTab(v as RightTab)}
       className="flex flex-1 flex-col min-h-0"
     >
       <div className="mx-2 mt-2 shrink-0 overflow-x-auto">
         <TabsList className="h-8 w-max bg-zinc-800">
-          <TabsTrigger
-            value="properties"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Props
-          </TabsTrigger>
-          <TabsTrigger
-            value="simulation"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Simulate
-          </TabsTrigger>
-          <TabsTrigger value="flow" className={TAB_TRIGGER}>
-            Flow
-          </TabsTrigger>
-          <TabsTrigger value="chaos" className={TAB_TRIGGER}>
-            Chaos
-            <TabCount
-              n={activeFaults}
-              tone="bg-orange-500/20 text-orange-300"
-              label={`${activeFaults} active faults`}
-            />
-          </TabsTrigger>
-          <TabsTrigger value="slo" className={TAB_TRIGGER}>
-            SLO
-          </TabsTrigger>
-          <TabsTrigger
-            value="score"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Score
-          </TabsTrigger>
-          <TabsTrigger value="advisor" className={TAB_TRIGGER}>
-            Advisor
-            <TabCount
-              n={findings}
-              tone="bg-amber-500/20 text-amber-300"
-              label={`${findings} findings`}
-            />
-          </TabsTrigger>
-          <TabsTrigger value="cost" className={TAB_TRIGGER}>
-            Cost
-          </TabsTrigger>
-          <TabsTrigger
-            value="capacity"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Capacity
-          </TabsTrigger>
-          <TabsTrigger
-            value="tradeoffs"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Trade-offs
-          </TabsTrigger>
+          {show("properties") && (
+            <TabsTrigger
+              value="properties"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Props
+            </TabsTrigger>
+          )}
+          {show("simulation") && (
+            <TabsTrigger
+              value="simulation"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Simulate
+            </TabsTrigger>
+          )}
+          {show("flow") && (
+            <TabsTrigger value="flow" className={TAB_TRIGGER}>
+              Flow
+            </TabsTrigger>
+          )}
+          {show("chaos") && (
+            <TabsTrigger value="chaos" className={TAB_TRIGGER}>
+              Chaos
+              <TabCount
+                n={activeFaults}
+                tone="bg-orange-500/20 text-orange-300"
+                label={`${activeFaults} active faults`}
+              />
+            </TabsTrigger>
+          )}
+          {show("slo") && (
+            <TabsTrigger value="slo" className={TAB_TRIGGER}>
+              SLO
+            </TabsTrigger>
+          )}
+          {show("score") && (
+            <TabsTrigger
+              value="score"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Score
+            </TabsTrigger>
+          )}
+          {show("advisor") && (
+            <TabsTrigger value="advisor" className={TAB_TRIGGER}>
+              Advisor
+              <TabCount
+                n={findings}
+                tone="bg-amber-500/20 text-amber-300"
+                label={`${findings} findings`}
+              />
+            </TabsTrigger>
+          )}
+          {show("cost") && (
+            <TabsTrigger value="cost" className={TAB_TRIGGER}>
+              Cost
+            </TabsTrigger>
+          )}
+          {show("capacity") && (
+            <TabsTrigger
+              value="capacity"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Capacity
+            </TabsTrigger>
+          )}
+          {show("tradeoffs") && (
+            <TabsTrigger
+              value="tradeoffs"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Trade-offs
+            </TabsTrigger>
+          )}
         </TabsList>
       </div>
 
-      <TabsContent value="properties" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <PropertiesTab />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("properties") && (
+        <TabsContent value="properties" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <PropertiesTab />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="simulation" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={`${TAB_BODY} space-y-4`}>
-            <TrafficControls />
-            <Separator className="bg-zinc-800" />
-            <SimulationControls onAnalyze={onAnalyze} />
-            <Separator className="bg-zinc-800" />
-            <MetricsDisplay />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("simulation") && (
+        <TabsContent value="simulation" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={`${TAB_BODY} space-y-4`}>
+              <TrafficControls />
+              <Separator className="bg-zinc-800" />
+              <SimulationControls onAnalyze={onAnalyze} />
+              <Separator className="bg-zinc-800" />
+              <MetricsDisplay />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="flow" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <FlowPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("flow") && (
+        <TabsContent value="flow" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <FlowPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="chaos" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <ChaosPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("chaos") && (
+        <TabsContent value="chaos" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <ChaosPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="slo" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <SloPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("slo") && (
+        <TabsContent value="slo" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <SloPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="advisor" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <AdvisorPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("advisor") && (
+        <TabsContent value="advisor" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <AdvisorPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="score" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <div className={`h-full ${TAB_BODY}`}>
-          <ScoreReport />
-        </div>
-      </TabsContent>
-
-      <TabsContent value="cost" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <CostPanel />
+      {show("score") && (
+        <TabsContent value="score" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <div className={`h-full ${TAB_BODY}`}>
+            <ScoreReport />
           </div>
-        </ScrollArea>
-      </TabsContent>
+        </TabsContent>
+      )}
 
-      <TabsContent value="capacity" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <CapacityCalculator />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("cost") && (
+        <TabsContent value="cost" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <CostPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="tradeoffs" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={`${TAB_BODY} space-y-4`}>
-            <TradeoffLog />
-            <Separator className="bg-zinc-800" />
-            <TradeoffCards />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("capacity") && (
+        <TabsContent value="capacity" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <CapacityCalculator />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
+
+      {show("tradeoffs") && (
+        <TabsContent value="tradeoffs" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={`${TAB_BODY} space-y-4`}>
+              <TradeoffLog />
+              <Separator className="bg-zinc-800" />
+              <TradeoffCards />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
@@ -257,6 +308,8 @@ function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
 export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: RightPanelProps) {
   const interviewMode = useInterviewStore((s) => s.mode);
   const currentPhase = useInterviewStore((s) => s.currentPhase);
+  const step = useAppStore((s) => s.step);
+  const tools = interviewMode === "interview" ? interviewTools(currentPhase) : TOOLS_BY_STEP[step];
 
   // During interview mode, show phase panel for all phases except phase 4 (HLD)
   const showInterviewPhasePanel = interviewMode === "interview" && currentPhase !== 4;
@@ -264,7 +317,11 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
   if (variant === "mobile") {
     return (
       <div className="flex h-full w-full flex-col bg-zinc-900">
-        {showInterviewPhasePanel ? <InterviewPhasePanel /> : <RightTabs onAnalyze={onAnalyze} />}
+        {showInterviewPhasePanel ? (
+          <InterviewPhasePanel />
+        ) : (
+          <RightTabs onAnalyze={onAnalyze} tools={tools} />
+        )}
       </div>
     );
   }
@@ -281,7 +338,7 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
         <InterviewPhasePanel />
       ) : (
         <div className="flex w-[300px] flex-1 flex-col min-h-0">
-          <RightTabs onAnalyze={onAnalyze} />
+          <RightTabs onAnalyze={onAnalyze} tools={tools} />
         </div>
       )}
     </aside>

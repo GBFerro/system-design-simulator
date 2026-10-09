@@ -54,6 +54,20 @@ export function sanitizeStep(value: unknown): Step {
   return (STEPS as readonly unknown[]).includes(value) ? (value as Step) : "problem";
 }
 
+/**
+ * The step to show when a tool is asked for (the cost chip opens Cost, Score
+ * opens the report): the current step if it has the tool, else the first that does.
+ */
+export function stepForTab(tab: RightTab, current: Step): Step {
+  if (
+    TOOLS_BY_STEP[current].includes(tab) ||
+    (current === "problem" && PROBLEM_SCREEN_TOOLS.includes(tab))
+  )
+    return current;
+  if (PROBLEM_SCREEN_TOOLS.includes(tab)) return "problem";
+  return STEPS.find((s) => TOOLS_BY_STEP[s].includes(tab)) ?? current;
+}
+
 export const stepIndex = (step: Step): number => STEPS.indexOf(step);
 
 /** Interview phases (0-based): 1–4 are full-screen forms, 5 is High-Level Design, 6 the Deep Dive. */
