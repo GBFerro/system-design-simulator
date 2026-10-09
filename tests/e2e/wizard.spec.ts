@@ -163,3 +163,22 @@ test("Score, the cost chip and the SLO chip open the step that has their tool", 
   expect(await currentStep(page)).toBe("evaluate");
   await expect(page.getByRole("tab", { name: "Cost" })).toHaveAttribute("aria-selected", "true");
 });
+
+test("the walkthrough presents the step bar, and its own scenes show what is on screen (WIZ-14)", async ({
+  page,
+}) => {
+  await open(page, "/", "design");
+  await page.getByRole("button", { name: /New here\? See how it works/ }).click();
+  await page.getByRole("button", { name: /Watch the 60-second walkthrough/ }).click();
+  const tour = page.getByRole("dialog", { name: "SystemForge walkthrough" });
+  await expect(tour).toBeVisible();
+  // the second scene is the step bar, with the five steps in order
+  await tour.getByRole("button", { name: "Next" }).click();
+  await expect(tour.getByRole("heading", { name: "Follow the steps" })).toBeVisible();
+  await expect(tour.locator("[data-tour-steps]")).toContainText(
+    /1Problem\s*2Design\s*3Simulate\s*4Failures\s*5Evaluate/,
+  );
+  // ...and the app behind it really has that bar
+  await expect(bar(page).locator("[data-step]")).toHaveCount(5);
+  await expect(tour).toContainText("Next to move on");
+});

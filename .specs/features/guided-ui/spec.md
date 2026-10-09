@@ -192,66 +192,66 @@ O app abre com tudo ao mesmo tempo: top bar cheia, paleta, canvas e um painel di
 
 ## Requirement Traceability
 
-| Requirement ID | Story                          | Phase   | Status  |
-| -------------- | ------------------------------ | ------- | ------- |
-| RET-01         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-02         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-03         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-04         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-05         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-06         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-07         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-08         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-09         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-10         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-11         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-12         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-13         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-14         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-15         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-16         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-17         | P1: Ida e volta em duas linhas | Execute | Done    |
-| RET-20         | P1: Migração v4                | Execute | Done    |
-| RET-21         | P1: Migração v4                | Execute | Done    |
-| RET-22         | P1: Migração v4                | Execute | Done    |
-| RET-23         | P1: Migração v4                | Execute | Done    |
-| RET-24         | P1: Migração v4                | Execute | Done    |
-| RET-25         | P1: Migração v4                | Execute | Done    |
-| RET-26         | P1: Migração v4                | Execute | Done    |
-| RET-27         | P1: Migração v4                | Execute | Done    |
-| RET-28         | P1: Migração v4                | Execute | Done    |
-| RET-29         | P1: Migração v4                | Execute | Done    |
-| RET-30         | Edge cases                     | Execute | Done    |
-| RET-31         | Edge cases                     | Execute | Done    |
-| RET-32         | Edge cases                     | Execute | Done    |
-| WIZ-01         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-02         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-03         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-04         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-05         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-06         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-07         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-08         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-09         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-10         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-11         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-12         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-13         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-14         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-15         | P1: Wizard no modo livre       | Design  | Pending |
-| WIZ-20         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-21         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-22         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-23         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-24         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-25         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-26         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-27         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-28         | P2: Entrevista no wizard       | Design  | Pending |
-| WIZ-30         | Edge cases                     | Design  | Pending |
-| WIZ-31         | Edge cases                     | Design  | Pending |
+| Requirement ID | Story                          | Phase   | Status |
+| -------------- | ------------------------------ | ------- | ------ |
+| RET-01         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-02         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-03         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-04         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-05         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-06         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-07         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-08         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-09         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-10         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-11         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-12         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-13         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-14         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-15         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-16         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-17         | P1: Ida e volta em duas linhas | Execute | Done   |
+| RET-20         | P1: Migração v4                | Execute | Done   |
+| RET-21         | P1: Migração v4                | Execute | Done   |
+| RET-22         | P1: Migração v4                | Execute | Done   |
+| RET-23         | P1: Migração v4                | Execute | Done   |
+| RET-24         | P1: Migração v4                | Execute | Done   |
+| RET-25         | P1: Migração v4                | Execute | Done   |
+| RET-26         | P1: Migração v4                | Execute | Done   |
+| RET-27         | P1: Migração v4                | Execute | Done   |
+| RET-28         | P1: Migração v4                | Execute | Done   |
+| RET-29         | P1: Migração v4                | Execute | Done   |
+| RET-30         | Edge cases                     | Execute | Done   |
+| RET-31         | Edge cases                     | Execute | Done   |
+| RET-32         | Edge cases                     | Execute | Done   |
+| WIZ-01         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-02         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-03         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-04         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-05         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-06         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-07         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-08         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-09         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-10         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-11         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-12         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-13         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-14         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-15         | P1: Wizard no modo livre       | Execute | Done   |
+| WIZ-20         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-21         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-22         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-23         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-24         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-25         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-26         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-27         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-28         | P2: Entrevista no wizard       | Execute | Done   |
+| WIZ-30         | Edge cases                     | Execute | Done   |
+| WIZ-31         | Edge cases                     | Execute | Done   |
 
-**Coverage:** 56 total, 0 mapped to tasks, 56 unmapped ⚠️ (Design e Tasks ainda não rodaram)
+**Coverage:** 62 total, 62 implemented (RET-* and WIZ-* → Done); verification report: `validation.md`.
 
 ---
 
