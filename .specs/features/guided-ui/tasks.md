@@ -410,11 +410,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Apagar uma ida com volta apaga as duas numa entrada de undo; desfazer traz as duas de volta
-- [ ] Apagar só a volta torna a ida async
-- [ ] Apagar um nó leva as voltas das suas idas
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Apagar uma ida com volta apaga as duas numa entrada de undo; desfazer traz as duas de volta
+- [x] Apagar só a volta torna a ida async
+- [x] Apagar um nó leva as voltas das suas idas
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

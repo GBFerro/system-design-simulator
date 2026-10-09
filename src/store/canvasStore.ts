@@ -43,9 +43,11 @@ import {
 
 import {
   RETURN_SOURCE_HANDLE,
+  isReturnEdge,
   makeReturnEdge,
   requestEdges,
   responseOf,
+  responseToOf,
 } from "@/domain/graph/returns";
 
 export { edgeRuleOf } from "@/domain/graph/edgeRules";
@@ -285,6 +287,25 @@ function connectResponse(
       makeReturnEdge(open),
     ],
   };
+}
+
+/**
+ * The edges after a removal, kept consistent: a response whose request is gone
+ * goes with it (RET-08), and a request that lost its response is async (RET-07).
+ */
+function reconcileResponses(prev: readonly Edge[], next: Edge[]): Edge[] {
+  const ids = new Set(next.map((e) => e.id));
+  const kept = next.filter((e) => {
+    const to = responseToOf(e);
+    return to === undefined || ids.has(to);
+  });
+  const before = responseOf(prev);
+  const after = responseOf(kept);
+  return kept.map((e) =>
+    !isReturnEdge(e) && before.has(e.id) && !after.has(e.id)
+      ? { ...e, data: { ...e.data, async: true } }
+      : e,
+  );
 }
 
 const ruleGraph = (state: { nodes: Node[]; edges: Edge[] }) =>
@@ -537,8 +558,9 @@ export const useCanvasStore = create<CanvasState>()(
             return view.length === 0 ? state : { edges: applyEdgeChanges(view, state.edges) };
           }
           const hasRemove = changes.some((c) => c.type === "remove");
+          const applied = applyEdgeChanges(changes, state.edges);
           return {
-            edges: applyEdgeChanges(changes, state.edges),
+            edges: hasRemove ? reconcileResponses(state.edges, applied) : applied,
             ...(hasRemove ? { history: pushedHistory(state), future: [] } : null),
           };
         });
@@ -556,7 +578,12 @@ export const useCanvasStore = create<CanvasState>()(
             async: true,
           };
           // Service → Read Replica: the service's `always` edges to SQL DBs become `writes`
-          const edges = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
+          const split = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
+          // (the rule graph holds the requests only: the responses stay where they are)
+          const edges =
+            split === graph.edges
+              ? state.edges
+              : [...split, ...state.edges.filter((e) => isReturnEdge(e))];
           return {
             history: pushedHistory(state),
             future: [],
@@ -779,8 +806,11 @@ export const useCanvasStore = create<CanvasState>()(
             history: pushedHistory(state),
             future: [],
             nodes: state.nodes.filter((n) => !nodeIds.has(n.id)),
-            edges: state.edges.filter(
-              (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
+            edges: reconcileResponses(
+              state.edges,
+              state.edges.filter(
+                (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
+              ),
             ),
           };
         }),

@@ -46,6 +46,15 @@ describe("drawing the response of a call", () => {
     useAppStore.setState({ toast: null });
   });
 
+  it("connecting another call keeps the responses already drawn", () => {
+    setCanvas([node("client", "a"), node("app-server", "b"), node("sql-db", "c")]);
+    request("a", "b");
+    respond("b", "a");
+    request("b", "c");
+    expect(s().edges).toHaveLength(3);
+    expect(responseOf(s().edges).size).toBe(1);
+  });
+
   it("a new connection has no response: it is an async call (RET-06)", () => {
     request("a", "b");
     expect(s().edges).toHaveLength(1);
@@ -118,5 +127,58 @@ describe("drawing the response of a call", () => {
     });
     respond("b", "a");
     expect(s().edges).toHaveLength(1);
+  });
+});
+
+describe("deleting calls and responses (RET-07, RET-08)", () => {
+  beforeEach(() => {
+    setCanvas([node("client", "a"), node("app-server", "b"), node("sql-db", "c")]);
+    request("a", "b");
+    respond("b", "a");
+  });
+
+  const select = (ids: string[]) =>
+    useCanvasStore.setState({
+      edges: s().edges.map((e) => ({ ...e, selected: ids.includes(e.id) })),
+    });
+
+  it("deleting a request deletes its response in the same undo entry, and undo brings both back (RET-08)", () => {
+    const ida = requestEdges(s().edges)[0];
+    select([ida.id]);
+    const history = s().history.length;
+    s().deleteSelection();
+    expect(s().edges).toEqual([]);
+    expect(s().history).toHaveLength(history + 1);
+    s().undo();
+    expect(
+      s()
+        .edges.map((e) => e.id)
+        .sort(),
+    ).toEqual([ida.id, `ret:${ida.id}`].sort());
+  });
+
+  it("deleting only the response makes the request async (RET-07)", () => {
+    const ida = requestEdges(s().edges)[0];
+    select([`ret:${ida.id}`]);
+    s().deleteSelection();
+    expect(s().edges.map((e) => e.id)).toEqual([ida.id]);
+    expect((s().edges[0].data as { async?: boolean }).async).toBe(true);
+    expect(responseOf(s().edges).size).toBe(0);
+  });
+
+  it("deleting a node takes the calls and responses touching it", () => {
+    request("b", "c");
+    respond("c", "b");
+    expect(s().edges).toHaveLength(4);
+    useCanvasStore.setState({ nodes: s().nodes.map((n) => ({ ...n, selected: n.id === "c" })) });
+    s().deleteSelection();
+    expect(s().edges).toHaveLength(2);
+    expect(s().edges.every((e) => e.source !== "c" && e.target !== "c")).toBe(true);
+  });
+
+  it("onEdgesChange removals follow the same rule", () => {
+    const ida = requestEdges(s().edges)[0];
+    s().onEdgesChange([{ id: ida.id, type: "remove" }]);
+    expect(s().edges).toEqual([]);
   });
 });

@@ -22,6 +22,7 @@ import {
   sanitizeEdgeCalls,
 } from "@/domain/graph/edgeRules";
 import { planFor } from "@/domain/graph/callPlan";
+import { requestEdges } from "@/domain/graph/returns";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 
@@ -177,7 +178,7 @@ describe("look-aside connect default (FLW-24)", () => {
     // The cache edge came first, so the plan runs the DB call after it, without a warning
     const plan = planFor(
       "app",
-      s().edges.map((e) => ({
+      requestEdges(s().edges).map((e) => ({
         id: e.id,
         target: e.target,
         async: false,
