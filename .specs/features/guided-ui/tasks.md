@@ -23,7 +23,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 | Store (`canvasStore`, `appStore`, `interviewStore`) | unit | Cada ação nova: caminho feliz, no-op em aba somente leitura, uma entrada de undo | `tests/unit/editor.test.ts`, `persistence.*.test.ts`, `interview-store.test.ts` | `npx vitest run <arquivo>` |
 | Advisor / scoring / engine (leitores de arestas) | unit | Resultado idêntico com e sem voltas; golden intocado | `tests/unit/advisor.test.ts`, `scoring.test.ts`, `engine-*.test.ts` | `npm test` |
 | Componentes React de canvas e painel | e2e (Playwright), validado também no navegador | Fluxo do usuário: caminho feliz + cada edge case listado | `tests/e2e/*.spec.ts` | `npm run test:e2e` |
-| Componentes React de apresentação sem lógica extraível (alças, estilo, textos, layout por passo) | none por task | Cobertos pelo spec e2e que fecha a fase (T30, T41, T46) e verificados no navegador antes do commit; confirmar na aprovação | - | build gate only |
+| Componentes React de apresentação sem lógica extraível (alças, estilo, textos, layout por passo) | none por task | Cobertos pelo spec e2e que fecha a fase (T34, T45, T50) e verificados no navegador antes do commit; confirmar na aprovação | - | build gate only |
 | Docs / config | none | - (build gate only) | - | build gate only |
 
 ## Gate Check Commands
@@ -42,40 +42,40 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 Phases are ordered and run sequentially - each phase completes before the next begins, and tasks within a phase execute in order.
 
-### Phase 1: Modelo da volta e persistência v4
+### Phase 1: Modelo da volta e persistÃªncia v4
 
 ```
-T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8
+T1 → T2 → T3 → T4 → T5 → T6
 ```
 
-### Phase 2: Quem lê arestas passa a ver só idas
+### Phase 2: Todo produtor de arestas emite a volta
 
 ```
-T9 → T10 → T11 → T12 → T13 → T14 → T15 → T16
+T7 → T8 → T9 → T10 → T11 → T12 → T13 → T14
 ```
 
-### Phase 3: Edição da volta no store
+### Phase 3: Async passa a ser derivado da volta
 
 ```
-T17 → T18 → T19 → T20
+T15 → T16 → T17 → T18 → T19 → T20 → T21 → T22 → T23 → T24
 ```
 
 ### Phase 4: Canvas, painel e bolinhas
 
 ```
-T21 → T22 → T23 → T24 → T25 → T26 → T27 → T28 → T29 → T30 → T31
+T25 → T26 → T27 → T28 → T29 → T30 → T31 → T32 → T33 → T34 → T35
 ```
 
 ### Phase 5: Wizard no modo livre
 
 ```
-T32 → T33 → T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41
+T36 → T37 → T38 → T39 → T40 → T41 → T42 → T43 → T44 → T45
 ```
 
 ### Phase 6: Entrevista no wizard
 
 ```
-T42 → T43 → T44 → T45 → T46 → T47
+T46 → T47 → T48 → T49 → T50 → T51
 ```
 
 ---
@@ -111,9 +111,9 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T2: `compileGraph` ignora voltas e deriva `async`
+### T2: `compileGraph` ignora as voltas
 
-**What**: `compileGraph` ignora voltas e deriva `async`.
+**What**: `compileGraph` ignora as voltas.
 **Where**: `src/domain/graph/compile.ts`
 **Depends on**: T1
 **Reuses**: `returns.ts`
@@ -126,18 +126,17 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 **Done when**:
 
-- [ ] Voltas saem antes do Kahn: sem ciclo, sem aresta `back`, sem carga
-- [ ] `SimEdge.async` = ida sem volta (ou `data.async === true` legado)
-- [ ] Teste: ida com volta → `async: false`; sem volta → `async: true`; apagar a volta muda para async na próxima compilação
-- [ ] Teste: A → B e B → A, cada uma com a sua volta, compilam sem ciclo extra
-- [ ] Volta sem ida vira warning, nunca exceção
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Voltas saem antes do Kahn: sem ciclo, sem aresta `back`, sem carga
+- [x] `SimEdge.async` ainda vem sÃ³ do flag legado `data.async === true` (a derivaÃ§Ã£o da volta entra na task de troca)
+- [x] Teste: com voltas no grafo, `order`, `back`, `cycleIds` e `entryIds` sÃ£o os mesmos de sem elas; A â†’ B e B â†’ A com voltas nÃ£o criam ciclo extra
+- [x] Volta sem ida vira warning, nunca exceÃ§Ã£o
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
 
-**Commit**: `feat(graph): compilador ignora voltas e deriva async da ausência delas`
+**Commit**: `feat(graph): compilador ignora as voltas das chamadas`
 
 ---
 
@@ -156,10 +155,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 **Done when**:
 
-- [ ] Cria `ret:<ida>` para cada aresta entre nós de componente sem `async: true`, nenhuma para as async, e remove o flag
-- [ ] Nós de texto, strokes e arestas que tocam nós de texto ficam intactos
-- [ ] Puro, idempotente, nunca lança (teste com entradas lixo)
-- [ ] `migrateGraph` encadeia v1 → v2 → v3 → v4
+- [ ] Cria `ret:<ida>` para cada aresta entre nÃ³s de componente sem `async: true` e nenhuma para as async
+- [ ] O flag `async: true` das idas async fica por enquanto (a task de limpeza o remove)
+- [ ] NÃ³s de texto, strokes e arestas que tocam nÃ³s de texto ficam intactos
+- [ ] Puro, idempotente, nunca lanÃ§a (teste com entradas lixo)
+- [ ] `migrateGraph` encadeia v1 â†’ v2 â†’ v3 â†’ v4
 - [ ] `engine-golden.test.ts` passa sem alterar o fixture
 - [ ] Gate check passes: `npm run typecheck && npm test`
 - [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
@@ -213,9 +213,9 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 **Done when**:
 
-- [ ] `SerializedEdgeData` ganha `responseTo` e perde `async`
+- [ ] `SerializedEdgeData` ganha `responseTo` (o `async` legado segue atÃ© a limpeza)
 - [ ] Round-trip preserva voltas e `rule` da ida
-- [ ] Teste: aresta de volta serializa sem `rule`/`protocol` obrigatórios
+- [ ] Teste: aresta de volta serializa sem `rule`/`protocol` obrigatÃ³rios
 - [ ] Gate check passes: `npm run typecheck && npm test`
 - [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
@@ -254,228 +254,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T7: Helper de teste `compileV3`
-
-**What**: Helper de teste `compileV3`.
-**Where**: `tests/unit/engineFixtures.ts`
-**Depends on**: T6
-**Reuses**: `wire`/`comp` de `engineFixtures.ts`
-**Requirement**: RET-22
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] `compileV3(nodes, edges)` = `compileGraph(nodes, withReturns(edges, legacyAsync))` para fixtures que ainda escrevem o flag `async`
-- [ ] `wire` continua escrevendo `data.async`; teste do helper cobre sync e async
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: quick
-
-**Commit**: `test(engine): helper compileV3 para fixtures com flag async`
-
----
-
-### T8: Trocar as chamadas de `compileGraph` dos testes por `compileV3`
-
-**What**: Trocar as chamadas de `compileGraph` dos testes por `compileV3`.
-**Where**: `tests/unit (renomeação mecânica; sem mudar nenhum assert)`
-**Depends on**: T7
-**Reuses**: `compileV3` (T7)
-**Requirement**: RET-22
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] Toda chamada de `compileGraph` em `tests/unit/*.test.ts` que monta arestas à mão usa `compileV3`
-- [ ] Nenhum teste apagado, pulado ou com assert enfraquecido; contagem de testes igual à anterior
-- [ ] `npm test` inteiro verde e `engine-golden.test.ts` sem mudança de fixture
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: build
-
-**Commit**: `test(engine): fixtures de teste compilam pelo caminho v4`
-
----
-
-### T9: `scoring/paths.ts` só com idas
-
-**What**: `scoring/paths.ts` só com idas.
-**Where**: `src/scoring/paths.ts`
-**Depends on**: None (fase anterior concluída; após T8)
-**Reuses**: `asyncRequestIds`
-**Requirement**: RET-09
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] Caminho síncrono, profundidade e SPOFs ignoram voltas e usam `asyncRequestIds`
-- [ ] Teste: adicionar voltas não muda caminho, profundidade nem SPOFs; ida sem volta fica fora do caminho do usuário
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: quick
-
-**Commit**: `refactor(scoring): caminho síncrono lê só as idas`
-
----
-
-### T10: `advisor/load.ts` só com idas
-
-**What**: `advisor/load.ts` só com idas.
-**Where**: `src/advisor/load.ts`
-**Depends on**: T9
-**Reuses**: `asyncRequestIds`
-**Requirement**: RET-09
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] Troca `isAsyncEdge(e)` por conjunto derivado e ignora voltas
-- [ ] Teste: findings de carga idênticos com e sem voltas
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: quick
-
-**Commit**: `refactor(advisor): regras de carga ignoram a volta`
-
----
-
-### T11: `advisor/patterns.ts` só com idas
-
-**What**: `advisor/patterns.ts` só com idas.
-**Where**: `src/advisor/patterns.ts`
-**Depends on**: T10
-**Reuses**: `asyncRequestIds`
-**Requirement**: RET-09
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] Leituras sem cache e trabalho lento no caminho leem só idas
-- [ ] Teste: nenhum finding novo por causa de voltas; `advisor.test.ts` continua sem finding acima de info nas referências
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: quick
-
-**Commit**: `refactor(advisor): padrões ignoram a volta`
-
----
-
-### T12: `advisor/mitigation.ts` só com idas
-
-**What**: `advisor/mitigation.ts` só com idas.
-**Where**: `src/advisor/mitigation.ts`
-**Depends on**: T11
-**Reuses**: `requestEdges`
-**Requirement**: RET-09
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] Chamadores de um alvo são só idas síncronas
-- [ ] Teste: `mitigation.test.ts` continua verde com voltas no grafo
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: quick
-
-**Commit**: `refactor(advisor): mitigações ignoram a volta`
-
----
-
-### T13: `topologySignature` inclui as voltas
-
-**What**: `topologySignature` inclui as voltas.
-**Where**: `src/lib/topology.ts`
-**Depends on**: T12
-**Reuses**: `isReturnEdge`
-**Requirement**: RET-07
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] Assinatura inclui o id da volta: criar ou apagar a volta muda a assinatura
-- [ ] Teste: mover nós não muda a assinatura; apagar uma volta muda
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: quick
-
-**Commit**: `feat(topology): assinatura reflete a volta`
-
----
-
-### T14: Remover `isAsyncEdge` por aresta de `edgeRules.ts`
-
-**What**: Remover `isAsyncEdge` por aresta de `edgeRules.ts`.
-**Where**: `src/domain/graph/edgeRules.ts`
-**Depends on**: T13
-**Reuses**: `returns.ts`
-**Requirement**: RET-06
-
-**Tools**:
-
-- MCP: NONE
-- Skill: NONE
-
-**Done when**:
-
-- [ ] `isAsyncEdge` removido (ou delega a `returns.ts`) e o uso da linha 136 passa a ler só idas
-- [ ] Nenhum chamador restante; `npm run typecheck` limpo
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
-
-**Tests**: unit
-**Gate**: quick
-
-**Commit**: `refactor(graph): async deixa de ser um flag por aresta`
-
----
-
-### T15: `advisor/graph.ts`: diffs com volta
+### T7: `advisor/graph.ts`: diffs com volta
 
 **What**: `advisor/graph.ts`: diffs com volta.
 **Where**: `src/advisor/graph.ts`
-**Depends on**: T14
+**Depends on**: None (fase anterior concluída; após T6)
 **Reuses**: `insertBetween`, `applyDiff`, `GraphDiff`
 **Requirement**: RET-26, RET-27
 
@@ -486,8 +269,8 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 **Done when**:
 
-- [ ] `GraphDiff` carrega a volta de cada aresta síncrona criada; `applyDiff` a aplica
-- [ ] `insertBetween` A → B em A → X → B dá volta às duas metades se e só se o link original tinha
+- [ ] `GraphDiff` carrega a volta de cada aresta sÃ­ncrona criada; `applyDiff` a aplica
+- [ ] `insertBetween` A â†’ B em A â†’ X â†’ B dÃ¡ volta Ã s duas metades se e sÃ³ se o link original tinha
 - [ ] Teste: link async continua async depois do fix; `keepLinkOnOut` preservado
 - [ ] Gate check passes: `npm run typecheck && npm test`
 - [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
@@ -499,11 +282,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T16: `loadReference` cria a volta das referências
+### T8: `loadReference` cria a volta das referências
 
 **What**: `loadReference` cria a volta das referências.
 **Where**: `src/lib/loadReference.ts`
-**Depends on**: T15
+**Depends on**: T7
 **Reuses**: `withReturns`, `newEdgeData`
 **Requirement**: RET-25
 
@@ -517,21 +300,76 @@ T42 → T43 → T44 → T45 → T46 → T47
 - [ ] Cada aresta da referência sem `async` ganha `ret:<ida>`; `ref.async === true` não ganha
 - [ ] Teste: as 35 referências abrem com voltas e seus scores (`scoring.test.ts`, `engine-references.test.ts`) não mudam
 - [ ] `data.test.ts` verde
-- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [ ] Gate check passes: `npm run typecheck && npm test`
 - [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
-**Gate**: build
+**Gate**: quick
 
 **Commit**: `feat(reference): referências abrem com as voltas desenhadas`
 
 ---
 
-### T17: `onConnect` pela alça de volta
+### T9: Helper de teste `compileV3`
+
+**What**: Helper de teste `compileV3`.
+**Where**: `tests/unit/engineFixtures.ts`
+**Depends on**: T8
+**Reuses**: `wire`/`comp` de `engineFixtures.ts`
+**Requirement**: RET-22
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] `compileV3(nodes, edges)` = `compileGraph(nodes, withReturns(edges))`: cada aresta sem o flag `async` ganha a volta, como a migraÃ§Ã£o faria
+- [ ] Teste do helper: sync ganha volta, async nÃ£o ganha
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `test(engine): helper compileV3 para fixtures com flag async`
+
+---
+
+### T10: Trocar as chamadas de `compileGraph` dos testes por `compileV3`
+
+**What**: Trocar as chamadas de `compileGraph` dos testes por `compileV3`.
+**Where**: `tests/unit (renomeação mecânica; sem mudar nenhum assert)`
+**Depends on**: T9
+**Reuses**: `compileV3` (T9)
+**Requirement**: RET-22
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Toda chamada de `compileGraph` em `tests/unit/*.test.ts` que monta arestas Ã  mÃ£o usa `compileV3`
+- [ ] Nenhum teste apagado, pulado ou com assert enfraquecido; contagem de testes igual Ã  anterior
+- [ ] `npm test` inteiro verde e `engine-golden.test.ts` sem mudanÃ§a de fixture
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `test(engine): fixtures de teste compilam pelo caminho v4`
+
+---
+
+### T11: `onConnect` pela alça de volta
 
 **What**: `onConnect` pela alça de volta.
 **Where**: `src/store/canvasStore.ts`
-**Depends on**: None (fase anterior concluída; após T16)
+**Depends on**: T10
 **Reuses**: `newEdgeData`, `showToast`
 **Requirement**: RET-01, RET-02, RET-03, RET-30, RET-31
 
@@ -545,8 +383,8 @@ T42 → T43 → T44 → T45 → T46 → T47
 - [ ] `ret-out` → `ret-in` cria a volta quando existe ida sem volta, numa entrada de undo
 - [ ] Sem ida: nenhuma aresta e toast "A response needs a request: connect A → B first" (com rótulos)
 - [ ] Volta duplicada, para o próprio nó ou para nó de texto: nada criado e sem entrada de undo
-- [ ] Conexão pela alça de ida nasce sem volta e sem `async` no `data`
-- [ ] Teste: A → B e B → A com voltas independentes
+- [ ] ConexÃ£o pela alÃ§a de ida nasce sem volta e sem `data.async` (async quando a troca entrar)
+- [ ] Teste: A â†’ B e B â†’ A com voltas independentes
 - [ ] Gate check passes: `npm run typecheck && npm test`
 - [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
@@ -557,11 +395,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T18: Apagar a ida apaga a volta
+### T12: Apagar a ida apaga a volta
 
 **What**: Apagar a ida apaga a volta.
 **Where**: `src/store/canvasStore.ts`
-**Depends on**: T17
+**Depends on**: T11
 **Reuses**: `deleteSelection`
 **Requirement**: RET-08, RET-07
 
@@ -585,11 +423,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T19: Ação `setEdgeSync` (Sync/Async)
+### T13: Ação `setEdgeSync` (Sync/Async)
 
 **What**: Ação `setEdgeSync` (Sync/Async).
 **Where**: `src/store/canvasStore.ts`
-**Depends on**: T18
+**Depends on**: T12
 **Reuses**: `MUTATING_ACTIONS`
 **Requirement**: RET-12, RET-13, RET-17
 
@@ -613,11 +451,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T20: Copiar, colar e duplicar com a volta
+### T14: Copiar, colar e duplicar com a volta
 
 **What**: Copiar, colar e duplicar com a volta.
 **Where**: `src/store/canvasStore.ts`
-**Depends on**: T19
+**Depends on**: T13
 **Reuses**: `selectionSubgraph`, `cloneSubgraph`
 **Requirement**: RET-28
 
@@ -641,11 +479,283 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T21: Alças de volta em `ComponentNode`
+### T15: `compileGraph` deriva `async` da volta
+
+**What**: `compileGraph` deriva `async` da volta.
+**Where**: `src/domain/graph/compile.ts`
+**Depends on**: None (fase anterior concluída; após T14)
+**Reuses**: `asyncRequestIds`
+**Requirement**: RET-06, RET-07
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] `SimEdge.async` = ida sem volta (o flag legado `data.async === true` ainda forÃ§a async)
+- [ ] Teste: ida com volta â†’ `async: false`; sem volta â†’ `async: true`; apagar a volta muda para async na prÃ³xima compilaÃ§Ã£o
+- [ ] Todo produtor de arestas jÃ¡ emite a volta, entÃ£o `npm test` inteiro fica verde sem tocar nenhum assert
+- [ ] `engine-golden.test.ts` sem mudanÃ§a de fixture
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `feat(graph): async passa a ser derivado da ausÃªncia da volta`
+
+---
+
+### T16: `scoring/paths.ts` só com idas
+
+**What**: `scoring/paths.ts` só com idas.
+**Where**: `src/scoring/paths.ts`
+**Depends on**: T15
+**Reuses**: `asyncRequestIds`
+**Requirement**: RET-09
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Caminho síncrono, profundidade e SPOFs ignoram voltas e usam `asyncRequestIds`
+- [ ] Teste: adicionar voltas não muda caminho, profundidade nem SPOFs; ida sem volta fica fora do caminho do usuário
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `refactor(scoring): caminho síncrono lê só as idas`
+
+---
+
+### T17: `advisor/load.ts` só com idas
+
+**What**: `advisor/load.ts` só com idas.
+**Where**: `src/advisor/load.ts`
+**Depends on**: T16
+**Reuses**: `asyncRequestIds`
+**Requirement**: RET-09
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Troca `isAsyncEdge(e)` por conjunto derivado e ignora voltas
+- [ ] Teste: findings de carga idênticos com e sem voltas
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `refactor(advisor): regras de carga ignoram a volta`
+
+---
+
+### T18: `advisor/patterns.ts` só com idas
+
+**What**: `advisor/patterns.ts` só com idas.
+**Where**: `src/advisor/patterns.ts`
+**Depends on**: T17
+**Reuses**: `asyncRequestIds`
+**Requirement**: RET-09
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Leituras sem cache e trabalho lento no caminho leem só idas
+- [ ] Teste: nenhum finding novo por causa de voltas; `advisor.test.ts` continua sem finding acima de info nas referências
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `refactor(advisor): padrões ignoram a volta`
+
+---
+
+### T19: `advisor/mitigation.ts` só com idas
+
+**What**: `advisor/mitigation.ts` só com idas.
+**Where**: `src/advisor/mitigation.ts`
+**Depends on**: T18
+**Reuses**: `requestEdges`
+**Requirement**: RET-09
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Chamadores de um alvo são só idas síncronas
+- [ ] Teste: `mitigation.test.ts` continua verde com voltas no grafo
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `refactor(advisor): mitigações ignoram a volta`
+
+---
+
+### T20: `topologySignature` inclui as voltas
+
+**What**: `topologySignature` inclui as voltas.
+**Where**: `src/lib/topology.ts`
+**Depends on**: T19
+**Reuses**: `isReturnEdge`
+**Requirement**: RET-07
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Assinatura inclui o id da volta: criar ou apagar a volta muda a assinatura
+- [ ] Teste: mover nós não muda a assinatura; apagar uma volta muda
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `feat(topology): assinatura reflete a volta`
+
+---
+
+### T21: Remover `isAsyncEdge` por aresta de `edgeRules.ts`
+
+**What**: Remover `isAsyncEdge` por aresta de `edgeRules.ts`.
+**Where**: `src/domain/graph/edgeRules.ts`
+**Depends on**: T20
+**Reuses**: `returns.ts`
+**Requirement**: RET-06
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] `isAsyncEdge` removido (ou delega a `returns.ts`) e o uso da linha 136 passa a ler só idas
+- [ ] Nenhum chamador restante; `npm run typecheck` limpo
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `refactor(graph): async deixa de ser um flag por aresta`
+
+---
+
+### T22: `migrateGraphV3toV4` deixa de manter o flag `async`
+
+**What**: `migrateGraphV3toV4` deixa de manter o flag `async`.
+**Where**: `src/domain/persistence/migrate.ts`
+**Depends on**: T21
+**Reuses**: `migrateGraphV3toV4`
+**Requirement**: RET-20
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] As idas async nÃ£o carregam mais `data.async` depois de migradas
+- [ ] Teste: grafo migrado compila igual ao v3 original (mesmo `SimGraph`, bit-idÃªntico)
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `refactor(persistence): migraÃ§Ã£o v4 remove o flag async`
+
+---
+
+### T23: `serializeEdges` deixa de gravar `async`
+
+**What**: `serializeEdges` deixa de gravar `async`.
+**Where**: `src/domain/persistence/serialize.ts`
+**Depends on**: T22
+**Reuses**: `SerializedEdgeData`
+**Requirement**: RET-23
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] `SerializedEdgeData` perde `async`; export e save nÃ£o gravam o flag
+- [ ] Teste: round-trip de ida com e sem volta preserva a semÃ¢ntica sync/async
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: quick
+
+**Commit**: `refactor(persistence): formato salvo nÃ£o grava async`
+
+---
+
+### T24: `newEdgeData` deixa de criar `async`
+
+**What**: `newEdgeData` deixa de criar `async`.
+**Where**: `src/domain/graph/edgeRules.ts`
+**Depends on**: T23
+**Reuses**: `newEdgeData`, `defaultEdgeAsync`
+**Requirement**: RET-06
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] `NewEdgeData` perde `async`; `defaultEdgeAsync` sai ou fica sÃ³ para decidir se uma aresta de referÃªncia ganha volta
+- [ ] Nenhum chamador escreve `data.async`; `npm run typecheck` limpo
+- [ ] Gate check passes: `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check`
+- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+
+**Tests**: unit
+**Gate**: build
+
+**Commit**: `refactor(graph): arestas novas nascem sem o flag async`
+
+---
+
+### T25: Alças de volta em `ComponentNode`
 
 **What**: Alças de volta em `ComponentNode`.
 **Where**: `src/components/canvas/nodes/ComponentNode.tsx`
-**Depends on**: None (fase anterior concluída; após T20)
+**Depends on**: None (fase anterior concluída; após T24)
 **Reuses**: `Handle` atual
 **Requirement**: RET-14, RET-01
 
@@ -668,12 +778,12 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T22: Alças de volta em `InstanceNode`
+### T26: Alças de volta em `InstanceNode`
 
 **What**: Alças de volta em `InstanceNode`.
 **Where**: `src/components/canvas/nodes/InstanceNode.tsx`
-**Depends on**: T21
-**Reuses**: `ComponentNode` (T21)
+**Depends on**: T25
+**Reuses**: `ComponentNode` (T25)
 **Requirement**: RET-15
 
 **Tools**:
@@ -695,11 +805,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T23: `AnimatedEdge`: volta tracejada com seta em quem chamou
+### T27: `AnimatedEdge`: volta tracejada com seta em quem chamou
 
 **What**: `AnimatedEdge`: volta tracejada com seta em quem chamou.
 **Where**: `src/components/canvas/edges/AnimatedEdge.tsx`
-**Depends on**: T22
+**Depends on**: T26
 **Reuses**: `lib/particles.ts` (largura e cor)
 **Requirement**: RET-04, RET-05
 
@@ -723,11 +833,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T24: `instanceGraph`: voltas por card
+### T28: `instanceGraph`: voltas por card
 
 **What**: `instanceGraph`: voltas por card.
 **Where**: `src/components/canvas/instanceGraph.ts`
-**Depends on**: T23
+**Depends on**: T27
 **Reuses**: `instanceEdgeId`
 **Requirement**: RET-15
 
@@ -750,11 +860,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T25: `DesignCanvas`: conexão válida e somente leitura
+### T29: `DesignCanvas`: conexão válida e somente leitura
 
 **What**: `DesignCanvas`: conexão válida e somente leitura.
 **Where**: `src/components/canvas/DesignCanvas.tsx`
-**Depends on**: T24
+**Depends on**: T28
 **Reuses**: `isValidConnection`
 **Requirement**: RET-14, RET-02
 
@@ -777,11 +887,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T26: `flowBalls`: resposta anda na linha da volta
+### T30: `flowBalls`: resposta anda na linha da volta
 
 **What**: `flowBalls`: resposta anda na linha da volta.
 **Where**: `src/lib/flowBalls.ts`
-**Depends on**: T25
+**Depends on**: T29
 **Reuses**: `len − pos` de `respond`
 **Requirement**: RET-10, RET-16
 
@@ -804,11 +914,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T27: `FlowParticles`: caminhos da volta
+### T31: `FlowParticles`: caminhos da volta
 
 **What**: `FlowParticles`: caminhos da volta.
 **Where**: `src/components/canvas/FlowParticles.tsx`
-**Depends on**: T26
+**Depends on**: T30
 **Reuses**: `getPointAtLength` e cache por `d`
 **Requirement**: RET-10, RET-16
 
@@ -831,11 +941,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T28: Aba Props: volta selecionada e Sync/Async
+### T32: Aba Props: volta selecionada e Sync/Async
 
 **What**: Aba Props: volta selecionada e Sync/Async.
 **Where**: `src/components/panel/RightPanel.tsx`
-**Depends on**: T27
+**Depends on**: T31
 **Reuses**: `updateEdgeData`, `ParamsForm`
 **Requirement**: RET-11, RET-12, RET-13, RET-17
 
@@ -859,11 +969,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T29: Menu de contexto: Sync/Async pela volta
+### T33: Menu de contexto: Sync/Async pela volta
 
 **What**: Menu de contexto: Sync/Async pela volta.
 **Where**: `src/components/canvas/CanvasContextMenu.tsx`
-**Depends on**: T28
+**Depends on**: T32
 **Reuses**: `setEdgeSync`
 **Requirement**: RET-12, RET-13, RET-17
 
@@ -886,11 +996,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T30: E2E da ida e volta
+### T34: E2E da ida e volta
 
 **What**: E2E da ida e volta.
 **Where**: `tests/e2e/return-edge.spec.ts`
-**Depends on**: T29
+**Depends on**: T33
 **Reuses**: `helpers.ts` (`open`, `quickAdd`, `connect`)
 **Requirement**: RET-01, RET-02, RET-03, RET-08, RET-10, RET-13, RET-14, RET-16, RET-31
 
@@ -915,11 +1025,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T31: `CLAUDE.md`: invariante da ida e volta
+### T35: `CLAUDE.md`: invariante da ida e volta
 
 **What**: `CLAUDE.md`: invariante da ida e volta.
 **Where**: `CLAUDE.md`
-**Depends on**: T30
+**Depends on**: T34
 **Reuses**: Seção "Canvas/UI" e "Persistence schema"
 **Requirement**: RET-29
 
@@ -942,11 +1052,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T32: Definição pura dos passos
+### T36: Definição pura dos passos
 
 **What**: Definição pura dos passos.
 **Where**: `src/lib/steps.ts`
-**Depends on**: None (fase anterior concluída; após T31)
+**Depends on**: None (fase anterior concluída; após T35)
 **Reuses**: `RightTab` de `appStore.ts`
 **Requirement**: WIZ-01, WIZ-08, WIZ-09, WIZ-10
 
@@ -970,11 +1080,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T33: `appStore`: passo persistido
+### T37: `appStore`: passo persistido
 
 **What**: `appStore`: passo persistido.
 **Where**: `src/store/appStore.ts`
-**Depends on**: T32
+**Depends on**: T36
 **Reuses**: `persist` + `STORE_VERSION`
 **Requirement**: WIZ-02, WIZ-03, WIZ-04, WIZ-15, WIZ-05, WIZ-06, WIZ-11, WIZ-12
 
@@ -999,11 +1109,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T34: `StepBar`
+### T38: `StepBar`
 
 **What**: `StepBar`.
 **Where**: `src/components/layout/StepBar.tsx`
-**Depends on**: T33
+**Depends on**: T37
 **Reuses**: `useIsMobile`, `components/ui`
 **Requirement**: WIZ-01, WIZ-02, WIZ-03, WIZ-04, WIZ-15, WIZ-05, WIZ-06, WIZ-13
 
@@ -1027,11 +1137,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T35: `RightPanel` mostra só as abas do passo
+### T39: `RightPanel` mostra só as abas do passo
 
 **What**: `RightPanel` mostra só as abas do passo.
 **Where**: `src/components/panel/RightPanel.tsx`
-**Depends on**: T34
+**Depends on**: T38
 **Reuses**: `TOOLS_BY_STEP`
 **Requirement**: WIZ-08, WIZ-10
 
@@ -1054,11 +1164,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T36: `ProblemStep` em tela cheia
+### T40: `ProblemStep` em tela cheia
 
 **What**: `ProblemStep` em tela cheia.
 **Where**: `src/components/layout/ProblemStep.tsx`
-**Depends on**: T35
+**Depends on**: T39
 **Reuses**: `ProblemSelector`, `LearningPath`, `CapacityCalculator`
 **Requirement**: WIZ-07, WIZ-31
 
@@ -1081,11 +1191,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T37: `Sidebar` só mostra a paleta no passo Design
+### T41: `Sidebar` só mostra a paleta no passo Design
 
 **What**: `Sidebar` só mostra a paleta no passo Design.
 **Where**: `src/components/sidebar/Sidebar.tsx`
-**Depends on**: T36
+**Depends on**: T40
 **Reuses**: `paletteVisible`
 **Requirement**: WIZ-09, WIZ-30
 
@@ -1108,11 +1218,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T38: `AppShell` monta o layout do passo
+### T42: `AppShell` monta o layout do passo
 
 **What**: `AppShell` monta o layout do passo.
 **Where**: `src/components/layout/app-shell.tsx`
-**Depends on**: T37
+**Depends on**: T41
 **Reuses**: `StepBar`, `ProblemStep`
 **Requirement**: WIZ-01, WIZ-07, WIZ-09, WIZ-10, WIZ-11, WIZ-30, WIZ-31
 
@@ -1136,11 +1246,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T39: `Walkthrough` apresenta a barra de passos
+### T43: `Walkthrough` apresenta a barra de passos
 
 **What**: `Walkthrough` apresenta a barra de passos.
 **Where**: `src/components/Walkthrough.tsx`
-**Depends on**: T38
+**Depends on**: T42
 **Reuses**: passos atuais do tour
 **Requirement**: WIZ-14
 
@@ -1163,11 +1273,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T40: `HowItWorksDialog` descreve os passos
+### T44: `HowItWorksDialog` descreve os passos
 
 **What**: `HowItWorksDialog` descreve os passos.
 **Where**: `src/components/dialogs/HowItWorksDialog.tsx`
-**Depends on**: T39
+**Depends on**: T43
 **Reuses**: texto atual
 **Requirement**: WIZ-14
 
@@ -1190,11 +1300,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T41: E2E do wizard
+### T45: E2E do wizard
 
 **What**: E2E do wizard.
 **Where**: `tests/e2e/wizard.spec.ts`
-**Depends on**: T40
+**Depends on**: T44
 **Reuses**: `helpers.ts`
 **Requirement**: WIZ-01, WIZ-02, WIZ-03, WIZ-04, WIZ-15, WIZ-05, WIZ-06, WIZ-07, WIZ-08, WIZ-09, WIZ-11, WIZ-12, WIZ-13, WIZ-30, WIZ-31
 
@@ -1218,11 +1328,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T42: `interviewStore`: navegação só para trás e passo de volta
+### T46: `interviewStore`: navegação só para trás e passo de volta
 
 **What**: `interviewStore`: navegação só para trás e passo de volta.
 **Where**: `src/store/interviewStore.ts`
-**Depends on**: None (fase anterior concluída; após T41)
+**Depends on**: None (fase anterior concluída; após T45)
 **Reuses**: `setPhase`, `leavePhase`
 **Requirement**: WIZ-24, WIZ-25, WIZ-27, WIZ-28
 
@@ -1246,11 +1356,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T43: `InterviewBar` com as 6 fases na `StepBar`
+### T47: `InterviewBar` com as 6 fases na `StepBar`
 
 **What**: `InterviewBar` com as 6 fases na `StepBar`.
 **Where**: `src/components/interview/InterviewBar.tsx`
-**Depends on**: T42
+**Depends on**: T46
 **Reuses**: `StepBar`
 **Requirement**: WIZ-20, WIZ-25
 
@@ -1273,11 +1383,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T44: `AppShell` na entrevista: fases 1–4 em tela cheia
+### T48: `AppShell` na entrevista: fases 1–4 em tela cheia
 
 **What**: `AppShell` na entrevista: fases 1–4 em tela cheia.
 **Where**: `src/components/layout/app-shell.tsx`
-**Depends on**: T43
+**Depends on**: T47
 **Reuses**: `interviewStepOf`, `PhaseForms`
 **Requirement**: WIZ-21, WIZ-22, WIZ-23
 
@@ -1300,11 +1410,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T45: `finishInterview` leva a Evaluate
+### T49: `finishInterview` leva a Evaluate
 
 **What**: `finishInterview` leva a Evaluate.
 **Where**: `src/components/interview/finishInterview.ts`
-**Depends on**: T44
+**Depends on**: T48
 **Reuses**: `reportStore`, `appStore.setStep`
 **Requirement**: WIZ-26
 
@@ -1327,11 +1437,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T46: E2E da entrevista no wizard
+### T50: E2E da entrevista no wizard
 
 **What**: E2E da entrevista no wizard.
 **Where**: `tests/e2e/interview.spec.ts`
-**Depends on**: T45
+**Depends on**: T49
 **Reuses**: `wizard.spec.ts`
 **Requirement**: WIZ-20, WIZ-21, WIZ-22, WIZ-23, WIZ-24, WIZ-25, WIZ-26, WIZ-27, WIZ-28
 
@@ -1354,11 +1464,11 @@ T42 → T43 → T44 → T45 → T46 → T47
 
 ---
 
-### T47: `CLAUDE.md`: invariantes do wizard, mapa e orçamento
+### T51: `CLAUDE.md`: invariantes do wizard, mapa e orçamento
 
 **What**: `CLAUDE.md`: invariantes do wizard, mapa e orçamento.
 **Where**: `CLAUDE.md`
-**Depends on**: T46
+**Depends on**: T50
 **Reuses**: seção "Architecture map" e "Canvas/UI"
 **Requirement**: WIZ-10
 
@@ -1387,12 +1497,12 @@ T42 → T43 → T44 → T45 → T46 → T47
 ```
 Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
-Phase 1: T1 ------→ T2 ------→ T3 ------→ T4 ------→ T5 ------→ T6 ------→ T7 ------→ T8
-Phase 2: T9 ------→ T10 ------→ T11 ------→ T12 ------→ T13 ------→ T14 ------→ T15 ------→ T16
-Phase 3: T17 ------→ T18 ------→ T19 ------→ T20
-Phase 4: T21 ------→ T22 ------→ T23 ------→ T24 ------→ T25 ------→ T26 ------→ T27 ------→ T28 ------→ T29 ------→ T30 ------→ T31
-Phase 5: T32 ------→ T33 ------→ T34 ------→ T35 ------→ T36 ------→ T37 ------→ T38 ------→ T39 ------→ T40 ------→ T41
-Phase 6: T42 ------→ T43 ------→ T44 ------→ T45 ------→ T46 ------→ T47
+Phase 1: T1 ------→ T2 ------→ T3 ------→ T4 ------→ T5 ------→ T6
+Phase 2: T7 ------→ T8 ------→ T9 ------→ T10 ------→ T11 ------→ T12 ------→ T13 ------→ T14
+Phase 3: T15 ------→ T16 ------→ T17 ------→ T18 ------→ T19 ------→ T20 ------→ T21 ------→ T22 ------→ T23 ------→ T24
+Phase 4: T25 ------→ T26 ------→ T27 ------→ T28 ------→ T29 ------→ T30 ------→ T31 ------→ T32 ------→ T33 ------→ T34 ------→ T35
+Phase 5: T36 ------→ T37 ------→ T38 ------→ T39 ------→ T40 ------→ T41 ------→ T42 ------→ T43 ------→ T44 ------→ T45
+Phase 6: T46 ------→ T47 ------→ T48 ------→ T49 ------→ T50 ------→ T51
 ```
 
 Execução estritamente sequencial: um agente (ou worker) faz uma task por vez, em ordem. Cada task termina com gate verde e um commit atômico (Conventional Commits, sem atribuição de IA, conforme `CLAUDE.md`).

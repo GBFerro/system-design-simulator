@@ -15,7 +15,7 @@ export const RETURN_TARGET_HANDLE = "ret-in";
 
 const RETURN_ID_PREFIX = "ret:";
 
-type EdgeLike = Pick<Edge, "id" | "source" | "target"> & { data?: unknown };
+type EdgeLike = { id: string; data?: unknown };
 
 /** The request an edge answers, when the edge is a response. */
 export function responseToOf(edge: { data?: unknown }): string | undefined {
