@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_ANSWERS, useInterviewStore } from "@/store/interviewStore";
+import { useAppStore } from "@/store/appStore";
 
 const st = () => useInterviewStore.getState();
 
@@ -68,5 +69,30 @@ describe("interviewStore (Spec 09)", () => {
     const saved = partialize(st()) as Record<string, unknown>;
     expect(saved).toHaveProperty("answers");
     expect(saved).toHaveProperty("phaseSeconds");
+  });
+
+  // guided-ui, WIZ-24, WIZ-25, WIZ-27
+  it("the bar only goes back: a later phase is ignored, an earlier one accumulates the time of the one it leaves (WIZ-24, WIZ-25)", () => {
+    vi.advanceTimersByTime(60_000);
+    st().nextPhase();
+    st().nextPhase();
+    expect(st().currentPhase).toBe(2);
+    st().setPhase(5);
+    expect(st().currentPhase).toBe(2);
+    st().setPhase(2);
+    expect(st().currentPhase).toBe(2);
+    vi.advanceTimersByTime(20_000);
+    st().setPhase(0);
+    expect(st().currentPhase).toBe(0);
+    expect(st().phaseSeconds).toEqual([60, 0, 20]);
+  });
+
+  it("an interview leaves the free-mode step alone, so abandoning returns to where the user was (WIZ-27)", () => {
+    useAppStore.setState({ step: "simulate" });
+    st().startInterview();
+    st().nextPhase();
+    st().endInterview();
+    expect(st().mode).toBe("free");
+    expect(useAppStore.getState().step).toBe("simulate");
   });
 });
