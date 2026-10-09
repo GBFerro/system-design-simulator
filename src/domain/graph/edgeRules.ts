@@ -1,6 +1,6 @@
 import { getParamSpec, PARAM, routingFor } from "@/domain/components/registry";
 import { DATABASES } from "@/domain/components/traits";
-import { isReturnEdge } from "./returns";
+import { asyncRequestIds, isReturnEdge } from "./returns";
 import type {
   EdgeCall,
   EdgeCallKind,
@@ -110,6 +110,7 @@ export function defaultEdgeAsync(
 /* ---------- graph-aware connect defaults ---------- */
 
 interface GraphEdge {
+  id?: string;
   source: string;
   target: string;
   data?: Record<string, unknown>;
@@ -118,7 +119,10 @@ interface GraphEdge {
 /** Minimal view of the canvas the connect defaults need. */
 export interface RuleGraph<E extends GraphEdge = GraphEdge> {
   componentIdOf: (nodeId: string) => string | undefined;
+  /** The requests only (responses are not calls). */
   edges: readonly E[];
+  /** Does `edge` have no response (an async call)? Default: its legacy `async` flag. */
+  isAsync?: (edge: GraphEdge) => boolean;
 }
 
 function hasReadReplica(dbNodeId: string, callerNodeId: string, graph: RuleGraph): boolean {
@@ -134,7 +138,8 @@ function hasReadReplica(dbNodeId: string, callerNodeId: string, graph: RuleGraph
 /** The first cache (a node with a hit rate) `sourceNodeId` calls synchronously, if any. */
 function cacheCalledBy(sourceNodeId: string, targetNodeId: string, graph: RuleGraph) {
   return graph.edges.find((e) => {
-    if (e.source !== sourceNodeId || e.target === targetNodeId || isAsyncEdge(e)) return false;
+    const async = graph.isAsync ? graph.isAsync(e) : isAsyncEdge(e);
+    if (e.source !== sourceNodeId || e.target === targetNodeId || async) return false;
     const componentId = graph.componentIdOf(e.target);
     return componentId !== undefined && getParamSpec(componentId, PARAM.hitRate) !== undefined;
   })?.target;

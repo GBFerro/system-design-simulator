@@ -151,6 +151,15 @@ describe("connecting from the UI", () => {
 describe("look-aside connect default (FLW-24)", () => {
   beforeEach(() => setCanvas([]));
 
+  /** Draw the response of the call caller → callee (a call is sync once it has one). */
+  const respond = (callee: string, caller: string) =>
+    s().onConnect({
+      source: callee,
+      target: caller,
+      sourceHandle: "ret-out",
+      targetHandle: "ret-in",
+    });
+
   const callsOf = (source: string, target: string) => {
     const edge = s().edges.find((e) => e.source === source && e.target === target);
     return (edge?.data as CustomEdgeData | undefined)?.rule?.calls;
@@ -159,6 +168,7 @@ describe("look-aside connect default (FLW-24)", () => {
   it("Service → DB with a call to a cache is born writes + reads after a miss in that cache", () => {
     setCanvas([node("app-server", "app"), node("cache", "redis"), node("sql-db", "db")]);
     connect("app", "redis");
+    respond("redis", "app");
     connect("app", "db");
     expect(callsOf("app", "db")).toEqual([
       { kind: "writes", callsPerRequest: 1 },
@@ -186,6 +196,7 @@ describe("look-aside connect default (FLW-24)", () => {
   it("a NoSQL database gets the same look-aside calls", () => {
     setCanvas([node("app-server", "app"), node("cache", "redis"), node("nosql-db", "db")]);
     connect("app", "redis");
+    respond("redis", "app");
     connect("app", "db");
     expect(callsOf("app", "db")).toEqual([
       { kind: "writes", callsPerRequest: 1 },
@@ -195,9 +206,8 @@ describe("look-aside connect default (FLW-24)", () => {
 
   it("without a sync call to a cache the default stays as before", () => {
     setCanvas([node("app-server", "app"), node("cache", "redis"), node("sql-db", "db")]);
-    // an async edge to the cache isn't a cache call on the request path
+    // a call to the cache without a response is async: not a cache call on the request path
     s().onConnect({ source: "app", target: "redis", sourceHandle: null, targetHandle: null });
-    s().updateEdgeData(s().edges[0].id, { async: true });
     connect("app", "db");
     expect(callsOf("app", "db")).toEqual([{ kind: "always", callsPerRequest: 1 }]);
   });

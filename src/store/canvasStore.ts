@@ -9,10 +9,12 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  type Connection,
   type EdgeChange,
   type NodeChange,
   type XYPosition,
 } from "@xyflow/react";
+import { useAppStore } from "./appStore";
 import { useSimulationStore } from "./simulationStore";
 import { useRuntimeStore } from "./runtimeStore";
 import { safeLocalStorage } from "./safeStorage";
@@ -38,6 +40,13 @@ import {
   type EdgeProtocol,
   type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
+
+import {
+  RETURN_SOURCE_HANDLE,
+  makeReturnEdge,
+  requestEdges,
+  responseOf,
+} from "@/domain/graph/returns";
 
 export { edgeRuleOf } from "@/domain/graph/edgeRules";
 
@@ -231,6 +240,49 @@ function withClones(state: CanvasState, clones: Clipboard): Partial<CanvasState>
     edges: [
       ...state.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
       ...clones.edges,
+    ],
+  };
+}
+
+/**
+ * Connection dragged from `ret-out` of B to A: draws the response of the
+ * request A → B (RET-01). Nothing is created when A or B is the same node or a
+ * text node (RET-30), when A → B has no request (a toast says so, RET-02) or
+ * when every A → B request already has its response (RET-03).
+ */
+function connectResponse(
+  state: CanvasState,
+  connection: Connection,
+): Partial<CanvasState> | CanvasState {
+  const { source: callee, target: caller } = connection;
+  const isComponent = (id: string) => state.nodes.some((n) => n.id === id && n.type !== "text");
+  if (callee === caller || !isComponent(callee) || !isComponent(caller)) return state;
+  const requests = requestEdges(state.edges).filter(
+    (e) => e.source === caller && e.target === callee,
+  );
+  if (requests.length === 0) {
+    const label = (id: string) =>
+      (state.nodes.find((n) => n.id === id)?.data as { label?: string } | undefined)?.label ?? id;
+    useAppStore
+      .getState()
+      .showToast(
+        `A response needs a request: connect ${label(caller)} → ${label(callee)} first`,
+        "info",
+      );
+    return state;
+  }
+  const answered = responseOf(state.edges);
+  const open = requests.find((e) => !answered.has(e.id));
+  if (!open) return state;
+  return {
+    history: pushedHistory(state),
+    future: [],
+    // (answered, the request is no longer async)
+    edges: [
+      ...state.edges.map((e) =>
+        e.id === open.id ? { ...e, data: { ...e.data, async: false } } : e,
+      ),
+      makeReturnEdge(open),
     ],
   };
 }
@@ -494,8 +546,15 @@ export const useCanvasStore = create<CanvasState>()(
       onConnect: (connection) => {
         set((state) => {
           if (isActiveTabReadOnly(state)) return state;
+          // Dragged from a return handle: the response of an existing request.
+          if (connection.sourceHandle === RETURN_SOURCE_HANDLE)
+            return connectResponse(state, connection);
           const graph = ruleGraph(state);
-          const data: CustomEdgeData = newEdgeData(connection.source, connection.target, graph);
+          // A new call has no response yet, so it is async until one is drawn.
+          const data: CustomEdgeData = {
+            ...newEdgeData(connection.source, connection.target, graph),
+            async: true,
+          };
           // Service → Read Replica: the service's `always` edges to SQL DBs become `writes`
           const edges = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
           return {

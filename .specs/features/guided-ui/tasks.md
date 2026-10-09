@@ -380,13 +380,13 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `ret-out` → `ret-in` cria a volta quando existe ida sem volta, numa entrada de undo
-- [ ] Sem ida: nenhuma aresta e toast "A response needs a request: connect A → B first" (com rótulos)
-- [ ] Volta duplicada, para o próprio nó ou para nó de texto: nada criado e sem entrada de undo
-- [ ] ConexÃ£o pela alÃ§a de ida nasce sem volta e sem `data.async` (async quando a troca entrar)
-- [ ] Teste: A â†’ B e B â†’ A com voltas independentes
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `ret-out` → `ret-in` cria a volta quando existe ida sem volta, numa entrada de undo
+- [x] Sem ida: nenhuma aresta e toast "A response needs a request: connect A → B first" (com rótulos)
+- [x] Volta duplicada, para o próprio nó ou para nó de texto: nada criado e sem entrada de undo
+- [x] ConexÃ£o pela alÃ§a de ida nasce sem volta e sem `data.async` (async quando a troca entrar)
+- [x] Teste: A â†’ B e B â†’ A com voltas independentes
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
