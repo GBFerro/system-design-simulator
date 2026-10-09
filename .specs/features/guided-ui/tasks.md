@@ -17,24 +17,24 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 > Generated from codebase, project guidelines, and spec - confirm before Execute. Guidelines found: `CLAUDE.md` (Commands, Conventions, "unit tests cover pure logic; editor behavior goes in Playwright"), `AGENTS.md`, `vitest.config.*`, `playwright.config.*`.
 
-| Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
-| --- | --- | --- | --- | --- |
-| Domain puro (`domain/graph`, `domain/persistence`, `lib/steps`) | unit | Todos os ramos; 1:1 com os ACs; cada edge case da spec tem teste | `tests/unit/*.test.ts` | `npx vitest run <arquivo>` |
-| Store (`canvasStore`, `appStore`, `interviewStore`) | unit | Cada ação nova: caminho feliz, no-op em aba somente leitura, uma entrada de undo | `tests/unit/editor.test.ts`, `persistence.*.test.ts`, `interview-store.test.ts` | `npx vitest run <arquivo>` |
-| Advisor / scoring / engine (leitores de arestas) | unit | Resultado idêntico com e sem voltas; golden intocado | `tests/unit/advisor.test.ts`, `scoring.test.ts`, `engine-*.test.ts` | `npm test` |
-| Componentes React de canvas e painel | e2e (Playwright), validado também no navegador | Fluxo do usuário: caminho feliz + cada edge case listado | `tests/e2e/*.spec.ts` | `npm run test:e2e` |
-| Componentes React de apresentação sem lógica extraível (alças, estilo, textos, layout por passo) | none por task | Cobertos pelo spec e2e que fecha a fase (T34, T45, T50) e verificados no navegador antes do commit; confirmar na aprovação | - | build gate only |
-| Docs / config | none | - (build gate only) | - | build gate only |
+| Code Layer                                                                                       | Required Test Type                             | Coverage Expectation                                                                                                       | Location Pattern                                                                | Run Command                |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------- |
+| Domain puro (`domain/graph`, `domain/persistence`, `lib/steps`)                                  | unit                                           | Todos os ramos; 1:1 com os ACs; cada edge case da spec tem teste                                                           | `tests/unit/*.test.ts`                                                          | `npx vitest run <arquivo>` |
+| Store (`canvasStore`, `appStore`, `interviewStore`)                                              | unit                                           | Cada ação nova: caminho feliz, no-op em aba somente leitura, uma entrada de undo                                           | `tests/unit/editor.test.ts`, `persistence.*.test.ts`, `interview-store.test.ts` | `npx vitest run <arquivo>` |
+| Advisor / scoring / engine (leitores de arestas)                                                 | unit                                           | Resultado idêntico com e sem voltas; golden intocado                                                                       | `tests/unit/advisor.test.ts`, `scoring.test.ts`, `engine-*.test.ts`             | `npm test`                 |
+| Componentes React de canvas e painel                                                             | e2e (Playwright), validado também no navegador | Fluxo do usuário: caminho feliz + cada edge case listado                                                                   | `tests/e2e/*.spec.ts`                                                           | `npm run test:e2e`         |
+| Componentes React de apresentação sem lógica extraível (alças, estilo, textos, layout por passo) | none por task                                  | Cobertos pelo spec e2e que fecha a fase (T34, T45, T50) e verificados no navegador antes do commit; confirmar na aprovação | -                                                                               | build gate only            |
+| Docs / config                                                                                    | none                                           | - (build gate only)                                                                                                        | -                                                                               | build gate only            |
 
 ## Gate Check Commands
 
 > Generated from codebase - confirm before Execute.
 
-| Gate Level | When to Use | Command |
-| --- | --- | --- |
-| Quick | Após tarefas só com testes unitários | `npm run typecheck && npm test` |
-| Full | Após tarefas com e2e | `npm run typecheck && npm test && npm run test:e2e` (com `npm run dev` aberto em :3000, use `E2E_PORT=3000`) |
-| Build | Última tarefa de cada fase e tarefas sem teste | `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check` |
+| Gate Level | When to Use                                    | Command                                                                                                          |
+| ---------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Quick      | Após tarefas só com testes unitários           | `npm run typecheck && npm test`                                                                                  |
+| Full       | Após tarefas com e2e                           | `npm run typecheck && npm test && npm run test:e2e` (com `npm run dev` aberto em :3000, use `E2E_PORT=3000`)     |
+| Build      | Última tarefa de cada fase e tarefas sem teste | `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check` |
 
 ---
 

@@ -39,27 +39,27 @@ graph TD
 
 ### Existing Components to Leverage
 
-| Component | Location | How to Use |
-| --- | --- | --- |
-| `migrateGraph` chain | `domain/persistence/migrate.ts` | Acrescentar `migrateGraphV3toV4` ao fim; mesma forma (pura, idempotente, nunca lança) |
-| `newEdgeData` / `splitReadsOnReplicaConnect` | `domain/graph/edgeRules.ts` | `onConnect` pela alça de ida continua igual; só deixa de gravar `async` |
-| `applyGraphEdit`, `GraphDiff`, `insertBetween` | `store/canvasStore.ts`, `advisor/graph.ts` | O diff passa a carregar as voltas; um único ponto cria "ida + volta" |
-| `buildReferenceGraph` | `lib/loadReference.ts` | Cria `ret:` para cada aresta de referência sem `async` |
-| `instanceGraph` (`instanceEdgeId`) | `components/canvas/instanceGraph.ts` | A cópia da volta por card segue a regra da cópia da ida |
-| `topologySignature` | `lib/topology.ts` | Já inclui `isAsyncEdge`; passa a incluir as voltas (a assinatura muda quando a volta aparece/some) |
-| `PARAM`/RightPanel `Tabs` | `components/panel/RightPanel.tsx` | Filtrar `TabsTrigger` pela lista do passo em vez de render fixo |
-| `InterviewBar` stepper | `components/interview/InterviewBar.tsx` | Vira a mesma `StepBar` com os 6 passos da entrevista |
-| `ModalShell`, `useIsMobile`, `paddingAboveSheet` | `components/dialogs`, `hooks`, `lib/placement.ts` | Sem mudança |
-| `safeLocalStorage` + `STORE_VERSION` | `store/persistVersion.ts` | `appStore.step` persiste; versão sobe com `SCHEMA_VERSION` |
+| Component                                        | Location                                          | How to Use                                                                                         |
+| ------------------------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `migrateGraph` chain                             | `domain/persistence/migrate.ts`                   | Acrescentar `migrateGraphV3toV4` ao fim; mesma forma (pura, idempotente, nunca lança)              |
+| `newEdgeData` / `splitReadsOnReplicaConnect`     | `domain/graph/edgeRules.ts`                       | `onConnect` pela alça de ida continua igual; só deixa de gravar `async`                            |
+| `applyGraphEdit`, `GraphDiff`, `insertBetween`   | `store/canvasStore.ts`, `advisor/graph.ts`        | O diff passa a carregar as voltas; um único ponto cria "ida + volta"                               |
+| `buildReferenceGraph`                            | `lib/loadReference.ts`                            | Cria `ret:` para cada aresta de referência sem `async`                                             |
+| `instanceGraph` (`instanceEdgeId`)               | `components/canvas/instanceGraph.ts`              | A cópia da volta por card segue a regra da cópia da ida                                            |
+| `topologySignature`                              | `lib/topology.ts`                                 | Já inclui `isAsyncEdge`; passa a incluir as voltas (a assinatura muda quando a volta aparece/some) |
+| `PARAM`/RightPanel `Tabs`                        | `components/panel/RightPanel.tsx`                 | Filtrar `TabsTrigger` pela lista do passo em vez de render fixo                                    |
+| `InterviewBar` stepper                           | `components/interview/InterviewBar.tsx`           | Vira a mesma `StepBar` com os 6 passos da entrevista                                               |
+| `ModalShell`, `useIsMobile`, `paddingAboveSheet` | `components/dialogs`, `hooks`, `lib/placement.ts` | Sem mudança                                                                                        |
+| `safeLocalStorage` + `STORE_VERSION`             | `store/persistVersion.ts`                         | `appStore.step` persiste; versão sobe com `SCHEMA_VERSION`                                         |
 
 ### Integration Points
 
-| System | Integration Method |
-| --- | --- |
-| Motor (`engine/`) | Nenhuma mudança. `compileGraph` é o único ponto que lê voltas; `SimEdge.async` = idas sem volta |
-| `runtimeStore` | Métricas continuam por id da ida; a volta lê as da ida (`returnEdge.data.responseTo`) |
-| `chaosStore`/faults | Faults ficam na ida (AD-001); a volta nunca é alvo |
-| `edge.selected` | A volta selecionada aparece em Props como "Response to A → B" |
+| System              | Integration Method                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| Motor (`engine/`)   | Nenhuma mudança. `compileGraph` é o único ponto que lê voltas; `SimEdge.async` = idas sem volta |
+| `runtimeStore`      | Métricas continuam por id da ida; a volta lê as da ida (`returnEdge.data.responseTo`)           |
+| `chaosStore`/faults | Faults ficam na ida (AD-001); a volta nunca é alvo                                              |
+| `edge.selected`     | A volta selecionada aparece em Props como "Response to A → B"                                   |
 
 ---
 
@@ -139,7 +139,8 @@ graph TD
 // Aresta no canvas (v4). A ida não muda; a volta é uma aresta própria.
 interface ReturnEdgeData {
   responseTo: string; // id da ida; fonte única de "síncrona"
-  label?: ""; protocol?: string; // ignorados; nada editável
+  label?: "";
+  protocol?: string; // ignorados; nada editável
 }
 // Ida: data.async deixa de existir no formato salvo.
 
@@ -147,7 +148,9 @@ interface ReturnEdgeData {
 // { schemaVersion: 4, name, problemId, nodes, edges /* idas + voltas */, strokes, chaosScript?, slo? }
 
 // appStore (persistido)
-interface WizardState { step: "problem"|"design"|"simulate"|"failures"|"evaluate" }
+interface WizardState {
+  step: "problem" | "design" | "simulate" | "failures" | "evaluate";
+}
 ```
 
 **Relationships**: `ret:<id>` ↔ `responseTo: <id>` (1 para 0..1). A volta guarda `source = ida.target`, `target = ida.source`; se a ida for apagada ou mudar de nó, a volta cai junto (sempre derivável).
@@ -156,41 +159,41 @@ interface WizardState { step: "problem"|"design"|"simulate"|"failures"|"evaluate
 
 ## Error Handling Strategy
 
-| Error Scenario | Handling | User Impact |
-| --- | --- | --- |
+| Error Scenario                         | Handling                                                                | User Impact                  |
+| -------------------------------------- | ----------------------------------------------------------------------- | ---------------------------- |
 | Volta sem ida (import, edição externa) | `compileGraph` ignora com aviso; `importDesign` descarta com `warnings` | Design abre sem a linha órfã |
-| Conexão pela alça de volta sem ida | Nenhuma aresta; toast "A response needs a request: connect A → B first" | Mensagem clara |
-| Volta duplicada | Nenhuma aresta, nenhum undo | Nada acontece |
-| `step` persistido inválido | `sanitizeStep` volta a `problem` | Reabre no início |
-| Fase da entrevista fora do intervalo | Já tratado por `setPhase`/`merge` do `interviewStore` | Sem mudança |
+| Conexão pela alça de volta sem ida     | Nenhuma aresta; toast "A response needs a request: connect A → B first" | Mensagem clara               |
+| Volta duplicada                        | Nenhuma aresta, nenhum undo                                             | Nada acontece                |
+| `step` persistido inválido             | `sanitizeStep` volta a `problem`                                        | Reabre no início             |
+| Fase da entrevista fora do intervalo   | Já tratado por `setPhase`/`merge` do `interviewStore`                   | Sem mudança                  |
 
 ---
 
 ## Risks & Concerns
 
-| Concern | Location (file:line) | Impact | Mitigation |
-| --- | --- | --- | --- |
-| Quase todo teste de motor monta arestas "à mão" sem volta; sob o novo `compileGraph` elas ficariam async e os números mudariam | `tests/unit/engineFixtures.ts:36` (`wire`), 94 chamadas de `compileGraph` em `tests/unit/` | Falha em massa ou, pior, teste verde com assert enfraquecido | T4 troca `wire` por um par ida+volta (`wirePair`) mantendo `async: true` ⇒ sem volta; o golden (`engine-golden.test.ts`) passa por `migrateGraph` e não pode mudar o fixture |
-| 62 arestas `async: true` em `problems.ts` e o loader grava o flag | `src/lib/loadReference.ts:73`, `src/data/problems.ts` | Referências virariam sync/async trocadas | O campo `async` do tipo `Problem` fica (é dado de referência); só o loader o converte em "sem volta" |
-| `isAsyncEdge(e)` é chamado por aresta, sem contexto do grafo (advisor, scoring, topologia) | `advisor/load.ts:138`, `advisor/patterns.ts:61`, `scoring/paths.ts:53`, `lib/topology.ts:22`, `advisor/mitigation.ts:50` | A volta entraria na adjacência e criaria ciclo | T6 troca por `asyncRequestIds(edges)` e `requestEdges(edges)` num único passe; `ScoringGraph` só recebe idas |
-| `canvasStore` tem lista fechada de ações (`MUTATING_ACTIONS`) | `store/canvasStore.ts:793` | Ação nova fora das listas quebra `editor.test.ts` | `setEdgeSync` entra em `MUTATING_ACTIONS` na mesma task |
-| Bolas de resposta usam `len − pos` da ida | `lib/flowBalls.ts:602` | Bolas ○ continuariam na linha da ida | T21 passa o mapa ida→volta e testa que nenhuma `res` anda na ida |
-| Teste de largura da top bar mede com todos os chips; a StepBar tira controles dela | `tests/e2e/smoke.spec.ts` | Falso verde/vermelho | Controles ficam na top bar; só a StepBar nova ocupa linha própria |
-| `app-shell.tsx` (506 linhas) concentra layout, diálogos e atalhos | `components/layout/app-shell.tsx` | Mais lógica numa classe já grande | O layout por passo sai para `StepLayout` (T27); o shell só escolhe |
+| Concern                                                                                                                        | Location (file:line)                                                                                                     | Impact                                                       | Mitigation                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quase todo teste de motor monta arestas "à mão" sem volta; sob o novo `compileGraph` elas ficariam async e os números mudariam | `tests/unit/engineFixtures.ts:36` (`wire`), 94 chamadas de `compileGraph` em `tests/unit/`                               | Falha em massa ou, pior, teste verde com assert enfraquecido | T4 troca `wire` por um par ida+volta (`wirePair`) mantendo `async: true` ⇒ sem volta; o golden (`engine-golden.test.ts`) passa por `migrateGraph` e não pode mudar o fixture |
+| 62 arestas `async: true` em `problems.ts` e o loader grava o flag                                                              | `src/lib/loadReference.ts:73`, `src/data/problems.ts`                                                                    | Referências virariam sync/async trocadas                     | O campo `async` do tipo `Problem` fica (é dado de referência); só o loader o converte em "sem volta"                                                                         |
+| `isAsyncEdge(e)` é chamado por aresta, sem contexto do grafo (advisor, scoring, topologia)                                     | `advisor/load.ts:138`, `advisor/patterns.ts:61`, `scoring/paths.ts:53`, `lib/topology.ts:22`, `advisor/mitigation.ts:50` | A volta entraria na adjacência e criaria ciclo               | T6 troca por `asyncRequestIds(edges)` e `requestEdges(edges)` num único passe; `ScoringGraph` só recebe idas                                                                 |
+| `canvasStore` tem lista fechada de ações (`MUTATING_ACTIONS`)                                                                  | `store/canvasStore.ts:793`                                                                                               | Ação nova fora das listas quebra `editor.test.ts`            | `setEdgeSync` entra em `MUTATING_ACTIONS` na mesma task                                                                                                                      |
+| Bolas de resposta usam `len − pos` da ida                                                                                      | `lib/flowBalls.ts:602`                                                                                                   | Bolas ○ continuariam na linha da ida                         | T21 passa o mapa ida→volta e testa que nenhuma `res` anda na ida                                                                                                             |
+| Teste de largura da top bar mede com todos os chips; a StepBar tira controles dela                                             | `tests/e2e/smoke.spec.ts`                                                                                                | Falso verde/vermelho                                         | Controles ficam na top bar; só a StepBar nova ocupa linha própria                                                                                                            |
+| `app-shell.tsx` (506 linhas) concentra layout, diálogos e atalhos                                                              | `components/layout/app-shell.tsx`                                                                                        | Mais lógica numa classe já grande                            | O layout por passo sai para `StepLayout` (T27); o shell só escolhe                                                                                                           |
 
 ---
 
 ## Tech Decisions
 
-| Decision | Choice | Rationale |
-| --- | --- | --- |
-| Id da volta | `ret:<id da ida>` determinístico | Quick fixes, undo e testes precisam de ids estáveis (regra do advisor: ids nunca aleatórios) |
-| Flag `async` em `compileGraph` | Legado `data.async === true` continua forçando async | Payloads v3 que ainda não migraram (ex.: testes antigos) não mudam de significado; v4 nunca grava o flag |
-| Posição das alças | `ret-out` à esquerda, `ret-in` à direita, abaixo das principais | A volta nasce de onde a ida chega e desenha uma curva paralela |
-| Props da volta | Somente leitura | Spec: o link vive na ida (AD-001) |
-| Passo persistido | `appStore.step` | A fase da entrevista já persiste em `interviewStore`; o passo do modo livre é setting de UI |
-| Troca de passo | Só muda `appStore.step`; nunca toca `canvasStore`, `runtimeStore` nem `SimController` | WIZ-11 |
-| Abas fora do passo | `RightPanel` mantém o `Tabs` e filtra os triggers; a aba ativa fora da lista cai na primeira do passo | Menor diff; os painéis lazy continuam montados sob demanda |
+| Decision                       | Choice                                                                                                | Rationale                                                                                                |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Id da volta                    | `ret:<id da ida>` determinístico                                                                      | Quick fixes, undo e testes precisam de ids estáveis (regra do advisor: ids nunca aleatórios)             |
+| Flag `async` em `compileGraph` | Legado `data.async === true` continua forçando async                                                  | Payloads v3 que ainda não migraram (ex.: testes antigos) não mudam de significado; v4 nunca grava o flag |
+| Posição das alças              | `ret-out` à esquerda, `ret-in` à direita, abaixo das principais                                       | A volta nasce de onde a ida chega e desenha uma curva paralela                                           |
+| Props da volta                 | Somente leitura                                                                                       | Spec: o link vive na ida (AD-001)                                                                        |
+| Passo persistido               | `appStore.step`                                                                                       | A fase da entrevista já persiste em `interviewStore`; o passo do modo livre é setting de UI              |
+| Troca de passo                 | Só muda `appStore.step`; nunca toca `canvasStore`, `runtimeStore` nem `SimController`                 | WIZ-11                                                                                                   |
+| Abas fora do passo             | `RightPanel` mantém o `Tabs` e filtra os triggers; a aba ativa fora da lista cai na primeira do passo | Menor diff; os painéis lazy continuam montados sob demanda                                               |
 
 > **Decisões de projeto** a registrar em `.specs/STATE.md`: AD-003 (a volta é uma aresta própria; `async` é derivado) e AD-004 (o passo/fase decide as ferramentas; trocar de passo nunca edita o grafo nem a execução).
 
@@ -200,4 +203,3 @@ interface WizardState { step: "problem"|"design"|"simulate"|"failures"|"evaluate
 
 - Cada task de código fecha com `npm run typecheck` + testes do que tocou; a última de cada fase roda `npm run lint`, `npm test` e `npm run build`.
 - Mudança visual (alças, linhas, passos, telas cheias) é exercitada no navegador antes de marcar a task como concluída, além do Playwright.
-
