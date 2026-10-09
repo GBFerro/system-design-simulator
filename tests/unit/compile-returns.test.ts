@@ -44,3 +44,17 @@ describe("compileGraph ignores responses (RET-09, RET-31)", () => {
     expect(compileGraph(nodes, [a, makeReturnEdge(a)]).edges[0].async).toBe(true);
   });
 });
+
+describe("compileV3 fixture helper (RET-22)", () => {
+  it("answers each call that is not async, so both compile as they did before responses existed", async () => {
+    const { compileV3 } = await import("./engineFixtures");
+    const sync = wire("client", "svc");
+    const async = wire("svc", "db", { async: true });
+    const direct = compileGraph(nodes, [sync, async]);
+    const viaV3 = compileV3(nodes, [sync, async]);
+    expect(viaV3.edges.map((e) => [e.id, e.async])).toEqual(
+      direct.edges.map((e) => [e.id, e.async]),
+    );
+    expect(viaV3.order).toEqual(direct.order);
+  });
+});

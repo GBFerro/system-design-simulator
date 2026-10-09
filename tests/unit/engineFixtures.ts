@@ -2,7 +2,9 @@ import type { Edge, Node } from "@xyflow/react";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { defaultParams } from "@/domain/components/registry";
 import type { EdgeRuleKind, EdgeRuleV2, Params } from "@/domain/components/types";
+import { compileGraph, type SimGraph } from "@/domain/graph/compile";
 import { defaultEdgeRule, edgeRuleV2Of, migrateEdgeRuleV2toV3 } from "@/domain/graph/edgeRules";
+import { withReturns } from "@/domain/graph/returns";
 import { mulberry32, type Rng } from "@/engine/core/rng";
 
 /**
@@ -50,6 +52,15 @@ export function wire(
       rule: opts.rule ? migrateEdgeRuleV2toV3({ ...edgeRuleV2Of(base), ...opts.rule }) : undefined,
     },
   };
+}
+
+/**
+ * `compileGraph` for a design written the v3 way (fixtures that only set the
+ * `async` flag): every call that is not async gets its response first, as the
+ * v3 → v4 migration would give it, so the engine sees what a saved design shows.
+ */
+export function compileV3(nodes: readonly unknown[], edges: readonly Edge[]): SimGraph {
+  return compileGraph(nodes, withReturns(edges));
 }
 
 /* ---------- random canvases (property tests) ---------- */

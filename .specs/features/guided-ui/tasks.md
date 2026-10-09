@@ -325,10 +325,10 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `compileV3(nodes, edges)` = `compileGraph(nodes, withReturns(edges))`: cada aresta sem o flag `async` ganha a volta, como a migraÃ§Ã£o faria
-- [ ] Teste do helper: sync ganha volta, async nÃ£o ganha
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `compileV3(nodes, edges)` = `compileGraph(nodes, withReturns(edges))`: cada aresta sem o flag `async` ganha a volta, como a migraÃ§Ã£o faria
+- [x] Teste do helper: sync ganha volta, async nÃ£o ganha
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick
