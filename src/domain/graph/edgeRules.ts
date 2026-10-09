@@ -1,5 +1,6 @@
 import { getParamSpec, PARAM, routingFor } from "@/domain/components/registry";
 import { DATABASES } from "@/domain/components/traits";
+import { isReturnEdge } from "./returns";
 import type {
   EdgeCall,
   EdgeCallKind,
@@ -181,7 +182,11 @@ export function canvasRuleGraph<E extends GraphEdge>(
     const id = (n.data as { componentId?: unknown } | undefined)?.componentId;
     if (typeof id === "string") ids.set(n.id, id);
   }
-  return { componentIdOf: (nodeId) => ids.get(nodeId), edges };
+  // Responses are not calls: the connect defaults read the requests only.
+  return {
+    componentIdOf: (nodeId) => ids.get(nodeId),
+    edges: edges.filter((e) => !isReturnEdge(e)),
+  };
 }
 
 /** An edge's current rule, normalized (edges saved before v2 get their connect default). */

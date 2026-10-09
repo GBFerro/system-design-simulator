@@ -1,6 +1,7 @@
 import type { Edge, EdgeChange, Node, NodeChange } from "@xyflow/react";
 import type { GraphDiff } from "@/advisor/types";
 import { applyEdgeRulePatch, defaultEdgeRule, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
+import { isReturnEdge } from "@/domain/graph/returns";
 
 /**
  * The advisor's quick-fix preview (Spec 12, ADV-02) as ReactFlow elements:
@@ -45,14 +46,17 @@ export function withPreview(
         const rule = applyEdgeRulePatch(current, patch, current);
         return { ...e, className: "sf-preview-changed", data: { ...e.data, rule } };
       }),
-      ...diff.addEdges.map((e) => ({
-        ...e,
-        ...GHOST,
-        id: GHOST_PREFIX + e.id,
-        source: ref(e.source),
-        target: ref(e.target),
-        type: "ghost",
-      })),
+      // (a response is not drawn as a ghost: the preview shows the requests it adds)
+      ...diff.addEdges
+        .filter((e) => !isReturnEdge(e))
+        .map((e) => ({
+          ...e,
+          ...GHOST,
+          id: GHOST_PREFIX + e.id,
+          source: ref(e.source),
+          target: ref(e.target),
+          type: "ghost",
+        })),
     ],
   };
 }

@@ -269,11 +269,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] `GraphDiff` carrega a volta de cada aresta sÃ­ncrona criada; `applyDiff` a aplica
-- [ ] `insertBetween` A â†’ B em A â†’ X â†’ B dÃ¡ volta Ã s duas metades se e sÃ³ se o link original tinha
-- [ ] Teste: link async continua async depois do fix; `keepLinkOnOut` preservado
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] `GraphDiff` carrega a volta de cada aresta sÃ­ncrona criada; `applyDiff` a aplica
+- [x] `insertBetween` A â†’ B em A â†’ X â†’ B dÃ¡ volta Ã s duas metades se e sÃ³ se o link original tinha
+- [x] Teste: link async continua async depois do fix; `keepLinkOnOut` preservado
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

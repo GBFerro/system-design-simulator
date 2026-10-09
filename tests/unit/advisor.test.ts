@@ -1,3 +1,4 @@
+import { requestEdges } from "@/domain/graph/returns";
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { applyAllFixes, applyFix, computeFindings, readRatioFor } from "@/advisor/advisor";
@@ -217,7 +218,7 @@ describe("pattern findings (ADV-01)", () => {
     expect(ruleKind(after, "app", cache.id)).toBe("reads");
     // Look-aside (FLW-23): nothing from the cache to the database; the caller
     // writes to it and reads it after a miss in the cache, over the same edge.
-    expect(after.edges.find((e) => e.source === cache.id)).toBeUndefined();
+    expect(requestEdges(after.edges).find((e) => e.source === cache.id)).toBeUndefined();
     const toDb = after.edges.find((e) => e.source === "app" && e.target === "db")!;
     expect(toDb.id).toBe("e-app-db");
     expect(edgeRuleOf(after, toDb).calls).toEqual([
@@ -249,7 +250,7 @@ describe("pattern findings (ADV-01)", () => {
     expect(edgeRuleOf(after, toDb).calls).toEqual([
       { kind: "after_miss", missOf: cache.id, callsPerRequest: 2 },
     ]);
-    expect(after.edges.find((e) => e.source === cache.id)).toBeUndefined();
+    expect(requestEdges(after.edges).find((e) => e.source === cache.id)).toBeUndefined();
   });
 
   it("the cache fix is deterministic and its preview shows the same look-aside", () => {
@@ -419,12 +420,14 @@ describe("advisor store", () => {
     expect(findingIds()).toContain("read-cache:db");
     applyFinding("read-cache:db");
     expect(useCanvasStore.getState().history).toHaveLength(1);
-    const edges = useCanvasStore.getState().edges;
+    const edges = requestEdges(useCanvasStore.getState().edges);
     expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
       "c->app",
       "app->cache-db",
       "app->db",
     ]);
+    // the new cache call is synchronous: it comes with its response (RET-26)
+    expect(useCanvasStore.getState().edges.map((e) => e.id)).toContain("ret:e-app-cache-db");
     useCanvasStore.getState().undo();
     expect(useCanvasStore.getState().edges).toEqual(g.edges);
     expect(useCanvasStore.getState().nodes).toEqual(g.nodes);
