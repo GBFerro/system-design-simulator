@@ -297,11 +297,11 @@ T46 → T47 → T48 → T49 → T50 → T51
 
 **Done when**:
 
-- [ ] Cada aresta da referência sem `async` ganha `ret:<ida>`; `ref.async === true` não ganha
-- [ ] Teste: as 35 referências abrem com voltas e seus scores (`scoring.test.ts`, `engine-references.test.ts`) não mudam
-- [ ] `data.test.ts` verde
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
+- [x] Cada aresta da referência sem `async` ganha `ret:<ida>`; `ref.async === true` não ganha
+- [x] Teste: as 35 referências abrem com voltas e seus scores (`scoring.test.ts`, `engine-references.test.ts`) não mudam
+- [x] `data.test.ts` verde
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Contagem de testes igual ou maior que a anterior (nada apagado nem pulado)
 
 **Tests**: unit
 **Gate**: quick

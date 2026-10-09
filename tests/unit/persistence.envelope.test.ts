@@ -3,6 +3,7 @@ import { PROBLEMS } from "@/data/problems";
 import { PARAM } from "@/domain/components/registry";
 import type { EdgeRule } from "@/domain/components/types";
 import { MAX_CALL_STEP, MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
+import { isReturnEdge } from "@/domain/graph/returns";
 import {
   parseEnvelope,
   parseEnvelopeJson,
@@ -92,7 +93,10 @@ describe("export envelope v2", () => {
     // Back onto the canvas: same nodes/edges, including params and edge.data.rule
     expect(serializeNodes(deserializeNodes(result.design.nodes))).toEqual(serializeNodes(nodes));
     expect(deserializeEdges(result.design.edges)).toEqual(
-      edges.map((e) => ({ ...e, sourceHandle: undefined, targetHandle: undefined })),
+      edges.map((e) =>
+        // (a response keeps its return handles)
+        isReturnEdge(e) ? e : { ...e, sourceHandle: undefined, targetHandle: undefined },
+      ),
     );
     expect(result.design.edges[0].data).toEqual(edges[0].data);
   });

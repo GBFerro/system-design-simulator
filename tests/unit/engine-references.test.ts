@@ -1,3 +1,4 @@
+import { requestEdges } from "@/domain/graph/returns";
 import type { Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
@@ -68,7 +69,10 @@ describe("reference solutions through analyze()", () => {
   it.each(PROBLEMS.map((p) => [p.id, p] as const))(
     "%s: same nodes receive traffic as the legacy engine",
     (_id, problem) => {
-      const { nodes, edges } = buildReferenceGraph(problem);
+      const built = buildReferenceGraph(problem);
+      const nodes = built.nodes;
+      // (the legacy engine predates responses: it reads the requests)
+      const edges = requestEdges(built.edges);
       const legacy = runSimulation(nodes as Node<ComponentNodeData>[], edges, 10_000);
       const steady = analyze(compileGraph(nodes, edges), 10_000);
       const incoming = (id: string) => edges.filter((e) => e.target === id);

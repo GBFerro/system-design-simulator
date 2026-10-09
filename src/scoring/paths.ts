@@ -9,6 +9,7 @@ import type { Edge, Node } from "@xyflow/react";
 import { instancesOf, routingFor } from "@/domain/components/registry";
 import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
 import { isAsyncEdge } from "@/domain/graph/edgeRules";
+import { isReturnEdge } from "@/domain/graph/returns";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { ScoringGraph } from "@/types/scoring";
 
@@ -46,6 +47,7 @@ export function syncPath(
   const parents = new Map<string, Set<string>>();
   const seen = new Set<string>();
   for (const e of edges) {
+    if (isReturnEdge(e)) continue;
     if (!byId.has(e.source) || !byId.has(e.target) || e.source === e.target) continue;
     if (!parents.has(e.target)) parents.set(e.target, new Set());
     parents.get(e.target)!.add(e.source);

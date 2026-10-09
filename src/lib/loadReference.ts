@@ -1,3 +1,4 @@
+import { withReturns } from "@/domain/graph/returns";
 import type { Node, Edge } from "@xyflow/react";
 import type { Problem } from "@/types/problem";
 import { getComponentById } from "@/data/components";
@@ -94,7 +95,8 @@ export function buildReferenceGraph(problem: Problem): {
     }
   }
 
-  return { nodes: refNodes, edges: refEdges };
+  // Every call that is not async gets its response (RET-25).
+  return { nodes: refNodes, edges: withReturns(refEdges) };
 }
 
 /**
