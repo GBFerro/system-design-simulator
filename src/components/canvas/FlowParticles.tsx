@@ -18,7 +18,7 @@ import { downInstances } from "@/lib/instances";
 import { useChaosStore } from "@/store/chaosStore";
 import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import { PARAM, instancesOf, routingFor } from "@/domain/components/registry";
+import { PARAM, hasHitRateParam, instancesOf, routingFor } from "@/domain/components/registry";
 import { formatRps } from "@/components/traffic/format";
 import { edgeRuleOf } from "@/domain/graph/edgeRules";
 import type { RuntimeEdgeStatus, TickSnapshot } from "@/engine/types";
@@ -240,7 +240,7 @@ export function FlowParticles() {
           const algo = paramsOf.get(id)?.[PARAM.lbAlgorithm];
           return typeof algo === "string" ? algo : undefined;
         },
-        (id) => typeof paramsOf.get(id)?.[PARAM.hitRate] === "number",
+        (id) => hasHitRateParam(componentOf.get(id) ?? "custom"),
       );
       return topology;
     };

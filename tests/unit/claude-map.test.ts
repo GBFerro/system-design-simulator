@@ -43,6 +43,9 @@ const files = (path: string) =>
     .filter((e) => e.isFile())
     .map((e) => e.name.replace(/\.[^.]+$/, ""))
     .sort();
+/** Size budget of CLAUDE.md (bytes) and of one paragraph or bullet (characters). */
+const MAX_BYTES = 48_000;
+const MAX_PARAGRAPH_CHARS = 3_000;
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 describe("CLAUDE.md architecture map", () => {
@@ -81,5 +84,20 @@ describe("CLAUDE.md architecture map", () => {
     expect(count(/components\.ts \((\d+) specs\)/)).toBe(SYSTEM_COMPONENTS.length);
     expect(count(/problems\.ts \((\d+)\)/)).toBe(PROBLEMS.length);
     expect(count(/tradeoffCards\.ts \((\d+)\)/)).toBe(TRADEOFF_CARDS.length);
+  });
+
+  // Implementation detail grows CLAUDE.md past what an agent reads well (35 KB → 48 KB over the
+  // request-flow stack). Rules a test can't hold stay here; how a feature works goes to its spec
+  // (docs/ or .specs/) with a pointer.
+  it("stays short enough to be read whole", () => {
+    expect(
+      Buffer.byteLength(claude),
+      "CLAUDE.md is over its size budget: move implementation detail to the feature's spec and leave a pointer",
+    ).toBeLessThanOrEqual(MAX_BYTES);
+    const long = claude
+      .split("\n")
+      .filter((line) => line.length > MAX_PARAGRAPH_CHARS)
+      .map((line) => `${line.length} chars: ${line.slice(0, 60)}…`);
+    expect(long, "paragraphs over the limit: split them or move detail to a spec").toEqual([]);
   });
 });

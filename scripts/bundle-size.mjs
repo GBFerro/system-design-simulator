@@ -17,6 +17,12 @@ const MAX_GROWTH = 0.15;
 const LAZY_ONLY = [
   { marker: "systemforge-engine", what: "The engine worker client (src/engine/client.ts)" },
   { marker: "Engine.analyze() called before load()", what: "The engine (src/engine/engine.ts)" },
+  // The Flow tab loads when it is opened (RightPanel's dynamic import).
+  { marker: "Request trace failed", what: "The Flow tab (src/components/panel/FlowPanel.tsx)" },
+  {
+    marker: "Sequence diagram of one request",
+    what: "The sequence diagram (src/components/panel/SequenceDiagram.tsx)",
+  },
 ];
 const root = process.cwd();
 const htmlPath = join(root, ".next/server/app/index.html");

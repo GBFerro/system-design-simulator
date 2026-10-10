@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { SYSTEM_COMPONENTS } from "@/data/components";
+import { PARAM, hasHitRateParam, sanitizeParams } from "@/domain/components/registry";
 import type { EdgeCall } from "@/domain/components/types";
 import { planFor, type CallPlan, type PlanEdge } from "@/domain/graph/callPlan";
 
@@ -145,5 +147,18 @@ describe("callPlan (request-flow)", () => {
     );
     expect(shape(plan)).toEqual([["b-c#0@1"], ["b-d#0@2"]]);
     expect(plan.warnings).toEqual([]);
+  });
+});
+
+describe("hasHitRateParam", () => {
+  // The compiler asks the sanitized params, the canvas readers (badges, balls, call editor) ask
+  // the schema: they must agree for every component, or the engine and the UI plan differently.
+  it.each(SYSTEM_COMPONENTS.map((c) => c.id))("agrees with the compiler's check for %s", (id) => {
+    expect(hasHitRateParam(id)).toBe(typeof sanitizeParams(id, {})[PARAM.hitRate] === "number");
+  });
+
+  it("is true for the caches and false for a service", () => {
+    expect(hasHitRateParam("cache")).toBe(true);
+    expect(hasHitRateParam("api-gateway")).toBe(false);
   });
 });
