@@ -171,7 +171,8 @@ test("responses come back as rings, with both symbols in the legend; pausing hol
   page.on("pageerror", (err) => errors.push(err.message));
 
   const panel = await playReference(page);
-  await expect.poll(() => ballCount(page, "res"), { timeout: 15_000 }).toBeGreaterThan(0);
+  // (a handful in flight, so none lands in the instant before the pause)
+  await expect.poll(() => ballCount(page, "res"), { timeout: 20_000 }).toBeGreaterThanOrEqual(6);
   expect(await ballCount(page, "req")).toBeGreaterThan(0);
   const total = Number(
     await page.getByTestId("flow-particles").getAttribute("data-particle-count"),
