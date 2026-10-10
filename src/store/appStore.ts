@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
-import { passThroughMigration, STORE_VERSION } from "./persistVersion";
+import { APP_STORAGE_KEY, passThroughMigration, STORE_VERSION } from "./persistVersion";
 import { isCurrency, type Currency } from "@/cost/currency";
 import {
   STEPS,
@@ -11,6 +11,8 @@ import {
   type RightTab,
   type Step,
 } from "@/lib/steps";
+
+export { APP_STORAGE_KEY };
 
 export type ToastType = "success" | "error" | "info";
 export type Theme = "dark" | "light";
@@ -125,7 +127,7 @@ export const useAppStore = create<AppState>()(
       },
     }),
     {
-      name: "systemsim-app",
+      name: APP_STORAGE_KEY,
       version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),

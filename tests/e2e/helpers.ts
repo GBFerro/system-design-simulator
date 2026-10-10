@@ -1,12 +1,15 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { SCHEMA_VERSION } from "@/domain/persistence/version";
+import { STEPS, type Step } from "@/lib/steps";
+import { APP_STORAGE_KEY } from "@/store/persistVersion";
 
 /** Shared E2E helpers: import these instead of redefining them in each spec. */
 
 /** The platform's shortcut modifier (⌘ on macOS, Ctrl elsewhere). */
 export const MOD = process.platform === "darwin" ? "Meta" : "Control";
 
-export type StepId = "problem" | "design" | "simulate" | "failures" | "evaluate";
-const STEP_ORDER: StepId[] = ["problem", "design", "simulate", "failures", "evaluate"];
+/** The wizard's steps, from the app itself (`lib/steps.ts`). */
+export type StepId = Step;
 
 /**
  * Open the app and wait for its first screen. `?e2e` installs the test store handles in any
@@ -14,18 +17,18 @@ const STEP_ORDER: StepId[] = ["problem", "design", "simulate", "failures", "eval
  * the canvas, so unless the test says otherwise the saved step is Design (the palette's step).
  */
 export async function open(page: Page, path = "/", step: StepId = "design") {
-  await page.addInitScript((initial) => {
-    try {
-      if (!localStorage.getItem("systemsim-app")) {
-        localStorage.setItem(
-          "systemsim-app",
-          JSON.stringify({ state: { step: initial }, version: 4 }),
-        );
+  await page.addInitScript(
+    ({ initial, key, version }) => {
+      try {
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, JSON.stringify({ state: { step: initial }, version }));
+        }
+      } catch {
+        // storage blocked: the app starts on its default step
       }
-    } catch {
-      // storage blocked: the app starts on its default step
-    }
-  }, step);
+    },
+    { initial: step, key: APP_STORAGE_KEY, version: SCHEMA_VERSION },
+  );
   await page.goto(path);
   if (step === "problem") await expect(page.getByTestId("problem-step")).toBeVisible();
   else await expect(page.locator(".react-flow")).toBeVisible();
@@ -42,10 +45,10 @@ export async function currentStep(page: Page): Promise<StepId> {
 /** Walk to a step: back by its button, forward with Next (the only way ahead). */
 export async function goToStep(page: Page, target: StepId) {
   const bar = page.getByTestId("step-bar");
-  for (let i = 0; i < STEP_ORDER.length; i++) {
+  for (let i = 0; i < STEPS.length; i++) {
     const here = await currentStep(page);
     if (here === target) return;
-    if (STEP_ORDER.indexOf(target) < STEP_ORDER.indexOf(here)) {
+    if (STEPS.indexOf(target) < STEPS.indexOf(here)) {
       await bar.locator(`[data-step="${target}"]`).click();
     } else {
       await bar.getByRole("button", { name: "Next", exact: true }).click();
