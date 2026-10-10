@@ -48,6 +48,7 @@ import {
   requestEdges,
   responseOf,
   responseToOf,
+  returnData,
   returnIdOf,
 } from "@/domain/graph/returns";
 
@@ -228,7 +229,7 @@ function cloneSubgraph(clip: Clipboard, existing: Node[], targetTopLeft: XYPosit
         id: returnIdOf(request),
         source: idMap.get(e.source)!,
         target: idMap.get(e.target)!,
-        data: { responseTo: request },
+        data: returnData(request),
         selected: true,
       },
     ];
@@ -274,34 +275,43 @@ function withClones(state: CanvasState, clones: Clipboard): Partial<CanvasState>
  * text node (RET-30), when A → B has no request (a toast says so, RET-02) or
  * when every A → B request already has its response (RET-03).
  */
-function connectResponse(
-  state: CanvasState,
-  connection: Connection,
-): Partial<CanvasState> | CanvasState {
+type ResponseOutcome =
+  | { kind: "none" }
+  | { kind: "no-request"; message: string }
+  | { kind: "create"; request: Edge };
+
+/** Pure: what dragging a response from `connection.source` to `connection.target` would do. */
+function responseOutcome(state: CanvasState, connection: Connection): ResponseOutcome {
   const { source: callee, target: caller } = connection;
   const isComponent = (id: string) => state.nodes.some((n) => n.id === id && n.type !== "text");
-  if (callee === caller || !isComponent(callee) || !isComponent(caller)) return state;
+  if (callee === caller || !isComponent(callee) || !isComponent(caller)) return { kind: "none" };
   const requests = requestEdges(state.edges).filter(
     (e) => e.source === caller && e.target === callee,
   );
   if (requests.length === 0) {
     const label = (id: string) =>
       (state.nodes.find((n) => n.id === id)?.data as { label?: string } | undefined)?.label ?? id;
-    useAppStore
-      .getState()
-      .showToast(
-        `A response needs a request: connect ${label(caller)} → ${label(callee)} first`,
-        "info",
-      );
-    return state;
+    return {
+      kind: "no-request",
+      message: `A response needs a request: connect ${label(caller)} → ${label(callee)} first`,
+    };
   }
   const answered = responseOf(state.edges);
   const open = requests.find((e) => !answered.has(e.id));
-  if (!open) return state;
+  return open ? { kind: "create", request: open } : { kind: "none" };
+}
+
+/** The state change of a response connection: one response, one undo entry (a reducer: no side effects). */
+function connectResponse(
+  state: CanvasState,
+  connection: Connection,
+): Partial<CanvasState> | CanvasState {
+  const outcome = responseOutcome(state, connection);
+  if (outcome.kind !== "create") return state;
   return {
     history: pushedHistory(state),
     future: [],
-    edges: [...state.edges, makeReturnEdge(open)],
+    edges: [...state.edges, makeReturnEdge(outcome.request)],
   };
 }
 
@@ -582,11 +592,20 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       onConnect: (connection) => {
+        // Dragged from a return handle: the response of an existing request. The
+        // toast (RET-02) is shown here, outside the reducer, which stays pure.
+        if (connection.sourceHandle === RETURN_SOURCE_HANDLE) {
+          const current = get();
+          if (isActiveTabReadOnly(current)) return;
+          const outcome = responseOutcome(current, connection);
+          if (outcome.kind === "no-request")
+            useAppStore.getState().showToast(outcome.message, "info");
+          if (outcome.kind !== "create") return;
+          set((state) => (isActiveTabReadOnly(state) ? state : connectResponse(state, connection)));
+          return;
+        }
         set((state) => {
           if (isActiveTabReadOnly(state)) return state;
-          // Dragged from a return handle: the response of an existing request.
-          if (connection.sourceHandle === RETURN_SOURCE_HANDLE)
-            return connectResponse(state, connection);
           const graph = ruleGraph(state);
           // A new call has no response yet, so it is async until one is drawn.
           const data: CustomEdgeData = newEdgeData(connection.source, connection.target, graph);

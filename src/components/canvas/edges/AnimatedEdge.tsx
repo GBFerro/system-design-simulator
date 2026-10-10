@@ -17,7 +17,7 @@ import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 import { PARAM, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
 import { edgeCallsBadge, edgeRuleOf, isAsyncEdge } from "@/domain/graph/edgeRules";
-import { isReturnEdge, requestsWithAsync } from "@/domain/graph/returns";
+import { isReturnEdge, requestsWithAsync, responseToOf } from "@/domain/graph/returns";
 import { planFor, type PlanEdge } from "@/domain/graph/callPlan";
 import { useFlowHighlight, type FlowDirection } from "@/store/flowHighlightStore";
 import { usePrefersReducedMotion } from "@/hooks/useBreakpoint";
@@ -214,8 +214,8 @@ function ReturnEdgeInner({
   data,
 }: EdgeProps) {
   // A copy drawn between instance cards carries its share of the load (`instanceGraph.ts`).
-  const { responseTo, share } = data as { responseTo?: string; share?: number };
-  const requestId = responseTo ?? id;
+  const { share } = data as { share?: number };
+  const requestId = responseToOf({ data }) ?? id;
   const runtime = useEdgeRuntime(requestId);
   const rps = runtime ? runtime.rps * (share ?? 1) : undefined;
   const highlight = useFlowHighlight(requestId);

@@ -47,6 +47,11 @@ export function returnIdOf(requestId: string): string {
   return `${RETURN_ID_PREFIX}${requestId}`;
 }
 
+/** The `data` of the response to `requestId`: it carries nothing but the request it answers. */
+export function returnData(requestId: string): { responseTo: string } {
+  return { responseTo: requestId };
+}
+
 /** The response edge to `request`: reversed ends, dashed return handles, no parameters of its own. */
 export function makeReturnEdge(request: Pick<Edge, "id" | "source" | "target">): Edge {
   return {
@@ -56,7 +61,7 @@ export function makeReturnEdge(request: Pick<Edge, "id" | "source" | "target">):
     target: request.source,
     sourceHandle: RETURN_SOURCE_HANDLE,
     targetHandle: RETURN_TARGET_HANDLE,
-    data: { responseTo: request.id },
+    data: returnData(request.id),
   };
 }
 

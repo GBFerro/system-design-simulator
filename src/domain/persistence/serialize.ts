@@ -1,6 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { EdgeRule, Params } from "@/domain/components/types";
-import { responseToOf } from "@/domain/graph/returns";
+import { responseToOf, returnData } from "@/domain/graph/returns";
 
 /**
  * Canvas graph ⇄ storage shape (saved designs, JSON export, share link).
@@ -96,21 +96,24 @@ export function serializeNodes(nodes: readonly NodeLike[]): SerializedNode[] {
 }
 
 export function serializeEdges(edges: readonly EdgeLike[]): SerializedEdge[] {
-  return edges.map((e) => ({
-    id: e.id,
-    type: e.type,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle ?? null,
-    targetHandle: e.targetHandle ?? null,
-    data: responseToOf(e)
-      ? { responseTo: responseToOf(e) }
-      : {
-          label: typeof e.data?.label === "string" ? e.data.label : "",
-          protocol: typeof e.data?.protocol === "string" ? e.data.protocol : "http",
-          ...(e.data?.rule ? { rule: e.data.rule as EdgeRule } : {}),
-        },
-  }));
+  return edges.map((e) => {
+    const responseTo = responseToOf(e);
+    return {
+      id: e.id,
+      type: e.type,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle ?? null,
+      targetHandle: e.targetHandle ?? null,
+      data: responseTo
+        ? returnData(responseTo)
+        : {
+            label: typeof e.data?.label === "string" ? e.data.label : "",
+            protocol: typeof e.data?.protocol === "string" ? e.data.protocol : "http",
+            ...(e.data?.rule ? { rule: e.data.rule as EdgeRule } : {}),
+          },
+    };
+  });
 }
 
 /** Serialized nodes → canvas nodes. */
@@ -138,19 +141,22 @@ export function deserializeNodes(nodes: readonly SerializedNode[]): Node[] {
 
 /** Serialized edges → canvas edges (edge.data keeps label/protocol/rule; a response keeps only responseTo). */
 export function deserializeEdges(edges: readonly SerializedEdge[]): Edge[] {
-  return edges.map((e) => ({
-    id: e.id,
-    type: e.type,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle ?? undefined,
-    targetHandle: e.targetHandle ?? undefined,
-    data: e.data?.responseTo
-      ? { responseTo: e.data.responseTo }
-      : {
-          label: e.data?.label ?? "",
-          protocol: e.data?.protocol ?? "http",
-          ...(e.data?.rule ? { rule: { ...e.data.rule } } : {}),
-        },
-  }));
+  return edges.map((e) => {
+    const responseTo = responseToOf(e);
+    return {
+      id: e.id,
+      type: e.type,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle ?? undefined,
+      targetHandle: e.targetHandle ?? undefined,
+      data: responseTo
+        ? returnData(responseTo)
+        : {
+            label: e.data?.label ?? "",
+            protocol: e.data?.protocol ?? "http",
+            ...(e.data?.rule ? { rule: { ...e.data.rule } } : {}),
+          },
+    };
+  });
 }

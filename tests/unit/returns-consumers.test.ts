@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { computeFindings } from "@/advisor/advisor";
 import { makeReturnEdge, requestsWithAsync, withReturns } from "@/domain/graph/returns";
 import { topologySignature } from "@/lib/topology";
@@ -70,5 +72,64 @@ describe("topologySignature and the responses (RET-07)", () => {
     expect(topologySignature(nodes, all)).not.toBe(topologySignature(nodes, without));
     const moved = nodes.map((n) => ({ ...n, position: { x: 99, y: 99 } }));
     expect(topologySignature(moved, all)).toBe(topologySignature(nodes, all));
+  });
+});
+
+/**
+ * "Only `src/domain/graph/returns.ts` knows what a response is" (CLAUDE.md,
+ * Calls and responses): the field `responseTo` and the id prefix `ret:` appear
+ * in no other source file (comments aside), so every reader goes through the
+ * helpers (`responseToOf`, `returnData`, `returnIdOf`, ...). A file that must
+ * name them stays in ALLOWED with the reason.
+ */
+const SRC = resolve(__dirname, "../../src");
+const OWNER = "src/domain/graph/returns.ts";
+
+const ALLOWED: Record<string, string> = {
+  "src/domain/persistence/serialize.ts":
+    "SerializedEdgeData declares the on-disk field `responseTo` (the v4 file format); reads and writes go through the helpers",
+};
+
+const LITERAL = /\bresponseTo\b|\bret:/;
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return sourceFiles(path);
+    return /\.tsx?$/.test(name) ? [path] : [];
+  });
+}
+
+/** Code without comments (block comments, and `//` at a line start or after whitespace). */
+function withoutComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/.*$/gm, "$1");
+}
+
+describe("response consumers", () => {
+  const files = sourceFiles(SRC).map((p) => ({
+    rel: relative(resolve(SRC, ".."), p).replaceAll("\\", "/"),
+    code: withoutComments(readFileSync(p, "utf8")),
+  }));
+
+  it("only returns.ts names `responseTo` or `ret:` outside the allowlist", () => {
+    const offenders = files
+      .filter((f) => f.rel !== OWNER && !(f.rel in ALLOWED) && LITERAL.test(f.code))
+      .map((f) => f.rel);
+    expect(offenders, "use the returns.ts helpers, or allowlist the file with a reason").toEqual(
+      [],
+    );
+  });
+
+  it("the allowlist has no stale entries", () => {
+    const stale = Object.keys(ALLOWED).filter((rel) => {
+      const f = files.find((x) => x.rel === rel);
+      return !f || !LITERAL.test(f.code);
+    });
+    expect(stale).toEqual([]);
+  });
+
+  it("returns.ts itself still owns the literals", () => {
+    const owner = files.find((f) => f.rel === OWNER);
+    expect(owner && LITERAL.test(owner.code)).toBe(true);
   });
 });
