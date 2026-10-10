@@ -4,12 +4,11 @@ import { fileURLToPath } from "node:url";
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { TickSimulator } from "@/engine/core/tick";
 import type { GlobalRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
-import { comp } from "./engineFixtures";
+import { comp, compileV3 } from "./engineFixtures";
 
 /**
  * Golden of the engine before the call model (request-flow, FLW-32): a
@@ -126,7 +125,7 @@ function projectTick(s: TickSnapshot): unknown {
 
 /** analyze() at the design's peak and 2×, then 50 ticks at the peak (default seed). */
 function run(graph: FrozenGraph, rps: number): Results {
-  const sim = compileGraph(graph.nodes, graph.edges);
+  const sim = compileV3(graph.nodes, graph.edges);
   const tick = new TickSimulator(sim);
   const ticks: unknown[] = [];
   for (let i = 0; i < TICKS; i++) ticks.push(projectTick(tick.step(rps)));

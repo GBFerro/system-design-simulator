@@ -1,3 +1,4 @@
+import { withReturns } from "@/domain/graph/returns";
 import type { Node, Edge } from "@xyflow/react";
 import type { Problem } from "@/types/problem";
 import { getComponentById } from "@/data/components";
@@ -58,11 +59,13 @@ export function buildReferenceGraph(problem: Problem): {
   };
 
   const refEdges: Edge[] = [];
+  const asyncIds = new Set<string>();
   for (const ref of problem.referenceSolution.edges) {
     const sourceId = nextInstance(ref.source, "source");
     const targetId = nextInstance(ref.target, "target");
     if (sourceId && targetId) {
       const fallbackRule = defaultEdgeRule(ref.source, ref.target, "http");
+      if (ref.async === true) asyncIds.add(`e-${sourceId}-${targetId}`);
       refEdges.push({
         id: `e-${sourceId}-${targetId}`,
         source: sourceId,
@@ -70,7 +73,6 @@ export function buildReferenceGraph(problem: Problem): {
         type: "animated",
         // The reference states its async flag; its rules default by component ids alone.
         data: newEdgeData(sourceId, targetId, canvasRuleGraph(refNodes, refEdges), {
-          async: ref.async === true,
           rule: !ref.rule
             ? fallbackRule
             : "calls" in ref.rule
@@ -94,7 +96,8 @@ export function buildReferenceGraph(problem: Problem): {
     }
   }
 
-  return { nodes: refNodes, edges: refEdges };
+  // Every call that is not async gets its response (RET-25).
+  return { nodes: refNodes, edges: withReturns(refEdges, (e) => asyncIds.has(e.id)) };
 }
 
 /**

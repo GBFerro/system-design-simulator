@@ -2,6 +2,7 @@
 
 import { memo, useMemo } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
+import { ReturnHandles } from "./ReturnHandles";
 import { ChevronUp, Server } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
 import { abbrev, fmtMs } from "@/lib/runtimeMetrics";
@@ -138,6 +139,7 @@ function InstanceNodeInner({ data, selected }: NodeProps<InstanceNodeType>) {
         isConnectable={false}
         className={`${isCoarse ? "!h-5 !w-5" : "!h-2 !w-2"} !rounded-full !border !border-zinc-600 !bg-zinc-400`}
       />
+      <ReturnHandles connectable={false} coarse={isCoarse} />
     </div>
   );
 }

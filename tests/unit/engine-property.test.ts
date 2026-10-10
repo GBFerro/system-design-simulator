@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
-import { randomCanvas } from "./engineFixtures";
+import { randomCanvas, compileV3 } from "./engineFixtures";
 
 describe("analyze(): invariants over random graphs", () => {
   it("throughput ≤ offered load everywhere; every metric finite and in range", () => {
     for (let seed = 1; seed <= 300; seed++) {
       const { nodes, edges, rps } = randomCanvas(seed);
-      const graph = compileGraph(nodes, edges);
+      const graph = compileV3(nodes, edges);
       const s = analyze(graph, rps, { seed, samples: 200 });
 
       expect(s.throughputRps).toBeGreaterThanOrEqual(0);

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { open } from "./helpers";
+import { open, openTab } from "./helpers";
 
 // Spec 06 (TRF-01..03): live traffic runs the tick loop in the engine worker.
 
@@ -13,11 +13,11 @@ async function readClock(clock: Locator): Promise<number> {
 }
 
 async function openLiveTraffic(page: Page): Promise<Locator> {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   const panel = page.getByRole("region", { name: "Live traffic" });
   await expect(panel).toBeVisible();
   return panel;
@@ -142,7 +142,7 @@ async function playReference(page: Page): Promise<Locator> {
   await open(page, "/?e2e=1");
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   const panel = page.getByRole("region", { name: "Live traffic" });
   await panel.getByRole("button", { name: "Play live traffic" }).click();
   await expect(panel.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
@@ -156,10 +156,10 @@ const ballCount = (page: Page, dir: "req" | "res") =>
     .then((v) => Number(v));
 
 /** Dash pattern of the first edge from `source` to `target` (component ids). */
-const dashArray = (page: Page, source: string, target: string) =>
+const dashArray = (page: Page, source: string, target: string, prefix = "") =>
   page
     .locator(
-      `.react-flow__edge[data-id^="e-${source}-"][data-id*="-${target}-"] path.react-flow__edge-path`,
+      `.react-flow__edge[data-id^="${prefix}e-${source}-"][data-id*="-${target}-"] path.react-flow__edge-path`,
     )
     .first()
     .evaluate((p) => getComputedStyle(p).strokeDasharray);
@@ -171,7 +171,8 @@ test("responses come back as rings, with both symbols in the legend; pausing hol
   page.on("pageerror", (err) => errors.push(err.message));
 
   const panel = await playReference(page);
-  await expect.poll(() => ballCount(page, "res"), { timeout: 15_000 }).toBeGreaterThan(0);
+  // (a handful in flight, so none lands in the instant before the pause)
+  await expect.poll(() => ballCount(page, "res"), { timeout: 20_000 }).toBeGreaterThanOrEqual(6);
   expect(await ballCount(page, "req")).toBeGreaterThan(0);
   const total = Number(
     await page.getByTestId("flow-particles").getAttribute("data-particle-count"),
@@ -196,7 +197,7 @@ test("responses come back as rings, with both symbols in the legend; pausing hol
   expect(errors).toEqual([]);
 });
 
-test("prefers-reduced-motion: no balls either way, async edges still dashed (FLW-04)", async ({
+test("prefers-reduced-motion: no balls either way, responses dashed, a call without one a single solid line (FLW-04, RET-04)", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -213,7 +214,12 @@ test("prefers-reduced-motion: no balls either way, async edges still dashed (FLW
   expect(await ballCount(page, "res")).toBe(0);
   await expect(page.getByTestId("ball-legend")).toBeHidden();
 
-  // app-server → monitoring is async; load-balancer → rate-limiter is sync.
-  expect(await dashArray(page, "app-server", "monitoring")).not.toBe("none");
+  // app-server → monitoring is async: one solid line, no response. load-balancer →
+  // rate-limiter is sync: a solid request and a dashed response back.
+  expect(await dashArray(page, "app-server", "monitoring")).toBe("none");
   expect(await dashArray(page, "load-balancer", "rate-limiter")).toBe("none");
+  expect(await dashArray(page, "load-balancer", "rate-limiter", "ret:")).not.toBe("none");
+  await expect(
+    page.locator('.react-flow__edge[data-id^="ret:e-app-server-"][data-id*="-monitoring-"]'),
+  ).toHaveCount(0);
 });

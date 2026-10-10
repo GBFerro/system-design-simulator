@@ -104,6 +104,30 @@ function SceneWelcome() {
   );
 }
 
+const STEP_LABELS_DEMO = ["Problem", "Design", "Simulate", "Failures", "Evaluate"];
+
+/** The step bar the app opens with: one step lit at a time, in order. */
+function SceneSteps() {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5" data-tour-steps>
+      {STEP_LABELS_DEMO.map((label, i) => (
+        <motion.span
+          key={label}
+          initial={{ opacity: 0.35, scale: 0.95 }}
+          animate={{ opacity: [0.35, 1, 0.55], scale: [0.95, 1.05, 1] }}
+          transition={{ delay: i * 0.6, duration: 0.9, ease: EASE }}
+          className="flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-zinc-200"
+        >
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[10px] font-bold text-zinc-950">
+            {i + 1}
+          </span>
+          {label}
+        </motion.span>
+      ))}
+    </div>
+  );
+}
+
 function SceneBuild() {
   return (
     <div className="flex flex-wrap items-center justify-center gap-3">
@@ -158,13 +182,33 @@ function SceneWire() {
           transition={{ delay: 0.5, duration: 0.8, ease: EASE }}
         />
       </svg>
+      <motion.line
+        x1="58%"
+        y1="62%"
+        x2="42%"
+        y2="62%"
+        stroke="#22d3ee"
+        strokeWidth="2"
+        strokeDasharray="6 4"
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ delay: 1.6, duration: 0.8, ease: EASE }}
+      />
       <motion.span
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 1.2, duration: 0.4 }}
-        className="absolute left-1/2 top-[38%] -translate-x-1/2 rounded-full border border-cyan-500/30 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-cyan-300"
+        className="absolute left-1/2 top-[30%] -translate-x-1/2 rounded-full border border-cyan-500/30 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-cyan-300"
       >
-        HTTP
+        request
+      </motion.span>
+      <motion.span
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 2.2, duration: 0.4 }}
+        className="absolute left-1/2 top-[70%] -translate-x-1/2 rounded-full border border-cyan-500/30 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-cyan-300"
+      >
+        response
       </motion.span>
     </div>
   );
@@ -381,27 +425,33 @@ const SCENES: Scene[] = [
     Illo: SceneWelcome,
   },
   {
+    id: "steps",
+    title: "Follow the steps",
+    text: "The bar under the top menu walks you through Problem, Design, Simulate, Failures and Evaluate. Use Next to move on and Back (or a step you already did) to return; each step shows only its own tools.",
+    Illo: SceneSteps,
+  },
+  {
     id: "build",
     title: "1 · Build the architecture",
-    text: "Pick from 35 problems, then drag infrastructure components onto the canvas — load balancers, app servers, caches, databases, queues and more.",
+    text: "Problem: pick from 35 problems and read the requirements. Design: drag infrastructure components onto the canvas — load balancers, app servers, caches, databases, queues and more.",
     Illo: SceneBuild,
   },
   {
     id: "wire",
     title: "2 · Wire it together",
-    text: "Connect components to model the request path. Click any edge to set its protocol (HTTP, gRPC, WebSocket…) and sync or async mode.",
+    text: "Connect components to model the request path. A call is a line out and, if the caller waits for the answer, a dashed line back: draw the response from the callee's return handle. No response means async.",
     Illo: SceneWire,
   },
   {
     id: "simulate",
-    title: "3 · Simulate real traffic",
-    text: "Push up to 500K requests/sec through your design and watch QPS, utilization and bottlenecks light up across every node.",
+    title: "3 · Simulate and break it",
+    text: "Simulate: push up to 500K requests/sec through your design and watch QPS, utilization and bottlenecks light up. Failures: kill a node or cut a link and see what the error budget says.",
     Illo: SceneSimulate,
   },
   {
     id: "score",
-    title: "4 · Get scored like an interview",
-    text: "Get rated across Scalability, Availability, Latency, Cost and Trade-offs — each with concrete, actionable feedback.",
+    title: "4 · Evaluate like an interview",
+    text: "Evaluate: get rated across Scalability, Availability, Latency, Cost and Trade-offs — each with concrete, actionable feedback.",
     Illo: SceneScore,
   },
   {

@@ -49,20 +49,26 @@ const MODES = [
 ];
 
 const STEPS = [
-  ["Pick a problem", "Choose from the top-bar dropdown (or start on a blank canvas)."],
-  ["Build", "Drag components from the left sidebar — or press ⌘K and search for one."],
+  [
+    "Problem",
+    "The bar under the top menu walks you through five steps. Start by choosing a problem and reading its requirements; press Next to move on (Back or a finished step takes you back).",
+  ],
+  ["Design", "Drag components from the left palette — or press ⌘K and search for one."],
   [
     "Wire it up",
-    "Drag between node handles to connect; click an edge to set its protocol & sync/async mode.",
-  ],
-  ["Simulate", "Press ⌘↵ to push 1K–500K req/s through your design and watch it behave."],
-  [
-    "Score",
-    "Press ⌘⇧S to get rated across Scalability, Availability, Latency, Cost & Trade-offs — with concrete fixes.",
+    "Drag from a node's right handle to connect: that is a call. Draw the response back from the callee's return handle to make it synchronous; a call without a response is async.",
   ],
   [
-    "Iterate & save",
-    "Refine the design, then Save it or Export as PNG/SVG/JSON. Load Reference shows a model solution.",
+    "Simulate",
+    "Press ⌘↵ to push 1K–500K req/s through your design and watch it behave; the Simulate and Flow tabs show the numbers and one request step by step.",
+  ],
+  [
+    "Failures",
+    "Kill a node or cut a link while the simulation runs, and watch the error budget and the SLO.",
+  ],
+  [
+    "Evaluate",
+    "Press ⌘⇧S to get rated across Scalability, Availability, Latency, Cost & Trade-offs — with concrete fixes from the Advisor. Then refine, Save, or Export as PNG/SVG/JSON; Load Reference shows a model solution.",
   ],
 ];
 

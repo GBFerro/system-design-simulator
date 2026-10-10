@@ -9,10 +9,8 @@ import { Button } from "@/components/ui/button";
 import {
   Info,
   Trash2,
-  Lightbulb,
   ChevronDown,
   ChevronRight,
-  CheckSquare,
   BookOpen,
   Target,
   AlertTriangle,
@@ -21,8 +19,10 @@ import {
   Pencil,
   CopyPlus,
 } from "lucide-react";
+import { isReturnEdge, responseToOf } from "@/domain/graph/returns";
 import {
   useCanvasStore,
+  useHasResponse,
   useIsActiveTabReadOnly,
   type ComponentNodeData,
   type CustomEdgeData,
@@ -36,7 +36,6 @@ import {
 import { ParamsForm } from "./ParamsForm";
 import { EdgeCallsForm } from "./EdgeCallsForm";
 import { CostPanel } from "./CostPanel";
-import { formatMoney } from "@/cost/currency";
 import { useAppStore } from "@/store/appStore";
 import { getProblemById } from "@/data/problems";
 import { getConceptByComponentId } from "@/data/conceptLibrary";
@@ -47,6 +46,7 @@ import { TrafficControls } from "@/components/traffic/TrafficControls";
 import { MetricsDisplay } from "./MetricsDisplay";
 import { ScoreReport } from "./ScoreReport";
 import { CapacityCalculator } from "./CapacityCalculator";
+import { ProblemBrief } from "./ProblemBrief";
 import { TradeoffLog } from "./TradeoffLog";
 import { TradeoffCards } from "./TradeoffCards";
 import { ChaosPanel } from "./ChaosPanel";
@@ -57,6 +57,7 @@ import { useChaosStore } from "@/store/chaosStore";
 import { useInterviewStore } from "@/store/interviewStore";
 import { InterviewPhasePanel } from "@/components/interview/InterviewPhasePanel";
 import dynamic from "next/dynamic";
+import { TOOLS_BY_STEP, interviewTools, type RightTab } from "@/lib/steps";
 
 // The Flow tab (request-flow): the panel, its diagram and the trace load on demand.
 const FlowPanel = dynamic(() => import("./FlowPanel").then((m) => m.FlowPanel), {
@@ -92,8 +93,18 @@ function TabCount({ n, tone, label }: { n: number; tone: string; label: string }
   );
 }
 
-function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
-  const activeRightTab = useAppStore((s) => s.activeRightTab);
+function RightTabs({
+  onAnalyze,
+  tools,
+}: {
+  onAnalyze: () => void;
+  /** The tabs the current step (or interview phase) shows, first = the one that opens. */
+  tools: readonly RightTab[];
+}) {
+  const stored = useAppStore((s) => s.activeRightTab);
+  // A tab the step does not show falls back to the step's first one.
+  const activeRightTab = tools.includes(stored) ? stored : tools[0];
+  const show = (tab: RightTab) => tools.includes(tab);
   const setActiveRightTab = useAppStore((s) => s.setActiveRightTab);
   const activeFaults = useChaosStore((s) => s.faults.filter((f) => f.active).length);
   // Info findings (over-provisioning, the score's notes) don't count toward the badge.
@@ -102,152 +113,217 @@ function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
   return (
     <Tabs
       value={activeRightTab}
-      onValueChange={(v) => setActiveRightTab(v as typeof activeRightTab)}
+      onValueChange={(v) => setActiveRightTab(v as RightTab)}
       className="flex flex-1 flex-col min-h-0"
     >
       <div className="mx-2 mt-2 shrink-0 overflow-x-auto">
         <TabsList className="h-8 w-max bg-zinc-800">
-          <TabsTrigger
-            value="properties"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Props
-          </TabsTrigger>
-          <TabsTrigger
-            value="simulation"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Simulate
-          </TabsTrigger>
-          <TabsTrigger value="flow" className={TAB_TRIGGER}>
-            Flow
-          </TabsTrigger>
-          <TabsTrigger value="chaos" className={TAB_TRIGGER}>
-            Chaos
-            <TabCount
-              n={activeFaults}
-              tone="bg-orange-500/20 text-orange-300"
-              label={`${activeFaults} active faults`}
-            />
-          </TabsTrigger>
-          <TabsTrigger value="slo" className={TAB_TRIGGER}>
-            SLO
-          </TabsTrigger>
-          <TabsTrigger
-            value="score"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Score
-          </TabsTrigger>
-          <TabsTrigger value="advisor" className={TAB_TRIGGER}>
-            Advisor
-            <TabCount
-              n={findings}
-              tone="bg-amber-500/20 text-amber-300"
-              label={`${findings} findings`}
-            />
-          </TabsTrigger>
-          <TabsTrigger value="cost" className={TAB_TRIGGER}>
-            Cost
-          </TabsTrigger>
-          <TabsTrigger
-            value="capacity"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Capacity
-          </TabsTrigger>
-          <TabsTrigger
-            value="tradeoffs"
-            className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
-          >
-            Trade-offs
-          </TabsTrigger>
+          {show("properties") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("properties") }}
+              value="properties"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Props
+            </TabsTrigger>
+          )}
+          {show("simulation") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("simulation") }}
+              value="simulation"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Simulate
+            </TabsTrigger>
+          )}
+          {show("flow") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("flow") }}
+              value="flow"
+              className={TAB_TRIGGER}
+            >
+              Flow
+            </TabsTrigger>
+          )}
+          {show("chaos") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("chaos") }}
+              value="chaos"
+              className={TAB_TRIGGER}
+            >
+              Chaos
+              <TabCount
+                n={activeFaults}
+                tone="bg-orange-500/20 text-orange-300"
+                label={`${activeFaults} active faults`}
+              />
+            </TabsTrigger>
+          )}
+          {show("slo") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("slo") }}
+              value="slo"
+              className={TAB_TRIGGER}
+            >
+              SLO
+            </TabsTrigger>
+          )}
+          {show("score") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("score") }}
+              value="score"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Score
+            </TabsTrigger>
+          )}
+          {show("advisor") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("advisor") }}
+              value="advisor"
+              className={TAB_TRIGGER}
+            >
+              Advisor
+              <TabCount
+                n={findings}
+                tone="bg-amber-500/20 text-amber-300"
+                label={`${findings} findings`}
+              />
+            </TabsTrigger>
+          )}
+          {show("cost") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("cost") }}
+              value="cost"
+              className={TAB_TRIGGER}
+            >
+              Cost
+            </TabsTrigger>
+          )}
+          {show("capacity") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("capacity") }}
+              value="capacity"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Capacity
+            </TabsTrigger>
+          )}
+          {show("tradeoffs") && (
+            <TabsTrigger
+              style={{ order: tools.indexOf("tradeoffs") }}
+              value="tradeoffs"
+              className="h-7 px-2 text-[11px] data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100"
+            >
+              Trade-offs
+            </TabsTrigger>
+          )}
         </TabsList>
       </div>
 
-      <TabsContent value="properties" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <PropertiesTab />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("properties") && (
+        <TabsContent value="properties" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <PropertiesTab />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="simulation" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={`${TAB_BODY} space-y-4`}>
-            <TrafficControls />
-            <Separator className="bg-zinc-800" />
-            <SimulationControls onAnalyze={onAnalyze} />
-            <Separator className="bg-zinc-800" />
-            <MetricsDisplay />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("simulation") && (
+        <TabsContent value="simulation" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={`${TAB_BODY} space-y-4`}>
+              <TrafficControls />
+              <Separator className="bg-zinc-800" />
+              <SimulationControls onAnalyze={onAnalyze} />
+              <Separator className="bg-zinc-800" />
+              <MetricsDisplay />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="flow" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <FlowPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("flow") && (
+        <TabsContent value="flow" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <FlowPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="chaos" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <ChaosPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("chaos") && (
+        <TabsContent value="chaos" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <ChaosPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="slo" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <SloPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("slo") && (
+        <TabsContent value="slo" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <SloPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="advisor" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <AdvisorPanel />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("advisor") && (
+        <TabsContent value="advisor" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <AdvisorPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="score" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <div className={`h-full ${TAB_BODY}`}>
-          <ScoreReport />
-        </div>
-      </TabsContent>
-
-      <TabsContent value="cost" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <CostPanel />
+      {show("score") && (
+        <TabsContent value="score" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <div className={`h-full ${TAB_BODY}`}>
+            <ScoreReport />
           </div>
-        </ScrollArea>
-      </TabsContent>
+        </TabsContent>
+      )}
 
-      <TabsContent value="capacity" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={TAB_BODY}>
-            <CapacityCalculator />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("cost") && (
+        <TabsContent value="cost" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <CostPanel />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
 
-      <TabsContent value="tradeoffs" className="mt-0 flex-1 overflow-hidden min-h-0">
-        <ScrollArea className="h-full">
-          <div className={`${TAB_BODY} space-y-4`}>
-            <TradeoffLog />
-            <Separator className="bg-zinc-800" />
-            <TradeoffCards />
-          </div>
-        </ScrollArea>
-      </TabsContent>
+      {show("capacity") && (
+        <TabsContent value="capacity" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={TAB_BODY}>
+              <CapacityCalculator />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
+
+      {show("tradeoffs") && (
+        <TabsContent value="tradeoffs" className="mt-0 flex-1 overflow-hidden min-h-0">
+          <ScrollArea className="h-full">
+            <div className={`${TAB_BODY} space-y-4`}>
+              <TradeoffLog />
+              <Separator className="bg-zinc-800" />
+              <TradeoffCards />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
@@ -255,6 +331,8 @@ function RightTabs({ onAnalyze }: { onAnalyze: () => void }) {
 export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: RightPanelProps) {
   const interviewMode = useInterviewStore((s) => s.mode);
   const currentPhase = useInterviewStore((s) => s.currentPhase);
+  const step = useAppStore((s) => s.step);
+  const tools = interviewMode === "interview" ? interviewTools(currentPhase) : TOOLS_BY_STEP[step];
 
   // During interview mode, show phase panel for all phases except phase 4 (HLD)
   const showInterviewPhasePanel = interviewMode === "interview" && currentPhase !== 4;
@@ -262,7 +340,11 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
   if (variant === "mobile") {
     return (
       <div className="flex h-full w-full flex-col bg-zinc-900">
-        {showInterviewPhasePanel ? <InterviewPhasePanel /> : <RightTabs onAnalyze={onAnalyze} />}
+        {showInterviewPhasePanel ? (
+          <InterviewPhasePanel />
+        ) : (
+          <RightTabs onAnalyze={onAnalyze} tools={tools} />
+        )}
       </div>
     );
   }
@@ -279,15 +361,65 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
         <InterviewPhasePanel />
       ) : (
         <div className="flex w-[300px] flex-1 flex-col min-h-0">
-          <RightTabs onAnalyze={onAnalyze} />
+          <RightTabs onAnalyze={onAnalyze} tools={tools} />
         </div>
       )}
     </aside>
   );
 }
 
+/**
+ * A selected response (RET-11): no field to edit (the link and the calls live on
+ * the request, AD-001), just what it answers and a way to the request.
+ */
+function ResponsePanel({ edge }: { edge: Edge }) {
+  const nodes = useCanvasStore((s) => s.nodes);
+  const selectOnly = useCanvasStore((s) => s.selectOnly);
+  const deleteSelection = useCanvasStore((s) => s.deleteSelection);
+  const readOnly = useIsActiveTabReadOnly();
+  const requestId = responseToOf(edge) ?? "";
+  const labelOf = (id: string) =>
+    (nodes.find((n) => n.id === id)?.data as { label?: string } | undefined)?.label ?? id;
+  // The response runs callee → caller: the request it answers is caller → callee.
+  return (
+    <div className="space-y-3" data-response-panel>
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Response</p>
+      <p className="text-sm text-zinc-200">
+        Response to {labelOf(edge.target)} → {labelOf(edge.source)}
+      </p>
+      <p className="text-[11px] text-zinc-500">
+        The link and the calls are set on the request. Without this response the call is async.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => selectOnly([], [requestId])}
+        className="w-full gap-1.5 border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+      >
+        Select the request
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={readOnly}
+        onClick={deleteSelection}
+        className="w-full gap-1.5 border-zinc-700 text-rose-400 hover:bg-zinc-800 hover:text-rose-300"
+      >
+        <Trash2 className="h-3 w-3" />
+        Remove the response
+      </Button>
+    </div>
+  );
+}
+
+function EdgePanel({ edge }: { edge: Edge }) {
+  return isReturnEdge(edge) ? <ResponsePanel edge={edge} /> : <EdgePropertiesPanel edge={edge} />;
+}
+
 function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
+  const setEdgeSync = useCanvasStore((s) => s.setEdgeSync);
+  const isAsync = !useHasResponse(selectedEdge.id);
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
   const readOnly = useIsActiveTabReadOnly();
 
@@ -358,9 +490,9 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
           <div className="flex gap-1">
             <button
               disabled={readOnly}
-              onClick={() => updateEdgeData(selectedEdge.id, { async: false })}
+              onClick={() => setEdgeSync(selectedEdge.id, true)}
               className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                !data.async
+                !isAsync
                   ? "bg-cyan-600/20 text-cyan-400 border border-cyan-500/30"
                   : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700"
               }`}
@@ -369,9 +501,9 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
             </button>
             <button
               disabled={readOnly}
-              onClick={() => updateEdgeData(selectedEdge.id, { async: true })}
+              onClick={() => setEdgeSync(selectedEdge.id, false)}
               className={`flex-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                data.async
+                isAsync
                   ? "bg-cyan-600/20 text-cyan-400 border border-cyan-500/30"
                   : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700"
               }`}
@@ -380,7 +512,7 @@ function EdgePropertiesPanel({ edge: selectedEdge }: { edge: Edge }) {
             </button>
           </div>
           <p className="mt-1 text-[11px] text-zinc-500">
-            {data.async
+            {isAsync
               ? "Dashed line — asynchronous (e.g. message queue)"
               : "Solid line — synchronous (e.g. HTTP call)"}
           </p>
@@ -453,7 +585,6 @@ function PropertiesTab() {
   const deleteSelection = useCanvasStore((s) => s.deleteSelection);
   const readOnly = useIsActiveTabReadOnly();
   const selectedProblemId = useAppStore((s) => s.selectedProblemId);
-  const currency = useAppStore((s) => s.currency);
 
   // Selection has one source of truth: node.selected / edge.selected
   const selectedNodes = nodes.filter((n) => n.selected);
@@ -487,64 +618,8 @@ function PropertiesTab() {
 
   return (
     <div className="space-y-4">
-      {/* Problem requirements */}
-      {problem && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            Requirements — {problem.title}
-          </p>
-          <div className="space-y-1.5">
-            {[
-              {
-                label: "Reads/sec",
-                value: new Intl.NumberFormat("en-US").format(problem.requirements.readsPerSec),
-              },
-              {
-                label: "Writes/sec",
-                value: new Intl.NumberFormat("en-US").format(problem.requirements.writesPerSec),
-              },
-              {
-                label: "Storage",
-                value: `${new Intl.NumberFormat("en-US").format(problem.requirements.storageGB)} GB`,
-              },
-              { label: "Latency SLA", value: `< ${problem.requirements.latencyMs}ms` },
-              { label: "Users", value: problem.requirements.users },
-              ...(problem.requirements.budgetMonthlyUsd
-                ? [
-                    {
-                      label: "Budget",
-                      value: `${formatMoney(problem.requirements.budgetMonthlyUsd, currency)}/mo`,
-                    },
-                  ]
-                : []),
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="flex items-center justify-between rounded-md bg-zinc-800 px-2.5 py-1.5"
-              >
-                <span className="text-xs text-zinc-400">{item.label}</span>
-                <span className="font-mono text-xs text-zinc-300">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Constraints */}
-      {problem && problem.constraints.length > 0 && (
-        <>
-          <Separator className="bg-zinc-800" />
-          <ConstraintsSection constraints={problem.constraints} />
-        </>
-      )}
-
-      {/* Hints */}
-      {problem && problem.hints.length > 0 && (
-        <>
-          <Separator className="bg-zinc-800" />
-          <HintsSection hints={problem.hints} />
-        </>
-      )}
+      {/* The problem: requirements, constraints and hints */}
+      {problem && <ProblemBrief problem={problem} />}
 
       <Separator className="bg-zinc-800" />
 
@@ -661,7 +736,7 @@ function PropertiesTab() {
           );
         })()
       ) : selectedEdge ? (
-        <EdgePropertiesPanel edge={selectedEdge} />
+        <EdgePanel edge={selectedEdge} />
       ) : (
         <div className="flex flex-col items-center gap-3 py-6 text-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800">
@@ -675,88 +750,6 @@ function PropertiesTab() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function ConstraintsSection({ constraints }: { constraints: string[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const shown = expanded ? constraints : constraints.slice(0, 3);
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Constraints</p>
-      <div className="space-y-1.5">
-        {shown.map((c, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <CheckSquare className="mt-0.5 h-3 w-3 shrink-0 text-zinc-400" />
-            <span className="text-xs leading-relaxed text-zinc-400">{c}</span>
-          </div>
-        ))}
-      </div>
-      {constraints.length > 3 && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 text-xs text-cyan-500 transition-colors hover:text-cyan-400"
-        >
-          {expanded ? (
-            <>
-              <ChevronDown className="h-3 w-3" />
-              Show less
-            </>
-          ) : (
-            <>
-              <ChevronRight className="h-3 w-3" />
-              Show {constraints.length - 3} more
-            </>
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function HintsSection({ hints }: { hints: { title: string; content: string }[] }) {
-  const [expandedHints, setExpandedHints] = useState<Set<number>>(new Set());
-
-  const toggleHint = (index: number) => {
-    setExpandedHints((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
-  };
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Hints</p>
-      <div className="space-y-1.5">
-        {hints.map((hint, i) => (
-          <div key={i} className="rounded-md border border-zinc-700 bg-zinc-800 overflow-hidden">
-            <button
-              onClick={() => toggleHint(i)}
-              className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
-            >
-              <Lightbulb className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
-              <span className="flex-1 text-xs font-medium text-zinc-300">{hint.title}</span>
-              {expandedHints.has(i) ? (
-                <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
-              ) : (
-                <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />
-              )}
-            </button>
-            {expandedHints.has(i) && (
-              <div className="border-t border-zinc-700 px-2.5 py-2">
-                <p className="text-xs leading-relaxed text-zinc-400">{hint.content}</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

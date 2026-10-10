@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { Edge, Node } from "@xyflow/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PARAM } from "@/domain/components/registry";
+import { requestEdges, responseOf } from "@/domain/graph/returns";
 
 // Spec 05 acceptance: a real v1 localStorage (built from the persisted shapes
 // of canvasStore / savedDesignsStore / penStore before the v2 contract)
@@ -79,12 +80,17 @@ function expectNoLoss(v1: Graph, graph: { nodes: Node[] | V1Node[]; edges: Edge[
       expect(after.data).not.toHaveProperty(f);
   }
 
-  expect(graph.edges.map((e) => e.id)).toEqual(v1.edges.map((e) => e.id));
+  const requests = requestEdges(graph.edges as V1Edge[]);
+  expect(requests.map((e) => e.id)).toEqual(v1.edges.map((e) => e.id));
   for (const before of v1.edges) {
-    const after = (graph.edges as V1Edge[]).find((e) => e.id === before.id)!;
+    const after = requests.find((e) => e.id === before.id)!;
     expect(after.source).toBe(before.source);
     expect(after.target).toBe(before.target);
-    expect(after.data).toMatchObject(before.data ?? {});
+    // The v3 `async` flag is gone (v4): a call is async when nothing answers it.
+    const { async: wasAsync, ...kept } = (before.data ?? {}) as Record<string, unknown>;
+    expect(after.data).toMatchObject(kept);
+    expect(after.data).not.toHaveProperty("async");
+    expect(responseOf(graph.edges as V1Edge[]).has(before.id), before.id).toBe(wasAsync !== true);
     expect(after.data?.rule).toMatchObject({ calls: [{ callsPerRequest: 1 }] });
   }
 }
@@ -119,7 +125,7 @@ describe("v1 localStorage → v2 stores", () => {
 
     // Written back as v3
     const persisted = JSON.parse(storage.get("systemsim-canvas")!);
-    expect(persisted.version).toBe(3);
+    expect(persisted.version).toBe(4);
     expect(persisted.state.nodes[1].data.params[PARAM.instances]).toBe(4);
   });
 
@@ -134,7 +140,7 @@ describe("v1 localStorage → v2 stores", () => {
       expect(design.strokes).toEqual(before.strokes);
       expectNoLoss(before, design as unknown as Graph);
     });
-    expect(JSON.parse(storage.get("systemsim-saved-designs")!).version).toBe(3);
+    expect(JSON.parse(storage.get("systemsim-saved-designs")!).version).toBe(4);
   });
 
   it("pen strokes and app state pass through unchanged", async () => {
@@ -144,7 +150,7 @@ describe("v1 localStorage → v2 stores", () => {
     await useAppStore.persist.rehydrate();
     expect(usePenStore.getState().strokes).toEqual(v1Pen.strokes);
     expect(useAppStore.getState().selectedProblemId).toBe("url-shortener");
-    expect(JSON.parse(storage.get("systemsim-pen-strokes")!).version).toBe(3);
+    expect(JSON.parse(storage.get("systemsim-pen-strokes")!).version).toBe(4);
   });
 
   it("loading a migrated saved design puts the same graph on the canvas", async () => {
@@ -158,7 +164,7 @@ describe("v1 localStorage → v2 stores", () => {
     expect(usePenStore.getState().strokes).toEqual(v1Saved.designs[0].strokes);
   });
 
-  it("imports a v1 JSON export into saved designs and exports it back as v3", async () => {
+  it("imports a v1 JSON export into saved designs and exports it back as v4", async () => {
     const { useSavedDesignsStore } = await import("@/store/savedDesignsStore");
     const v1File = JSON.stringify({
       schemaVersion: 1,
@@ -171,7 +177,7 @@ describe("v1 localStorage → v2 stores", () => {
     expectNoLoss(v1Saved.designs[0], imported as unknown as Graph);
 
     const exported = JSON.parse(useSavedDesignsStore.getState().exportDesign(imported.id));
-    expect(exported.schemaVersion).toBe(3);
+    expect(exported.schemaVersion).toBe(4);
     expect(exported.nodes).toEqual(imported.nodes);
     expect(exported.edges).toEqual(imported.edges);
     expect(exported.strokes).toEqual(imported.strokes);

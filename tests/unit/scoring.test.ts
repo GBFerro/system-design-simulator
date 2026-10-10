@@ -8,7 +8,6 @@ import { CATEGORY_MAX_SCORE } from "@/scoring/budget";
 import { buildScoringGraph, scoreDesign } from "@/scoring/scorer";
 import { measureDesign, type MeasureApi } from "@/scoring/measure";
 import { rightSize } from "@/cost/rightSize";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { analyzeUnderFault } from "@/engine/faults/steady";
 import * as availability from "@/scoring/rules/availability";
@@ -18,6 +17,7 @@ import * as scalability from "@/scoring/rules/scalability";
 import * as tradeoffs from "@/scoring/rules/tradeoffs";
 import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
 import type { ComponentNodeData } from "@/store/canvasStore";
+import { compileV3 } from "./engineFixtures";
 
 type Graph = { nodes: Node<ComponentNodeData>[]; edges: Edge[] };
 type Rule = (
@@ -38,7 +38,7 @@ const inThread: MeasureApi = {
  * it survives: what a healthy design would get.
  */
 function measured({ nodes, edges }: Graph, rps = 100, samples = 500): Measurements {
-  const g = compileGraph(nodes, edges);
+  const g = compileV3(nodes, edges);
   return {
     peakRps: rps,
     slo: { latency: { percentile: 99, thresholdMs: 1000 }, availability: 0.999, windowSec: 300 },

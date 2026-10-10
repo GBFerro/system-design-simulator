@@ -1,3 +1,4 @@
+import { isReturnEdge, requestsWithAsync } from "@/domain/graph/returns";
 import type { Node, Edge } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { Measurements, ScoreResult, ScoringGraph } from "@/types/scoring";
@@ -33,7 +34,8 @@ export function buildScoringGraph(nodes: Node<ComponentNodeData>[], edges: Edge[
   const seen = new Set<string>();
   let edgeCount = 0;
   for (const e of edges) {
-    // Skip edges touching non-component nodes (text annotations) and self-loops
+    // Responses are not calls; skip edges touching non-component nodes (text annotations) and self-loops
+    if (isReturnEdge(e)) continue;
     if (!nodeIds.has(e.source) || !nodeIds.has(e.target) || e.source === e.target) continue;
     const key = `${e.source}->${e.target}`;
     if (seen.has(key)) continue;
@@ -79,9 +81,11 @@ export function buildScoringGraph(nodes: Node<ComponentNodeData>[], edges: Edge[
  */
 export function scoreDesign(
   nodes: Node<ComponentNodeData>[],
-  edges: Edge[],
+  canvasEdges: Edge[],
   m?: Measurements,
 ): ScoreResult {
+  // Responses are not calls: the rubric reads the requests only (RET-09).
+  const edges = requestsWithAsync(canvasEdges);
   if (nodes.length === 0) {
     return {
       total: 0,

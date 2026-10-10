@@ -4,7 +4,6 @@ import { LEARNING_PATH, PROBLEM_CONCEPTS } from "@/data/learningPath";
 import { PROBLEMS } from "@/data/problems";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { getParamSpec, PARAM } from "@/domain/components/registry";
-import { compileGraph } from "@/domain/graph/compile";
 import { getFaultType } from "@/engine/faults/catalog";
 import { compileFault } from "@/engine/faults/compile";
 import { resolveDrillStep } from "@/interview/drill";
@@ -15,6 +14,7 @@ import { budgetFraction, latencySloOf, problemSlo } from "@/slo/slo";
 import { AVAILABILITY_RANGE } from "@/slo/types";
 import type { CustomEdgeData } from "@/store/canvasStore";
 import type { Problem } from "@/types/problem";
+import { compileV3 } from "./engineFixtures";
 
 // Ids, duplicates and learning-path coverage are in catalog.test.ts; this file
 // checks the "Data conventions" of CLAUDE.md that are about order and wiring.
@@ -101,7 +101,7 @@ describe("reference call lists (request-flow)", () => {
     expect(
       (g.edges.find((e) => e.target === cache.id)!.data as CustomEdgeData).rule!.calls,
     ).toEqual([{ kind: "reads", callsPerRequest: 1 }]);
-    expect(compileGraph(g.nodes, g.edges).warnings).toEqual([]);
+    expect(compileV3(g.nodes, g.edges).warnings).toEqual([]);
   });
 
   it("references cache look-aside: only a CDN reads through to its origin (FLW-21)", () => {
@@ -133,7 +133,7 @@ describe("reference call lists (request-flow)", () => {
       { kind: "writes", callsPerRequest: 1 },
       { kind: "after_miss", callsPerRequest: 1 },
     ]);
-    expect(compileGraph(g.nodes, g.edges).warnings.join(" ")).toMatch(/names no cache call/);
+    expect(compileV3(g.nodes, g.edges).warnings.join(" ")).toMatch(/names no cache call/);
   });
 });
 
@@ -148,7 +148,7 @@ describe("budgets (Spec 10)", () => {
       const { readsPerSec, writesPerSec } = p.requirements;
       const peak = readsPerSec + writesPerSec;
       const { nodes, edges } = buildReferenceGraph(p);
-      const steady = analyze(compileGraph(nodes, edges), peak, {
+      const steady = analyze(compileV3(nodes, edges), peak, {
         readRatio: readsPerSec / peak,
         samples: 100,
       });
@@ -175,7 +175,7 @@ describe("SLOs (Spec 11)", () => {
       const { readsPerSec, writesPerSec } = p.requirements;
       const peak = readsPerSec + writesPerSec;
       const { nodes, edges } = buildReferenceGraph(p);
-      const steady = analyze(compileGraph(nodes, edges), peak, {
+      const steady = analyze(compileV3(nodes, edges), peak, {
         readRatio: readsPerSec / peak,
         latencySlo: latencySloOf(slo),
       });
@@ -222,7 +222,7 @@ describe("failure drill scripts (Spec 09)", () => {
     for (const p of PROBLEMS) {
       const d = INTERVIEW_DATA.find((x) => x.problemId === p.id)!;
       const { nodes, edges } = buildReferenceGraph(p);
-      const graph = compileGraph(nodes, edges);
+      const graph = compileV3(nodes, edges);
       d.drill.forEach((step, i) => {
         const r = resolveDrillStep(step, d, graph, null);
         expect(r, `${p.id} step ${i + 1}`).not.toBeNull();

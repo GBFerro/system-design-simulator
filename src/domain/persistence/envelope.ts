@@ -2,6 +2,7 @@ import type { Stroke } from "@/store/penStore";
 import { sanitizeSloOverrides } from "@/slo/slo";
 import type { SloOverrides } from "@/slo/types";
 import { migrateGraph, type MigrateOptions } from "./migrate";
+import { isReturnEdge, responseToOf } from "@/domain/graph/returns";
 import { SCHEMA_VERSION } from "./version";
 import {
   serializeEdges,
@@ -15,7 +16,7 @@ import {
  * app writes — the top-bar "Export as JSON", the Load dialog's per-design
  * export and (Phase 6) the share link:
  *
- *   { schemaVersion: 3, name, problemId, nodes, edges, strokes, chaosScript?, slo? }
+ *   { schemaVersion: 4, name, problemId, nodes, edges, strokes, chaosScript?, slo? }
  *
  * Nodes carry `params`; edges carry `data` (label/protocol/async/rule, the
  * rule as the link plus its list of calls); `slo` is the design's SLO
@@ -144,13 +145,26 @@ export function parseEnvelope(
   const error = structuralError(parsed);
   if (error) return { ok: false, error };
 
-  // v1 and v2 need the migration; for v3 the same (idempotent) pass
+  // v1 to v3 need the migration (v4 skips its last step); for v4 the same (idempotent) pass
   // validates params and rules and drops dangling edges.
   const warnings: string[] = [];
   const graph = migrateGraph(parsed.nodes, parsed.edges, {
     ...options,
+    fromVersion,
     onWarning: (m) => warnings.push(m),
   });
+
+  // A response whose request is not in the file answers nothing (RET-32).
+  const requestIds = new Set(graph.edges.filter((e) => !isReturnEdge(e)).map((e) => e.id));
+  const orphanIds = new Set(
+    graph.edges
+      .filter((e) => isReturnEdge(e) && !requestIds.has(responseToOf(e) as string))
+      .map((e) => e.id),
+  );
+  if (orphanIds.size > 0) {
+    warnings.push(`Dropped ${orphanIds.size} response edge(s) without a request.`);
+    graph.edges = graph.edges.filter((e) => !orphanIds.has(e.id));
+  }
 
   const chaosScript =
     typeof parsed.chaosScript === "object" && parsed.chaosScript !== null

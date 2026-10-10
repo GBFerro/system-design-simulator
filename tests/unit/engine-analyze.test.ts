@@ -1,6 +1,6 @@
+import { withReturns } from "@/domain/graph/returns";
 import { describe, expect, it } from "vitest";
 import { defaultParams, PARAM } from "@/domain/components/registry";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { retryAmplification, station } from "@/engine/core/queueing";
 import { callProbability, edgeFactor, forwardEdges } from "@/engine/core/routing";
@@ -12,7 +12,7 @@ import { analyzeUnderFault } from "@/engine/faults/steady";
 import type { EdgeCall } from "@/domain/components/types";
 import type { SteadyState } from "@/engine/types";
 import type { Edge } from "@xyflow/react";
-import { comp, text, wire } from "./engineFixtures";
+import { comp, text, wire, compileV3 } from "./engineFixtures";
 
 const byId = (s: SteadyState, id: string) => s.nodes.find((n) => n.nodeId === id)!;
 const edgeOf = (s: SteadyState, source: string, target: string) =>
@@ -36,7 +36,7 @@ const call = (kind: EdgeCall["kind"], extra: Partial<EdgeCall> = {}): EdgeCall =
 
 describe("analyze(): queueing through the graph", () => {
   it("M/M/1 node at ρ = 0.5 waits S·ρ/(1−ρ)", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer"),
         comp("app", "app-server", { instances: 1, capacityPerInstance: 100, serviceTimeMs: 10 }),
@@ -52,7 +52,7 @@ describe("analyze(): queueing through the graph", () => {
   });
 
   it("cache with 90% hits sends 10% of its load to the DB", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer"),
         comp("cache", "cache", { hitRate: 0.9 }),
@@ -70,7 +70,7 @@ describe("analyze(): queueing through the graph", () => {
 
   it("cache hit rate h generally reduces the DB to (1 − h)", () => {
     for (const h of [0, 0.25, 0.5, 0.99, 1]) {
-      const graph = compileGraph(
+      const graph = compileV3(
         [
           comp("lb", "load-balancer"),
           comp("cache", "cache", { hitRate: h }),
@@ -84,7 +84,7 @@ describe("analyze(): queueing through the graph", () => {
   });
 
   it("routes service edges by rule: reads/writes mix, fraction and callsPerRequest", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer"),
         comp("app", "app-server", { instances: 10 }),
@@ -115,19 +115,19 @@ describe("analyze(): queueing through the graph", () => {
       comp("b", "app-server", { instances: 3, capacityPerInstance: 1000 }),
     ];
     const edges = [wire("lb", "a"), wire("lb", "b")];
-    const rr = analyze(compileGraph(nodes("round-robin"), edges), 2000);
+    const rr = analyze(compileV3(nodes("round-robin"), edges), 2000);
     expect(byId(rr, "a").offeredRps).toBeCloseTo(1000, 6);
     expect(byId(rr, "b").offeredRps).toBeCloseTo(1000, 6);
-    const weighted = analyze(compileGraph(nodes("weighted"), edges), 2000);
+    const weighted = analyze(compileV3(nodes("weighted"), edges), 2000);
     expect(byId(weighted, "a").offeredRps).toBeCloseTo(500, 6);
     expect(byId(weighted, "b").offeredRps).toBeCloseTo(1500, 6);
-    const lc = analyze(compileGraph(nodes("least-connections"), edges), 2000);
+    const lc = analyze(compileV3(nodes("least-connections"), edges), 2000);
     expect(byId(lc, "a").offeredRps).toBeCloseTo(500, 6);
     expect(byId(lc, "b").offeredRps).toBeCloseTo(1500, 6);
   });
 
   it("rate limiter passes min(λ, limit) and rejects the excess as errors", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("rl", "rate-limiter", { limitRps: 3000, overLimitAction: "reject" }),
         comp("app", "app-server", { instances: 10 }),
@@ -144,7 +144,7 @@ describe("analyze(): queueing through the graph", () => {
   });
 
   it("queue decouples: consumers bound the drain rate, the rest becomes lag", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer"),
         comp("mq", "message-queue", { consumers: 2 }),
@@ -170,9 +170,9 @@ describe("analyze(): queueing through the graph", () => {
       comp("app", "app-server", { instances: 10, timeoutMs: 60_000 }),
       comp("slow", "data-warehouse", { instances: 100 }),
     ];
-    const sync = analyze(compileGraph(nodes, [wire("lb", "app"), wire("app", "slow")]), 100);
+    const sync = analyze(compileV3(nodes, [wire("lb", "app"), wire("app", "slow")]), 100);
     const async = analyze(
-      compileGraph(nodes, [wire("lb", "app"), wire("app", "slow", { async: true })]),
+      compileV3(nodes, [wire("lb", "app"), wire("app", "slow", { async: true })]),
       100,
     );
     expect(byId(async, "slow").offeredRps).toBeCloseTo(100, 6);
@@ -183,7 +183,7 @@ describe("analyze(): queueing through the graph", () => {
 
 describe("analyze(): retries", () => {
   it("edge load equals base × (1 − f^{R+1})/(1 − f) at the fixed point", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer"),
         comp("app", "app-server", { instances: 20, maxRetries: 3, timeoutMs: 5000 }),
@@ -211,7 +211,7 @@ describe("analyze(): retries", () => {
   });
 
   it("retry storm: a dependency that always times out gets (R+1)× the load", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer"),
         comp("app", "app-server", { instances: 20, maxRetries: 2, timeoutMs: 100 }),
@@ -238,7 +238,7 @@ describe("analyze(): graph hygiene and entry points", () => {
       wire("note", "app"),
       wire("app", "ghost"),
     ];
-    const graph = compileGraph(nodes, edges);
+    const graph = compileV3(nodes, edges);
     expect(graph.nodes.map((n) => n.id)).toEqual(["app", "db"]);
     expect(graph.edges).toHaveLength(1);
     // The text-node edge into `app` must not make it a non-entry.
@@ -249,7 +249,7 @@ describe("analyze(): graph hygiene and entry points", () => {
   });
 
   it("a node with no edges is not an entry point and gets no traffic", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [comp("lb", "load-balancer"), comp("app", "app-server"), comp("lonely", "cache")],
       [wire("lb", "app")],
     );
@@ -262,7 +262,7 @@ describe("analyze(): graph hygiene and entry points", () => {
   });
 
   it("with no edges at all nothing receives traffic", () => {
-    const s = analyze(compileGraph([comp("app", "app-server")], []), 1000);
+    const s = analyze(compileV3([comp("app", "app-server")], []), 1000);
     expect(s.entryIds).toEqual([]);
     expect(s.throughputRps).toBe(0);
     expect(byId(s, "app").offeredRps).toBe(0);
@@ -270,7 +270,7 @@ describe("analyze(): graph hygiene and entry points", () => {
   });
 
   it("a Client node is the entry point when present", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("client", "client"),
         comp("lb", "load-balancer"),
@@ -288,7 +288,7 @@ describe("analyze(): graph hygiene and entry points", () => {
   });
 
   it("dedupes parallel edges and drops self-loops", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [comp("lb", "load-balancer"), comp("app", "app-server", { instances: 10 })],
       [wire("lb", "app"), { ...wire("lb", "app"), id: "dup" }, wire("app", "app")],
     );
@@ -298,7 +298,7 @@ describe("analyze(): graph hygiene and entry points", () => {
   });
 
   it("cycles: traffic goes around once, the closing edge carries nothing", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("lb", "load-balancer"),
         comp("a", "app-server", { instances: 10 }),
@@ -329,7 +329,7 @@ describe("analyze(): graph hygiene and entry points", () => {
       position: { x: 0, y: 0 },
       data: { componentId: "sql-db", label: "Old DB", maxQPS: 777, latencyMs: 3, replicas: 2 },
     };
-    const graph = compileGraph([bad, legacy], [wire("app", "old")]);
+    const graph = compileV3([bad, legacy], [wire("app", "old")]);
     const app = graph.nodes.find((n) => n.id === "app")!;
     expect(app.instances).toBe(1);
     expect(app.capacityPerInstance).toBe(5000);
@@ -356,7 +356,7 @@ describe("compileGraph: call plan (request-flow)", () => {
   ];
 
   it("every node with a forward outgoing edge carries its plan; leaves don't", () => {
-    const graph = compileGraph(lookAside, [
+    const graph = compileV3(lookAside, [
       wire("client", "svc"),
       callWire("svc", "redis", [call("reads")]),
       callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
@@ -384,7 +384,7 @@ describe("compileGraph: call plan (request-flow)", () => {
   });
 
   it("a back edge stays out of the plan and carries no load (FLW-46)", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("client", "client"),
         comp("a", "app-server", { instances: 10 }),
@@ -411,7 +411,7 @@ describe("compileGraph: call plan (request-flow)", () => {
     ["missOf names a node the graph doesn't have (FLW-42)", "ghost"],
     ["missOf names a node without hit rate (FLW-43)", "log"],
   ])("%s: graph.warnings says so and the call counts as reads", (_name, missOf) => {
-    const graph = compileGraph(lookAside, [
+    const graph = compileV3(lookAside, [
       wire("client", "svc"),
       callWire("svc", "log", [call("always")]),
       callWire("svc", "db", [call("after_miss", { missOf })]),
@@ -424,7 +424,7 @@ describe("compileGraph: call plan (request-flow)", () => {
   });
 
   it("a raised after-miss step shows up in graph.warnings (FLW-29)", () => {
-    const graph = compileGraph(lookAside, [
+    const graph = compileV3(lookAside, [
       wire("client", "svc"),
       callWire("svc", "redis", [call("reads", { step: 2 })]),
       callWire("svc", "db", [call("after_miss", { missOf: "redis", step: 1 })]),
@@ -437,7 +437,7 @@ describe("compileGraph: call plan (request-flow)", () => {
   });
 
   it("stays structured-clone safe: plain arrays and objects only", () => {
-    const graph = compileGraph(lookAside, [
+    const graph = compileV3(lookAside, [
       wire("client", "svc"),
       callWire("svc", "redis", [call("reads")]),
       callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
@@ -451,7 +451,7 @@ describe("compileGraph: call plan (request-flow)", () => {
 
 describe("routing: probability of each call (request-flow)", () => {
   // svc reads redis (h 0.9), then writes the db and reads it after a miss
-  const graph = compileGraph(
+  const graph = compileV3(
     [
       comp("client", "client"),
       comp("svc", "app-server", { instances: 10 }),
@@ -499,7 +499,7 @@ describe("routing: probability of each call (request-flow)", () => {
 
   it("with one call, the edge factor is exactly P(taken) × callsPerRequest", () => {
     const one = (calls: EdgeCall[], source = "svc") =>
-      compileGraph(
+      compileV3(
         [comp("svc", "app-server"), comp("cdn", "cdn", { hitRate: 0.85 }), comp("db", "sql-db")],
         [callWire(source, "db", calls)],
       );
@@ -540,7 +540,7 @@ describe("settle: a look-aside cache's failure is a miss (request-flow)", () => 
     servedShare: Record<string, number>,
     availability: Record<string, number> = {},
   ) {
-    const graph = compileGraph(nodes, edges);
+    const graph = compileV3(nodes, edges);
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
     for (const [id, a] of Object.entries(availability)) byId.get(id)!.params.availability = a;
     const topo: Topology = {
@@ -626,7 +626,7 @@ describe("analyze(): reads after a cache miss (request-flow)", () => {
     callWire("svc", "redis", [call("reads")]),
     callWire("svc", "db", [call("writes"), call("after_miss", { missOf: "redis" })]),
   ];
-  const graph = compileGraph(nodes, lookAside);
+  const graph = compileV3(nodes, lookAside);
 
   it("the database gets the writes plus the reads that missed: 1,900 req/s at 10k (FLW-09)", () => {
     const s = analyze(graph, RPS, config);
@@ -634,7 +634,7 @@ describe("analyze(): reads after a cache miss (request-flow)", () => {
     expect(edgeOf(s, "svc", "db").rps / 1900).toBeCloseTo(1, 6);
     // the same load as the read-through model it replaces
     const readThrough = analyze(
-      compileGraph(nodes, [
+      compileV3(nodes, [
         wire("client", "svc"),
         wire("svc", "redis", { rule: { kind: "reads" } }),
         wire("redis", "db", { rule: { kind: "on_miss" } }),
@@ -662,7 +662,7 @@ describe("analyze(): reads after a cache miss (request-flow)", () => {
     expect(s.throughputRps / RPS).toBeCloseTo(1, 9);
     // availability as if the design had no cache and read the database every time
     const noCache = analyze(
-      compileGraph(nodes, [
+      compileV3(nodes, [
         wire("client", "svc"),
         callWire("svc", "db", [call("writes"), call("reads")]),
       ]),
@@ -674,8 +674,8 @@ describe("analyze(): reads after a cache miss (request-flow)", () => {
   });
 
   it("keeps the Spec 04 invariants: deterministic, served ≤ offered, every number finite (FLW-16)", () => {
-    const a = analyze(compileGraph(nodes, lookAside), RPS, { ...config, seed: 5 });
-    const b = analyze(compileGraph(nodes, lookAside), RPS, { ...config, seed: 5 });
+    const a = analyze(compileV3(nodes, lookAside), RPS, { ...config, seed: 5 });
+    const b = analyze(compileV3(nodes, lookAside), RPS, { ...config, seed: 5 });
     expect(a).toEqual(b);
     for (const s of [a, analyze(graph, RPS * 20, config)]) {
       expect(s.throughputRps).toBeLessThanOrEqual(s.offeredRps);
@@ -703,16 +703,16 @@ describe("determinism and the engine contract", () => {
   const edges = [wire("lb", "app"), wire("app", "cache"), wire("cache", "db")];
 
   it("same seed → identical result (deep equal)", () => {
-    const g1 = compileGraph(nodes, edges);
-    const g2 = compileGraph(nodes, edges);
+    const g1 = compileV3(nodes, edges);
+    const g2 = compileV3(nodes, edges);
     expect(analyze(g1, 12_000, { seed: 7 })).toEqual(analyze(g2, 12_000, { seed: 7 }));
   });
 
   it("Engine: load + analyze; inject rejects a fault that can't apply", () => {
     const engine = createEngine();
     expect(() => engine.analyze(1)).toThrow();
-    engine.load(compileGraph(nodes, edges), { seed: 3 });
-    expect(engine.analyze(5000)).toEqual(analyze(compileGraph(nodes, edges), 5000, { seed: 3 }));
+    engine.load(compileV3(nodes, edges), { seed: 3 });
+    expect(engine.analyze(5000)).toEqual(analyze(compileV3(nodes, edges), 5000, { seed: 3 }));
     expect(() =>
       engine.inject({ type: "kill-node", target: { kind: "node", id: "nope" } }),
     ).toThrow(FaultError);
@@ -720,10 +720,15 @@ describe("determinism and the engine contract", () => {
   });
 
   it("client falls back to in-thread analysis without Worker and maps to SimulationResult", async () => {
-    const { steady, result } = await simulateCanvas([...nodes, text("t")], edges, 8000, {
-      seed: 1,
-    });
-    expect(steady).toEqual(analyze(compileGraph(nodes, edges), 8000, { seed: 1 }));
+    const { steady, result } = await simulateCanvas(
+      [...nodes, text("t")],
+      withReturns(edges),
+      8000,
+      {
+        seed: 1,
+      },
+    );
+    expect(steady).toEqual(analyze(compileV3(nodes, edges), 8000, { seed: 1 }));
     expect(result.nodeMetrics).toBeInstanceOf(Map);
     expect(result.nodeMetrics.size).toBe(4);
     expect(result.throughput).toBe(steady.throughputRps);

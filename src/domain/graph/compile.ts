@@ -9,6 +9,7 @@ import {
 import type { EdgeRule, Params, RoutingKind } from "@/domain/components/types";
 import { planFor, type CallPlan } from "./callPlan";
 import { defaultEdgeRule, sanitizeEdgeRule } from "./edgeRules";
+import { asyncRequestIds, isReturnEdge, responseToOf } from "./returns";
 
 /**
  * Graph compilation (Spec 04, "Compilação do grafo").
@@ -130,13 +131,32 @@ export function compileGraph(rawNodes: readonly unknown[], rawEdges: readonly un
     byId.set(node.id, node);
   }
 
+  /* ---- responses are never calls: they leave the graph before the engine sees it ---- */
+  const rawList = Array.isArray(rawEdges) ? rawEdges : [];
+  // A call is async when nothing answers it (RET-06); the legacy flag still counts.
+  const asyncIds = asyncRequestIds(
+    rawList.flatMap((raw) => {
+      const e = asRecord(raw);
+      return typeof e.id === "string" ? [{ id: e.id, data: e.data }] : [];
+    }),
+  );
+  const requestIds = new Set(
+    rawList.filter((raw) => !isReturnEdge(asRecord(raw))).map((raw) => asRecord(raw).id),
+  );
+  const orphans = rawList.filter((raw) => {
+    const to = responseToOf(asRecord(raw));
+    return to !== undefined && !requestIds.has(to);
+  }).length;
+  if (orphans > 0) warnings.push(`Ignored ${orphans} response edge(s) without a request.`);
+
   /* ---- edges: drop dangling/text/self edges, dedupe parallel ones ---- */
   const edges: SimEdge[] = [];
   const byPair = new Map<string, SimEdge>();
   let selfLoops = 0;
   let duplicates = 0;
-  for (const rawEdge of Array.isArray(rawEdges) ? rawEdges : []) {
+  for (const rawEdge of rawList) {
     const e = asRecord(rawEdge) as RawEdge;
+    if (isReturnEdge(e)) continue;
     if (typeof e.source !== "string" || typeof e.target !== "string") continue;
     const source = byId.get(e.source);
     const target = byId.get(e.target);
@@ -147,7 +167,7 @@ export function compileGraph(rawNodes: readonly unknown[], rawEdges: readonly un
       continue;
     }
     const data = asRecord(e.data);
-    const isAsync = data.async === true;
+    const isAsync = typeof e.id === "string" ? asyncIds.has(e.id) : data.async === true;
     const key = `${source.id}->${target.id}`;
     const existing = byPair.get(key);
     if (existing) {

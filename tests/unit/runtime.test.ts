@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
 import { PARAM } from "@/domain/components/params";
 import type { Params } from "@/domain/components/types";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze, analyzeWithModel } from "@/engine/analyze";
 import { simulateCanvas } from "@/engine/client";
 import { TickSimulator } from "@/engine/core/tick";
@@ -10,7 +9,7 @@ import { FlowEngine } from "@/engine/engine";
 import { compileFault } from "@/engine/faults/compile";
 import { effectsAt } from "@/engine/faults/effects";
 import { steadyStateToSnapshot } from "@/engine/snapshot";
-import { comp, wire } from "./engineFixtures";
+import { comp, wire, compileV3 } from "./engineFixtures";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import { RingBuffer } from "@/lib/ringBuffer";
 import { useRuntimeStore } from "@/store/runtimeStore";
@@ -37,7 +36,7 @@ describe("RingBuffer", () => {
 describe("steadyStateToSnapshot", () => {
   it("maps every node and edge of a reference solution, with finite metrics", () => {
     const { nodes, edges } = buildReferenceGraph(PROBLEMS[0]);
-    const steady = analyze(compileGraph(nodes, edges), 5000);
+    const steady = analyze(compileV3(nodes, edges), 5000);
     const snap = steadyStateToSnapshot(steady, 1.5);
     expect(snap.t).toBe(1.5);
     expect(Object.keys(snap.nodes).sort()).toEqual(steady.nodes.map((n) => n.nodeId).sort());
@@ -55,7 +54,7 @@ describe("steadyStateToSnapshot", () => {
 describe("global.readRatio (request-flow FLW-01: balls draw reads with it)", () => {
   // client → app → db: reads and writes split by the resolved read ratio.
   const design = (clientParams: Params = {}) =>
-    compileGraph(
+    compileV3(
       [comp("client", "client", clientParams), comp("app", "app-server"), comp("db", "sql-db")],
       [wire("client", "app"), wire("app", "db", { rule: { kind: "writes" } })],
     );
@@ -92,7 +91,7 @@ describe("edgeLinkFailure (request-flow FLW-05: the caller's timeout and link lo
     edges: [wire("client", "app", { rule: { packetLoss } }), wire("app", "db")],
   });
   const tickOf = (d: ReturnType<typeof design>) =>
-    new TickSimulator(compileGraph(d.nodes, d.edges)).step(100);
+    new TickSimulator(compileV3(d.nodes, d.edges)).step(100);
   const analyzeOf = async (d: ReturnType<typeof design>) => {
     const { steady, graph, linkFailure } = await simulateCanvas(d.nodes, d.edges, 100);
     return steadyStateToSnapshot(steady, 0, graph, undefined, linkFailure);
@@ -114,7 +113,7 @@ describe("edgeLinkFailure (request-flow FLW-05: the caller's timeout and link lo
   });
 
   it("leaves out a target that fails on its own (a fault on the db), in the tick and in analyze", () => {
-    const graph = compileGraph(
+    const graph = compileV3(
       [
         comp("client", "client"),
         comp("app", "app-server", { maxRetries: 0, instances: 4 }),

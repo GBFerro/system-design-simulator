@@ -46,7 +46,7 @@
 import type { EdgeCall, RoutingKind } from "@/domain/components/types";
 import { planFor, type CallPlan, type PlannedCall } from "@/domain/graph/callPlan";
 import type { TickSnapshot } from "@/engine/types";
-import { instanceEdgeId, laneOf } from "./instances";
+import { instanceEdgeId, laneOf, responseDrawnId } from "./instances";
 
 /** Hard cap on balls alive at once (requests and responses), all edges together. */
 export const MAX_BALLS = 2000;
@@ -163,7 +163,7 @@ export interface Ball {
   edge: string;
   /** What is drawn for it: the edge, or its copy between instance cards. */
   drawn: string;
-  /** Flow-px travelled along `drawn` (a response travels it target → source). */
+  /** Flow-px travelled along `drawn` (a response: its own line, from the callee to the caller). */
   pos: number;
   /** "req": a call on its way to the target; "res": its response on the way back. */
   dir: "req" | "res";
@@ -602,11 +602,13 @@ export class FlowBalls {
   /** Answer the call `req` along the edge it came in on (async calls get no answer). */
   private respond(req: Ball, error: boolean, ctx: StepContext): void {
     if (req.frame === undefined) return;
-    if (this.alive >= MAX_BALLS || ctx.env.lengthOf(req.drawn) === undefined) {
+    // The response runs on its own line (the edge `ret:<id>`), callee → caller.
+    const drawn = responseDrawnId(req.drawn);
+    if (this.alive >= MAX_BALLS || ctx.env.lengthOf(drawn) === undefined) {
       this.deliver(req.frame, req.edge, !error, ctx);
       return;
     }
-    this.responses.push({ ...req, dir: "res", pos: 0, error });
+    this.responses.push({ ...req, drawn, dir: "res", pos: 0, error });
   }
 
   /** The rate at which balls leave `node` (the requests it served), req/s. */

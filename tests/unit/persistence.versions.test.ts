@@ -35,6 +35,12 @@ describe("persisted stores", () => {
     expect(persisted).toEqual(Object.keys(STORES).sort());
   });
 
+  it("the stores are at schema version 4 (RET-29)", () => {
+    expect(STORE_VERSION).toBe(4);
+    expect(useCanvasStore.persist.getOptions().version).toBe(4);
+    expect(useSavedDesignsStore.persist.getOptions().version).toBe(4);
+  });
+
   it.each(Object.entries(STORES))("%s uses STORE_VERSION, skipHydration and a migrate", (_f, s) => {
     const options = s.persist.getOptions();
     expect(options.version).toBe(STORE_VERSION);

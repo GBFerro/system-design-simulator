@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MOD, connect, open, quickAdd } from "./helpers";
+import { MOD, connectSync, open, quickAdd, openTab } from "./helpers";
 
 // Spec 08 (CHS-06): each fault says how to mitigate it, with quick fixes
 // previewed on the canvas and applied (live run included) in one undo step.
@@ -11,16 +11,16 @@ test("mitigation: preview and apply a fix from an active fault, undo it", async 
   await quickAdd(page, "Client");
   await quickAdd(page, "App Server");
   await quickAdd(page, "SQL Database");
-  await connect(page, "client", "app-server");
-  await connect(page, "app-server", "sql-db");
-  await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+  await connectSync(page, "client", "app-server");
+  await connectSync(page, "app-server", "sql-db");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
 
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   const live = page.getByRole("region", { name: "Live traffic" });
   await live.getByRole("button", { name: "Play live traffic" }).click();
   await expect(live.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
 
-  await page.getByRole("tab", { name: /Chaos/ }).click();
+  await openTab(page, /Chaos/);
   const panel = page.getByTestId("chaos-panel");
   await panel.getByRole("button", { name: "Kill node" }).click();
   await panel.getByTestId("chaos-target").selectOption({ label: "SQL Database" });
@@ -55,8 +55,8 @@ test("the fault form shows the mitigations of the chosen fault and target", asyn
   await open(page);
   await quickAdd(page, "Client");
   await quickAdd(page, "App Server");
-  await connect(page, "client", "app-server");
-  await page.getByRole("tab", { name: /Chaos/ }).click();
+  await connectSync(page, "client", "app-server");
+  await openTab(page, /Chaos/);
   const panel = page.getByTestId("chaos-panel");
   await panel.getByRole("button", { name: "Transient errors (retry storm)" }).click();
   const tips = panel.getByTestId("chaos-mitigations").first();

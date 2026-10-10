@@ -5,6 +5,7 @@
  * ReactFlow elements and `lib/flowBalls.ts` routes balls over them.
  */
 import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
+import { returnIdOf } from "@/domain/graph/returns";
 import type { FaultRecord } from "@/engine/faults/types";
 
 /** Instance cards an expanded node shows before the rest go into one stacked card. */
@@ -39,6 +40,16 @@ export const instanceNodeId = (nodeId: string, lane: number) =>
  * Id of the drawn edge for `edgeId` between source lane `from` and target lane
  * `to` (−1 = that end isn't expanded). Both −1: the edge itself.
  */
+/**
+ * What is drawn for the response to the call drawn as `drawn` (RET-16): the
+ * response edge `ret:<id>`, or its copy between the same two cards, the
+ * callee's lane first (a response runs from the callee to the caller).
+ */
+export function responseDrawnId(drawn: string): string {
+  const m = /^inst:(.*):(-?\d+):(-?\d+)$/.exec(drawn);
+  return m ? instanceEdgeId(returnIdOf(m[1]), Number(m[3]), Number(m[2])) : returnIdOf(drawn);
+}
+
 export function instanceEdgeId(edgeId: string, from: number, to: number): string {
   return from < 0 && to < 0 ? edgeId : `${INSTANCE_PREFIX}${edgeId}:${from}:${to}`;
 }

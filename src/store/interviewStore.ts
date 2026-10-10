@@ -199,9 +199,10 @@ export const useInterviewStore = create<InterviewState>()(
         }
       },
 
+      // Only the current phase or an earlier one: the way ahead is Next (WIZ-25).
       setPhase: (index) => {
-        const { phases, elapsedSeconds } = get();
-        if (index >= 0 && index < phases.length) {
+        const { currentPhase, elapsedSeconds } = get();
+        if (index >= 0 && index <= currentPhase) {
           const elapsed = elapsedSeconds();
           set({
             phaseSeconds: leavePhase(get(), elapsed),

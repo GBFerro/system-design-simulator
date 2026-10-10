@@ -1,8 +1,18 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeLocalStorage } from "./safeStorage";
-import { passThroughMigration, STORE_VERSION } from "./persistVersion";
+import { APP_STORAGE_KEY, passThroughMigration, STORE_VERSION } from "./persistVersion";
 import { isCurrency, type Currency } from "@/cost/currency";
+import {
+  STEPS,
+  TOOLS_BY_STEP,
+  sanitizeStep,
+  stepIndex,
+  type RightTab,
+  type Step,
+} from "@/lib/steps";
+
+export { APP_STORAGE_KEY };
 
 export type ToastType = "success" | "error" | "info";
 export type Theme = "dark" | "light";
@@ -23,18 +33,9 @@ interface AppState {
   theme: Theme;
   leftSidebarOpen: boolean;
   rightPanelOpen: boolean;
-  activeLeftTab: "components" | "problems" | "learn";
-  activeRightTab:
-    | "properties"
-    | "simulation"
-    | "flow"
-    | "chaos"
-    | "slo"
-    | "score"
-    | "advisor"
-    | "cost"
-    | "capacity"
-    | "tradeoffs";
+  activeRightTab: RightTab;
+  /** The step of the guided layout in free mode (WIZ-*); an interview has its own phase. Persisted. */
+  step: Step;
   /** Display currency of the cost estimates (Spec 10, CST-04). */
   currency: Currency;
   toast: ToastData | null;
@@ -45,11 +46,26 @@ interface AppState {
   toggleLeftSidebar: () => void;
   toggleRightPanel: () => void;
   setLeftSidebarOpen: (open: boolean) => void;
-  setActiveLeftTab: (tab: AppState["activeLeftTab"]) => void;
   setActiveRightTab: (tab: AppState["activeRightTab"]) => void;
+  /** The next step; the last has none (WIZ-02, WIZ-15). */
+  nextStep: () => void;
+  /** The previous step; the first has none (WIZ-03, WIZ-04). */
+  backStep: () => void;
+  /** Jump to the current or an earlier step only: nothing ahead is reachable by clicking (WIZ-05, WIZ-06). */
+  goToStep: (step: Step) => void;
+  /** Set the step directly (finishing an interview lands in Evaluate, WIZ-26). */
+  setStep: (step: Step) => void;
   setCurrency: (currency: Currency) => void;
   showToast: (message: string, type: ToastType) => void;
   clearToast: () => void;
+}
+
+/** The patch that moves to `step`: its first tool opens with it. */
+function withStep(
+  s: { activeRightTab: RightTab },
+  step: Step,
+): Pick<AppState, "step" | "activeRightTab"> {
+  return { step, activeRightTab: TOOLS_BY_STEP[step][0] ?? s.activeRightTab };
 }
 
 // Single owner of the toast auto-dismiss timer (4s). showToast resets it,
@@ -63,8 +79,8 @@ export const useAppStore = create<AppState>()(
       theme: "dark",
       leftSidebarOpen: true,
       rightPanelOpen: true,
-      activeLeftTab: "components",
       activeRightTab: "properties",
+      step: "problem",
       currency: "USD",
       toast: null,
 
@@ -82,8 +98,15 @@ export const useAppStore = create<AppState>()(
       toggleLeftSidebar: () => set((s) => ({ leftSidebarOpen: !s.leftSidebarOpen })),
       toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen })),
       setLeftSidebarOpen: (open) => set({ leftSidebarOpen: open }),
-      setActiveLeftTab: (tab) => set({ activeLeftTab: tab }),
       setActiveRightTab: (tab) => set({ activeRightTab: tab }),
+      // Changing step only changes what is visible: never the graph, the history or a live run (AD-004).
+      // The step's first tool opens with it.
+      nextStep: () =>
+        set((s) => withStep(s, STEPS[Math.min(STEPS.length - 1, stepIndex(s.step) + 1)])),
+      backStep: () => set((s) => withStep(s, STEPS[Math.max(0, stepIndex(s.step) - 1)])),
+      goToStep: (step) =>
+        set((s) => (stepIndex(step) <= stepIndex(s.step) ? withStep(s, step) : s)),
+      setStep: (step) => set((s) => withStep(s, sanitizeStep(step))),
       setCurrency: (currency) => set({ currency: isCurrency(currency) ? currency : "USD" }),
       showToast: (message, type) => {
         if (toastTimeoutId !== null) {
@@ -104,7 +127,7 @@ export const useAppStore = create<AppState>()(
       },
     }),
     {
-      name: "systemsim-app",
+      name: APP_STORAGE_KEY,
       version: STORE_VERSION,
       skipHydration: true,
       storage: createJSONStorage(() => safeLocalStorage),
@@ -112,6 +135,7 @@ export const useAppStore = create<AppState>()(
       migrate: passThroughMigration,
       partialize: (state) => ({
         selectedProblemId: state.selectedProblemId,
+        step: state.step,
         theme: state.theme,
         currency: state.currency,
       }),
@@ -122,6 +146,7 @@ export const useAppStore = create<AppState>()(
           ...current,
           ...p,
           currency: isCurrency(p.currency) ? p.currency : current.currency,
+          step: sanitizeStep(p.step),
         };
       },
       // Apply the persisted theme to <html> as soon as the store rehydrates.

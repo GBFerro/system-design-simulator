@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { GENERIC_DRILL_QA, type DrillStep } from "@/data/interviewData";
-import { compileGraph } from "@/domain/graph/compile";
 import type { TickSnapshot } from "@/engine/types";
 import {
   DRILL_RECOVERY_SEC,
@@ -9,7 +8,7 @@ import {
   resolveDrillStep,
   type DrillSlo,
 } from "@/interview/drill";
-import { comp, wire } from "./engineFixtures";
+import { comp, wire, compileV3 } from "./engineFixtures";
 
 const data = {
   followUpQuestions: [
@@ -23,7 +22,7 @@ const data = {
   ],
 };
 
-const graph = compileGraph(
+const graph = compileV3(
   [
     comp("c", "client"),
     comp("lb", "load-balancer"),
@@ -149,7 +148,7 @@ describe("resolveDrillStep", () => {
   });
 
   it("returns null for an empty design", () => {
-    const empty = compileGraph([], []);
+    const empty = compileV3([], []);
     expect(
       resolveDrillStep(
         step({ type: "traffic-spike", target: { kind: "busiest" } }),

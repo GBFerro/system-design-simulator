@@ -78,4 +78,6 @@ export async function finishInterview(): Promise<void> {
   useReportStore.getState().show(report, history);
   stopDrill();
   useInterviewStore.getState().endInterview();
+  // What comes after the report is evaluating the design (WIZ-26).
+  useAppStore.getState().setStep("evaluate");
 }

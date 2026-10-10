@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { open, goToDeepDive } from "./helpers";
 
 // Spec 09 (phase 6): the failure drill injects the problem's scripted faults
 // into the running design and scores each one. Run at 20× so the three
@@ -10,14 +11,14 @@ test("failure drill: scripted faults, answers, per-fault results and summary", a
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
 
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 
   await page.getByTitle("Start a guided interview practice").click();
   await page.getByRole("button", { name: "Start Interview" }).click();
-  await page.getByRole("button", { name: "Go to phase 6: Deep Dive" }).click();
+  await goToDeepDive(page);
 
   const drill = page.getByTestId("drill-panel");
   await expect(drill.getByText("Failure drill", { exact: true })).toBeVisible();
@@ -52,15 +53,19 @@ test("a design without the scripted target gets the fallback; edits count as the
   page,
 }) => {
   test.setTimeout(90_000);
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByRole("button", { name: "Add Client to canvas" }).first().click();
   await page.getByRole("button", { name: "Add App Server to canvas" }).first().click();
   const nodes = page.locator(".react-flow__node");
   const client = nodes.filter({ hasText: "Client" });
   const app = nodes.filter({ hasText: "App Server" });
-  const from = (await client.locator(".react-flow__handle.source").boundingBox())!;
-  const to = (await app.locator(".react-flow__handle.target").boundingBox())!;
+  const from = (await client
+    .locator(".react-flow__handle.source:not([data-return-handle])")
+    .boundingBox())!;
+  const to = (await app
+    .locator(".react-flow__handle.target:not([data-return-handle])")
+    .boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
@@ -69,7 +74,7 @@ test("a design without the scripted target gets the fallback; edits count as the
 
   await page.getByTitle("Start a guided interview practice").click();
   await page.getByRole("button", { name: "Start Interview" }).click();
-  await page.getByRole("button", { name: "Go to phase 6: Deep Dive" }).click();
+  await goToDeepDive(page);
   const drill = page.getByTestId("drill-panel");
   await drill.getByTestId("drill-start").click();
   await drill.getByRole("button", { name: "Speed 5×" }).click();

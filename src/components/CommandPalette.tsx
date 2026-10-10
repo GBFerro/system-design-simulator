@@ -97,7 +97,6 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
   const setSelectedProblem = useAppStore((s) => s.setSelectedProblem);
-  const setActiveLeftTab = useAppStore((s) => s.setActiveLeftTab);
   const showToast = useAppStore((s) => s.showToast);
   const customProblems = useCustomProblemsStore((s) => s.problems);
   const customComponents = useCustomComponentsStore((s) => s.components);
@@ -200,7 +199,6 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
       icon: Box,
       run: () => {
         setSelectedProblem(p.id);
-        setActiveLeftTab("problems");
         showToast(`Selected: ${p.title}`, "info");
       },
     }));
@@ -220,7 +218,6 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
     undo,
     redo,
     setSelectedProblem,
-    setActiveLeftTab,
     showToast,
     addComponent,
   ]);

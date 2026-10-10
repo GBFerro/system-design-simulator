@@ -4,9 +4,11 @@ import { PROBLEMS } from "@/data/problems";
 import { PARAM, defaultParams } from "@/domain/components/registry";
 import type { EdgeRule } from "@/domain/components/types";
 import { compileGraph } from "@/domain/graph/compile";
+import { requestEdges, responseOf } from "@/domain/graph/returns";
 import {
   migrateGraph,
   migrateGraphV1toV2,
+  migrateGraphV3toV4,
   migrateV1toV2,
   type MigratedGraph,
 } from "@/domain/persistence/migrate";
@@ -14,7 +16,7 @@ import { serializeEdges, serializeNodes } from "@/domain/persistence/serialize";
 import { analyze } from "@/engine/analyze";
 import { buildReferenceGraph } from "@/lib/loadReference";
 import { migrateCanvasState, migrateSavedDesignsState } from "@/store/migrations";
-import { comp } from "./engineFixtures";
+import { comp, compileV3 } from "./engineFixtures";
 
 // Spec 05, PER-01: migrateV1toV2 fixtures, idempotence, and the 35 references.
 
@@ -331,7 +333,7 @@ describe("migrateGraph: v1 → v2 → v3", () => {
     const { nodes, edges } = v2Design();
     const out = migrateGraph(nodes, edges);
     expect(out.nodes.map((n) => n.id)).toEqual(nodes.map((n) => n.id));
-    expect(out.edges.map((e) => [e.id, e.source, e.target])).toEqual(
+    expect(requestEdges(out.edges).map((e) => [e.id, e.source, e.target])).toEqual(
       edges.map((e) => [e.id, e.source, e.target]),
     );
     expect(ruleOf(out, "cache", "db")).toEqual({
@@ -339,7 +341,7 @@ describe("migrateGraph: v1 → v2 → v3", () => {
       networkLatencyMs: 1,
       packetLoss: 0,
     });
-    expect(out.edges.map((e) => (e.data.rule as EdgeRule).calls)).toEqual([
+    expect(requestEdges(out.edges).map((e) => (e.data.rule as EdgeRule).calls)).toEqual([
       [{ kind: "always", callsPerRequest: 1 }],
       [{ kind: "reads", callsPerRequest: 1 }],
       [{ kind: "on_miss", callsPerRequest: 1 }],
@@ -351,7 +353,7 @@ describe("migrateGraph: v1 → v2 → v3", () => {
   it("analyze() gives every node and edge the same load before and after the migration", () => {
     const { nodes, edges } = v2Design();
     const out = migrateGraph(nodes, edges);
-    const before = analyze(compileGraph(nodes, edges), 5000);
+    const before = analyze(compileV3(nodes, edges), 5000);
     const after = analyze(compileGraph(out.nodes, out.edges), 5000);
     expect(before.nodes.find((n) => n.nodeId === "db")!.offeredRps).toBeGreaterThan(0);
     expect(after.nodes).toEqual(before.nodes);
@@ -396,7 +398,7 @@ describe("migrateGraph: v1 → v2 → v3", () => {
     ];
     for (const [n, e] of inputs) {
       expect(() => migrateGraph(n, e)).not.toThrow();
-      for (const edge of migrateGraph(n, e).edges) {
+      for (const edge of requestEdges(migrateGraph(n, e).edges)) {
         expect((edge.data.rule as EdgeRule).calls.length).toBeGreaterThanOrEqual(1);
       }
     }
@@ -404,7 +406,7 @@ describe("migrateGraph: v1 → v2 → v3", () => {
 
   it("canvas and saved-design stores persisted at v2 come out with call lists", () => {
     const { nodes, edges } = v2Design();
-    const expected = migrateGraph(nodes, edges).edges;
+    const expected = requestEdges(migrateGraph(nodes, edges).edges);
     expect(expected.map((e) => (e.data.rule as EdgeRule).calls.map((c) => c.kind))).toEqual([
       ["always"],
       ["reads"],
@@ -416,12 +418,100 @@ describe("migrateGraph: v1 → v2 → v3", () => {
       { nodes, edges, tabs: [{ id: "t", label: "T", nodes, edges }], activeTabId: "t" },
       2,
     );
-    expect(canvas.edges).toEqual(expected);
-    expect(canvas.tabs[0].edges).toEqual(expected);
+    expect(requestEdges(canvas.edges as MigratedGraph["edges"])).toEqual(expected);
+    expect(requestEdges(canvas.tabs[0].edges as MigratedGraph["edges"])).toEqual(expected);
     const saved = migrateSavedDesignsState<{ designs: { edges: unknown[] }[] }>(
       { designs: [{ id: "d", name: "D", nodes, edges, strokes: [] }] },
       2,
     );
-    expect(saved.designs[0].edges).toEqual(expected);
+    expect(requestEdges(saved.designs[0].edges as MigratedGraph["edges"])).toEqual(expected);
+  });
+});
+
+// guided-ui, RET-20/21/22: schema v4 gives every synchronous call its response.
+describe("migrateGraphV3toV4", () => {
+  const v3Edge = (source: string, target: string, async = false) => ({
+    id: `e-${source}-${target}`,
+    type: "animated",
+    source,
+    target,
+    data: { label: "", protocol: "http", async },
+  });
+  const design = () => ({
+    nodes: [
+      comp("client", "client"),
+      comp("app", "app-server"),
+      comp("db", "sql-db"),
+      comp("mon", "monitoring"),
+      { id: "note", type: "text", position: { x: 0, y: 0 }, data: { text: "note" } },
+    ],
+    edges: [
+      v3Edge("client", "app"),
+      v3Edge("app", "db"),
+      v3Edge("app", "mon", true),
+      v3Edge("note", "app"),
+    ] as MigratedGraph["edges"],
+  });
+
+  it("creates a response for each edge between components that is not async, and none for async ones (RET-20)", () => {
+    const g = design();
+    const out = migrateGraphV3toV4(g as unknown as MigratedGraph);
+    const responses = responseOf(out.edges);
+    expect([...responses.keys()].sort()).toEqual(["e-app-db", "e-client-app"]);
+    const r = responses.get("e-app-db")!;
+    expect([r.id, r.source, r.target]).toEqual(["ret:e-app-db", "db", "app"]);
+  });
+
+  it("leaves text nodes, strokes and the edges touching text nodes unchanged (RET-21)", () => {
+    const g = design() as unknown as MigratedGraph;
+    const out = migrateGraphV3toV4(g);
+    expect(out.nodes).toEqual(g.nodes);
+    // (the edges between components lose the v3 flag; the one touching the text node is as it was)
+    const strip = (data: Record<string, unknown>) => {
+      const rest = { ...data };
+      delete rest.async;
+      return rest;
+    };
+    const expected = g.edges.map((e) =>
+      e.source === "note" || e.target === "note" ? e : { ...e, data: strip(e.data) },
+    );
+    expect(out.edges.filter((e) => !e.id.startsWith("ret:"))).toEqual(expected);
+    expect(out.edges.some((e) => e.source === "app" && e.target === "note")).toBe(false);
+    expect(responseOf(out.edges).has("e-note-app")).toBe(false);
+  });
+
+  it("is idempotent, pure and never throws (RET-21)", () => {
+    const g = design() as unknown as MigratedGraph;
+    const snapshot = JSON.stringify(g);
+    const once = migrateGraphV3toV4(g);
+    expect(JSON.stringify(g)).toBe(snapshot);
+    expect(migrateGraphV3toV4(once)).toEqual(once);
+    for (const bad of [
+      { nodes: [], edges: [] },
+      { nodes: null, edges: [{ id: 1 }] },
+      { nodes: [{ id: "a" }], edges: [null, "x", { source: "a" }] },
+    ]) {
+      expect(() => migrateGraphV3toV4(bad as unknown as MigratedGraph)).not.toThrow();
+    }
+  });
+
+  it("the whole chain answers a v3 design and skips data saved as v4 (fromVersion)", () => {
+    const { nodes, edges } = design();
+    const v3 = migrateGraph(nodes, edges, { fromVersion: 3 });
+    expect(responseOf(v3.edges).size).toBe(2);
+    const v4Async = migrateGraph(nodes, [v3Edge("app", "mon", true)], { fromVersion: 4 });
+    expect(responseOf(v4Async.edges).size).toBe(0);
+  });
+
+  it("a migrated v3 design compiles to the same SimGraph as the original (RET-22)", () => {
+    const { nodes, edges } = design();
+    const before = compileV3(nodes, edges);
+    const after = compileGraph(
+      nodes,
+      migrateGraphV3toV4({ nodes, edges } as unknown as MigratedGraph).edges,
+    );
+    expect(after.edges).toEqual(before.edges);
+    expect(after.order).toEqual(before.order);
+    expect(after.warnings).toEqual(before.warnings);
   });
 });

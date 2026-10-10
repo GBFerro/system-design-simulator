@@ -18,6 +18,7 @@ import {
   type EdgeProtocol,
   type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
+import { makeReturnEdge, responseOf } from "@/domain/graph/returns";
 import { componentNodeWithId } from "@/lib/nodeFactory";
 import { freePositionNear, nodeRect } from "@/lib/placement";
 import type { ComponentNodeData, CustomEdgeData } from "@/store/canvasStore";
@@ -81,6 +82,16 @@ export function newEdge(
   return { id, source, target, type: "animated", data };
 }
 
+/** Is `edge` a synchronous call in `edges`? It has a response. */
+export function isSyncRequest(edges: readonly Edge[], edge: Edge): boolean {
+  return responseOf(edges).has(edge.id);
+}
+
+/** `edge` followed by its response when the call is synchronous (RET-26). */
+export function withResponse(edge: Edge, sync: boolean): Edge[] {
+  return sync ? [edge, makeReturnEdge(edge)] : [edge];
+}
+
 export interface InsertOptions {
   /** Base for the new node's id (made unique against the graph). */
   idBase: string;
@@ -116,7 +127,10 @@ export function insertBetween(
   const position = freePositionNear({ x: (ca.x + cb.x) / 2, y: (ca.y + cb.y) / 2 }, graph.nodes);
   const node = newComponentNode(componentId, uniqueId(idBase, graph), position, params);
   const nodes = [...graph.nodes, node];
-  const edges = graph.edges.filter((e) => e.id !== edge.id);
+  // The halves are synchronous iff the link they replace was (RET-27).
+  const sync = isSyncRequest(graph.edges, edge);
+  const oldResponse = responseOf(graph.edges).get(edge.id);
+  const edges = graph.edges.filter((e) => e.id !== edge.id && e.id !== oldResponse?.id);
   const { calls, networkLatencyMs, packetLoss } = edgeRuleOf(graph, edge);
   const protocol = ((edge.data ?? {}) as CustomEdgeData).protocol ?? "http";
   const inId = uniqueId(`e-${a.id}-${node.id}`, graph);
@@ -131,8 +145,9 @@ export function insertBetween(
     keepLinkOnOut ? protocol : "http",
   );
   diff.addNodes.push(node);
-  diff.addEdges.push(into, out);
+  diff.addEdges.push(...withResponse(into, sync), ...withResponse(out, sync));
   diff.removeEdgeIds.push(edge.id);
+  if (oldResponse) diff.removeEdgeIds.push(oldResponse.id);
   return diff;
 }
 

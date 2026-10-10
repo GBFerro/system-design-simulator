@@ -51,6 +51,9 @@ interface TopBarProps {
   onOpenSupport: () => void;
   onToggleLeft: () => void;
   onToggleRight: () => void;
+  /** The palette and the panel exist only in the steps that show them (guided layout). */
+  showPaletteToggle?: boolean;
+  showPanelToggle?: boolean;
 }
 
 /*
@@ -72,6 +75,8 @@ export function TopBar({
   onOpenSupport,
   onToggleLeft,
   onToggleRight,
+  showPaletteToggle = true,
+  showPanelToggle = true,
 }: TopBarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -161,14 +166,16 @@ export function TopBar({
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900 px-2 md:gap-3 md:px-3">
         {/* Left section */}
         <div data-testid="topbar-left" className="flex min-w-0 items-center gap-2 lg:gap-3">
-          <button
-            onClick={onToggleLeft}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
-            title="Toggle sidebar"
-            aria-label="Toggle sidebar"
-          >
-            <PanelLeft className="h-4 w-4" />
-          </button>
+          {showPaletteToggle && (
+            <button
+              onClick={onToggleLeft}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+              title="Toggle sidebar"
+              aria-label="Toggle sidebar"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </button>
+          )}
 
           <div className="flex shrink-0 items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -575,14 +582,16 @@ export function TopBar({
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
-          <button
-            onClick={onToggleRight}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
-            title="Toggle panel"
-            aria-label="Toggle properties panel"
-          >
-            <PanelRight className="h-4 w-4" />
-          </button>
+          {showPanelToggle && (
+            <button
+              onClick={onToggleRight}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+              title="Toggle panel"
+              aria-label="Toggle properties panel"
+            >
+              <PanelRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </header>
 

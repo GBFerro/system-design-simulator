@@ -9,10 +9,12 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  type Connection,
   type EdgeChange,
   type NodeChange,
   type XYPosition,
 } from "@xyflow/react";
+import { useAppStore } from "./appStore";
 import { useSimulationStore } from "./simulationStore";
 import { useRuntimeStore } from "./runtimeStore";
 import { safeLocalStorage } from "./safeStorage";
@@ -39,6 +41,17 @@ import {
   type EdgeRulePatch,
 } from "@/domain/graph/edgeRules";
 
+import {
+  RETURN_SOURCE_HANDLE,
+  isReturnEdge,
+  makeReturnEdge,
+  requestEdges,
+  responseOf,
+  responseToOf,
+  returnData,
+  returnIdOf,
+} from "@/domain/graph/returns";
+
 export { edgeRuleOf } from "@/domain/graph/edgeRules";
 
 export interface ComponentNodeData {
@@ -64,7 +77,6 @@ export interface TextNodeData {
 export interface CustomEdgeData {
   label?: string;
   protocol?: EdgeProtocol;
-  async?: boolean;
   /** Call rule (Spec 03). Edges saved before v2 get one on migration. */
   rule?: EdgeRule;
   [key: string]: unknown;
@@ -192,15 +204,37 @@ function cloneSubgraph(clip: Clipboard, existing: Node[], targetTopLeft: XYPosit
       position: { x: n.position.x - box.x + at.x, y: n.position.y - box.y + at.y },
     };
   });
-  const edges = clip.edges.map((e) => ({
-    ...e,
-    id: `e-${randomId()}`,
-    source: idMap.get(e.source)!,
-    target: idMap.get(e.target)!,
-    data: remapMissOf(e.data, idMap),
-    selected: true,
-  }));
-  return { nodes, edges };
+  const requestIds = new Map<string, string>();
+  const requests = clip.edges
+    .filter((e) => !isReturnEdge(e))
+    .map((e) => {
+      const id = `e-${randomId()}`;
+      requestIds.set(e.id, id);
+      return {
+        ...e,
+        id,
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+        data: remapMissOf(e.data, idMap),
+        selected: true,
+      };
+    });
+  // A response follows its request (RET-28); one whose request wasn't copied is left out.
+  const responses = clip.edges.flatMap((e) => {
+    const request = requestIds.get(responseToOf(e) ?? "");
+    if (request === undefined) return [];
+    return [
+      {
+        ...e,
+        id: returnIdOf(request),
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+        data: returnData(request),
+        selected: true,
+      },
+    ];
+  });
+  return { nodes, edges: [...requests, ...responses] };
 }
 
 /**
@@ -233,6 +267,65 @@ function withClones(state: CanvasState, clones: Clipboard): Partial<CanvasState>
       ...clones.edges,
     ],
   };
+}
+
+/**
+ * Connection dragged from `ret-out` of B to A: draws the response of the
+ * request A → B (RET-01). Nothing is created when A or B is the same node or a
+ * text node (RET-30), when A → B has no request (a toast says so, RET-02) or
+ * when every A → B request already has its response (RET-03).
+ */
+type ResponseOutcome =
+  | { kind: "none" }
+  | { kind: "no-request"; message: string }
+  | { kind: "create"; request: Edge };
+
+/** Pure: what dragging a response from `connection.source` to `connection.target` would do. */
+function responseOutcome(state: CanvasState, connection: Connection): ResponseOutcome {
+  const { source: callee, target: caller } = connection;
+  const isComponent = (id: string) => state.nodes.some((n) => n.id === id && n.type !== "text");
+  if (callee === caller || !isComponent(callee) || !isComponent(caller)) return { kind: "none" };
+  const requests = requestEdges(state.edges).filter(
+    (e) => e.source === caller && e.target === callee,
+  );
+  if (requests.length === 0) {
+    const label = (id: string) =>
+      (state.nodes.find((n) => n.id === id)?.data as { label?: string } | undefined)?.label ?? id;
+    return {
+      kind: "no-request",
+      message: `A response needs a request: connect ${label(caller)} → ${label(callee)} first`,
+    };
+  }
+  const answered = responseOf(state.edges);
+  const open = requests.find((e) => !answered.has(e.id));
+  return open ? { kind: "create", request: open } : { kind: "none" };
+}
+
+/** The state change of a response connection: one response, one undo entry (a reducer: no side effects). */
+function connectResponse(
+  state: CanvasState,
+  connection: Connection,
+): Partial<CanvasState> | CanvasState {
+  const outcome = responseOutcome(state, connection);
+  if (outcome.kind !== "create") return state;
+  return {
+    history: pushedHistory(state),
+    future: [],
+    edges: [...state.edges, makeReturnEdge(outcome.request)],
+  };
+}
+
+/**
+ * The edges after a removal, kept consistent: a response whose request is gone
+ * goes with it (RET-08). A request that lost its response simply has none, so
+ * it is async (RET-07).
+ */
+function withoutOrphanResponses(next: Edge[]): Edge[] {
+  const ids = new Set(next.map((e) => e.id));
+  return next.filter((e) => {
+    const to = responseToOf(e);
+    return to === undefined || ids.has(to);
+  });
 }
 
 const ruleGraph = (state: { nodes: Node[]; edges: Edge[] }) =>
@@ -306,6 +399,12 @@ interface CanvasState {
   updateEdgeRule: (edgeId: string, patch: EdgeRulePatch) => void;
   updateNodeData: (nodeId: string, data: Partial<ComponentNodeData>) => void;
   updateEdgeData: (edgeId: string, data: Partial<CustomEdgeData>) => void;
+  /**
+   * Sync / Async shortcut (RET-12, RET-13): draws (`true`) or deletes (`false`)
+   * the response of the call `edgeId` (or of the call a response answers), in
+   * one undo step.
+   */
+  setEdgeSync: (edgeId: string, sync: boolean) => void;
   clearCanvas: () => void;
   /** The single delete path: selected nodes/edges (plus edges touching removed nodes) in one undo step. */
   deleteSelection: () => void;
@@ -485,19 +584,38 @@ export const useCanvasStore = create<CanvasState>()(
             return view.length === 0 ? state : { edges: applyEdgeChanges(view, state.edges) };
           }
           const hasRemove = changes.some((c) => c.type === "remove");
+          const applied = applyEdgeChanges(changes, state.edges);
           return {
-            edges: applyEdgeChanges(changes, state.edges),
+            edges: hasRemove ? withoutOrphanResponses(applied) : applied,
             ...(hasRemove ? { history: pushedHistory(state), future: [] } : null),
           };
         });
       },
       onConnect: (connection) => {
+        // Dragged from a return handle: the response of an existing request. The
+        // toast (RET-02) is shown here, outside the reducer, which stays pure.
+        if (connection.sourceHandle === RETURN_SOURCE_HANDLE) {
+          const current = get();
+          if (isActiveTabReadOnly(current)) return;
+          const outcome = responseOutcome(current, connection);
+          if (outcome.kind === "no-request")
+            useAppStore.getState().showToast(outcome.message, "info");
+          if (outcome.kind !== "create") return;
+          set((state) => (isActiveTabReadOnly(state) ? state : connectResponse(state, connection)));
+          return;
+        }
         set((state) => {
           if (isActiveTabReadOnly(state)) return state;
           const graph = ruleGraph(state);
+          // A new call has no response yet, so it is async until one is drawn.
           const data: CustomEdgeData = newEdgeData(connection.source, connection.target, graph);
           // Service → Read Replica: the service's `always` edges to SQL DBs become `writes`
-          const edges = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
+          const split = splitReadsOnReplicaConnect(connection.source, connection.target, graph);
+          // (the rule graph holds the requests only: the responses stay where they are)
+          const edges =
+            split === graph.edges
+              ? state.edges
+              : [...split, ...state.edges.filter((e) => isReturnEdge(e))];
           return {
             history: pushedHistory(state),
             future: [],
@@ -700,6 +818,24 @@ export const useCanvasStore = create<CanvasState>()(
           };
         });
       },
+      setEdgeSync: (edgeId, sync) => {
+        set((state) => {
+          if (isActiveTabReadOnly(state)) return state;
+          const picked = state.edges.find((e) => e.id === edgeId);
+          const requestId = picked ? (responseToOf(picked) ?? picked.id) : undefined;
+          const request = state.edges.find((e) => e.id === requestId && !isReturnEdge(e));
+          if (!request) return state;
+          const response = responseOf(state.edges).get(request.id);
+          if (sync === (response !== undefined)) return state;
+          return {
+            history: pushedHistory(state),
+            future: [],
+            edges: sync
+              ? [...state.edges, makeReturnEdge(request)]
+              : state.edges.filter((e) => e.id !== response!.id),
+          };
+        });
+      },
       clearCanvas: () => {
         if (isActiveTabReadOnly(get())) return;
         set((state) => ({
@@ -720,8 +856,10 @@ export const useCanvasStore = create<CanvasState>()(
             history: pushedHistory(state),
             future: [],
             nodes: state.nodes.filter((n) => !nodeIds.has(n.id)),
-            edges: state.edges.filter(
-              (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
+            edges: withoutOrphanResponses(
+              state.edges.filter(
+                (e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target),
+              ),
             ),
           };
         }),
@@ -776,6 +914,11 @@ export function useIsActiveTabReadOnly(): boolean {
   return useCanvasStore(isActiveTabReadOnly);
 }
 
+/** Does the call `requestId` have its response drawn? (No response: it is async.) */
+export function useHasResponse(requestId: string): boolean {
+  return useCanvasStore((s) => s.edges.some((e) => responseToOf(e) === requestId));
+}
+
 type CanvasAction = {
   [K in keyof CanvasState]: CanvasState[K] extends (...args: never[]) => unknown ? K : never;
 }[keyof CanvasState];
@@ -803,6 +946,7 @@ export const MUTATING_ACTIONS = [
   "updateEdgeRule",
   "updateNodeData",
   "updateEdgeData",
+  "setEdgeSync",
   "clearCanvas",
   "deleteSelection",
 ] as const satisfies readonly CanvasAction[];

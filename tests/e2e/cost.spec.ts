@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { analyze, MOD } from "./helpers";
+import { analyze, MOD, openTab, open } from "./helpers";
 
 // Spec 10: live cost, its breakdown, the budget and right-size with one undo step.
 
@@ -46,14 +46,14 @@ function pushLoad(page: Page, nodeId: string, rps: number) {
 
 test("cost follows instances and load; right-size applies in one undo step", async ({ page }) => {
   // `?e2e` installs window.__runtimeStore in production builds too (CI).
-  await page.goto("/?e2e=1");
+  await open(page, "/?e2e=1");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByRole("button", { name: "Add App Server to canvas" }).first().click();
   const node = page.locator(".react-flow__node").first();
   await expect(node).toBeVisible();
   const nodeId = (await node.getAttribute("data-id"))!;
 
-  await page.getByRole("tab", { name: "Cost" }).click();
+  await openTab(page, "Cost");
   const panel = page.getByTestId("cost-panel");
   const monthly = panel.getByTestId("cost-monthly");
   // m5.large: 1 × $0.096/h × 730 h
@@ -96,13 +96,13 @@ test("cost follows instances and load; right-size applies in one undo step", asy
 });
 
 test("the reference shows its budget and right-size is read-only there", async ({ page }) => {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await analyze(page);
 
-  await page.getByRole("tab", { name: "Cost" }).click();
+  await openTab(page, "Cost");
   const panel = page.getByTestId("cost-panel");
   await expect(panel.getByTestId("cost-budget")).toContainText("$360K");
   await expect(panel.getByTestId("cost-lines").getByText("CDN")).toBeVisible();

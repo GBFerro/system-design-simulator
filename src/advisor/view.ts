@@ -1,4 +1,5 @@
 import type { Node } from "@xyflow/react";
+import { requestsWithAsync } from "@/domain/graph/returns";
 import { isComponentNode } from "@/lib/nodeFactory";
 import { syncPath, type SyncPath } from "@/scoring/paths";
 import { buildScoringGraph } from "@/scoring/scorer";
@@ -20,7 +21,9 @@ export interface DesignView {
   path: SyncPath;
 }
 
-export function viewOf(graph: CanvasGraph): DesignView {
+export function viewOf(canvas: CanvasGraph): DesignView {
+  // Responses are not calls: every rule reads the requests only (RET-09).
+  const graph = { ...canvas, edges: requestsWithAsync(canvas.edges) };
   const comps = graph.nodes.filter(isComponentNode);
   const scoring = buildScoringGraph(comps, graph.edges);
   return {

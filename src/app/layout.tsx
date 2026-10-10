@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Hanken_Grotesk, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { APP_STORAGE_KEY } from "@/store/persistVersion";
 import "./globals.css";
 
 // One grotesque does both body and display (differentiated by weight + tracking)
@@ -48,7 +49,7 @@ export default function RootLayout({
         {/* Apply persisted theme before first paint to avoid a flash. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem('systemsim-app');var t=s&&JSON.parse(s).state&&JSON.parse(s).state.theme;document.documentElement.classList.toggle('dark',t!=='light');}catch(e){}})();`,
+            __html: `(function(){try{var s=localStorage.getItem(${JSON.stringify(APP_STORAGE_KEY)});var t=s&&JSON.parse(s).state&&JSON.parse(s).state.theme;document.documentElement.classList.toggle('dark',t!=='light');}catch(e){}})();`,
           }}
         />
         <TooltipProvider>{children}</TooltipProvider>

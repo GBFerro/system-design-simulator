@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { center } from "./helpers";
+import { center, goToStep, openTab, open } from "./helpers";
 
 // Spec 08 (CHS-01/02/04): faults injected into the live run, blast radius and
 // timeline. Spec 12 (ADV-03): structure hints in the Advisor tab.
@@ -7,11 +7,11 @@ import { center } from "./helpers";
 const nodes = (page: Page) => page.locator(".react-flow__node");
 
 async function loadReferenceAndPlay(page: Page) {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
   await page.getByTitle("Load reference solution").click();
   await expect(nodes(page).first()).toBeVisible();
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   const live = page.getByRole("region", { name: "Live traffic" });
   // 20×: this reference is already overloaded at the default load, so after a
   // heal the blast radius clears by the runner's 60 s simulated tail, not by
@@ -26,7 +26,7 @@ test("inject a fault from the Chaos tab: blast radius, timeline, then heal", asy
   page.on("pageerror", (err) => errors.push(err.message));
 
   await loadReferenceAndPlay(page);
-  await page.getByRole("tab", { name: /Chaos/ }).click();
+  await openTab(page, /Chaos/);
   const panel = page.getByTestId("chaos-panel");
   await panel.getByRole("button", { name: "Kill node" }).click();
   await panel.getByTestId("chaos-target").selectOption({ label: "App Server" });
@@ -54,7 +54,7 @@ test("inject a fault from the Chaos tab: blast radius, timeline, then heal", asy
   await expect(page.locator("[data-blast]")).toHaveCount(0, { timeout: 15_000 });
 
   // Reset clears the run's faults (and the timeline).
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page
     .getByRole("region", { name: "Live traffic" })
     .getByRole("button", { name: "Stop simulation" })
@@ -64,7 +64,7 @@ test("inject a fault from the Chaos tab: blast radius, timeline, then heal", asy
 });
 
 test("Kill/Restore from the context menu; faults need a live run", async ({ page }) => {
-  await page.goto("/");
+  await open(page, "/");
   await page.getByTitle("Load reference solution").click();
   const app = nodes(page).filter({ hasText: "App Server" }).first();
   await expect(app).toBeVisible();
@@ -74,7 +74,7 @@ test("Kill/Restore from the context menu; faults need a live run", async ({ page
   await expect(page.getByRole("menuitem", { name: /Kill node/ })).toBeDisabled();
   await page.keyboard.press("Escape");
 
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page
     .getByRole("region", { name: "Live traffic" })
     .getByRole("button", { name: "Play live traffic" })
@@ -91,28 +91,32 @@ test("Kill/Restore from the context menu; faults need a live run", async ({ page
 });
 
 test("Advisor: structure hints appear and go away when fixed", async ({ page }) => {
-  await page.goto("/");
+  await open(page, "/");
   await expect(page.locator(".react-flow")).toBeVisible();
-  await page.getByRole("tab", { name: /Advisor/ }).click();
+  await openTab(page, /Advisor/);
   const panel = page.getByTestId("advisor-panel");
   await expect(panel.getByText("Add components to the canvas")).toBeVisible();
 
+  // The palette is the Design step's tool: go back to add the components, then look again.
+  await goToStep(page, "design");
   await page.getByRole("button", { name: "Add Client to canvas" }).first().click();
   await page.getByRole("button", { name: "Add App Server to canvas" }).first().click();
+  await openTab(page, /Advisor/);
   await expect(panel.locator('[data-finding="no-entry"]')).toBeVisible();
   await expect(page.locator('.react-flow__node [data-finding="critical"]')).toHaveCount(2);
 
   // Wire Client → App Server: an entry point, everything reachable.
   const client = nodes(page).filter({ hasText: "Client" });
   const app = nodes(page).filter({ hasText: "App Server" });
-  const from = await center(client.locator(".react-flow__handle.source"));
-  const to = await center(app.locator(".react-flow__handle.target"));
+  const from = await center(client.locator(".react-flow__handle.source:not([data-return-handle])"));
+  const to = await center(app.locator(".react-flow__handle.target:not([data-return-handle])"));
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 12 });
   await page.mouse.up();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
 
+  await openTab(page, /Advisor/);
   await expect(panel.getByText("No structural issues")).toBeVisible();
   await expect(page.locator(".react-flow__node [data-finding]")).toHaveCount(0);
 });

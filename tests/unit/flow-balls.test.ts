@@ -369,7 +369,7 @@ function record(
 }
 
 describe("request frames: calls go out, responses come back (request-flow)", () => {
-  it("a sync call's response comes back along the same drawn edge, in reverse (FLW-01)", () => {
+  it("a sync call's response comes back on its own line, the response edge, not on the request line (FLW-01, RET-16)", () => {
     const topo = buildTopology([ce("a", "b", [call("always")])], () => "service");
     const s = snap({ a: node(60), b: node(60) }, { "a-b": 60 });
     const t = record(new FlowBalls(mulberry32(21)), s, topo, env, 400);
@@ -378,7 +378,8 @@ describe("request frames: calls go out, responses come back (request-flow)", () 
     for (const res of t.responses) {
       const req = sent.get(res.key)!;
       expect(res.edge).toBe(req.edge);
-      expect(res.drawn).toBe(req.drawn);
+      expect(res.drawn).toBe("ret:a-b");
+      expect(req.drawn).toBe("a-b");
       expect(res.error).toBe(false);
     }
     // The response leaves b once the call got there: the call takes 20 frames (1 s)
@@ -387,6 +388,19 @@ describe("request frames: calls go out, responses come back (request-flow)", () 
       const span = t.last("a-b", key) - t.first("a-b", key)!;
       if (t.first("a-b", key)! < 350) expect(span).toBeGreaterThanOrEqual(38);
     }
+  });
+
+  it("no response ball walks a request line and no request ball a response line (RET-10, RET-16)", () => {
+    const topo = buildTopology(
+      [ce("a", "b", [call("always")]), ce("b", "c", [call("always")])],
+      () => "service",
+    );
+    const s = snap({ a: node(60), b: node(60), c: node(60) }, { "a-b": 60, "b-c": 60 });
+    const t = record(new FlowBalls(mulberry32(5)), s, topo, env, 400);
+    const requestLines = new Set(t.requests.map((r) => r.drawn));
+    const responseLines = new Set(t.responses.map((r) => r.drawn));
+    expect(requestLines).toEqual(new Set(["a-b", "b-c"]));
+    expect(responseLines).toEqual(new Set(["ret:a-b", "ret:b-c"]));
   });
 
   it("the response leaves the target only after the target's own calls came back (FLW-01)", () => {
@@ -666,9 +680,19 @@ describe("request frames: calls go out, responses come back (request-flow)", () 
     const t = record(new FlowBalls(mulberry32(30)), s, topo, expanded, 400);
     const sent = new Map(t.requests.map((r) => [r.key, r.drawn]));
     expect(t.responses.length).toBeGreaterThan(50);
-    for (const res of t.responses) expect(res.drawn).toBe(sent.get(res.key));
+    // each response runs on the copy of the response edge between the same two cards
+    for (const res of t.responses) {
+      expect(res.drawn).toBe(
+        sent.get(res.key)!.replace("inst:app-db:", "inst:ret:app-db:-1:").replace(/:-1$/, ""),
+      );
+    }
     expect(new Set(t.responses.map((r) => r.drawn))).toEqual(
-      new Set(["inst:app-db:0:-1", "inst:app-db:1:-1", "inst:app-db:2:-1", "inst:app-db:3:-1"]),
+      new Set([
+        "inst:ret:app-db:-1:0",
+        "inst:ret:app-db:-1:1",
+        "inst:ret:app-db:-1:2",
+        "inst:ret:app-db:-1:3",
+      ]),
     );
   });
 });

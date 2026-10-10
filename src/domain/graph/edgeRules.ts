@@ -1,5 +1,6 @@
 import { getParamSpec, PARAM, routingFor } from "@/domain/components/registry";
 import { DATABASES } from "@/domain/components/traits";
+import { asyncRequestIds, isReturnEdge } from "./returns";
 import type {
   EdgeCall,
   EdgeCallKind,
@@ -109,6 +110,7 @@ export function defaultEdgeAsync(
 /* ---------- graph-aware connect defaults ---------- */
 
 interface GraphEdge {
+  id?: string;
   source: string;
   target: string;
   data?: Record<string, unknown>;
@@ -117,7 +119,10 @@ interface GraphEdge {
 /** Minimal view of the canvas the connect defaults need. */
 export interface RuleGraph<E extends GraphEdge = GraphEdge> {
   componentIdOf: (nodeId: string) => string | undefined;
+  /** The requests only (responses are not calls). */
   edges: readonly E[];
+  /** Does `edge` have no response (an async call)? Default: its legacy `async` flag. */
+  isAsync?: (edge: GraphEdge) => boolean;
 }
 
 function hasReadReplica(dbNodeId: string, callerNodeId: string, graph: RuleGraph): boolean {
@@ -133,7 +138,8 @@ function hasReadReplica(dbNodeId: string, callerNodeId: string, graph: RuleGraph
 /** The first cache (a node with a hit rate) `sourceNodeId` calls synchronously, if any. */
 function cacheCalledBy(sourceNodeId: string, targetNodeId: string, graph: RuleGraph) {
   return graph.edges.find((e) => {
-    if (e.source !== sourceNodeId || e.target === targetNodeId || isAsyncEdge(e)) return false;
+    const async = graph.isAsync ? graph.isAsync(e) : isAsyncEdge(e);
+    if (e.source !== sourceNodeId || e.target === targetNodeId || async) return false;
     const componentId = graph.componentIdOf(e.target);
     return componentId !== undefined && getParamSpec(componentId, PARAM.hitRate) !== undefined;
   })?.target;
@@ -181,7 +187,14 @@ export function canvasRuleGraph<E extends GraphEdge>(
     const id = (n.data as { componentId?: unknown } | undefined)?.componentId;
     if (typeof id === "string") ids.set(n.id, id);
   }
-  return { componentIdOf: (nodeId) => ids.get(nodeId), edges };
+  // Responses are not calls: the connect defaults read the requests only, and a
+  // call is sync when it has one.
+  const asyncIds = asyncRequestIds(edges.map((e) => ({ id: e.id ?? "", data: e.data })));
+  return {
+    componentIdOf: (nodeId) => ids.get(nodeId),
+    edges: edges.filter((e) => !isReturnEdge(e)),
+    isAsync: (e) => asyncIds.has(e.id ?? ""),
+  };
 }
 
 /** An edge's current rule, normalized (edges saved before v2 get their connect default). */
@@ -212,29 +225,26 @@ export type EdgeProtocol = "http" | "grpc" | "websocket" | "pubsub" | "tcp" | "c
 export interface NewEdgeData {
   label: string;
   protocol: EdgeProtocol;
-  async: boolean;
   rule: EdgeRule;
   [key: string]: unknown;
 }
 
 /**
  * `data` of a new edge, the one shape the editor (connect), the advisor's
- * quick fixes and the reference loader create: no label, HTTP, the default
- * async flag and the connect rule for `source` → `target` in `graph`.
- * `overrides` win (a reference's own async flag and rule).
+ * quick fixes and the reference loader create: no label, HTTP and the connect rule for `source` → `target` in `graph`.
+ * `overrides` win (a reference's own rule). Whether the call is sync is not data
+ * of the edge: it is the response drawn next to it.
  */
 export function newEdgeData(
   source: string,
   target: string,
   graph: RuleGraph,
-  overrides: Partial<Pick<NewEdgeData, "protocol" | "async" | "rule">> = {},
+  overrides: Partial<Pick<NewEdgeData, "protocol" | "rule">> = {},
 ): NewEdgeData {
   const protocol = overrides.protocol ?? "http";
   return {
     label: "",
     protocol,
-    async:
-      overrides.async ?? defaultEdgeAsync(graph.componentIdOf(source), graph.componentIdOf(target)),
     rule: overrides.rule ?? connectEdgeRule(source, target, graph, protocol),
   };
 }

@@ -1,3 +1,4 @@
+import { requestEdges, withReturns } from "@/domain/graph/returns";
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { applyAllFixes, applyFix, computeFindings, readRatioFor } from "@/advisor/advisor";
@@ -8,7 +9,6 @@ import type { AdvisorContext } from "@/advisor/types";
 import { suggestedInstances } from "@/cost/rightSize";
 import { PROBLEMS } from "@/data/problems";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import type { GlobalRuntimeMetrics, NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
@@ -23,9 +23,10 @@ import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 import { GHOST_PREFIX, isGhostId, withPreview } from "@/components/canvas/previewGraph";
 import { useSimulationStore } from "@/store/simulationStore";
 import type { ScoreResult } from "@/types/scoring";
-import { comp as node, text, wire } from "./engineFixtures";
+import { comp as node, text, wire, compileV3 } from "./engineFixtures";
 
-const ids = (nodes: Node[], edges: Edge[]) => structureFindings(nodes, edges).map((f) => f.id);
+const ids = (nodes: Node[], edges: Edge[]) =>
+  structureFindings(nodes, withReturns(edges)).map((f) => f.id);
 
 describe("structure hints (ADV-03)", () => {
   it("nothing to say about an empty canvas or text-only notes", () => {
@@ -125,7 +126,7 @@ const ruleKind = (g: Graph, source: string, target: string) => {
 function webApp(...rest: { node: Node; from?: string }[]): Graph {
   return {
     nodes: [node("c", "client"), node("app", "app-server"), ...rest.map((r) => r.node)],
-    edges: [wire("c", "app"), ...rest.map((r) => wire(r.from ?? "app", r.node.id))],
+    edges: withReturns([wire("c", "app"), ...rest.map((r) => wire(r.from ?? "app", r.node.id))]),
   };
 }
 
@@ -162,7 +163,7 @@ describe("load findings (ADV-01)", () => {
   it("DNS is hot only on the lookups its caches miss", () => {
     const g: Graph = {
       nodes: [node("dns", "dns", { lookupShare: 0.01 }), node("app", "app-server")],
-      edges: [wire("dns", "app")],
+      edges: withReturns([wire("dns", "app")]),
     };
     const cap = capacityPerInstanceOf(nodeOf(g, "dns").data as never);
     expect(find(g, { load: { dns: 50 * cap, app: 1 } }, "hot:dns")).toBeUndefined();
@@ -182,7 +183,7 @@ describe("load findings (ADV-01)", () => {
   it("no rate limiter: one inserted where traffic leaves the edge tiers, at 2× the load", () => {
     const g: Graph = {
       nodes: [node("c", "client"), node("lb", "load-balancer"), node("app", "app-server")],
-      edges: [wire("c", "lb"), wire("lb", "app")],
+      edges: withReturns([wire("c", "lb"), wire("lb", "app")]),
     };
     const load = { c: 1000, lb: 1000, app: 1000 };
     expect(find(g, { load }, "rate-limit")).toMatchObject({ severity: "info" });
@@ -217,7 +218,7 @@ describe("pattern findings (ADV-01)", () => {
     expect(ruleKind(after, "app", cache.id)).toBe("reads");
     // Look-aside (FLW-23): nothing from the cache to the database; the caller
     // writes to it and reads it after a miss in the cache, over the same edge.
-    expect(after.edges.find((e) => e.source === cache.id)).toBeUndefined();
+    expect(requestEdges(after.edges).find((e) => e.source === cache.id)).toBeUndefined();
     const toDb = after.edges.find((e) => e.source === "app" && e.target === "db")!;
     expect(toDb.id).toBe("e-app-db");
     expect(edgeRuleOf(after, toDb).calls).toEqual([
@@ -227,12 +228,12 @@ describe("pattern findings (ADV-01)", () => {
     // The cache edge comes first, so the plan has nothing to correct
     const toCache = after.edges.findIndex((e) => e.source === "app" && e.target === cache.id);
     expect(toCache).toBeLessThan(after.edges.indexOf(toDb));
-    expect(compileGraph(after.nodes, after.edges).warnings).toEqual([]);
+    expect(compileV3(after.nodes, after.edges).warnings).toEqual([]);
     expect(find(after, { readRatio: 0.9 }, "read-cache:db")).toBeUndefined();
 
     // The database now sees the writes and the cache's misses only.
     const dbLoad = (x: Graph) =>
-      analyze(compileGraph(x.nodes, x.edges), 1000, { readRatio: 0.9 }).nodes.find(
+      analyze(compileV3(x.nodes, x.edges), 1000, { readRatio: 0.9 }).nodes.find(
         (n) => n.nodeId === "db",
       )!.offeredRps;
     expect(dbLoad(after)).toBeLessThan(dbLoad(g) * 0.5);
@@ -241,7 +242,10 @@ describe("pattern findings (ADV-01)", () => {
   it("a caller that only read the database calls it only after a miss", () => {
     const g: Graph = {
       nodes: [node("c", "client"), node("app", "app-server"), node("db", "sql-db")],
-      edges: [wire("c", "app"), wire("app", "db", { rule: { kind: "reads", callsPerRequest: 2 } })],
+      edges: withReturns([
+        wire("c", "app"),
+        wire("app", "db", { rule: { kind: "reads", callsPerRequest: 2 } }),
+      ]),
     };
     const after = fixed(g, { readRatio: 0.9 }, "read-cache:db");
     const cache = ofType(after, "cache");
@@ -249,7 +253,7 @@ describe("pattern findings (ADV-01)", () => {
     expect(edgeRuleOf(after, toDb).calls).toEqual([
       { kind: "after_miss", missOf: cache.id, callsPerRequest: 2 },
     ]);
-    expect(after.edges.find((e) => e.source === cache.id)).toBeUndefined();
+    expect(requestEdges(after.edges).find((e) => e.source === cache.id)).toBeUndefined();
   });
 
   it("the cache fix is deterministic and its preview shows the same look-aside", () => {
@@ -294,7 +298,7 @@ describe("pattern findings (ADV-01)", () => {
     expect(ruleKind(after, q.id, "n")).toBe("always");
     expect(find(after, {}, "async:e-app-n")).toBeUndefined();
 
-    const p99 = (x: Graph) => analyze(compileGraph(x.nodes, x.edges), 100).latency.p99Ms;
+    const p99 = (x: Graph) => analyze(compileV3(x.nodes, x.edges), 100).latency.p99Ms;
     expect(p99(after)).toBeLessThan(p99(g));
   });
 });
@@ -349,7 +353,7 @@ describe("quick fixes (ADV-02)", () => {
       expect(f.fix!.preview(graph), f.id).toEqual(diff);
       expect(JSON.stringify(graph), f.id).toBe(before);
       const after = applyDiff(graph, diff);
-      expect(compileGraph(after.nodes, after.edges).warnings, f.id).toEqual([]);
+      expect(compileV3(after.nodes, after.edges).warnings, f.id).toEqual([]);
       expect(new Set(after.nodes.map((n) => n.id)).size, f.id).toBe(after.nodes.length);
     }
   });
@@ -357,7 +361,7 @@ describe("quick fixes (ADV-02)", () => {
   it("apply all: every fix in sequence, each finding gone, nothing left to fix", () => {
     const { graph, ctx } = messy();
     const after = applyAllFixes(graph, ctx)!;
-    expect(compileGraph(after.nodes, after.edges).warnings).toEqual([]);
+    expect(compileV3(after.nodes, after.edges).warnings).toEqual([]);
     expect(computeFindings(after, ctx).filter((f) => f.fix)).toEqual([]);
     expect(applyAllFixes(after, ctx)).toBeNull();
   });
@@ -366,7 +370,7 @@ describe("quick fixes (ADV-02)", () => {
     for (const p of PROBLEMS) {
       const { nodes, edges } = buildReferenceGraph(p);
       const peak = p.requirements.readsPerSec + p.requirements.writesPerSec;
-      const steady = analyze(compileGraph(nodes, edges), peak, {
+      const steady = analyze(compileV3(nodes, edges), peak, {
         readRatio: p.requirements.readsPerSec / peak,
         samples: 200,
       });
@@ -381,7 +385,7 @@ describe("quick fixes (ADV-02)", () => {
         p.id,
       ).toEqual([]);
       const after = applyAllFixes(graph, ctx);
-      if (after) expect(compileGraph(after.nodes, after.edges).warnings, p.id).toEqual([]);
+      if (after) expect(compileV3(after.nodes, after.edges).warnings, p.id).toEqual([]);
     }
   });
 });
@@ -419,12 +423,14 @@ describe("advisor store", () => {
     expect(findingIds()).toContain("read-cache:db");
     applyFinding("read-cache:db");
     expect(useCanvasStore.getState().history).toHaveLength(1);
-    const edges = useCanvasStore.getState().edges;
+    const edges = requestEdges(useCanvasStore.getState().edges);
     expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
       "c->app",
       "app->cache-db",
       "app->db",
     ]);
+    // the new cache call is synchronous: it comes with its response (RET-26)
+    expect(useCanvasStore.getState().edges.map((e) => e.id)).toContain("ret:e-app-cache-db");
     useCanvasStore.getState().undo();
     expect(useCanvasStore.getState().edges).toEqual(g.edges);
     expect(useCanvasStore.getState().nodes).toEqual(g.nodes);

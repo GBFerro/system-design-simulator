@@ -1,7 +1,7 @@
+import type { Edge } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
 import { PARAM } from "@/domain/components/params";
-import { compileGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { steadyStateToSnapshot } from "@/engine/snapshot";
 import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
@@ -9,6 +9,7 @@ import { buildReferenceGraph } from "@/lib/loadReference";
 import { edgeStrokeWidth } from "@/lib/particles";
 import { recentWindow, shareUnchanged, sparklinePath } from "@/lib/runtimeMetrics";
 import { useRuntimeStore } from "@/store/runtimeStore";
+import { compileV3 } from "./engineFixtures";
 
 /* ---------- fixtures ---------- */
 
@@ -67,8 +68,8 @@ function snap(t: number, nodes: Record<string, NodeRuntimeMetrics> = {}): TickSn
 /* ---------- steadyStateToSnapshot: OBS-03 extras ---------- */
 
 describe("steadyStateToSnapshot extras (OBS-03)", () => {
-  function run(nodes: unknown[], edges: unknown[], rps = 1000) {
-    const graph = compileGraph(nodes, edges);
+  function run(nodes: unknown[], edges: Edge[], rps = 1000) {
+    const graph = compileV3(nodes, edges);
     const steady = analyze(graph, rps);
     return { steady, graph, snapshot: steadyStateToSnapshot(steady, 0, graph) };
   }

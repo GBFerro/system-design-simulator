@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { analyze, connect, open, quickAdd } from "./helpers";
+import { analyze, connectSync, open, quickAdd, openTab } from "./helpers";
 
 // Spec 07 (OBS-01..04): runtime metrics on nodes, in the Sim panel, and the
 // particle overlay — all read from runtimeStore, never from node.data.
@@ -71,7 +71,7 @@ test("Simulate: node badges, global + per-node panel metrics, particles", async 
   expect(persisted).not.toMatch(/"utilization"|"isBottleneck"/);
 
   // OBS-02: the Sim panel shows global throughput and p99.
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await expect(page.getByTestId("global-throughput")).toContainText("req/s");
   await expect(page.getByTestId("global-latency")).toContainText(/p99 \d+ ms/);
   await expect(page.getByText("Availability")).toBeVisible();
@@ -108,7 +108,7 @@ test("hovering a node badge shows a sparkline of the recent run", async ({ page 
   await expect(spark.locator("path")).toHaveAttribute("d", /^M[\d.]+ [\d.]+ L/);
 
   // The panel charts become time series too.
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await expect(page.getByTestId("chart-throughput").locator("svg path")).toHaveAttribute(
     "d",
     /^M[\d.]+ [\d.]+( L[\d.]+ [\d.]+){10,}/,
@@ -245,13 +245,14 @@ test("ball overlay keeps frame time low with 100 edges near the 2,000 cap", asyn
     );
   });
   await open(page, "/?e2e=1");
-  await expect(page.locator(".react-flow__edge")).toHaveCount(100);
+  // 100 calls, each drawn with its response (the v2 design gets them on migration)
+  await expect(page.locator(".react-flow__edge")).toHaveCount(200);
 
   await page.evaluate(() => {
     const store = (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore;
-    const edgeIds = [...document.querySelectorAll(".react-flow__edge[data-id]")].map(
-      (e) => (e as SVGGElement).dataset.id!,
-    );
+    const edgeIds = [...document.querySelectorAll(".react-flow__edge[data-id]")]
+      .filter((e) => !e.querySelector("[data-edge-response]"))
+      .map((e) => (e as SVGGElement).dataset.id!);
     const edges: Record<string, unknown> = {};
     edgeIds.forEach((id, i) => {
       edges[id] = { rps: 1_000_000, status: i % 7 === 0 ? "error" : i % 5 === 0 ? "slow" : "ok" };
@@ -383,9 +384,9 @@ test("Analyze publishes each edge's link failure: the caller's timeout fails its
   await quickAdd(page, "Client");
   await quickAdd(page, "App Server");
   await quickAdd(page, "SQL Database");
-  await connect(page, "client", "app-server");
-  await connect(page, "app-server", "sql-db");
-  await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+  await connectSync(page, "client", "app-server");
+  await connectSync(page, "app-server", "sql-db");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
 
   const setParam = async (node: string, label: string, value: string) => {
     await page.locator(`.react-flow__node[data-id^="${node}-"]`).click();
@@ -416,7 +417,7 @@ test("Analyze publishes each edge's link failure: the caller's timeout fails its
   expect(appToDb).toBeTruthy();
   expect(clientToApp).toBeTruthy();
 
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   // the first Analyze loads the engine lazily (cold chunk in dev)
   await expect(page.getByText("Analysis complete!")).toBeVisible({ timeout: 20_000 });

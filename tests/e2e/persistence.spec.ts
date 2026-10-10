@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Download, type Page } from "@playwright/test";
-import { open } from "./helpers";
+import { open, goToStep } from "./helpers";
 
 // Spec 05: export → fresh storage → import, and a real v1 localStorage opening in v2.
 
@@ -56,7 +56,11 @@ test("export JSON → clear storage → import restores the design", async ({ pa
   expect(edgeCount).toBeGreaterThan(0);
 
   const exported = await readJson(await exportMenu(page, "Export as JSON"));
-  expect(exported.schemaVersion).toBe(3);
+  expect(exported.schemaVersion).toBe(4);
+  // each call that is not async is saved with its response as an edge of its own
+  expect(exported.edges.some((e: { data: { responseTo?: string } }) => e.data.responseTo)).toBe(
+    true,
+  );
   expect(exported.nodes).toHaveLength(nodeCount);
   expect(exported.nodes[0].data.params).toBeDefined();
   expect(exported.edges[0].data.rule).toBeDefined();
@@ -90,7 +94,7 @@ test("export JSON → clear storage → import restores the design", async ({ pa
   // Saved designs live in IndexedDB now, not localStorage
   expect(await fresh.evaluate(() => localStorage.getItem("systemsim-saved-designs"))).toBeNull();
   const stored = JSON.parse((await readIdb(fresh, "systemsim-saved-designs")) as string);
-  expect(stored.version).toBe(3);
+  expect(stored.version).toBe(4);
   expect(stored.state.designs).toHaveLength(1);
   await context.close();
 });
@@ -103,11 +107,14 @@ test("a v1 localStorage opens in v2 and saved designs move to IndexedDB", async 
     sessionStorage.setItem("seeded", "1");
     for (const [k, v] of Object.entries(fixture)) localStorage.setItem(k, v);
   }, V1_FIXTURE);
-  await open(page);
+  // (the v1 fixture carries its own app state: it opens on the Problem step)
+  await open(page, "/", "problem");
+  await goToStep(page, "design");
 
-  // Live canvas: 5 components + 1 text note, 5 edges (labels intact)
+  // Live canvas: 5 components + 1 text note, 5 calls (labels intact); the 4 that are
+  // not async come out of the v4 migration with their response drawn
   await expect(nodes(page)).toHaveCount(6);
-  await expect(edges(page)).toHaveCount(5);
+  await expect(edges(page)).toHaveCount(9);
   await expect(page.getByText("Read-heavy: cache-aside in front of the DB")).toBeVisible();
   await expect(page.getByText("click events")).toBeVisible();
   await expect(page.getByText("URL Shortener (Reference)")).toBeVisible();
@@ -115,7 +122,7 @@ test("a v1 localStorage opens in v2 and saved designs move to IndexedDB", async 
   const canvas = JSON.parse(
     (await page.evaluate(() => localStorage.getItem("systemsim-canvas"))) as string,
   );
-  expect(canvas.version).toBe(3);
+  expect(canvas.version).toBe(4);
   expect(canvas.state.nodes[1].data.params.instances).toBe(4);
   expect(canvas.state.nodes[1].data).not.toHaveProperty("replicas");
 
@@ -127,7 +134,7 @@ test("a v1 localStorage opens in v2 and saved designs move to IndexedDB", async 
     .poll(() => page.evaluate(() => localStorage.getItem("systemsim-saved-designs")))
     .toBeNull();
   const stored = JSON.parse((await readIdb(page, "systemsim-saved-designs")) as string);
-  expect(stored.version).toBe(3);
+  expect(stored.version).toBe(4);
   expect(stored.state.designs.map((d: { name: string }) => d.name)).toEqual([
     "URL shortener v3",
     "Old custom idea",
@@ -141,7 +148,9 @@ test("SVG export includes the pen strokes", async ({ page }) => {
     sessionStorage.setItem("seeded", "1");
     for (const [k, v] of Object.entries(fixture)) localStorage.setItem(k, v);
   }, V1_FIXTURE);
-  await open(page);
+  // (the v1 fixture carries its own app state: it opens on the Problem step)
+  await open(page, "/", "problem");
+  await goToStep(page, "design");
   await expect(nodes(page)).toHaveCount(6);
 
   const download = await exportMenu(page, "Export as SVG");

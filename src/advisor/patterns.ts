@@ -17,7 +17,15 @@ import { freePositionNear, nodeRect } from "@/lib/placement";
 import { ms, pct, rps } from "@/scoring/steady";
 import type { EdgeCall } from "@/domain/components/types";
 import { edgeRuleOf, isAsyncEdge, sanitizeEdgeRule } from "@/domain/graph/edgeRules";
-import { emptyDiff, insertBetween, newComponentNode, newEdge, uniqueId } from "./graph";
+import {
+  emptyDiff,
+  insertBetween,
+  isSyncRequest,
+  newComponentNode,
+  newEdge,
+  uniqueId,
+  withResponse,
+} from "./graph";
 import type { AdvisorContext, CanvasGraph, Finding, GraphDiff } from "./types";
 import type { DesignView } from "./view";
 
@@ -133,13 +141,16 @@ function readCacheDiff(
     const rule = edgeRuleOf(graph, e);
     const readCall = rule.calls.find((c) => c.kind === "reads" || c.kind === "always")!;
     added.push(
-      newEdge(
-        nodes,
-        [...graph.edges, ...added],
-        edgeId(`e-${e.source}-${cache.id}`),
-        e.source,
-        cache.id,
-        { calls: [{ kind: "reads", callsPerRequest: readCall.callsPerRequest }] },
+      ...withResponse(
+        newEdge(
+          nodes,
+          [...graph.edges, ...added],
+          edgeId(`e-${e.source}-${cache.id}`),
+          e.source,
+          cache.id,
+          { calls: [{ kind: "reads", callsPerRequest: readCall.callsPerRequest }] },
+        ),
+        isSyncRequest(graph.edges, e),
       ),
     );
     // Reads now go to the database only after a miss; `always` keeps its writes.

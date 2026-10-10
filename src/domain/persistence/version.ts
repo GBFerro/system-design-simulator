@@ -3,4 +3,4 @@
  * Dependency-free on purpose: every persisted store imports it, including
  * ones the component catalog depends on.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;

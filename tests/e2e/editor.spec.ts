@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
-import { MOD, center, connect, edgePoint, open, quickAdd } from "./helpers";
+import { MOD, center, connectSync, edgePoint, open, quickAdd } from "./helpers";
 
 // Spec 02: one test per editor bug from the diagnosis (B1–B6) plus the CAN-05 shortcuts.
 
@@ -224,13 +224,13 @@ async function serviceWithDbAndCache(page: Page, path = "/") {
   await quickAdd(page, "Cache / Redis");
   await quickAdd(page, "SQL Database");
   await expect(nodes(page)).toHaveCount(3);
-  await connect(page, "app-server", "sql-db");
-  await connect(page, "app-server", "cache");
-  await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+  await connectSync(page, "app-server", "sql-db");
+  await connectSync(page, "app-server", "cache");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
 }
 
 const edgeTo = (page: Page, target: string) =>
-  page.locator(`.react-flow__edge[data-id*="${target}-"]`);
+  page.locator(`.react-flow__edge:not([data-id^="ret:"])[data-id*="${target}-"]`);
 
 async function selectEdge(page: Page, target?: string) {
   const point = await edgePoint(page, target ? edgeTo(page, target) : undefined);
@@ -396,21 +396,21 @@ test("FLW-30: no step badge on a node's only sync call, nor on a load balancer's
   await expect(nodes(page)).toHaveCount(6);
 
   // App Server's only sync call: its label shows the condition, no step.
-  await connect(page, "app-server", "sql-db");
+  await connectSync(page, "app-server", "sql-db");
   await selectEdge(page, "sql-db");
   await call(page, 1).getByLabel("Call rule").selectOption("writes");
   await expect(condBadge(page, "sql-db")).toHaveText("writes");
   await expect(stepBadge(page, "sql-db")).toHaveCount(0);
 
   // A second sync call: now both show their step.
-  await connect(page, "app-server", "cache");
+  await connectSync(page, "app-server", "cache");
   await expect(stepBadge(page, "sql-db")).toHaveText("1");
   await expect(stepBadge(page, "cache")).toHaveText("2");
 
   // A load balancer sends each request down one edge: no steps on its two edges.
-  await connect(page, "load-balancer", "auth-service");
-  await connect(page, "load-balancer", "websocket-server");
-  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+  await connectSync(page, "load-balancer", "auth-service");
+  await connectSync(page, "load-balancer", "websocket-server");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(8);
   await expect(stepBadge(page, "auth-service")).toHaveCount(0);
   await expect(stepBadge(page, "websocket-server")).toHaveCount(0);
 });

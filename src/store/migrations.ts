@@ -3,8 +3,8 @@ import { migrateGraph, type MigrateOptions } from "@/domain/persistence/migrate"
 /**
  * `migrate(persisted, fromVersion)` for every persisted store (Spec 05).
  * zustand calls these only when the stored version differs from
- * `STORE_VERSION` (./persistVersion). The graph migration (v1 → v2 → v3) is idempotent, so
- * running it on any mismatch (including a future version) is safe. Never throws.
+ * `STORE_VERSION` (./persistVersion). The graph migration (v1 → v2 → v3 → v4) is idempotent, and
+ * `fromVersion` keeps v4 data (async calls without a response) from being answered again. Never throws.
  */
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -20,14 +20,16 @@ function warnOnConsole(store: string): MigrateOptions["onWarning"] {
  * Migrates the live (active tab) nodes/edges and every tab's snapshot.
  */
 export function migrateCanvasState<T>(persisted: unknown, fromVersion: number): T {
-  void fromVersion;
   if (!isRecord(persisted)) return persisted as T;
   const onWarning = warnOnConsole("canvas");
-  const live = migrateGraph(persisted.nodes ?? [], persisted.edges ?? [], { onWarning });
+  const live = migrateGraph(persisted.nodes ?? [], persisted.edges ?? [], {
+    onWarning,
+    fromVersion,
+  });
   const tabs = Array.isArray(persisted.tabs)
     ? persisted.tabs.filter(isRecord).map((tab) => ({
         ...tab,
-        ...migrateGraph(tab.nodes ?? [], tab.edges ?? [], { onWarning }),
+        ...migrateGraph(tab.nodes ?? [], tab.edges ?? [], { onWarning, fromVersion }),
       }))
     : persisted.tabs;
   return { ...persisted, ...live, tabs } as T;
@@ -35,13 +37,12 @@ export function migrateCanvasState<T>(persisted: unknown, fromVersion: number): 
 
 /** savedDesignsStore: `{ designs: SavedDesign[] }`. */
 export function migrateSavedDesignsState<T>(persisted: unknown, fromVersion: number): T {
-  void fromVersion;
   if (!isRecord(persisted)) return persisted as T;
   const onWarning = warnOnConsole("saved designs");
   const designs = Array.isArray(persisted.designs)
     ? persisted.designs.filter(isRecord).map((design) => ({
         ...design,
-        ...migrateGraph(design.nodes ?? [], design.edges ?? [], { onWarning }),
+        ...migrateGraph(design.nodes ?? [], design.edges ?? [], { onWarning, fromVersion }),
         strokes: Array.isArray(design.strokes) ? design.strokes : [],
       }))
     : [];

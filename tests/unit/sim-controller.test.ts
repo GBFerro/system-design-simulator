@@ -1,3 +1,4 @@
+import { withReturns } from "@/domain/graph/returns";
 import { afterAll, describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
 import { GRAPH_RELOAD_DEBOUNCE_MS, SimController, traceCanvas } from "@/engine/client";
@@ -211,7 +212,7 @@ describe("traceCanvas (in-thread fallback)", () => {
         maxRetries: 0,
       }),
     ];
-    const edges = [wire("client", "app")];
+    const edges = withReturns([wire("client", "app")]);
     const meanTotal = async (rps: number) => {
       const traces = await Promise.all(
         Array.from({ length: 20 }, (_, index) =>

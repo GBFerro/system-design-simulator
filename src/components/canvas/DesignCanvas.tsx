@@ -21,6 +21,7 @@ import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
 import { ChaosTimeline } from "./ChaosTimeline";
 import { edgeTypes } from "./edges/edgeTypes";
+import { isValidHandlePair } from "@/domain/graph/returns";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { useAdvisorStore } from "@/store/advisorStore";
 import { isGhostId, withoutGhostChanges, withPreview } from "./previewGraph";
@@ -278,6 +279,7 @@ export function DesignCanvas({
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onConnect={isReadOnly ? undefined : onConnect}
+          isValidConnection={isValidHandlePair}
           multiSelectionKeyCode={["Shift", "Meta", "Control"]}
           selectionOnDrag={!penActive}
           panOnScroll={!penActive}

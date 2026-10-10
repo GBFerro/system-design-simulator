@@ -3,12 +3,13 @@
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import { useCanvasStore } from "@/store/canvasStore";
+import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { ChevronDown, Server, TriangleAlert, OctagonAlert } from "lucide-react";
 import { ICON_MAP } from "@/lib/icons";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import { NodeActionsToolbar } from "./NodeActionsToolbar";
 import { NodeMetricsBadge } from "./NodeMetricsBadge";
+import { ReturnHandles } from "./ReturnHandles";
 import { RUNTIME_STATUS_META } from "./runtimeStatus";
 import { useNodeBlast, useNodeStatus } from "@/store/runtimeStore";
 import { useNodeFindingSeverity, useNodePreviewChange } from "@/store/advisorStore";
@@ -52,6 +53,7 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const isCoarse = useIsCoarsePointer();
+  const readOnly = useIsActiveTabReadOnly();
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -231,6 +233,7 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
         position={Position.Right}
         className={`${isCoarse ? "!h-5 !w-5" : "!h-2 !w-2"} !rounded-full !border !border-zinc-600 !bg-zinc-400`}
       />
+      <ReturnHandles connectable={!readOnly} coarse={isCoarse} />
     </div>
   );
 }

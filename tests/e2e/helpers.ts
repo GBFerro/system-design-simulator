@@ -1,14 +1,77 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { SCHEMA_VERSION } from "@/domain/persistence/version";
+import { STEPS, type Step } from "@/lib/steps";
+import { APP_STORAGE_KEY } from "@/store/persistVersion";
 
 /** Shared E2E helpers: import these instead of redefining them in each spec. */
 
 /** The platform's shortcut modifier (⌘ on macOS, Ctrl elsewhere). */
 export const MOD = process.platform === "darwin" ? "Meta" : "Control";
 
-/** Open the app and wait for the canvas. `?e2e` installs the test store handles in any build. */
-export async function open(page: Page, path = "/") {
+/** The wizard's steps, from the app itself (`lib/steps.ts`). */
+export type StepId = Step;
+
+/**
+ * Open the app and wait for its first screen. `?e2e` installs the test store handles in any
+ * build. A fresh browser opens on the Problem step (the guided layout); most specs work on
+ * the canvas, so unless the test says otherwise the saved step is Design (the palette's step).
+ */
+export async function open(page: Page, path = "/", step: StepId = "design") {
+  await page.addInitScript(
+    ({ initial, key, version }) => {
+      try {
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, JSON.stringify({ state: { step: initial }, version }));
+        }
+      } catch {
+        // storage blocked: the app starts on its default step
+      }
+    },
+    { initial: step, key: APP_STORAGE_KEY, version: SCHEMA_VERSION },
+  );
   await page.goto(path);
-  await expect(page.locator(".react-flow")).toBeVisible();
+  if (step === "problem") await expect(page.getByTestId("problem-step")).toBeVisible();
+  else await expect(page.locator(".react-flow")).toBeVisible();
+}
+
+/** The current step of the step bar. */
+export async function currentStep(page: Page): Promise<StepId> {
+  const id = await page
+    .locator('[data-testid="step-bar"] [aria-current="step"]')
+    .getAttribute("data-step");
+  return id as StepId;
+}
+
+/** Walk to a step: back by its button, forward with Next (the only way ahead). */
+export async function goToStep(page: Page, target: StepId) {
+  const bar = page.getByTestId("step-bar");
+  for (let i = 0; i < STEPS.length; i++) {
+    const here = await currentStep(page);
+    if (here === target) return;
+    if (STEPS.indexOf(target) < STEPS.indexOf(here)) {
+      await bar.locator(`[data-step="${target}"]`).click();
+    } else {
+      await bar.getByRole("button", { name: "Next", exact: true }).click();
+    }
+  }
+  throw new Error(`could not reach step ${target}`);
+}
+
+const STEP_OF_TAB: [RegExp, StepId][] = [
+  [/^Props$/, "design"],
+  [/^Simulate$/, "simulate"],
+  [/^Flow$/, "simulate"],
+  [/^(Chaos|SLO)/, "failures"],
+  [/^(Score|Advisor|Cost|Trade-offs)/, "evaluate"],
+];
+
+/** Click a tab of the right panel, moving to the step that shows it first. */
+export async function openTab(page: Page, name: string | RegExp) {
+  const label = typeof name === "string" ? name : (name.source.replace(/[\^$]/g, "") as string);
+  const step = STEP_OF_TAB.find(([re]) => re.test(label))?.[1];
+  const tab = page.getByRole("tab", { name });
+  if (step && !(await tab.isVisible())) await goToStep(page, step);
+  await tab.click();
 }
 
 /** Add a component through the palette's "Add X to canvas" button. */
@@ -26,8 +89,12 @@ export async function center(locator: Locator) {
 
 /** Drag from one node's source handle to another's target handle (node ids start with the component id). */
 export async function connect(page: Page, from: string, to: string) {
-  const a = await center(page.locator(`.react-flow__node[data-id^="${from}-"] .source`));
-  const b = await center(page.locator(`.react-flow__node[data-id^="${to}-"] .target`));
+  const a = await center(
+    page.locator(`.react-flow__node[data-id^="${from}-"] .source:not([data-return-handle])`),
+  );
+  const b = await center(
+    page.locator(`.react-flow__node[data-id^="${to}-"] .target:not([data-return-handle])`),
+  );
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
   await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 5 });
@@ -56,7 +123,39 @@ export async function edgePoint(
 
 /** Instant steady-state analysis: the Sim panel's Analyze button (the top bar's Simulate starts the live run). */
 export async function analyze(page: Page) {
-  await page.getByRole("tab", { name: "Simulate" }).click();
+  await openTab(page, "Simulate");
   await page.getByRole("button", { name: "Analyze", exact: true }).click();
   await expect(page.getByText("Analysis complete!")).toBeVisible();
+}
+
+/** Draw the response of a call: drag from the callee's return handle to the caller's (guided-ui, RET-01). */
+export async function answer(page: Page, callee: string, caller: string) {
+  const a = await center(
+    page.locator(`.react-flow__node[data-id^="${callee}-"] [data-return-handle="out"]`),
+  );
+  const b = await center(
+    page.locator(`.react-flow__node[data-id^="${caller}-"] [data-return-handle="in"]`),
+  );
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 5 });
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+}
+
+/** A synchronous call: the request, then its response. A bare `connect` is an async call. */
+export async function connectSync(page: Page, from: string, to: string) {
+  await connect(page, from, to);
+  await answer(page, to, from);
+}
+
+/** In an interview, walk the phase bar forward to the Deep Dive (a later phase is not a button that works). */
+export async function goToDeepDive(page: Page) {
+  const bar = page.getByTestId("step-bar");
+  for (let i = 0; i < 6; i++) {
+    if (((await bar.locator('[aria-current="step"]').textContent()) ?? "").includes("Deep Dive"))
+      return;
+    await bar.getByRole("button", { name: "Next", exact: true }).click();
+  }
+  throw new Error("could not reach the Deep Dive");
 }
