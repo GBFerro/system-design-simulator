@@ -206,5 +206,6 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ## Conventions
 
 - Dark theme only (`<html class="dark">`); there is no theme toggle. Use zinc-* palette; sub-11px labels use `text-zinc-400`+ for contrast.
+- **Use subagents whenever possible.** Delegate independent work (searching or reading many files, reviews, the Verifier of a spec, test/e2e runs, tasks that don't depend on each other) to subagents, in parallel when they don't depend on each other, and keep the main thread for decisions and integration. This standing instruction is the user's explicit request to spawn them.
 - Temp/scratch files: keep them out of the repo.
 - Commit messages: do NOT add Claude/AI attribution or co-author trailers.
