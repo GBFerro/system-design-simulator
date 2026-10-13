@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PARAM } from "@/domain/components/params";
+import { instanceClassSpec, PARAM, technologySpec } from "@/domain/components/params";
+import type { ParamSpec } from "@/domain/components/types";
 import {
   buildTechIndex,
   CENTRAL_TYPES,
@@ -585,5 +586,159 @@ describe("the whole catalog (T7)", () => {
         expect(CENTRAL_TYPES as readonly string[], tech.id).toContain(type);
       }
     }
+  });
+});
+
+/* ---------- T8: PARAM keys and the technology / instance class specs (TEC-01, TEC-14) ---------- */
+
+describe("technology and instance class param specs (T8)", () => {
+  const values = (spec: ParamSpec) => (spec.options ?? []).map((o) => o.value);
+  const labels = (spec: ParamSpec) => (spec.options ?? []).map((o) => o.label);
+
+  it("PARAM keeps every key it had and adds the six technology keys, each equal to its name", () => {
+    const before = [
+      "capacityPerInstance",
+      "serviceTimeMs",
+      "instances",
+      "hitRate",
+      "timeoutMs",
+      "maxRetries",
+      "maxQueue",
+      "consumers",
+      "limitRps",
+      "overLimitAction",
+      "lbAlgorithm",
+      "availability",
+      "readRatio",
+      "baseRps",
+      "loadPattern",
+      "serviceTimeP99Ms",
+      "retryBackoffMs",
+      "retryJitter",
+      "autoscale",
+      "autoscaleMin",
+      "autoscaleMax",
+      "targetUtilization",
+      "scaleCooldownSec",
+      "provisioningDelaySec",
+      "lookupShare",
+      "ttlSec",
+      "healthCheckIntervalSec",
+      "unhealthyThreshold",
+      "healthyThreshold",
+      "rateLimitEnabled",
+      "rateLimitAlgorithm",
+      "burst",
+      "memoryGb",
+      "evictionPolicy",
+      "writeStrategy",
+      "stampedeProtection",
+      "writeCapacityRps",
+      "writeServiceTimeMs",
+      "connectionPool",
+      "shards",
+      "failoverSec",
+      "replicationLagMs",
+      "partitions",
+      "replicationFactor",
+      "consistencyLevel",
+      "hotPartitionShare",
+      "replicas",
+      "retentionHours",
+      "deliverySemantics",
+      "maxDeliveryAttempts",
+      "errorThreshold",
+      "openDurationSec",
+      "halfOpenProbes",
+      "minimumCalls",
+      "blockRate",
+    ];
+    const added = [
+      "technology",
+      "instanceClass",
+      "prefixes",
+      "readPreference",
+      "writeConcern",
+      "readConsistency",
+    ];
+    const keys = PARAM as Record<string, string>;
+    for (const key of [...before, ...added]) expect(keys[key], key).toBe(key);
+    expect(Object.keys(PARAM).sort()).toEqual([...before, ...added].sort());
+  });
+
+  it("technologySpec('nosql-db'): enum of generic + the 4 technologies, default generic", () => {
+    const spec = technologySpec("nosql-db");
+    expect(spec.key).toBe("technology");
+    expect(spec.kind).toBe("enum");
+    expect(spec.default).toBe("generic");
+    expect(values(spec)).toEqual(["generic", "dynamodb", "cassandra", "scylladb", "mongodb"]);
+    expect(labels(spec)[0]).toBe("Generic — custom numbers");
+  });
+
+  it("option labels carry the layer or mode in parentheses (TEC-06)", () => {
+    expect(labels(technologySpec("load-balancer"))).toEqual([
+      "Generic — custom numbers",
+      "AWS NLB (L4)",
+      "AWS ALB (L7)",
+      "HAProxy (L7)",
+      "Envoy (L7)",
+    ]);
+    expect(labels(technologySpec("nosql-db"))).toContain("DynamoDB (on-demand)");
+  });
+
+  it("every central type's spec offers generic plus exactly its technologies", () => {
+    for (const id of CENTRAL_TYPES) {
+      expect(values(technologySpec(id)), id).toEqual([
+        "generic",
+        ...technologiesOf(id).map((t) => t.id),
+      ]);
+    }
+  });
+
+  it("instanceClassSpec('sql-db') offers the db.r6g classes once each, default db.r6g.xlarge", () => {
+    const spec = instanceClassSpec("sql-db");
+    expect(spec.key).toBe("instanceClass");
+    expect(spec.kind).toBe("enum");
+    expect(values(spec)).toEqual([
+      "db.r6g.large",
+      "db.r6g.xlarge",
+      "db.r6g.2xlarge",
+      "db.r6g.4xlarge",
+    ]);
+    expect(spec.default).toBe("db.r6g.xlarge");
+  });
+
+  it("optionsFor gives only the classes of the node's technology (Aurora on sql-db, Cassandra vs MongoDB on nosql-db)", () => {
+    const aurora = getTechnology("sql-db", "aurora-postgres")!;
+    expect(instanceClassSpec("sql-db").optionsFor!({ technology: "aurora-postgres" })).toEqual(
+      aurora.classes!.map((c) => c.id),
+    );
+    const nosql = instanceClassSpec("nosql-db");
+    expect(nosql.optionsFor!({ technology: "cassandra" })).toEqual([
+      "i4i.large",
+      "i4i.xlarge",
+      "i4i.2xlarge",
+      "i4i.4xlarge",
+    ]);
+    expect(nosql.optionsFor!({ technology: "mongodb" })).toEqual([
+      "r6g.large",
+      "r6g.xlarge",
+      "r6g.2xlarge",
+      "r6g.4xlarge",
+    ]);
+    expect(nosql.optionsFor!({ technology: "dynamodb" })).toEqual([]);
+  });
+
+  it("the class select is visible only for a technology billed per instance (TEC-14)", () => {
+    const sql = instanceClassSpec("sql-db");
+    expect(sql.visibleIf!({ technology: "postgres" })).toBe(true);
+    expect(sql.visibleIf!({ technology: "generic" })).toBe(false);
+    const nosql = instanceClassSpec("nosql-db");
+    expect(nosql.visibleIf!({ technology: "cassandra" })).toBe(true);
+    expect(nosql.visibleIf!({ technology: "dynamodb" })).toBe(false);
+    expect(nosql.visibleIf!({ technology: "generic" })).toBe(false);
+    const lb = instanceClassSpec("load-balancer");
+    expect(lb.visibleIf!({ technology: "aws-alb" })).toBe(false);
+    expect(lb.visibleIf!({ technology: "haproxy" })).toBe(true);
   });
 });

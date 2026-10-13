@@ -32,6 +32,11 @@ export interface ParamSpec {
   /** One line, shown as a tooltip. */
   help?: string;
   visibleIf?: (p: Params) => boolean;
+  /**
+   * Enum only: the option values allowed for these params (a subset of
+   * `options`, e.g. an NLB only flow-hashes). Omitted = every option.
+   */
+  optionsFor?: (p: Params) => readonly string[];
 }
 
 /**

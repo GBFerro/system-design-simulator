@@ -7,6 +7,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **If the skill cannot be activated, STOP and tell the user - do not proceed without it.**
 
 Regras do repositório que valem em toda tarefa:
+
 - Ler `CLAUDE.md` (invariantes) e o trecho de `design.md` da área antes de mexer nela.
 - Commits em Conventional Commits, mensagem em português como o histórico, **sem** trailer de co-autoria ou atribuição a IA (`CLAUDE.md`, Conventions).
 - Nada de arquivo temporário dentro do repo.
@@ -26,26 +27,26 @@ Regras do repositório que valem em toda tarefa:
 
 > Generated from codebase, project guidelines, and spec - confirm before Execute. Guidelines found: `CLAUDE.md` (Commands; "Unit tests cover pure logic … editor behavior goes in Playwright"; regra do e2e inteiro para navegação/layout, L-014), `AGENTS.md`, `vitest.config.*`, `playwright.config.*`, `.github/workflows/ci.yml` (lint, format:check, typecheck, test, build, bundle:check, test:e2e).
 
-| Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
-| --- | --- | --- | --- | --- |
-| Dados do catálogo de tecnologias (`domain/components/technologies/*`) | unit | Toda tecnologia e classe: fonte `https`, ano, premissas, evidência, números finitos e positivos, preço; lookups e presets 1:1 com TEC-10/11/12 | `tests/unit/technologies.test.ts`, `tests/unit/catalog.test.ts` | `npm test` |
-| Schema, registry, preço, traits (`domain/components/*`) | unit | Todos os ramos de `normalizeTechParams`, `pricingOf`, `isManagedMultiZone`; `generic` idêntico a hoje; edge cases TEC-08/16/39/48/50 | `tests/unit/technologies.test.ts`, `catalog.test.ts`, `scoring.test.ts` | `npm test` |
-| Motor (`domain/graph/compile.ts`, `engine/core/*`, `engine/analyze.ts`, `engine/snapshot.ts`) | unit | 1:1 com TEC-25…TEC-41/45–48; golden intacto; contagem de sorteios igual para `generic`; invariantes da Spec 04 (finito, served ≤ offered, determinismo) | `tests/unit/engine-tech*.test.ts`, `tests/unit/tech-limits.test.ts` | `npm test` |
-| Stores e ações (`store/canvasStore.ts`, `lib/nodeFactory.ts`) | unit | Cada ação: efeito, uma entrada de undo, no-op igual/somente leitura; lista `MUTATING_ACTIONS` | `tests/unit/editor.test.ts`, `tests/unit/technologies.test.ts` | `npm test` |
-| Custo e advisor (`cost/*`, `advisor/*`, `store/advisorStore.ts`) | unit | Fórmulas TEC-17/18/51; utilização igual à do motor (TEC-42); sem fix de instâncias quando o limite não escala | `tests/unit/cost.test.ts`, `tests/unit/advisor.test.ts` | `npm test` |
-| UI (`components/panel`, `components/sidebar`, `components/canvas`, `components/CommandPalette.tsx`, `components/cost`) | e2e | Caminho feliz + edge cases da spec + somente leitura de cada tela tocada; snapshots sintéticos via `window.__runtimeStore` | `tests/e2e/technologies.spec.ts` (helpers de `helpers.ts`) | `npm run test:e2e` |
-| Documentação (`CLAUDE.md` architecture map, `docs/03-catalogo-de-componentes.md`) | unit | `claude-map.test.ts` passa | `tests/unit/claude-map.test.ts` | `npm test` |
-| Tipos puros | none | - (build gate only) | - | build gate only |
+| Code Layer                                                                                                             | Required Test Type | Coverage Expectation                                                                                                                                    | Location Pattern                                                        | Run Command        |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------ |
+| Dados do catálogo de tecnologias (`domain/components/technologies/*`)                                                  | unit               | Toda tecnologia e classe: fonte `https`, ano, premissas, evidência, números finitos e positivos, preço; lookups e presets 1:1 com TEC-10/11/12          | `tests/unit/technologies.test.ts`, `tests/unit/catalog.test.ts`         | `npm test`         |
+| Schema, registry, preço, traits (`domain/components/*`)                                                                | unit               | Todos os ramos de `normalizeTechParams`, `pricingOf`, `isManagedMultiZone`; `generic` idêntico a hoje; edge cases TEC-08/16/39/48/50                    | `tests/unit/technologies.test.ts`, `catalog.test.ts`, `scoring.test.ts` | `npm test`         |
+| Motor (`domain/graph/compile.ts`, `engine/core/*`, `engine/analyze.ts`, `engine/snapshot.ts`)                          | unit               | 1:1 com TEC-25…TEC-41/45–48; golden intacto; contagem de sorteios igual para `generic`; invariantes da Spec 04 (finito, served ≤ offered, determinismo) | `tests/unit/engine-tech*.test.ts`, `tests/unit/tech-limits.test.ts`     | `npm test`         |
+| Stores e ações (`store/canvasStore.ts`, `lib/nodeFactory.ts`)                                                          | unit               | Cada ação: efeito, uma entrada de undo, no-op igual/somente leitura; lista `MUTATING_ACTIONS`                                                           | `tests/unit/editor.test.ts`, `tests/unit/technologies.test.ts`          | `npm test`         |
+| Custo e advisor (`cost/*`, `advisor/*`, `store/advisorStore.ts`)                                                       | unit               | Fórmulas TEC-17/18/51; utilização igual à do motor (TEC-42); sem fix de instâncias quando o limite não escala                                           | `tests/unit/cost.test.ts`, `tests/unit/advisor.test.ts`                 | `npm test`         |
+| UI (`components/panel`, `components/sidebar`, `components/canvas`, `components/CommandPalette.tsx`, `components/cost`) | e2e                | Caminho feliz + edge cases da spec + somente leitura de cada tela tocada; snapshots sintéticos via `window.__runtimeStore`                              | `tests/e2e/technologies.spec.ts` (helpers de `helpers.ts`)              | `npm run test:e2e` |
+| Documentação (`CLAUDE.md` architecture map, `docs/03-catalogo-de-componentes.md`)                                      | unit               | `claude-map.test.ts` passa                                                                                                                              | `tests/unit/claude-map.test.ts`                                         | `npm test`         |
+| Tipos puros                                                                                                            | none               | - (build gate only)                                                                                                                                     | -                                                                       | build gate only    |
 
 ## Gate Check Commands
 
 > Generated from codebase - confirm before Execute.
 
-| Gate Level | When to Use | Command |
-| --- | --- | --- |
-| Quick | Tarefas só com testes unitários (vitest não checa tipos, então o typecheck entra aqui) | `npm run typecheck && npm test` |
-| Full | Tarefas com e2e | `npm run typecheck && npm test && npm run test:e2e` (com `npm run dev` aberto: `E2E_PORT=3000 npm run test:e2e`) |
-| Build | Fim do trabalho / antes de PR | `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` |
+| Gate Level | When to Use                                                                            | Command                                                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Quick      | Tarefas só com testes unitários (vitest não checa tipos, então o typecheck entra aqui) | `npm run typecheck && npm test`                                                                                                      |
+| Full       | Tarefas com e2e                                                                        | `npm run typecheck && npm test && npm run test:e2e` (com `npm run dev` aberto: `E2E_PORT=3000 npm run test:e2e`)                     |
+| Build      | Fim do trabalho / antes de PR                                                          | `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` |
 
 ---
 
@@ -258,7 +259,7 @@ T36 → T37
 
 ### T6: Tecnologias de mensageria (Kafka, RabbitMQ, SQS, SNS)
 
-**What**: Dados para `message-queue` (Kafka MSK kafka.m7g.*, RabbitMQ Amazon MQ mq.m7g.* com teto por fila, SQS Standard, SQS FIFO com cota 3.000 msgs/s) e `pub-sub` (SNS com cota 30.000 publishes/s, Kafka MSK), com mecânicas `kafka`/`quota`, preços (SQS $1,20/M mensagens, FIFO $1,50/M, SNS $0,50/M), fontes, premissas e evidência; padrões Kafka kafka.m7g.xlarge (6 partições) e SNS.
+**What**: Dados para `message-queue` (Kafka MSK kafka.m7g._, RabbitMQ Amazon MQ mq.m7g._ com teto por fila, SQS Standard, SQS FIFO com cota 3.000 msgs/s) e `pub-sub` (SNS com cota 30.000 publishes/s, Kafka MSK), com mecânicas `kafka`/`quota`, preços (SQS $1,20/M mensagens, FIFO $1,50/M, SNS $0,50/M), fontes, premissas e evidência; padrões Kafka kafka.m7g.xlarge (6 partições) e SNS.
 **Where**: `src/domain/components/technologies/messaging.ts`
 **Depends on**: T1
 **Reuses**: tabela de mensageria de `design.md`
@@ -323,15 +324,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Teste: `technologySpec("nosql-db").options` = `generic` + as 4 tecnologias; padrão `generic`; `instanceClassSpec("sql-db").optionsFor({technology:"aurora-postgres"})` = só as classes do Aurora; invisível para tecnologia gerenciada e `generic`
-- [ ] Nenhuma chave `PARAM` existente renomeada
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Teste: `technologySpec("nosql-db").options` = `generic` + as 4 tecnologias; padrão `generic`; `instanceClassSpec("sql-db").optionsFor({technology:"aurora-postgres"})` = só as classes do Aurora; invisível para tecnologia gerenciada e `generic`
+- [x] Nenhuma chave `PARAM` existente renomeada
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(params): chaves e specs de tecnologia e classe de instância`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
@@ -1116,77 +1117,77 @@ Execution is strictly sequential - there is no intra-phase parallelism. A single
 
 ## Task Granularity Check
 
-| Task | Scope | Status |
-| --- | --- | --- |
-| T1 | tipos + consultas de um módulo novo | ⚠️ OK (2 arquivos coesos: `types.ts` + `index.ts`) |
-| T2–T7 | um arquivo de dados por família | ✅ Granular |
-| T8 | chaves + 2 builders em `params.ts` (+ `optionsFor` no tipo) | ✅ Granular |
-| T9 | 1 função em `registry.ts` | ✅ Granular |
-| T10 | specs nos schemas dos 10 tipos | ⚠️ OK (uma mudança repetida, coesa, no diretório `schemas/`) |
-| T11 | 1 função + versão da tabela | ✅ Granular |
-| T12 | 1 função + troca em 3 chamadas | ⚠️ OK (troca mecânica) |
-| T13 | 1 função | ✅ Granular |
-| T14 | 3 ações da mesma store | ✅ Granular |
-| T15 | 1 componente | ✅ Granular |
-| T16 | 1 componente + montagem | ✅ Granular |
-| T17 | 1 componente + payload do DnD | ⚠️ OK (o payload só existe para a paleta) |
-| T18, T19 | 1 componente | ✅ Granular |
-| T20, T21, T23 | 1 módulo puro | ✅ Granular |
-| T22, T24, T27, T28, T29 | 1 arquivo do motor | ✅ Granular |
-| T25 | `settle.ts` + troca de 1 linha em `slo.ts` | ⚠️ OK (mesma função de cauda) |
-| T26 | tipos + cópia no snapshot | ⚠️ OK (campos e cópia andam juntos) |
-| T30 | 1 arquivo de teste | ✅ Granular |
-| T31–T35 | 1 componente / função | ✅ Granular |
-| T36 | documentação | ✅ Granular |
-| T37 | gate | ✅ Granular |
+| Task                    | Scope                                                       | Status                                                       |
+| ----------------------- | ----------------------------------------------------------- | ------------------------------------------------------------ |
+| T1                      | tipos + consultas de um módulo novo                         | ⚠️ OK (2 arquivos coesos: `types.ts` + `index.ts`)           |
+| T2–T7                   | um arquivo de dados por família                             | ✅ Granular                                                  |
+| T8                      | chaves + 2 builders em `params.ts` (+ `optionsFor` no tipo) | ✅ Granular                                                  |
+| T9                      | 1 função em `registry.ts`                                   | ✅ Granular                                                  |
+| T10                     | specs nos schemas dos 10 tipos                              | ⚠️ OK (uma mudança repetida, coesa, no diretório `schemas/`) |
+| T11                     | 1 função + versão da tabela                                 | ✅ Granular                                                  |
+| T12                     | 1 função + troca em 3 chamadas                              | ⚠️ OK (troca mecânica)                                       |
+| T13                     | 1 função                                                    | ✅ Granular                                                  |
+| T14                     | 3 ações da mesma store                                      | ✅ Granular                                                  |
+| T15                     | 1 componente                                                | ✅ Granular                                                  |
+| T16                     | 1 componente + montagem                                     | ✅ Granular                                                  |
+| T17                     | 1 componente + payload do DnD                               | ⚠️ OK (o payload só existe para a paleta)                    |
+| T18, T19                | 1 componente                                                | ✅ Granular                                                  |
+| T20, T21, T23           | 1 módulo puro                                               | ✅ Granular                                                  |
+| T22, T24, T27, T28, T29 | 1 arquivo do motor                                          | ✅ Granular                                                  |
+| T25                     | `settle.ts` + troca de 1 linha em `slo.ts`                  | ⚠️ OK (mesma função de cauda)                                |
+| T26                     | tipos + cópia no snapshot                                   | ⚠️ OK (campos e cópia andam juntos)                          |
+| T30                     | 1 arquivo de teste                                          | ✅ Granular                                                  |
+| T31–T35                 | 1 componente / função                                       | ✅ Granular                                                  |
+| T36                     | documentação                                                | ✅ Granular                                                  |
+| T37                     | gate                                                        | ✅ Granular                                                  |
 
 ## Diagram-Definition Cross-Check
 
-| Task | Depends On (task body) | Diagram Shows | Status |
-| --- | --- | --- | --- |
-| T1 | None | início da fase 1 | ✅ Match |
-| T2–T7 | T1 | T1 → T2…T7 | ✅ Match |
-| T8 | T2–T7 (fase anterior) | início da fase 2 | ✅ Match |
-| T9 | T8 | T8 → T9 | ✅ Match |
-| T10 | T9 | T9 → T10 | ✅ Match |
-| T11 | T7 (fase anterior) | T11 isolado | ✅ Match |
-| T12 | T7 (fase anterior) | T12 isolado | ✅ Match |
-| T13 | T10 | T10 → T13 | ✅ Match |
-| T14 | T10 | T10 → T14 | ✅ Match |
-| T15 | T10 (fase anterior) | início da fase 3 | ✅ Match |
-| T16 | T14 (fase anterior), T15 | T15 → T16 | ✅ Match |
-| T17, T18, T19 | T13 (fase anterior) | isolados | ✅ Match |
-| T20 | T9 (fase anterior) | início da fase 4 | ✅ Match |
-| T21 | T20 | T20 → T21 | ✅ Match |
-| T22 | T20 | T20 → T22 | ✅ Match |
-| T23 | T20, T21 | T20 → T23, T21 → T23 | ✅ Match |
-| T24 | T23 | T23 → T24 | ✅ Match |
-| T25 | T23 | T23 → T25 | ✅ Match |
-| T26 | T21 (fase anterior) | início da fase 5 | ✅ Match |
-| T27 | T26 | T26 → T27 | ✅ Match |
-| T28 | T27 | T27 → T28 | ✅ Match |
-| T29 | T28 | T28 → T29 | ✅ Match |
-| T30 | T29 | T29 → T30 | ✅ Match |
-| T31 | T28 (fase anterior) | T31 → T36 | ✅ Match |
-| T32 | T28 (fase anterior) | T32 → T36 | ✅ Match |
-| T33 | T11, T26 (fases anteriores) | T33 → T34, T33 → T35 | ✅ Match |
-| T34 | T33 | T33 → T34 | ✅ Match |
-| T35 | T33 | T33 → T35 | ✅ Match |
-| T36 | T31, T32, T34, T35 | quatro setas → T36 | ✅ Match |
-| T37 | T36 | T36 → T37 | ✅ Match |
+| Task          | Depends On (task body)      | Diagram Shows        | Status   |
+| ------------- | --------------------------- | -------------------- | -------- |
+| T1            | None                        | início da fase 1     | ✅ Match |
+| T2–T7         | T1                          | T1 → T2…T7           | ✅ Match |
+| T8            | T2–T7 (fase anterior)       | início da fase 2     | ✅ Match |
+| T9            | T8                          | T8 → T9              | ✅ Match |
+| T10           | T9                          | T9 → T10             | ✅ Match |
+| T11           | T7 (fase anterior)          | T11 isolado          | ✅ Match |
+| T12           | T7 (fase anterior)          | T12 isolado          | ✅ Match |
+| T13           | T10                         | T10 → T13            | ✅ Match |
+| T14           | T10                         | T10 → T14            | ✅ Match |
+| T15           | T10 (fase anterior)         | início da fase 3     | ✅ Match |
+| T16           | T14 (fase anterior), T15    | T15 → T16            | ✅ Match |
+| T17, T18, T19 | T13 (fase anterior)         | isolados             | ✅ Match |
+| T20           | T9 (fase anterior)          | início da fase 4     | ✅ Match |
+| T21           | T20                         | T20 → T21            | ✅ Match |
+| T22           | T20                         | T20 → T22            | ✅ Match |
+| T23           | T20, T21                    | T20 → T23, T21 → T23 | ✅ Match |
+| T24           | T23                         | T23 → T24            | ✅ Match |
+| T25           | T23                         | T23 → T25            | ✅ Match |
+| T26           | T21 (fase anterior)         | início da fase 5     | ✅ Match |
+| T27           | T26                         | T26 → T27            | ✅ Match |
+| T28           | T27                         | T27 → T28            | ✅ Match |
+| T29           | T28                         | T28 → T29            | ✅ Match |
+| T30           | T29                         | T29 → T30            | ✅ Match |
+| T31           | T28 (fase anterior)         | T31 → T36            | ✅ Match |
+| T32           | T28 (fase anterior)         | T32 → T36            | ✅ Match |
+| T33           | T11, T26 (fases anteriores) | T33 → T34, T33 → T35 | ✅ Match |
+| T34           | T33                         | T33 → T34            | ✅ Match |
+| T35           | T33                         | T33 → T35            | ✅ Match |
+| T36           | T31, T32, T34, T35          | quatro setas → T36   | ✅ Match |
+| T37           | T36                         | T36 → T37            | ✅ Match |
 
 ## Test Co-location Validation
 
-| Task | Code Layer Created/Modified | Matrix Requires | Task Says | Status |
-| --- | --- | --- | --- | --- |
-| T1–T7 | Dados do catálogo | unit | unit | ✅ OK |
-| T8–T12 | Schema, registry, preço, traits | unit | unit | ✅ OK |
-| T13, T14 | Stores e ações | unit | unit | ✅ OK |
-| T15–T19 | UI | e2e | e2e | ✅ OK |
-| T20–T30 | Motor | unit | unit | ✅ OK |
-| T31 | UI | e2e | e2e | ✅ OK |
-| T32 | Advisor | unit | unit | ✅ OK |
-| T33, T34 | Custo | unit | unit | ✅ OK |
-| T35 | UI | e2e | e2e | ✅ OK |
-| T36 | Documentação | unit | unit | ✅ OK |
-| T37 | Todas (gate) | e2e (maior exigido) | e2e | ✅ OK |
+| Task     | Code Layer Created/Modified     | Matrix Requires     | Task Says | Status |
+| -------- | ------------------------------- | ------------------- | --------- | ------ |
+| T1–T7    | Dados do catálogo               | unit                | unit      | ✅ OK  |
+| T8–T12   | Schema, registry, preço, traits | unit                | unit      | ✅ OK  |
+| T13, T14 | Stores e ações                  | unit                | unit      | ✅ OK  |
+| T15–T19  | UI                              | e2e                 | e2e       | ✅ OK  |
+| T20–T30  | Motor                           | unit                | unit      | ✅ OK  |
+| T31      | UI                              | e2e                 | e2e       | ✅ OK  |
+| T32      | Advisor                         | unit                | unit      | ✅ OK  |
+| T33, T34 | Custo                           | unit                | unit      | ✅ OK  |
+| T35      | UI                              | e2e                 | e2e       | ✅ OK  |
+| T36      | Documentação                    | unit                | unit      | ✅ OK  |
+| T37      | Todas (gate)                    | e2e (maior exigido) | e2e       | ✅ OK  |
