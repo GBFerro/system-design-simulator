@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { MOD, connect, open, quickAdd } from "./helpers";
+import { MOD, center, connect, open, quickAdd } from "./helpers";
 
 // component-technologies: choosing the real product behind a node.
 
@@ -170,4 +170,88 @@ test("TEC-07: on a read-only reference the technology and class can't be changed
   await page.locator('.react-flow__node[data-id^="nosql-db-"]').click();
   await expect(page.getByLabel("Technology", { exact: true })).toBeDisabled();
   await expect(page.getByLabel("Technology", { exact: true })).toHaveValue("generic");
+});
+
+/** The technology the Props panel shows for the node whose id starts with `componentId`. */
+async function technologyOfNode(page: Page, componentId: string) {
+  await page.locator(`.react-flow__node[data-id^="${componentId}-"]`).click();
+  return page.getByLabel("Technology", { exact: true });
+}
+
+test("TEC-20/21: a central type's technologies open from the palette and drag onto the canvas", async ({
+  page,
+}) => {
+  await open(page);
+  const toggle = page.getByRole("button", { name: "NoSQL Database technologies" }).first();
+  // Closed by default
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator('[data-palette-item="nosql-db:cassandra"]')).toHaveCount(0);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const group = page.getByRole("group", { name: "NoSQL Database technologies" }).first();
+  await expect(group.locator("[data-palette-item]")).toHaveText([
+    "DynamoDB (on-demand)",
+    "Apache Cassandra",
+    "ScyllaDB",
+    "MongoDB (replica set)",
+  ]);
+
+  // Mouse drag (dnd-kit starts after 6 px of movement)
+  const from = await center(page.locator('[data-palette-item="nosql-db:cassandra"]').first());
+  const to = await center(page.locator(".react-flow"));
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 10, from.y + 10, { steps: 3 });
+  await page.mouse.move(to.x, to.y, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.locator(".react-flow__node")).toHaveCount(1);
+  await expect(await technologyOfNode(page, "nosql-db")).toHaveValue("cassandra");
+  await expect(page.getByLabel("Capacity per instance", { exact: true })).toHaveValue("16000");
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator('[data-palette-item="nosql-db:cassandra"]')).toHaveCount(0);
+});
+
+test("TEC-22: adding a central type from the palette creates it with its default technology", async ({
+  page,
+}) => {
+  await open(page);
+  await quickAdd(page, "NoSQL Database");
+  await expect(await technologyOfNode(page, "nosql-db")).toHaveValue("dynamodb");
+  await quickAdd(page, "Load Balancer");
+  await expect(await technologyOfNode(page, "load-balancer")).toHaveValue("aws-alb");
+  // A type without technologies stays as it was
+  await quickAdd(page, "App Server");
+  await page.locator('.react-flow__node[data-id^="app-server-"]').click();
+  await expect(page.getByLabel("Technology", { exact: true })).toHaveCount(0);
+});
+
+test("TEC-23: searching the palette for a technology lists it under every type that offers it", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByLabel("Search components").first().fill("kafka");
+  const queue = page.getByRole("group", { name: "Message Queue technologies" }).first();
+  const pubsub = page.getByRole("group", { name: "Pub/Sub technologies" }).first();
+  await expect(queue.locator("[data-palette-item]")).toHaveText(["Kafka (MSK)"]);
+  await expect(pubsub.locator("[data-palette-item]")).toHaveText(["Kafka (MSK)"]);
+  await expect(page.locator('[data-palette-item="nosql-db"]')).toHaveCount(0);
+
+  await pubsub.getByRole("button", { name: "Add Kafka (MSK) to canvas as Pub/Sub" }).click();
+  await expect(await technologyOfNode(page, "pub-sub")).toHaveValue("kafka");
+});
+
+test.describe("touch", () => {
+  test.use({ viewport: { width: 1024, height: 768 }, hasTouch: true });
+
+  test("TEC-21: tapping a technology in the palette adds it", async ({ page }) => {
+    await open(page);
+    await page.getByRole("button", { name: "NoSQL Database technologies" }).first().tap();
+    const row = page.locator('[data-palette-item="nosql-db:scylladb"]').first();
+    await row.scrollIntoViewIfNeeded();
+    await row.tap();
+    await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    await expect(await technologyOfNode(page, "nosql-db")).toHaveValue("scylladb");
+  });
 });

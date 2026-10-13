@@ -15,6 +15,7 @@ import { useReactFlow } from "@xyflow/react";
 import { Server } from "lucide-react";
 import { getComponentById } from "@/data/components";
 import { ICON_MAP } from "@/lib/icons";
+import { getTechnology } from "@/domain/components/technologies";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { DEFAULT_NODE_SIZE } from "@/lib/placement";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
@@ -29,6 +30,8 @@ function isOverCanvas(p: { x: number; y: number }): boolean {
 
 export interface PaletteDragData {
   componentId: string;
+  /** The technology the new node starts with (component-technologies); omitted = generic. */
+  technology?: string;
 }
 
 function clientPoint(event: Event): { x: number; y: number } | null {
@@ -55,7 +58,7 @@ export function PaletteDndProvider({
   onPaletteDragStart?: () => void;
 }) {
   const { screenToFlowPosition } = useReactFlow();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [active, setActive] = useState<PaletteDragData | null>(null);
   // Where the pointer/finger actually is. dnd-kit's `delta` is adjusted for
   // scrolling of the palette list, which is not what a drop point needs.
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
@@ -69,7 +72,7 @@ export function PaletteDndProvider({
   function handleDragStart(event: DragStartEvent) {
     const data = event.active.data.current as PaletteDragData | undefined;
     if (!data) return;
-    setActiveId(data.componentId);
+    setActive(data);
     lastPoint.current = clientPoint(event.activatorEvent);
     const track = (e: Event) => {
       const p = clientPoint(e);
@@ -87,7 +90,7 @@ export function PaletteDndProvider({
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    setActiveId(null);
+    setActive(null);
     stopTracking.current?.();
     const point = lastPoint.current;
     const data = event.active.data.current as PaletteDragData | undefined;
@@ -103,15 +106,22 @@ export function PaletteDndProvider({
     const drop = screenToFlowPosition(point);
     // Center the new node under the pointer
     canvas.addNode(
-      createComponentNode(component, {
-        x: drop.x - DEFAULT_NODE_SIZE.width / 2,
-        y: drop.y - DEFAULT_NODE_SIZE.height / 2,
-      }),
+      createComponentNode(
+        component,
+        {
+          x: drop.x - DEFAULT_NODE_SIZE.width / 2,
+          y: drop.y - DEFAULT_NODE_SIZE.height / 2,
+        },
+        data.technology,
+      ),
     );
   }
 
-  const active = activeId ? getComponentById(activeId) : undefined;
-  const Icon = active ? (ICON_MAP[active.icon] ?? Server) : Server;
+  const activeComponent = active ? getComponentById(active.componentId) : undefined;
+  const activeTech = active?.technology
+    ? getTechnology(active.componentId, active.technology)
+    : undefined;
+  const Icon = activeComponent ? (ICON_MAP[activeComponent.icon] ?? Server) : Server;
 
   return (
     <DndContext
@@ -119,17 +129,17 @@ export function PaletteDndProvider({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
-        setActiveId(null);
+        setActive(null);
         stopTracking.current?.();
       }}
       autoScroll={false}
     >
       {children}
       <DragOverlay dropAnimation={null}>
-        {active && (
+        {activeComponent && (
           <div className="flex w-max items-center gap-2 rounded-lg border border-cyan-500/50 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 shadow-lg">
             <Icon className="h-3.5 w-3.5 text-cyan-400" />
-            {active.label}
+            {activeTech ? activeTech.label : activeComponent.label}
           </div>
         )}
       </DragOverlay>

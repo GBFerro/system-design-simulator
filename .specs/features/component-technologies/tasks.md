@@ -566,15 +566,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] E2E: expandir NoSQL, arrastar Cassandra (mouse) e tocar ScyllaDB (toque) criam nós com a tecnologia; adicionar "NoSQL Database" cria DynamoDB; buscar "kafka" na paleta mostra Kafka sob Message Queue e Pub/Sub
-- [ ] A suíte e2e **inteira** passa (regra L-014)
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] E2E: expandir NoSQL, arrastar Cassandra (mouse) e tocar ScyllaDB (toque) criam nós com a tecnologia; adicionar "NoSQL Database" cria DynamoDB; buscar "kafka" na paleta mostra Kafka sob Message Queue e Pub/Sub
+- [x] A suíte e2e **inteira** passa (regra L-014)
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(palette): tecnologias como atalhos na paleta`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
