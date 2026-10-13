@@ -271,14 +271,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] A checagem de TEC-11 passa para as 6 entradas; cotas de SQS FIFO e SNS conferidas
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] A checagem de TEC-11 passa para as 6 entradas; cotas de SQS FIFO e SNS conferidas
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(catalog): tecnologias de fila e pub/sub com cotas`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

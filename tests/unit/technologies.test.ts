@@ -438,3 +438,64 @@ describe("cache technologies (T5)", () => {
     });
   });
 });
+
+/* ---------- T6: message queue and pub/sub technologies (design table) ---------- */
+
+describe("message queue and pub/sub technologies (T6)", () => {
+  it("Message Queue: Kafka, RabbitMQ, SQS Standard, SQS FIFO; Pub/Sub: SNS, Kafka", () => {
+    expect(technologiesOf("message-queue").map((t) => t.id)).toEqual([
+      "kafka",
+      "rabbitmq",
+      "sqs-standard",
+      "sqs-fifo",
+    ]);
+    expect(technologiesOf("pub-sub").map((t) => t.id)).toEqual(["sns", "kafka"]);
+  });
+
+  it("SQS FIFO quota 3,000 msgs/s at $1.50/M; SNS quota 30,000 publishes/s at $0.50/M", () => {
+    const fifo = getTechnology("message-queue", "sqs-fifo")!;
+    expect(fifo.mechanics).toEqual({ kind: "quota", quota: { sharedRps: 3_000 } });
+    expect(fifo.managed).toMatchObject({ capacityPerInstance: 3_000, perMillionWrites: 1.5 });
+    const sns = getTechnology("pub-sub", "sns")!;
+    expect(sns.mechanics).toEqual({ kind: "quota", quota: { sharedRps: 30_000 } });
+    expect(sns.managed).toMatchObject({ capacityPerInstance: 30_000, perMillionWrites: 0.5 });
+  });
+
+  it("SQS Standard: no quota mechanic, 1,000,000 msgs/s at 20 ms, $1.20 per million messages", () => {
+    const sqs = getTechnology("message-queue", "sqs-standard")!;
+    expect(sqs.mechanics).toBeUndefined();
+    expect(sqs.managed).toMatchObject({
+      capacityPerInstance: 1_000_000,
+      serviceTimeMs: 20,
+      perMillionReads: 1.2,
+      perMillionWrites: 1.2,
+    });
+  });
+
+  it("Kafka (MSK) on both types: kafka.m7g.xlarge 41,700 msgs/s per broker at 5 ms, 6 partitions", () => {
+    for (const type of ["message-queue", "pub-sub"]) {
+      expect(techPreset(type, "kafka")).toEqual({
+        technology: "kafka",
+        instanceClass: "kafka.m7g.xlarge",
+        capacityPerInstance: 41_700,
+        serviceTimeMs: 5,
+        partitions: 6,
+      });
+    }
+    const kafka = getTechnology("message-queue", "kafka")!;
+    expect(kafka.mechanics?.kind).toBe("kafka");
+    expect(kafka.classes?.map((c) => c.perInstanceHour)).toEqual([0.204, 0.408, 0.816, 1.632]);
+  });
+
+  it("RabbitMQ (Amazon MQ): per-broker 19.5k…185k msgs/s, per-queue ceiling 15k then 20k", () => {
+    const rabbit = getTechnology("message-queue", "rabbitmq")!;
+    expect(rabbit.mechanics?.kind).toBe("quota");
+    expect(rabbit.classes?.map((c) => c.capacityPerInstance)).toEqual([
+      19_500, 39_000, 78_000, 185_000,
+    ]);
+    expect(rabbit.classes?.map((c) => c.quota?.sharedRps)).toEqual([
+      15_000, 20_000, 20_000, 20_000,
+    ]);
+    expect(classOf(rabbit)?.id).toBe("mq.m7g.xlarge");
+  });
+});
