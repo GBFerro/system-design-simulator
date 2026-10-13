@@ -645,14 +645,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `tests/unit/tech-profile.test.ts`: `generic` → `undefined`; Cassandra RF 3 QUORUM → leitura `kth(2,3)` custo 2, escrita `kth(2,3)` custo 3; DynamoDB forte → custo de leitura 1 (eventual 0,5); MongoDB `secondaryPreferred` roteia leituras para a estação de secundários; params fora da faixa ficam presos
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `tests/unit/tech-profile.test.ts`: `generic` → `undefined`; Cassandra RF 3 QUORUM → leitura `kth(2,3)` custo 2, escrita `kth(2,3)` custo 3; DynamoDB forte → custo de leitura 1 (eventual 0,5); MongoDB `secondaryPreferred` roteia leituras para a estação de secundários; params fora da faixa ficam presos
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): perfil de tecnologia resolvido por nó`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
