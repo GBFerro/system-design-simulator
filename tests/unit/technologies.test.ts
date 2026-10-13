@@ -6,6 +6,7 @@ import {
   getTechnology,
   techPreset,
   TECHNOLOGIES,
+  technologiesOf,
 } from "@/domain/components/technologies";
 import type { Technology } from "@/domain/components/technologies";
 
@@ -278,5 +279,69 @@ describe("SQL technologies (T2)", () => {
       classOf(getTechnology("sql-db", id)!, "db.r6g.4xlarge")?.perInstanceHour;
     expect(price("mysql")).toBe(1.718);
     expect(price("aurora-postgres")).toBe(2.699);
+  });
+});
+
+/* ---------- T3: NoSQL technologies (design table) ---------- */
+
+describe("NoSQL technologies (T3)", () => {
+  it("offers DynamoDB, Cassandra, ScyllaDB and MongoDB, in that order", () => {
+    expect(technologiesOf("nosql-db").map((t) => t.id)).toEqual([
+      "dynamodb",
+      "cassandra",
+      "scylladb",
+      "mongodb",
+    ]);
+  });
+
+  it("Cassandra i4i.xlarge: 16,000 replica ops/s at 1.5 ms, $0.343/h, RF 3 QUORUM", () => {
+    const cassandra = getTechnology("nosql-db", "cassandra")!;
+    expect(classOf(cassandra, "i4i.xlarge")?.perInstanceHour).toBe(0.343);
+    expect(techPreset("nosql-db", "cassandra")).toEqual({
+      technology: "cassandra",
+      instanceClass: "i4i.xlarge",
+      capacityPerInstance: 16_000,
+      serviceTimeMs: 1.5,
+      replicationFactor: 3,
+      consistencyLevel: "quorum",
+    });
+    expect(cassandra.mechanics?.kind).toBe("replica-quorum");
+  });
+
+  it("ScyllaDB i4i.4xlarge: 232,000 replica ops/s at 0.7 ms on the same i4i prices", () => {
+    const scylla = getTechnology("nosql-db", "scylladb")!;
+    const xl4 = classOf(scylla, "i4i.4xlarge");
+    expect(xl4?.capacityPerInstance).toBe(232_000);
+    expect(xl4?.serviceTimeMs).toBe(0.7);
+    expect(xl4?.perInstanceHour).toBe(1.373);
+  });
+
+  it("DynamoDB: managed, partition 3,000 RCU / 1,000 WCU, 0.5/1 RRU per read, table quota 40,000", () => {
+    const ddb = getTechnology("nosql-db", "dynamodb")!;
+    expect(ddb.billing).toBe("managed");
+    expect(ddb.classes).toBeUndefined();
+    expect(ddb.mechanics?.perPartition).toEqual({ readUnits: 3_000, writeUnits: 1_000 });
+    expect(ddb.mechanics?.readUnitCost).toEqual({ eventual: 0.5, strong: 1 });
+    expect(ddb.mechanics?.quota).toEqual({ readRps: 40_000, writeRps: 40_000 });
+    expect(ddb.managed).toMatchObject({ perMillionReads: 0.125, perMillionWrites: 0.625 });
+    expect(techPreset("nosql-db", "dynamodb")).toMatchObject({
+      capacityPerInstance: 40_000,
+      serviceTimeMs: 3,
+    });
+  });
+
+  it("MongoDB: r6g classes (xlarge 14,000 ops/s, $0.2016/h), 1 shard, primary reads, majority writes +2 ms", () => {
+    const mongo = getTechnology("nosql-db", "mongodb")!;
+    expect(techPreset("nosql-db", "mongodb")).toEqual({
+      technology: "mongodb",
+      instanceClass: "r6g.xlarge",
+      capacityPerInstance: 14_000,
+      serviceTimeMs: 0.7,
+      shards: 1,
+      readPreference: "primary",
+      writeConcern: "majority",
+    });
+    expect(classOf(mongo)?.perInstanceHour).toBe(0.2016);
+    expect(mongo.mechanics).toEqual({ kind: "mongo", replicationRttMs: 2 });
   });
 });

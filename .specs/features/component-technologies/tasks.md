@@ -193,14 +193,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] A checagem de TEC-11 passa para as 4 tecnologias; valores-âncora conferidos (Cassandra i4i.xlarge 16.000 ops de réplica/s, $0,343/h; DynamoDB `perPartition` 3.000/1.000)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] A checagem de TEC-11 passa para as 4 tecnologias; valores-âncora conferidos (Cassandra i4i.xlarge 16.000 ops de réplica/s, $0,343/h; DynamoDB `perPartition` 3.000/1.000)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(catalog): tecnologias NoSQL com consistência e limites por partição`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
