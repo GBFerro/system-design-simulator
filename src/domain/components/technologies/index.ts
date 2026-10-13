@@ -1,4 +1,5 @@
 import { CORE_PARAM, type Params } from "../types";
+import { SQL_TECHNOLOGIES } from "./sql";
 import type { TechClass, Technology } from "./types";
 
 /**
@@ -27,7 +28,7 @@ export const CENTRAL_TYPES = [
 ] as const;
 
 /** Every technology, in display order (the files T2–T7 add). */
-export const TECHNOLOGIES: readonly Technology[] = [];
+export const TECHNOLOGIES: readonly Technology[] = [...SQL_TECHNOLOGIES];
 
 /** The class asked for, else the technology's default; undefined for a managed technology. */
 export function classOf(tech: Technology, classId?: string): TechClass | undefined {

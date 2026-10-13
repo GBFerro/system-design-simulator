@@ -166,15 +166,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `tests/unit/technologies.test.ts` ganha a checagem genérica de TEC-11 (toda tecnologia não-generic: URL `https://`, ano, premissas não vazias, evidência, números finitos e positivos, preço > 0), que roda sobre todas as tecnologias registradas
-- [ ] Teste confere valores-âncora da tabela (ex.: PostgreSQL db.r6g.xlarge = 40.000 / 0,10 ms leitura, 5.000 / 1,5 ms escrita, $0,45/h; Aurora `failoverSec` 30)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `tests/unit/technologies.test.ts` ganha a checagem genérica de TEC-11 (toda tecnologia não-generic: URL `https://`, ano, premissas não vazias, evidência, números finitos e positivos, preço > 0), que roda sobre todas as tecnologias registradas
+- [x] Teste confere valores-âncora da tabela (ex.: PostgreSQL db.r6g.xlarge = 40.000 / 0,10 ms leitura, 5.000 / 1,5 ms escrita, $0,45/h; Aurora `failoverSec` 30)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(catalog): tecnologias SQL com números de benchmark`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
