@@ -4,7 +4,7 @@ import { instancesOf, PARAM } from "@/domain/components/registry";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { CategoryScore, Measurements, ScoringGraph } from "@/types/scoring";
 import { CATEGORY_MAX_SCORE, PEAK_UTILIZATION, SLO_ERROR_RATE, SURGE_FACTOR } from "../budget";
-import { INHERENTLY_REDUNDANT, syncPath } from "../paths";
+import { isInherentlyRedundant, syncPath } from "../paths";
 import { hottest, metricsOf, NO_TRAFFIC_FEEDBACK, noTraffic, pct, rps } from "../steady";
 
 /**
@@ -97,7 +97,7 @@ export function scoreScalability(
   const stateless = connected.filter(
     (n) =>
       path.onPath.has(n.id) &&
-      !INHERENTLY_REDUNDANT.has(n.data.componentId) &&
+      !isInherentlyRedundant(n.data) &&
       getComponentById(n.data.componentId)?.stateful === false,
   );
   const scaled = stateless.filter(

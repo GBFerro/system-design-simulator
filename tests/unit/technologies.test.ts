@@ -1,4 +1,15 @@
+import type { Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
+import { isManagedMultiZone } from "@/domain/components/traits";
+import { withReturns } from "@/domain/graph/returns";
+import { compileFault } from "@/engine/faults/compile";
+import type { FaultRecord, FaultSpec } from "@/engine/faults/types";
+import { downInstances } from "@/lib/instances";
+import { findSpofs, isInherentlyRedundant, syncPath } from "@/scoring/paths";
+import { scoreScalability } from "@/scoring/rules/scalability";
+import { buildScoringGraph } from "@/scoring/scorer";
+import type { ComponentNodeData } from "@/store/canvasStore";
+import { comp, compileV3, wire } from "./engineFixtures";
 import { instanceClassSpec, PARAM, technologySpec } from "@/domain/components/params";
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { PRICE_TABLE, pricingOf } from "@/domain/components/pricing";
@@ -1021,5 +1032,99 @@ describe("pricingOf (T11)", () => {
   it("PRICE_TABLE is version 2, prices as of 2026-10 (TEC-13)", () => {
     expect(PRICE_TABLE.version).toBe(2);
     expect(PRICE_TABLE.asOf).toBe("2026-10");
+  });
+});
+
+/* ---------- T12: managed technologies count as multi-AZ (TEC-50) ---------- */
+
+describe("managed technologies are redundant by construction (T12)", () => {
+  /** client → gateway (1 instance, given params) → app ×2, sync, as a canvas design. */
+  function gatewayDesign(gatewayParams: Params) {
+    const nodes = [
+      comp("client", "client"),
+      comp("gw", "api-gateway", { instances: 1, ...gatewayParams }),
+      comp("app", "app-server", { instances: 2 }),
+    ] as Node<ComponentNodeData>[];
+    const edges = withReturns([wire("client", "gw"), wire("gw", "app")]);
+    return { nodes, edges, graph: buildScoringGraph(nodes, edges) };
+  }
+
+  it("isManagedMultiZone: managed technologies and the managed types, not generic or self-run ones", () => {
+    expect(isManagedMultiZone("api-gateway", { technology: "aws-api-gateway" })).toBe(true);
+    expect(isManagedMultiZone("nosql-db", { technology: "dynamodb" })).toBe(true);
+    for (const [id, tech] of [
+      ["load-balancer", "aws-nlb"],
+      ["load-balancer", "aws-alb"],
+      ["message-queue", "sqs-standard"],
+      ["message-queue", "sqs-fifo"],
+      ["pub-sub", "sns"],
+      ["object-storage", "s3"],
+    ]) {
+      expect(isManagedMultiZone(id, { technology: tech }), tech).toBe(true);
+    }
+    expect(isManagedMultiZone("api-gateway", { technology: "generic" })).toBe(false);
+    expect(isManagedMultiZone("api-gateway", { technology: "kong" })).toBe(false);
+    expect(isManagedMultiZone("nosql-db", { technology: "cassandra" })).toBe(false);
+    expect(isManagedMultiZone("api-gateway")).toBe(false);
+    // The types that already were (client, DNS, CDN, object storage) still are, with any params.
+    expect(isManagedMultiZone("cdn")).toBe(true);
+    expect(isManagedMultiZone("object-storage", { technology: "generic" })).toBe(true);
+  });
+
+  it("an AWS API Gateway with 1 instance is not a SPOF and needs no second instance; a generic one does", () => {
+    const managed = gatewayDesign({ technology: "aws-api-gateway" });
+    const managedPath = syncPath(managed.nodes, managed.edges, managed.graph);
+    expect(managedPath.onPath.has("gw")).toBe(true);
+    expect(findSpofs(managed.nodes, managedPath, managed.graph).map((n) => n.id)).not.toContain(
+      "gw",
+    );
+    expect(isInherentlyRedundant(managed.nodes[1].data)).toBe(true);
+    const managedScore = scoreScalability(managed.nodes, managed.edges, managed.graph);
+    expect(managedScore.feedback.join(" ")).not.toMatch(/single instance/);
+
+    const generic = gatewayDesign({ technology: "generic" });
+    expect(isInherentlyRedundant(generic.nodes[1].data)).toBe(false);
+    const genericScore = scoreScalability(generic.nodes, generic.edges, generic.graph);
+    expect(genericScore.feedback.join(" ")).toMatch(/single instance with no autoscaling: gw/);
+    expect(managedScore.score).toBeGreaterThan(genericScore.score);
+  });
+
+  it("a zone outage takes no instance of a DynamoDB node; a generic NoSQL node with 1 instance goes down", () => {
+    const graph = compileV3(
+      [
+        comp("app", "app-server", { instances: 3 }),
+        comp("dyn", "nosql-db", { technology: "dynamodb", instances: 1 }),
+        comp("nosql", "nosql-db", { instances: 1 }),
+      ],
+      [wire("app", "dyn"), wire("app", "nosql")],
+    );
+    const zone: FaultSpec = { type: "zone-failure", target: { kind: "global" }, intensity: 3 };
+    const compiled = compileFault(zone, 0, { graph, readRatio: 0.9 });
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    const targets = compiled.modifiers.flatMap((m) => m.targetIds);
+    expect(targets).not.toContain("dyn");
+    expect(targets).toContain("nosql");
+    const notes = compiled.notes.join(" ");
+    expect(notes).toMatch(/Down with the zone .*nosql/);
+    expect(notes).not.toMatch(/dyn/);
+  });
+
+  it("the instance cards mirror it: no DynamoDB instance down in a zone outage", () => {
+    const zone = {
+      id: "z",
+      spec: { type: "zone-failure", target: { kind: "global" }, intensity: 3 },
+      active: true,
+    } as unknown as FaultRecord;
+    expect(downInstances([zone], "dyn", "nosql-db", 3, { technology: "dynamodb" })).toEqual([
+      false,
+      false,
+      false,
+    ]);
+    expect(downInstances([zone], "db", "nosql-db", 3, { technology: "cassandra" })).toEqual([
+      true,
+      false,
+      false,
+    ]);
   });
 });

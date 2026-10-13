@@ -433,15 +433,17 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: um `api-gateway` com AWS API Gateway e 1 instância não é SPOF (`findSpofs`); `zone-failure` não derruba instâncias de um `nosql-db` DynamoDB; um `api-gateway` `generic` com 1 instância continua SPOF
-- [ ] `scoring.test.ts`, `engine-chaos.test.ts`, `instances.test.ts` e `engine-golden.test.ts` passam sem mudar fixtures
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: um `api-gateway` com AWS API Gateway e 1 instância não é SPOF (`findSpofs`); `zone-failure` não derruba instâncias de um `nosql-db` DynamoDB; um `api-gateway` `generic` com 1 instância continua SPOF
+- [x] `scoring.test.ts`, `engine-chaos.test.ts`, `instances.test.ts` e `engine-golden.test.ts` passam sem mudar fixtures
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
+
+> Nota de execução: `findSpofs` ignora tipos `scalable` (o `api-gateway` é), então "generic com 1 instância continua SPOF" é checado pela regra de escalabilidade (tier sem estado com uma instância), onde o gateway de 1 instância perde pontos; `isInherentlyRedundant(data)` substitui o conjunto `INHERENTLY_REDUNDANT` também no advisor (`mitigation.ts`) e em `rules/scalability.ts`.
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(traits): tecnologias gerenciadas contam como multi-AZ`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
