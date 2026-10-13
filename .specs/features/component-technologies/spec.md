@@ -88,7 +88,7 @@ Cada tipo do catálogo tem hoje um único par capacidade/latência (SQL: 10k rps
 **Acceptance Criteria**:
 
 1. The sistema SHALL definir cada tecnologia (e cada classe dela) num único módulo de dados com: capacidade por instância (req/s), tempo médio de serviço (ms), os params que ela fixa, preço (por instância-hora ou por milhão de requisições), a fonte (título, URL, ano) e as premissas de carga (tamanho de item, mix de leitura/escrita, configuração do benchmark). <!-- TEC-10 -->
-2. The `catalog.test.ts` SHALL falhar quando uma tecnologia não-generic não tiver fonte com URL `https://`, ano, premissas não vazias e números finitos e positivos. <!-- TEC-11 -->
+2. O teste unitário do catálogo (`tests/unit/technologies.test.ts`) SHALL falhar quando uma tecnologia não-generic não tiver fonte com URL `https://`, ano, premissas não vazias e números finitos e positivos. <!-- TEC-11 -->
 3. The sistema SHALL tratar `generic` como a linha "Generic — custom numbers", cujos valores são os padrões atuais do catálogo (`maxQPS`, `latencyMs`) e cujo preço é o da tabela atual. <!-- TEC-12 -->
 4. The `PRICE_TABLE` SHALL registrar a nova versão e a data da consulta dos preços por tecnologia. <!-- TEC-13 -->
 
