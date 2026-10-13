@@ -724,14 +724,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `tests/unit/engine-tech-math.test.ts`: `kth(1,n)` = cauda de Exp(S/n); `kth(n,n)` = cauda do máximo; média amostrada de `kth` ≈ S·Σ1/(n−j+1) e de `max` ≈ S·H_n (tolerância estatística); `u = 0` finito; percentis monótonos em p; partição quente: throttled = h·λ·(1 − 1/U); token bucket absorve o burst e depois limita a L
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `tests/unit/engine-tech-math.test.ts`: `kth(1,n)` = cauda de Exp(S/n); `kth(n,n)` = cauda do máximo; média amostrada de `kth` ≈ S·Σ1/(n−j+1) e de `max` ≈ S·H_n (tolerância estatística); `u = 0` finito; percentis monótonos em p; partição quente: throttled = h·λ·(1 − 1/U); token bucket absorve o burst e depois limita a L
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): matemática de quorum, fan-out, cotas e partição quente`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
