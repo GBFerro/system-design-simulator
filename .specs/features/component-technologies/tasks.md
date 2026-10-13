@@ -140,14 +140,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `tests/unit/technologies.test.ts` cobre, com uma lista de fixture: ordem de `technologiesOf`, `generic` ausente da lista, `classOf` sem id → classe padrão, `techPreset` = capacidade + tempo de serviço + params da tecnologia + params da classe, `defaultTechnologyOf` de tipo sem tecnologia → `undefined`
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos (sem remoções)
+- [x] `tests/unit/technologies.test.ts` cobre, com uma lista de fixture: ordem de `technologiesOf`, `generic` ausente da lista, `classOf` sem id → classe padrão, `techPreset` = capacidade + tempo de serviço + params da tecnologia + params da classe, `defaultTechnologyOf` de tipo sem tecnologia → `undefined`
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos (sem remoções)
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(catalog): tipos e consultas do catálogo de tecnologias`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
