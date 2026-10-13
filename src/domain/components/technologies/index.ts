@@ -1,4 +1,5 @@
 import { CORE_PARAM, type Params } from "../types";
+import { CACHE_TECHNOLOGIES } from "./cache";
 import { EDGE_TECHNOLOGIES } from "./edge";
 import { NOSQL_TECHNOLOGIES } from "./nosql";
 import { SQL_TECHNOLOGIES } from "./sql";
@@ -34,6 +35,7 @@ export const TECHNOLOGIES: readonly Technology[] = [
   ...EDGE_TECHNOLOGIES,
   ...SQL_TECHNOLOGIES,
   ...NOSQL_TECHNOLOGIES,
+  ...CACHE_TECHNOLOGIES,
 ];
 
 /** The class asked for, else the technology's default; undefined for a managed technology. */

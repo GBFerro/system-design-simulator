@@ -245,14 +245,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] A checagem de TEC-11 passa para as 2 tecnologias; valores-âncora conferidos
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] A checagem de TEC-11 passa para as 2 tecnologias; valores-âncora conferidos
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(catalog): tecnologias de cache com teto de rede`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

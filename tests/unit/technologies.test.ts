@@ -404,3 +404,37 @@ describe("load balancer and API gateway technologies (T4)", () => {
     ).toBe(20_000);
   });
 });
+
+/* ---------- T5: cache technologies (design table) ---------- */
+
+describe("cache technologies (T5)", () => {
+  it("offers Redis then Memcached, on cache.r6g.large…4xlarge, default xlarge", () => {
+    expect(technologiesOf("cache").map((t) => t.id)).toEqual(["redis", "memcached"]);
+    for (const tech of technologiesOf("cache")) {
+      expect(tech.classes?.map((c) => c.id)).toEqual([
+        "cache.r6g.large",
+        "cache.r6g.xlarge",
+        "cache.r6g.2xlarge",
+        "cache.r6g.4xlarge",
+      ]);
+      expect(tech.defaultClass).toBe("cache.r6g.xlarge");
+    }
+  });
+
+  it("85k/142k/284k/568k ops/s at 0.4 ms, $0.206…$1.642/h, the same for both engines", () => {
+    for (const id of ["redis", "memcached"]) {
+      const classes = getTechnology("cache", id)?.classes ?? [];
+      expect(classes.map((c) => c.capacityPerInstance)).toEqual([
+        85_000, 142_000, 284_000, 568_000,
+      ]);
+      expect(classes.map((c) => c.perInstanceHour)).toEqual([0.206, 0.411, 0.821, 1.642]);
+      expect(classes.every((c) => c.serviceTimeMs === 0.4)).toBe(true);
+    }
+    expect(techPreset("cache", "redis")).toEqual({
+      technology: "redis",
+      instanceClass: "cache.r6g.xlarge",
+      capacityPerInstance: 142_000,
+      serviceTimeMs: 0.4,
+    });
+  });
+});
