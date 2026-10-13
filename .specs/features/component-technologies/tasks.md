@@ -619,14 +619,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] E2E: a tag aparece com o nome curto; o `boundingBox` do nó é o mesmo antes e depois de trocar a tecnologia
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] E2E: a tag aparece com o nome curto; o `boundingBox` do nó é o mesmo antes e depois de trocar a tecnologia
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(canvas): tag da tecnologia no nó`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

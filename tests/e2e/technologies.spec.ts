@@ -276,3 +276,33 @@ test("TEC-23: Ctrl/Cmd+K finds a technology by name and creates its type with it
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
   await expect(await technologyOfNode(page, "message-queue")).toHaveValue("kafka");
 });
+
+test("TEC-24: the node shows its technology's short name without changing size", async ({
+  page,
+}) => {
+  await open(page);
+  await quickAdd(page, "NoSQL Database");
+  const node = page.locator('.react-flow__node[data-id^="nosql-db-"]');
+  const tag = node.locator("[data-technology]");
+  await expect(tag).toHaveText("DynamoDB");
+  await expect(tag).toHaveAttribute("data-technology", "dynamodb");
+
+  await node.click();
+  const technology = page.getByLabel("Technology", { exact: true });
+  await technology.selectOption("generic");
+  // Generic: no tag
+  await expect(tag).toHaveCount(0);
+  const before = (await node.boundingBox())!;
+
+  await technology.selectOption("cassandra");
+  await expect(tag).toHaveText("Cassandra");
+  const after = (await node.boundingBox())!;
+  expect(after.width).toBe(before.width);
+  expect(after.height).toBe(before.height);
+
+  // A load balancer's tag carries its layer
+  await quickAdd(page, "Load Balancer");
+  await expect(
+    page.locator('.react-flow__node[data-id^="load-balancer-"] [data-technology]'),
+  ).toHaveText("ALB · L7");
+});
