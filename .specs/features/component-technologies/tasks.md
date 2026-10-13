@@ -593,14 +593,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] E2E: Ctrl+K "scylla" → Enter cria um NoSQL com ScyllaDB
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] E2E: Ctrl+K "scylla" → Enter cria um NoSQL com ScyllaDB
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(command-palette): criar nó por tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

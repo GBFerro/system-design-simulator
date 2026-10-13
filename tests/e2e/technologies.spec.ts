@@ -255,3 +255,24 @@ test.describe("touch", () => {
     await expect(await technologyOfNode(page, "nosql-db")).toHaveValue("scylladb");
   });
 });
+
+test("TEC-23: Ctrl/Cmd+K finds a technology by name and creates its type with it", async ({
+  page,
+}) => {
+  await open(page);
+  await page.keyboard.press(`${MOD}+k`);
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await palette.getByPlaceholder("Search problems, components, actions…").fill("scylla");
+  await page.keyboard.press("Enter");
+  await expect(palette).toHaveCount(0);
+  await expect(page.locator(".react-flow__node")).toHaveCount(1);
+  await expect(await technologyOfNode(page, "nosql-db")).toHaveValue("scylladb");
+
+  // The type's own item creates it with the default technology (TEC-22)
+  await page.locator(".react-flow__pane").click();
+  await page.keyboard.press(`${MOD}+k`);
+  await palette.getByPlaceholder("Search problems, components, actions…").fill("Message Queue");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  await expect(await technologyOfNode(page, "message-queue")).toHaveValue("kafka");
+});
