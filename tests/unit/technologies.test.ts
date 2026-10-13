@@ -345,3 +345,62 @@ describe("NoSQL technologies (T3)", () => {
     expect(mongo.mechanics).toEqual({ kind: "mongo", replicationRttMs: 2 });
   });
 });
+
+/* ---------- T4: load balancer and API gateway technologies (design table) ---------- */
+
+describe("load balancer and API gateway technologies (T4)", () => {
+  it("LB: NLB (L4), ALB, HAProxy, Envoy (L7), in that order", () => {
+    const lbs = technologiesOf("load-balancer");
+    expect(lbs.map((t) => t.id)).toEqual(["aws-nlb", "aws-alb", "haproxy", "envoy"]);
+    expect(lbs.map((t) => t.layer)).toEqual(["L4", "L7", "L7", "L7"]);
+    expect(technologiesOf("api-gateway").map((t) => t.id)).toEqual(["aws-api-gateway", "kong"]);
+  });
+
+  it("NLB only flow-hashes: options.lbAlgorithm = ['hash'] and its preset sets hash", () => {
+    const nlb = getTechnology("load-balancer", "aws-nlb")!;
+    expect(nlb.options?.lbAlgorithm).toEqual(["hash"]);
+    expect(techPreset("load-balancer", "aws-nlb")).toEqual({
+      technology: "aws-nlb",
+      capacityPerInstance: 1_000_000,
+      serviceTimeMs: 0.1,
+      lbAlgorithm: "hash",
+    });
+  });
+
+  it("ALB: round robin, least connections or weighted; 1,000,000 req/s at 2 ms, $0.0225/h + $0.033/M", () => {
+    const alb = getTechnology("load-balancer", "aws-alb")!;
+    expect(alb.options?.lbAlgorithm).toEqual(["round-robin", "least-connections", "weighted"]);
+    expect(alb.managed).toMatchObject({
+      capacityPerInstance: 1_000_000,
+      serviceTimeMs: 2,
+      perHour: 0.0225,
+      perMillionReads: 0.033,
+    });
+  });
+
+  it("AWS API Gateway: account quota 10,000 req/s with a 5,000 burst, 30 s timeout, $1.00/M", () => {
+    const apigw = getTechnology("api-gateway", "aws-api-gateway")!;
+    expect(apigw.mechanics).toEqual({ kind: "quota", quota: { sharedRps: 10_000, burst: 5_000 } });
+    expect(apigw.managed).toMatchObject({ perMillionReads: 1, perMillionWrites: 1 });
+    expect(techPreset("api-gateway", "aws-api-gateway")).toMatchObject({
+      capacityPerInstance: 10_000,
+      serviceTimeMs: 8,
+      timeoutMs: 30_000,
+    });
+  });
+
+  it("HAProxy, Envoy and Kong on c6g: 4xlarge 140k/140k/144k req/s at $0.544/h", () => {
+    for (const [type, id, rps] of [
+      ["load-balancer", "haproxy", 140_000],
+      ["load-balancer", "envoy", 140_000],
+      ["api-gateway", "kong", 144_000],
+    ] as const) {
+      const cls = classOf(getTechnology(type, id)!, "c6g.4xlarge");
+      expect(cls?.capacityPerInstance, id).toBe(rps);
+      expect(cls?.perInstanceHour, id).toBe(0.544);
+    }
+    expect(
+      classOf(getTechnology("load-balancer", "haproxy")!, "c6g.large")?.capacityPerInstance,
+    ).toBe(20_000);
+  });
+});

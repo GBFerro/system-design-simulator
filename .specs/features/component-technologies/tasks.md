@@ -219,14 +219,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] A checagem de TEC-11 passa para as 6 tecnologias; `options.lbAlgorithm` do NLB = `["hash"]`; cota do API Gateway = 10.000 / 5.000
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] A checagem de TEC-11 passa para as 6 tecnologias; `options.lbAlgorithm` do NLB = `["hash"]`; cota do API Gateway = 10.000 / 5.000
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(catalog): tecnologias de load balancer L4/L7 e API gateway`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
