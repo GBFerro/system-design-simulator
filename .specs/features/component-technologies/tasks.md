@@ -462,14 +462,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: criar `nosql-db` com `cassandra` → params com `technology`, `instanceClass` padrão, capacidade e tempo de serviço da classe; sem `technology` → `defaultParams` exatos; `buildReferenceGraph` segue sem `technology` não-generic
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: criar `nosql-db` com `cassandra` → params com `technology`, `instanceClass` padrão, capacidade e tempo de serviço da classe; sem `technology` → `defaultParams` exatos; `buildReferenceGraph` segue sem `technology` não-generic
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(editor): cria nós já com a tecnologia escolhida`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

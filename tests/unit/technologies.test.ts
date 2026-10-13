@@ -11,7 +11,10 @@ import { buildScoringGraph } from "@/scoring/scorer";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { comp, compileV3, wire } from "./engineFixtures";
 import { instanceClassSpec, PARAM, technologySpec } from "@/domain/components/params";
-import { SYSTEM_COMPONENTS } from "@/data/components";
+import { getComponentById, SYSTEM_COMPONENTS } from "@/data/components";
+import { PROBLEMS } from "@/data/problems";
+import { buildReferenceGraph } from "@/lib/loadReference";
+import { createComponentNode } from "@/lib/nodeFactory";
 import { PRICE_TABLE, pricingOf } from "@/domain/components/pricing";
 import {
   defaultParams,
@@ -1126,5 +1129,62 @@ describe("managed technologies are redundant by construction (T12)", () => {
       false,
       false,
     ]);
+  });
+});
+
+/* ---------- T13: creating a node with a technology (TEC-21, TEC-22) ---------- */
+
+describe("createComponentNode with a technology (T13)", () => {
+  const component = (id: string) => getComponentById(id)!;
+
+  it("a NoSQL node created as Cassandra carries the technology, its default class and that class's numbers", () => {
+    const node = createComponentNode(component("nosql-db"), { x: 0, y: 0 }, "cassandra");
+    const p = node.data.params!;
+    expect(p.technology).toBe("cassandra");
+    expect(p.instanceClass).toBe("i4i.xlarge");
+    expect(p.capacityPerInstance).toBe(16_000);
+    expect(p.serviceTimeMs).toBe(1.5);
+    expect(p.replicationFactor).toBe(3);
+    expect(p.consistencyLevel).toBe("quorum");
+    expect(p.instances).toBe(1);
+    expect(node.data.componentId).toBe("nosql-db");
+    expect(p).toEqual(sanitizeParams("nosql-db", p));
+  });
+
+  it("a managed technology gets its capacity and service time, and keeps the schema's class unused (DynamoDB)", () => {
+    const p = createComponentNode(component("nosql-db"), { x: 0, y: 0 }, "dynamodb").data.params!;
+    expect(p.technology).toBe("dynamodb");
+    expect(p.capacityPerInstance).toBe(40_000);
+    expect(p.serviceTimeMs).toBe(3);
+    expect(p.readConsistency).toBe("eventual");
+  });
+
+  it("a Read Replica created as PostgreSQL keeps only its own keys", () => {
+    const p = createComponentNode(component("read-replica"), { x: 0, y: 0 }, "postgres").data
+      .params!;
+    expect(p.technology).toBe("postgres");
+    expect(p.capacityPerInstance).toBe(40_000);
+    expect(p).not.toHaveProperty("writeCapacityRps");
+    expect(Object.keys(p).sort()).toEqual(Object.keys(defaultParams("read-replica")).sort());
+  });
+
+  it("without a technology (or with one the type lacks) the node is generic with the exact defaults", () => {
+    for (const id of ["nosql-db", "sql-db", "app-server"]) {
+      expect(createComponentNode(component(id), { x: 0, y: 0 }).data.params, id).toEqual(
+        defaultParams(id),
+      );
+    }
+    expect(
+      createComponentNode(component("nosql-db"), { x: 0, y: 0 }, "oracle").data.params,
+    ).toEqual(defaultParams("nosql-db"));
+  });
+
+  it("reference solutions still load every node as generic", () => {
+    for (const problem of PROBLEMS) {
+      for (const n of buildReferenceGraph(problem).nodes) {
+        const tech = (n.data.params as Params | undefined)?.technology;
+        expect(tech === undefined || tech === "generic", `${problem.id} ${n.id}`).toBe(true);
+      }
+    }
   });
 });
