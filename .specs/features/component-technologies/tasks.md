@@ -540,14 +540,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] E2E: escolher Cassandra muda capacidade e mostra "Based on:" com link e evidência; Ctrl+Z volta num passo; o select mostra "AWS NLB (L4)"; classe some em DynamoDB; editar capacidade mostra "Modified from" e "Reset to benchmark" volta; réplica MySQL ligada a Postgres mostra o aviso; numa referência (somente leitura) os selects ficam desabilitados
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] E2E: escolher Cassandra muda capacidade e mostra "Based on:" com link e evidência; Ctrl+Z volta num passo; o select mostra "AWS NLB (L4)"; classe some em DynamoDB; editar capacidade mostra "Modified from" e "Reset to benchmark" volta; réplica MySQL ligada a Postgres mostra o aviso; numa referência (somente leitura) os selects ficam desabilitados
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(props): seletor de tecnologia com fonte dos números`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

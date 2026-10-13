@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { open, quickAdd } from "./helpers";
+import { MOD, connect, open, quickAdd } from "./helpers";
 
 // component-technologies: choosing the real product behind a node.
 
@@ -50,4 +50,124 @@ test("TEC-33: consistency params show only for the technologies that offer them"
   await expect(page.getByLabel("Consistency level", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Replication factor", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Read consistency", { exact: true })).toBeVisible();
+});
+
+test("TEC-02/05/06: choosing a technology writes its numbers, shows their source and undoes in one step", async ({
+  page,
+}) => {
+  await open(page);
+  await quickAdd(page, "Load Balancer");
+  await page.locator(".react-flow__node").last().click();
+  const technology = page.getByLabel("Technology", { exact: true });
+  // The layer goes in parentheses (TEC-06)
+  await expect(technology.locator('option[value="aws-nlb"]')).toHaveText("AWS NLB (L4)");
+  await expect(technology.locator('option[value="aws-alb"]')).toHaveText("AWS ALB (L7)");
+  await page.locator(".react-flow__node").last().press("Delete");
+
+  await quickAdd(page, "NoSQL Database");
+  const node = page.locator(".react-flow__node").last();
+  await node.click();
+  await technology.selectOption("generic");
+  const capacity = page.getByLabel("Capacity per instance", { exact: true });
+  const instances = page.getByLabel("Instances", { exact: true });
+  await instances.fill("3");
+  await instances.press("Enter");
+  const genericCapacity = await capacity.inputValue();
+
+  await technology.selectOption("cassandra");
+  // i4i.xlarge: 16,000 replica ops/s at 1.5 ms; instances kept (TEC-02)
+  await expect(page.getByLabel("Instance class", { exact: true })).toHaveValue("i4i.xlarge");
+  await expect(capacity).toHaveValue("16000");
+  await expect(page.getByLabel("Service time", { exact: true })).toHaveValue("1.5");
+  await expect(instances).toHaveValue("3");
+  // Where the numbers come from (TEC-05)
+  const picker = page.getByTestId("technology-picker");
+  await expect(picker.getByTestId("technology-description")).toContainText("Wide-column store");
+  await expect(picker.getByTestId("technology-consistency")).toContainText("AP with tunable");
+  const source = picker.getByTestId("technology-source");
+  await expect(source).toHaveText(/^Based on: .+, \d{4} \(derived\)$/);
+  await expect(source.getByRole("link")).toHaveAttribute("href", /^https:\/\//);
+
+  // One undo step back to the generic numbers
+  await node.click();
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(technology).toHaveValue("generic");
+  await expect(capacity).toHaveValue(genericCapacity);
+  await expect(instances).toHaveValue("3");
+  await expect(picker.getByTestId("technology-source")).toHaveCount(0);
+});
+
+test("TEC-14: the instance class shows for a provisioned technology only, and scales capacity", async ({
+  page,
+}) => {
+  await open(page);
+  await addWithTechnology(page, "NoSQL Database", "cassandra");
+  const instanceClass = page.getByLabel("Instance class", { exact: true });
+  await expect
+    .poll(() => optionValues(page, "Instance class"))
+    .toEqual(["i4i.large", "i4i.xlarge", "i4i.2xlarge", "i4i.4xlarge"]);
+  await instanceClass.selectOption("i4i.2xlarge");
+  await expect(page.getByLabel("Capacity per instance", { exact: true })).toHaveValue("32000");
+
+  // DynamoDB is billed per request: no class (TEC-14) and no capacity per instance (TEC-51)
+  await page.getByLabel("Technology", { exact: true }).selectOption("dynamodb");
+  await expect(instanceClass).toHaveCount(0);
+  await expect(page.getByTestId("technology-source")).toHaveText(
+    /^Based on: .+, \d{4} \(estimate\)$/,
+  );
+  await page.getByLabel("Technology", { exact: true }).selectOption("generic");
+  await expect(instanceClass).toHaveCount(0);
+});
+
+test("TEC-43/44: an edited number says what it was modified from, and Reset to benchmark restores it", async ({
+  page,
+}) => {
+  await open(page);
+  await addWithTechnology(page, "NoSQL Database", "cassandra");
+  const modified = page.getByTestId("technology-modified");
+  await expect(modified).toHaveCount(0);
+
+  const capacity = page.getByLabel("Capacity per instance", { exact: true });
+  await capacity.fill("20000");
+  await capacity.press("Enter");
+  await expect(modified).toContainText("Modified from Apache Cassandra i4i.xlarge");
+  await modified.getByRole("button", { name: "Reset to benchmark" }).click();
+  await expect(capacity).toHaveValue("16000");
+  await expect(modified).toHaveCount(0);
+
+  const serviceTime = page.getByLabel("Service time", { exact: true });
+  await serviceTime.fill("4");
+  await serviceTime.press("Enter");
+  await expect(modified).toBeVisible();
+  await modified.getByRole("button", { name: "Reset to benchmark" }).click();
+  await expect(serviceTime).toHaveValue("1.5");
+});
+
+test("TEC-45: a read replica whose technology differs from its primary's says so", async ({
+  page,
+}) => {
+  await open(page);
+  await addWithTechnology(page, "SQL Database", "postgres");
+  await addWithTechnology(page, "Read Replica", "mysql");
+  await connect(page, "sql-db", "read-replica");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  await page.locator('.react-flow__node[data-id^="read-replica-"]').click();
+  const warning = page.getByTestId("replica-technology-warning");
+  await expect(warning).toHaveText(
+    "Replica technology differs from its primary (PostgreSQL (RDS))",
+  );
+
+  // Same technology as the primary: no warning
+  await page.getByLabel("Technology", { exact: true }).selectOption("postgres");
+  await expect(warning).toHaveCount(0);
+});
+
+test("TEC-07: on a read-only reference the technology and class can't be changed", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByTitle("Load reference solution").click();
+  await page.locator('.react-flow__node[data-id^="nosql-db-"]').click();
+  await expect(page.getByLabel("Technology", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Technology", { exact: true })).toHaveValue("generic");
 });

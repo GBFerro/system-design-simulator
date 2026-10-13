@@ -33,7 +33,9 @@ import {
   instancesOf,
   resolvedParams,
 } from "@/domain/components/registry";
+import { technologiesOf } from "@/domain/components/technologies";
 import { ParamsForm } from "./ParamsForm";
+import { PICKER_KEYS, TechnologyPicker } from "./TechnologyPicker";
 import { EdgeCallsForm } from "./EdgeCallsForm";
 import { CostPanel } from "./CostPanel";
 import { useAppStore } from "@/store/appStore";
@@ -667,6 +669,8 @@ function PropertiesTab() {
           const data = selectedNode.data as ComponentNodeData;
           const instances = instancesOf(data);
           const capacity = capacityPerInstanceOf(data);
+          const params = resolvedParams(data);
+          const hasTechnologies = technologiesOf(data.componentId).length > 0;
           return (
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -709,11 +713,22 @@ function PropertiesTab() {
                   </p>
                 </div>
 
+                {/* The real product behind a central type (component-technologies) */}
+                {hasTechnologies && (
+                  <TechnologyPicker
+                    nodeId={selectedNode.id}
+                    componentId={data.componentId}
+                    params={params}
+                    disabled={readOnly}
+                  />
+                )}
+
                 {/* Generated from the component's schema (Spec 03, CMP-01) */}
                 <ParamsForm
                   key={selectedNode.id}
                   specs={getSchema(data.componentId).params}
-                  values={resolvedParams(data)}
+                  values={params}
+                  omitKeys={hasTechnologies ? PICKER_KEYS : undefined}
                   disabled={readOnly}
                   onCommit={(key, value) => updateNodeParams(selectedNode.id, { [key]: value })}
                 />

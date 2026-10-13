@@ -63,7 +63,9 @@ src/
                   calls in the Props tab: condition, cache of a look-aside call, step, add/remove; link
                   fields); FlowPanel (Flow tab, lazy: one read/write request as a sequence diagram via
                   traceCanvas) + SequenceDiagram (its SVG; hover/focus/tap highlights the edge);
-                  ParamsForm (Props tab, generated from the schema), ProblemBrief (the statement, constraints and
+                  ParamsForm (Props tab, generated from the schema; `optionsFor` filters enums, `omitKeys`
+                  leaves out what TechnologyPicker renders), TechnologyPicker (a central type's technology and
+                  instance class, the source of its numbers, "Modified from" + Reset), ProblemBrief (the statement, constraints and
                   budget of the selected problem), CapacityCalculator (Capacity), SimulationControls + MetricsDisplay
                   + TimeSeriesChart (Sim tab and its charts), ScoreReport (Score tab), TradeoffCards + TradeoffLog
                   (Trade-offs tab); styles.ts = shared section title and input classes (reuse them in a new tab)
