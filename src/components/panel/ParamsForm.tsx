@@ -194,15 +194,33 @@ interface ParamsFormProps {
   disabled?: boolean;
   /** Render group headings (component params); flat otherwise (edge rule). */
   grouped?: boolean;
+  /** Keys another control renders (the technology picker renders `technology` and `instanceClass`). */
+  omitKeys?: readonly string[];
 }
 
-export function ParamsForm({ specs, values, onCommit, disabled, grouped = true }: ParamsFormProps) {
+/** An enum limited to the options its `optionsFor` allows for these values (TEC-39). */
+function withAllowedOptions(spec: ParamSpec, values: Params): ParamSpec {
+  const allowed = spec.optionsFor?.(values);
+  if (!allowed || !spec.options) return spec;
+  return { ...spec, options: spec.options.filter((o) => allowed.includes(o.value)) };
+}
+
+export function ParamsForm({
+  specs,
+  values,
+  onCommit,
+  disabled,
+  grouped = true,
+  omitKeys = [],
+}: ParamsFormProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const visible = specs.filter((s) => !s.visibleIf || s.visibleIf(values));
+  const visible = specs.filter(
+    (s) => !omitKeys.includes(s.key) && (!s.visibleIf || s.visibleIf(values)),
+  );
   const field = (spec: ParamSpec) => (
     <ParamField
       key={spec.key}
-      spec={spec}
+      spec={withAllowedOptions(spec, values)}
       value={values[spec.key] ?? spec.default}
       onCommit={onCommit}
       disabled={disabled}

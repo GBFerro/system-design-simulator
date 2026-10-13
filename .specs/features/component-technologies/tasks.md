@@ -514,14 +514,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `tests/e2e/technologies.spec.ts`: num Load Balancer NLB o select de algoritmo só oferece `hash`; num ALB oferece os 3 suportados; num Cassandra aparece `consistencyLevel` e num DynamoDB não
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] `tests/e2e/technologies.spec.ts`: num Load Balancer NLB o select de algoritmo só oferece `hash`; num ALB oferece os 3 suportados; num Cassandra aparece `consistencyLevel` e num DynamoDB não
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(props): opções de parâmetro dependentes da tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
