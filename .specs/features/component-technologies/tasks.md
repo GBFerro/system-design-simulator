@@ -671,14 +671,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `tests/unit/tech-limits.test.ts`: Postgres com escritas acima do primário → `write-primary`, `scalesWithInstances: false`; S3 com 10.000 GET/s e 1 prefixo → `prefix-limit` 10.000/5.500; API Gateway a 15.000 → `account-throttle` 1,5; DynamoDB com hot share alto → `hot-partition`; demanda 0 → utilização 0 e `capacityRps` nominal finito
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `tests/unit/tech-limits.test.ts`: Postgres com escritas acima do primário → `write-primary`, `scalesWithInstances: false`; S3 com 10.000 GET/s e 1 prefixo → `prefix-limit` 10.000/5.500; API Gateway a 15.000 → `account-throttle` 1,5; DynamoDB com hot share alto → `hot-partition`; demanda 0 → utilização 0 e `capacityRps` nominal finito
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): recurso limitante por tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
