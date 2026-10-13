@@ -488,14 +488,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `editor.test.ts`: troca grava preset e preserva `instances`/`timeoutMs` (TEC-02); mesma tecnologia não cria entrada de undo (TEC-03); → `generic` mantém valores (TEC-04); aba somente leitura = no-op (TEC-07); troca de classe (TEC-15); reset (TEC-44); um undo desfaz cada ação; a checagem de `MUTATING_ACTIONS`/`READ_ONLY_EXEMPT_ACTIONS` passa
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `editor.test.ts`: troca grava preset e preserva `instances`/`timeoutMs` (TEC-02); mesma tecnologia não cria entrada de undo (TEC-03); → `generic` mantém valores (TEC-04); aba somente leitura = no-op (TEC-07); troca de classe (TEC-15); reset (TEC-44); um undo desfaz cada ação; a checagem de `MUTATING_ACTIONS`/`READ_ONLY_EXEMPT_ACTIONS` passa
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(store): trocar tecnologia e classe num passo de undo`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
