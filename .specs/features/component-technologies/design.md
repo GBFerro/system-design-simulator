@@ -381,3 +381,144 @@ Padrões: Redis cache.r6g.xlarge, Kafka kafka.m7g.xlarge com 6 partições, Rabb
 | Advisor/referências                 | Quick fixes e referências seguem `generic`                                | Nada nas 35 referências nem no `advisor.test.ts` muda nesta spec.                 |
 
 > Decisão de projeto registrada em `.specs/STATE.md` como **AD-005**.
+
+---
+
+## Apêndice A — Detalhe do motor (proposta do agente de design, com D1–D5 aplicadas)
+
+Texto da proposta revisada, em inglês como foi escrita, conferida contra o código em 2026-10-12. Onde a proposta original diferia das decisões D1–D5, vale a decisão (marcado **[D#]**).
+
+### A.0 Findings that shape the design
+
+1. `tests/unit/engine-golden.test.ts:120-135` hashes the whole `analyze()` output (every `NodeSteadyState`) and `projectTick` (every `s.nodes`, `s.edges`); `canonical()`/`JSON.stringify` drop `undefined`. New optional fields are safe only if **absent** on generic nodes; any new compiler warning on a generic graph changes the hash (`steady.warnings` is in it).
+2. Params are not hashed. `sanitizeParams` gives every node every schema key; frozen inert params (`consistencyLevel`, `hotPartitionShare`, `shards`…) stay inert as long as nothing reads them for generic nodes.
+3. Read/write class exists only in the sampler (`isRead`, `sampler.ts:383`). Flows are class-blind: `callProbability` (`routing.ts:86-110`) uses the global read ratio `r`. The per-node split is derived **alongside** edge loads, never by changing them.
+4. Faults rewrite only `capacityPerInstance` and `serviceTimeMs` (`faultView.ts:22-40`); technology numbers are stored relative to them (`base`), so faults scale them and `faultView` stays untouched.
+5. `nodeMetricsEqual` (`lib/runtimeMetrics.ts:25-30`) compares fields with `Object.is`: new snapshot fields must be flat primitives.
+6. `advisor/load.ts:41-44` computes its own utilization (rpsIn ÷ instances × capacity); `api-gateway` is `stateful: false`, so it would get "Scale out" at its account throttle.
+7. `db-primary-failure` already reads `PARAM.failoverSec` (`faults/catalog.ts:615`): TEC-27 needs no engine change.
+8. `sampleExponential` returns 0 without drawing when `mean ≤ 0` (`rng.ts:22-26`): matters for draw counting.
+
+### A.1 `SimNode.tech?: TechProfile` (computed in `compile.ts`)
+
+```ts
+type LatencyShape =
+  { kind: "one" } | { kind: "kth"; k: number; n: number } | { kind: "max"; n: number };
+type TechLimitKind =
+  | "capacity"
+  | "read-capacity"
+  | "write-primary"
+  | "replica-ops"
+  | "primaries"
+  | "hot-partition"
+  | "query-capacity"
+  | "prefix-limit"
+  | "account-throttle"
+  | "queue-throughput"
+  | "consumers"
+  | "consumers-partitions";
+interface ClassRoute {
+  station: 0 | 1;
+  cost: number;
+  serviceScale: number;
+  shape: LatencyShape;
+  addMs: number;
+}
+interface TechProfile {
+  technology: string;
+  base: { capacityPerInstance: number; serviceTimeMs: number }; // runtime scale = node.x / base.x (exactly 1 without faults)
+  classes?: {
+    read: ClassRoute;
+    write: ClassRoute;
+    primary?: {
+      instances: number;
+      capacityPerInstance: number;
+      serviceTimeMs: number;
+      limit: TechLimitKind;
+    };
+    mainLimit: TechLimitKind;
+  };
+  throttle?:
+    | {
+        kind: "quota";
+        limit: TechLimitKind;
+        readRps: number;
+        writeRps: number;
+        sharedRps: number;
+        burst?: number;
+      }
+    | {
+        kind: "partition";
+        share: number;
+        readCost: number;
+        writeCost: number;
+        readUnits: number;
+        writeUnits: number;
+        nodeBound: boolean;
+      };
+  consumerCap?: number; // Kafka: partitions
+}
+```
+
+- `techProfileOf` returns `undefined` for generic; clamps RF ∈ [1,7], k ∈ [1,RF], shards ∈ [1,1024], prefixes ∈ [1,1000], costs ≥ 1e-6, capacities finite positive. Never write `tech: undefined`.
+- Types without mechanics (Redis, ALB, Kong…) get a profile with only `technology` and `base` (snapshot reports `limitKind: "capacity"`); every engine path stays generic for them.
+- `capScale = node.capacityPerInstance / base.capacityPerInstance`, `timeScale = node.serviceTimeMs / base.serviceTimeMs`. Machine-bound numbers (primary, node-bound partition, class service times) scale; managed quotas (S3, API Gateway, SQS FIFO, SNS, DynamoDB per-partition units) don't. `kill-instances` on SQL also scales the primary by (n−1)/n (conservative, documented).
+
+### A.2 Formulas (λ offered, ws write share, λ_w = λ·ws, λ_r = λ − λ_w, λ′ after fault errorRate, n/k₀/S₀ after faults)
+
+- **SQL (TEC-25/26)**: station 0 = (n, k₀, S₀) reads, cost 1, shape one, limit `read-capacity`; primary = (shards, writeCapacityRps·capScale, writeServiceTimeMs·timeScale) writes, cost 1, limit `write-primary`. `maxQueueOf` per station.
+- **Cassandra/ScyllaDB (TEC-29/30)**: k = 1, ⌊RF/2⌋+1, RF; station 0 = (n, k₀ replica-ops/s, S₀), limit `replica-ops`; reads cost k, shape kth(k, RF); writes cost RF, shape kth(k, RF) **[D1]**. Hot partition node-bound: U_p = h·(k·λ_r + RF·λ_w) / (min(RF, n)·k₀·capScale). Compile warning "RF > instances" (tech only).
+- **DynamoDB (TEC-28/31)**: station 0 = (n, k₀, S₀), cost 1, shape one. Partition quota: U_p = h·(λ_r·c_r/3000 + λ_w·c_w/1000), c_r = 0.5 eventual / 1 strong, c_w = 1.
+- **MongoDB (TEC-32)**: s = shards, m = n/s. Primary station (s, k₀·capScale, S₀) takes writes (cost `writeCost` = 1) and reads with `primary`; with `secondaryPreferred` reads go to a secondaries station of (n − s) members, or the primaries when n = s **[D4]**. `majority` adds `replicationRttMs` to writes. Hot shard: U_p = h·(λ_w + λ_r·[primary]) / (k₀·capScale) + h·λ_r·[secondaryPreferred] / (max(1, m − 1)·k₀·capScale).
+- **OpenSearch (TEC-36)**: station 0 = (n, k₀, S₀) in shard-queries/s; a query costs `shards` shard-queries spread over min(n, shards·(replicas+1)) nodes ⇒ query capacity = min(n, shards·(replicas+1))·k₀ / shards; read shape max(shards); writes cost (replicas+1)·indexCostPerDoc, shape one.
+- **S3 (TEC-37)**: P = prefixes; a_r = min(a_r⁰, 5500·P), a_w = min(a_w⁰, 3500·P); throttled = Σ(a_c⁰ − a_c); limit `prefix-limit`.
+- **AWS API Gateway (TEC-38)**: L = 10,000, B = 5,000; analyze a = min(λ′, L); tick token bucket (starts full): tokens ← min(B, tokens + L·dt); admitted = min(λ′·dt, tokens)/dt; tokens −= admitted·dt. Limit `account-throttle`.
+- **SQS FIFO, RabbitMQ, SNS (TEC-35)**: shared quota L from the table (RabbitMQ: the class `quota`), no burst; limit `queue-throughput`.
+- **Kafka (TEC-34)**: `consumerCapacity` (`routing.ts:235-239`): `pullers = max(1, min(consumers, target.instances, queue.tech?.consumerCap ?? ∞))`.
+- **Hot partition throttle [D2]**: when U_p > 1 only the hot partition loses: throttled = h·λ′·(1 − 1/U_p), split over classes in proportion to their share of the hot partition's demand.
+- **Class-aware stations (analyze)**: per station s, λ_s = Σ_{c→s} a_c·cost_c; st_s = station(λ_s…); f_s = st_s.servedRps/λ_s (1 when λ_s = 0); served_c = a_c·f_{s(c)}; served = Σ served_c ≤ λ; dropP_c = 1 − served_c/λ_c (0 when λ_c = 0), including fault errorRate, throttle and overflow.
+- **Limit (TEC-41)**: `techLimitOf(profile, core, {read, write})` in `domain/components/technologies/limits.ts` computes D_j/C_j on **offered** per-class demand for each station, quota and U_p; argmax with a fixed tie order; returns `{kind, utilization, capacityRps (λ/util, or nominal at the node's mix when λ = 0), scalesWithInstances}`. Kafka: the engine merges max over consumer edges of demand_e/pull_e, kind `consumers-partitions` when `consumerCap` binds, else `consumers`. For tech nodes `utilization` = `limit.utilization` (status, `isBottleneck`, badges, scoring and `toSimulationResult` follow). Offered-based in analyze and tick **[D5]**.
+
+### A.3 Per-node read/write split
+
+`edgeWriteShare(e, source, wsSource, callCtx)` in `core/tech.ts`: LB edge → wsSource; else Σ P(call)·calls·cw ÷ Σ P(call)·calls over `edgeCallsOf(e, source)`, cw = 1 for `writes`, 0 for `reads`/`on_miss`/`after_miss`, wsSource for `always`/`fraction`; total 0 → fall back on kinds like `writeShareOf` (`catalog.ts:186-203`). In `analyze.ts` and `tick.ts`: `needsSplit = nodes.some(n => n.tech?.classes || n.tech?.throttle)` once per graph (false ⇒ nothing new runs); `inflowWrite` next to `inflow` (entries add share × (1 − r); push adds amplified × ws_e; tick uses totals incl. pending retry generations, consumer edges use `drained`); node ws = inflowWrite/inflow (else 1 − r); `edgeWs: Map<edgeId, number>` for settle. Edge loads untouched.
+
+### A.4 Throttle errors in settle and metrics
+
+- `throttled` next to `rejected` in analyze `NodeFlow` (`dropped = offered − served` already includes it) and tick `TickFlow` (`dropped = min(arriving, rejected + overflow + refused + throttled)`).
+- Status: analyze `throttled > 0` ⇒ `critical` + `isBottleneck`; tick `nodeStatus` adds `|| flow.throttled > 0`. The rate limiter's deliberate rejections stay "warning".
+- `settle(topo, flows, shares, writeShare?)`: `FlowView.tech?: {ws, read, write}` with per class `{station, serviceTimeMs, shape, addMs, served, dropProbability}`. Timeouts for tech targets: (1 − ws_e)·tail_r(t) + ws_e·tail_w(t); generic targets keep `probSojournExceeds`. Call success for tech targets: `classServed(target.tech, ws_e) × downstream.get(target)`, `downstream` being a second running product kept only for tech nodes; the generic `s` keeps its exact multiplication order. Retries amplify throttled calls through the existing fixed point.
+- `slo.ts:43`: `probSojournExceeds(flow.st, …)` → `hopExceeds(flow, t)` (identical for generic flows).
+
+### A.5 Sampler
+
+`SampleNode.tech?: {read: SampleClass; write: SampleClass}` built in `sampleNodesFor` (`settle.ts:190-202`) only when `flow.tech` exists. In `visit`:
+
+```ts
+const cls = node.tech ? (isRead ? node.tech.read : node.tech.write) : undefined;
+if (rng() < (cls ? cls.dropProbability : node.dropProbability)) return { ok: false, ms: 0 };
+let ms = cls
+  ? sampleClassMs(cls, rng)
+  : node.latencyShare >= 1 || rng() < node.latencyShare
+    ? sampleServiceMs(node.station, rng) + sampleWaitMs(node.station, rng)
+    : 0;
+```
+
+`sampleClassMs`: one = Exp(S) + wait + addMs; kth(k, n) Rényi = S·Σ_{j=1..k} E_j/(n−j+1) (E_j = `sampleExponential(rng, 1)`) + one shared wait + addMs **[D3]**; max(n) inverse CDF = S·(−ln(−expm1(ln u / n))) + wait + addMs (one draw for any n; u = 0 finite).
+
+### A.6 Tails and percentiles
+
+t′ = t − addMs, q = 1 − e^{−t′/S}: one = e^{−t′/S} + probWaitExceeds(st, t′ − S); kth = Σ_{j=0..k−1} C(n,j)·q^j·(1−q)^{n−j} + probWaitExceeds(st, t′ − S·Σ_{j=1..k} 1/(n−j+1)); max = 1 − exp(n·log1p(−e^{−t′/S})) + probWaitExceeds(st, t′ − S·H_n); clamp to [0,1]. Node tail = (1−ws)·tail_r + ws·tail_w; percentile by bisection, 64 fixed iterations on [0, waitCap + S·upperQuantile + addMs]; mean = Σ share_c·(S_c·E[Y_c] + W̄_c + addMs_c); `queueDepth` = Σ stations. Generic nodes keep `hopPercentileMs`.
+
+### A.7 Tick
+
+`NodeState.tech?: {technology, primaryBacklog, tokens}` reset in `setGraph` when the technology changes; class-0 station keeps `backlog`. The tech branch replaces only `tick.ts` lines ~315-363 (from `const capacity` to `flows.set`) when `node.tech?.classes || node.tech?.throttle`, calling `techTickFlow` (admission, fluid step per station mirroring `work/done/q/overflow`, per-class completions in proportion to op share). Queue routing (~386-417) stays shared. Generic tick code is not refactored. Export `BACKLOG_NOISE_SEC` and move `stableStation`/`backlogStation` to free functions.
+
+### A.8 Snapshot and advisor
+
+- `NodeSteadyState`/`NodeRuntimeMetrics` gain `limitKind?`, `limitUtilization?`, `writeRps?`, set only when `node.tech` exists (conditional spread); `steadyStateToSnapshot` copies them; tick sets them in the snapshot. Both call `techLimitOf` on the same per-class offered demand.
+- Advisor: `AdvisorContext` gains `writeLoad?`/`limits?`; `recentLoad` averages `writeRps` and `limitUtilization`; `utilizationOf` for tech nodes = `techLimitOf(techProfileOf(...), core, {read: load − w, write: w}).utilization` (Kafka `consumers*`: the engine's number); no instance fix when `!scalesWithInstances`; title/detail name the resource.
+
+### A.9 Risks the guards address
+
+Golden: optional fields absent; no warnings on all-generic graphs; sampler ternary keeps draw order; generic `s` in settle keeps multiplication order; generic tick lines not refactored; `needsSplit = false` adds no work. Determinism: no randomness outside the sampler; fixed-iteration bisection; deterministic token bucket. Performance: ≤ 1 + RF + 2 ≤ 10 draws per tech visit; max-of-shards O(1); kth n clamped ≤ 16. Flow balls still fail by the node's error rate (per-class failure out of scope).
