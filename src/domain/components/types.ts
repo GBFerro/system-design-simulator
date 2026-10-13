@@ -72,6 +72,27 @@ export interface PricingSpec {
   perMillionRequests: number;
   /** Storage per GB-month, when the type has a size param (none yet). */
   perGbMonth?: number;
+  /**
+   * A technology priced by read and write (component-technologies, TEC-18).
+   * When set, `perMillionRequests` is 0 and the per-request part is
+   *   readRps × (readUnitsPerRead ?? 1) × perMillionReads
+   *   + writeRps × perMillionWrites   (per million, like perMillionRequests).
+   */
+  perMillionReads?: number;
+  /** See `perMillionReads`: USD per million writes (DynamoDB: per million write units). */
+  perMillionWrites?: number;
+  /**
+   * Request units one read costs, when `perMillionReads` is per unit rather
+   * than per read: DynamoDB 0.5 (eventually consistent) or 1 (strongly
+   * consistent). Undefined = 1.
+   */
+  readUnitsPerRead?: number;
+  /**
+   * A managed service (component-technologies, TEC-51): `instances` is not a
+   * fleet the user pays for, so the cost never multiplies by it. Its fixed
+   * hourly price is already in `baseMonthly` and `perInstanceHour` is 0.
+   */
+  managed?: boolean;
   /** Short text shown in the breakdown: what the prices are and what's left out. */
   assumptions: string;
 }

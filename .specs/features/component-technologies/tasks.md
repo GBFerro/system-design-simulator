@@ -406,15 +406,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: `pricingOf("sql-db", {technology:"postgres", instanceClass:"db.r6g.2xlarge"}).perInstanceHour` = 0,899; DynamoDB devolve preços de leitura/escrita e `managed`; `generic` devolve exatamente `getSchema(id).pricing`
-- [ ] `data.test.ts` (orçamentos das referências) passa sem recalibrar
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: `pricingOf("sql-db", {technology:"postgres", instanceClass:"db.r6g.2xlarge"}).perInstanceHour` = 0,899; DynamoDB devolve preços de leitura/escrita e `managed`; `generic` devolve exatamente `getSchema(id).pricing`
+- [x] `data.test.ts` (orçamentos das referências) passa sem recalibrar
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(pricing): preço por tecnologia e classe de instância`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

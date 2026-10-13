@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { instanceClassSpec, PARAM, technologySpec } from "@/domain/components/params";
 import { SYSTEM_COMPONENTS } from "@/data/components";
+import { PRICE_TABLE, pricingOf } from "@/domain/components/pricing";
 import {
   defaultParams,
   getSchema,
@@ -959,5 +960,66 @@ describe("sanitizeParams and normalizeTechParams by technology (T9)", () => {
     const params = { technology: "generic", lbAlgorithm: "nope" };
     expect(normalizeTechParams("load-balancer", params)).toEqual(params);
     expect(normalizeTechParams("cdn", { hitRate: 2 })).toEqual({ hitRate: 2 });
+  });
+});
+
+/* ---------- T11: price by technology and instance class (TEC-13, TEC-17, TEC-18, TEC-51) ---------- */
+
+describe("pricingOf (T11)", () => {
+  it("PostgreSQL db.r6g.2xlarge bills $0.899 per instance-hour, nothing per request", () => {
+    const p = pricingOf("sql-db", { technology: "postgres", instanceClass: "db.r6g.2xlarge" });
+    expect(p.perInstanceHour).toBe(0.899);
+    expect(p.baseMonthly).toBe(0);
+    expect(p.perMillionRequests).toBe(0);
+    expect(p.managed).toBeUndefined();
+    expect(p.assumptions).toContain("PostgreSQL (RDS)");
+    expect(p.assumptions).toContain("db.r6g.2xlarge");
+  });
+
+  it("a class change changes the hourly price; a missing class bills the default class", () => {
+    expect(
+      pricingOf("sql-db", { technology: "postgres", instanceClass: "db.r6g.large" })
+        .perInstanceHour,
+    ).toBe(0.225);
+    expect(pricingOf("sql-db", { technology: "postgres" }).perInstanceHour).toBe(0.45);
+    expect(
+      pricingOf("nosql-db", { technology: "cassandra", instanceClass: "i4i.4xlarge" })
+        .perInstanceHour,
+    ).toBe(1.373);
+  });
+
+  it("DynamoDB is managed, priced per read unit and per write unit; a strong read costs twice the units", () => {
+    const eventual = pricingOf("nosql-db", { technology: "dynamodb", readConsistency: "eventual" });
+    expect(eventual.managed).toBe(true);
+    expect(eventual.perInstanceHour).toBe(0);
+    expect(eventual.perMillionRequests).toBe(0);
+    expect(eventual.perMillionReads).toBe(0.125);
+    expect(eventual.perMillionWrites).toBe(0.625);
+    expect(eventual.readUnitsPerRead).toBe(0.5);
+    const strong = pricingOf("nosql-db", { technology: "dynamodb", readConsistency: "strong" });
+    expect(strong.readUnitsPerRead).toBe(1);
+  });
+
+  it("a managed load balancer bills its hourly price once per resource, in baseMonthly (TEC-51)", () => {
+    const nlb = pricingOf("load-balancer", { technology: "aws-nlb", instances: 5 });
+    expect(nlb.managed).toBe(true);
+    expect(nlb.perInstanceHour).toBe(0);
+    expect(nlb.baseMonthly).toBeCloseTo(0.0225 * 730, 10);
+    expect(nlb.perMillionReads).toBe(0.025);
+    expect(nlb.readUnitsPerRead).toBeUndefined();
+    const s3 = pricingOf("object-storage", { technology: "s3" });
+    expect([s3.perMillionReads, s3.perMillionWrites, s3.baseMonthly]).toEqual([0.4, 5, 0]);
+  });
+
+  it("generic (or an unknown technology) gets exactly the type's schema price", () => {
+    for (const id of SYSTEM_COMPONENTS.map((c) => c.id)) {
+      expect(pricingOf(id, defaultParams(id)), id).toBe(getSchema(id).pricing);
+      expect(pricingOf(id, { technology: "oracle" }), id).toBe(getSchema(id).pricing);
+    }
+  });
+
+  it("PRICE_TABLE is version 2, prices as of 2026-10 (TEC-13)", () => {
+    expect(PRICE_TABLE.version).toBe(2);
+    expect(PRICE_TABLE.asOf).toBe("2026-10");
   });
 });
