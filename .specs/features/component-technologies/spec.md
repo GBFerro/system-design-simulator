@@ -15,41 +15,41 @@ Cada tipo do catálogo tem hoje um único par capacidade/latência (SQL: 10k rps
 
 ## Out of Scope
 
-| Feature                                                                                          | Reason                                                                                             |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Comportamento CP/AP sob partição ou queda de réplicas (recusar escrita, servir dado velho)       | É a spec 2; aqui a classificação CAP/consistência é só texto.                                      |
-| Componentes novos (Serverless function, API externa, Workflow orchestrator)                      | Spec 3.                                                                                            |
-| Tecnologias nos 15 tipos com schema genérico (graph-db, timeseries-db, vector-db, reverse-proxy…) | Spec 3.                                                                                            |
-| CDN, DNS, Rate Limiter, WAF, App Server e demais tipos fora dos 10 centrais                     | Não estão na lista central; entram depois se a spec 3 os incluir.                                  |
-| Migrar as 35 referências para tecnologias reais                                                  | Decisão do usuário: ficam em Generic nesta spec.                                                   |
-| Right-size sugerir troca de classe (scale-up)                                                    | O right-size continua sugerindo só instâncias.                                                     |
-| Estratégias de escrita do cache (write-through, write-behind) e política de eviction no motor    | Mudam as chamadas entre nós; é outro padrão (já fora do escopo do request-flow).                   |
-| Tamanho de payload, banda, armazenamento em GB e custo de transferência                          | O motor não modela bytes; `perGbMonth` continua sem uso.                                           |
-| Multi-AZ, multi-região, preço reservado/savings plans                                            | O preço é on-demand, us-east-1, single-AZ, como na tabela atual.                                   |
-| Regras novas de score ou de advisor específicas de tecnologia                                    | O score medido já reflete as mecânicas pelo `analyze()`; regras novas são outra spec.              |
+| Feature                                                                                           | Reason                                                                                |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Comportamento CP/AP sob partição ou queda de réplicas (recusar escrita, servir dado velho)        | É a spec 2; aqui a classificação CAP/consistência é só texto.                         |
+| Componentes novos (Serverless function, API externa, Workflow orchestrator)                       | Spec 3.                                                                               |
+| Tecnologias nos 15 tipos com schema genérico (graph-db, timeseries-db, vector-db, reverse-proxy…) | Spec 3.                                                                               |
+| CDN, DNS, Rate Limiter, WAF, App Server e demais tipos fora dos 10 centrais                       | Não estão na lista central; entram depois se a spec 3 os incluir.                     |
+| Migrar as 35 referências para tecnologias reais                                                   | Decisão do usuário: ficam em Generic nesta spec.                                      |
+| Right-size sugerir troca de classe (scale-up)                                                     | O right-size continua sugerindo só instâncias.                                        |
+| Estratégias de escrita do cache (write-through, write-behind) e política de eviction no motor     | Mudam as chamadas entre nós; é outro padrão (já fora do escopo do request-flow).      |
+| Tamanho de payload, banda, armazenamento em GB e custo de transferência                           | O motor não modela bytes; `perGbMonth` continua sem uso.                              |
+| Multi-AZ, multi-região, preço reservado/savings plans                                             | O preço é on-demand, us-east-1, single-AZ, como na tabela atual.                      |
+| Regras novas de score ou de advisor específicas de tecnologia                                     | O score medido já reflete as mecânicas pelo `analyze()`; regras novas são outra spec. |
 
 ---
 
 ## Assumptions & Open Questions
 
-| Assumption / decision                       | Chosen default                                                                                                                                                                                                                                                                                                         | Rationale                                                                                                                                         | Confirmed? |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| Fatiamento                                  | Spec 1 de 3: tecnologias, números, classe e mecânicas nos tipos centrais. Spec 2: CAP sob falha. Spec 3: componentes novos e genéricos.                                                                                                                                                                                | Decisão do usuário (ver `context.md`).                                                                                                            | y          |
-| Modelo da variante                          | Parâmetro `technology` no tipo existente; a paleta mostra as tecnologias como atalhos que criam o tipo já com a tecnologia                                                                                                                                                                                             | Decisão do usuário: score, faults, drills, advisor e referências seguem lendo o tipo, sem migração de id.                                        | y          |
-| Classe de instância                         | Parâmetro `instanceClass` para tecnologias provisionadas, com capacidade e preço por classe; tecnologias gerenciadas por requisição não têm classe e cobram por requisição                                                                                                                                             | Decisão do usuário; ensina scale-up vs scale-out.                                                                                                 | y          |
-| Referências                                 | Ficam em Generic                                                                                                                                                                                                                                                                                                       | Decisão do usuário.                                                                                                                               | y          |
-| Designs salvos                              | Nó sem `technology` (ou com valor desconhecido) resolve para `generic`, com os números e o comportamento de hoje; sem migração nem mudança de `SCHEMA_VERSION`                                                                                                                                                         | Param novo com padrão neutro não precisa de migração (`sanitizeParams`); mantém o golden bit-idêntico.                                           | y          |
-| Nó novo                                     | Um nó criado pela paleta, pela busca ou pelo menu nasce com a tecnologia padrão do tipo (abaixo); `generic` continua selecionável ("Generic — custom numbers")                                                                                                                                                         | O objetivo é realismo para o que se desenha daqui em diante; o padrão do schema segue `generic` por compatibilidade.                             | y          |
-| Trocar de tecnologia                        | Sobrescreve os parâmetros que a tecnologia define (capacidade, latência, classe, consistência, limites) com os da nova; preserva `instances`, timeouts, retries e os demais; um passo de undo; trocar para Generic mantém os números atuais                                                                           | Trocar de banco é trocar o que o banco aguenta; instâncias e resiliência são decisões do desenho.                                                | y          |
-| Tecnologias por tipo                        | LB: NLB (L4), ALB (L7), HAProxy (L7), Envoy (L7). API Gateway: AWS API Gateway (HTTP API), Kong. SQL e Read Replica: PostgreSQL (RDS), MySQL (RDS), Aurora PostgreSQL. NoSQL: DynamoDB (on-demand), Cassandra, ScyllaDB, MongoDB. Cache: Redis (ElastiCache), Memcached (ElastiCache). Message Queue: Kafka (MSK), RabbitMQ (Amazon MQ), SQS Standard, SQS FIFO. Pub/Sub: SNS, Kafka (MSK). Search: OpenSearch. Object Storage: S3 Standard. Todos também com Generic | As mais cobradas em entrevista e com benchmarks e preços públicos; tudo AWS us-east-1 para casar com a tabela de preços atual.                  | y          |
-| Tecnologia padrão de um nó novo             | LB: ALB. API Gateway: AWS API Gateway. SQL e Read Replica: PostgreSQL. NoSQL: DynamoDB. Cache: Redis. Message Queue: Kafka. Pub/Sub: SNS. Search: OpenSearch. Object Storage: S3                                                                                                                                       | A escolha mais comum de cada tipo.                                                                                                                | y          |
-| Origem dos números                          | Benchmark publicado (fabricante, paper ou benchmark independente reproduzível) ou cota/limite documentado pelo provedor; quando as fontes divergem, o valor conservador para uma carga típica (itens de ~1 KB, mix de leitura/escrita declarado), com a carga escrita nas premissas da linha                           | Pedido do usuário: "perto dos benchmarks já feitos"; o conteúdo ensina e tem de ser defensável.                                                   | y          |
-| Preços                                      | AWS us-east-1 on-demand, data da consulta registrada; a versão da tabela de preços sobe (`PRICE_TABLE.version`)                                                                                                                                                                                                         | Mesmo critério da tabela atual (Spec 10).                                                                                                         | y          |
-| Mecânicas só fora de Generic                | As mecânicas novas (primário de escrita, partição quente, consistência, partições de consumo, fan-out, prefixos, cotas) valem só quando `technology` ≠ `generic`; params existentes que hoje ninguém lê continuam sem efeito em Generic                                                                                | A fixture do golden congela esses params com os valores de hoje; ligá-los em Generic mudaria todos os resultados.                                | y          |
-| Classificação CAP nesta spec                | Texto por tecnologia (ex.: "Cassandra — AP, consistência ajustável por requisição"); para bancos SQL de primário único, o texto descreve o modelo (primário único, réplicas assíncronas) em vez de forçar uma letra                                                                                                    | CAP fala de sistemas distribuídos sob partição; uma letra forçada para um Postgres de nó único ensinaria errado.                                 | y          |
-| Read Replica com tecnologia diferente do primário | Permitido, com aviso no Props e um warning do compilador                                                                                                                                                                                                                                                        | Réplica de MySQL ligada a um Postgres não existe, mas bloquear a conexão seria uma regra nova de edição.                                         | y          |
-| Idioma                                      | Textos da interface em inglês (nomes, descrições, avisos); prosa da spec em português                                                                                                                                                                                                                                 | Mesmo padrão das specs anteriores.                                                                                                                | y          |
-| Prefixo dos requisitos                      | `TEC`                                                                                                                                                                                                                                                                                                                  | Três letras, como CAN, TRF, OBS, CHS, FLW.                                                                                                       | y          |
+| Assumption / decision                             | Chosen default                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Rationale                                                                                                                      | Confirmed? |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| Fatiamento                                        | Spec 1 de 3: tecnologias, números, classe e mecânicas nos tipos centrais. Spec 2: CAP sob falha. Spec 3: componentes novos e genéricos.                                                                                                                                                                                                                                                                                                                               | Decisão do usuário (ver `context.md`).                                                                                         | y          |
+| Modelo da variante                                | Parâmetro `technology` no tipo existente; a paleta mostra as tecnologias como atalhos que criam o tipo já com a tecnologia                                                                                                                                                                                                                                                                                                                                            | Decisão do usuário: score, faults, drills, advisor e referências seguem lendo o tipo, sem migração de id.                      | y          |
+| Classe de instância                               | Parâmetro `instanceClass` para tecnologias provisionadas, com capacidade e preço por classe; tecnologias gerenciadas por requisição não têm classe e cobram por requisição                                                                                                                                                                                                                                                                                            | Decisão do usuário; ensina scale-up vs scale-out.                                                                              | y          |
+| Referências                                       | Ficam em Generic                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Decisão do usuário.                                                                                                            | y          |
+| Designs salvos                                    | Nó sem `technology` (ou com valor desconhecido) resolve para `generic`, com os números e o comportamento de hoje; sem migração nem mudança de `SCHEMA_VERSION`                                                                                                                                                                                                                                                                                                        | Param novo com padrão neutro não precisa de migração (`sanitizeParams`); mantém o golden bit-idêntico.                         | y          |
+| Nó novo                                           | Um nó criado pela paleta, pela busca ou pelo menu nasce com a tecnologia padrão do tipo (abaixo); `generic` continua selecionável ("Generic — custom numbers")                                                                                                                                                                                                                                                                                                        | O objetivo é realismo para o que se desenha daqui em diante; o padrão do schema segue `generic` por compatibilidade.           | y          |
+| Trocar de tecnologia                              | Sobrescreve os parâmetros que a tecnologia define (capacidade, latência, classe, consistência, limites) com os da nova; preserva `instances`, timeouts, retries e os demais; um passo de undo; trocar para Generic mantém os números atuais                                                                                                                                                                                                                           | Trocar de banco é trocar o que o banco aguenta; instâncias e resiliência são decisões do desenho.                              | y          |
+| Tecnologias por tipo                              | LB: NLB (L4), ALB (L7), HAProxy (L7), Envoy (L7). API Gateway: AWS API Gateway (HTTP API), Kong. SQL e Read Replica: PostgreSQL (RDS), MySQL (RDS), Aurora PostgreSQL. NoSQL: DynamoDB (on-demand), Cassandra, ScyllaDB, MongoDB. Cache: Redis (ElastiCache), Memcached (ElastiCache). Message Queue: Kafka (MSK), RabbitMQ (Amazon MQ), SQS Standard, SQS FIFO. Pub/Sub: SNS, Kafka (MSK). Search: OpenSearch. Object Storage: S3 Standard. Todos também com Generic | As mais cobradas em entrevista e com benchmarks e preços públicos; tudo AWS us-east-1 para casar com a tabela de preços atual. | y          |
+| Tecnologia padrão de um nó novo                   | LB: ALB. API Gateway: AWS API Gateway. SQL e Read Replica: PostgreSQL. NoSQL: DynamoDB. Cache: Redis. Message Queue: Kafka. Pub/Sub: SNS. Search: OpenSearch. Object Storage: S3                                                                                                                                                                                                                                                                                      | A escolha mais comum de cada tipo.                                                                                             | y          |
+| Origem dos números                                | Benchmark publicado (fabricante, paper ou benchmark independente reproduzível) ou cota/limite documentado pelo provedor; quando as fontes divergem, o valor conservador para uma carga típica (itens de ~1 KB, mix de leitura/escrita declarado), com a carga escrita nas premissas da linha                                                                                                                                                                          | Pedido do usuário: "perto dos benchmarks já feitos"; o conteúdo ensina e tem de ser defensável.                                | y          |
+| Preços                                            | AWS us-east-1 on-demand, data da consulta registrada; a versão da tabela de preços sobe (`PRICE_TABLE.version`)                                                                                                                                                                                                                                                                                                                                                       | Mesmo critério da tabela atual (Spec 10).                                                                                      | y          |
+| Mecânicas só fora de Generic                      | As mecânicas novas (primário de escrita, partição quente, consistência, partições de consumo, fan-out, prefixos, cotas) valem só quando `technology` ≠ `generic`; params existentes que hoje ninguém lê continuam sem efeito em Generic                                                                                                                                                                                                                               | A fixture do golden congela esses params com os valores de hoje; ligá-los em Generic mudaria todos os resultados.              | y          |
+| Classificação CAP nesta spec                      | Texto por tecnologia (ex.: "Cassandra — AP, consistência ajustável por requisição"); para bancos SQL de primário único, o texto descreve o modelo (primário único, réplicas assíncronas) em vez de forçar uma letra                                                                                                                                                                                                                                                   | CAP fala de sistemas distribuídos sob partição; uma letra forçada para um Postgres de nó único ensinaria errado.               | y          |
+| Read Replica com tecnologia diferente do primário | Permitido, com aviso no Props e um warning do compilador                                                                                                                                                                                                                                                                                                                                                                                                              | Réplica de MySQL ligada a um Postgres não existe, mas bloquear a conexão seria uma regra nova de edição.                       | y          |
+| Idioma                                            | Textos da interface em inglês (nomes, descrições, avisos); prosa da spec em português                                                                                                                                                                                                                                                                                                                                                                                 | Mesmo padrão das specs anteriores.                                                                                             | y          |
+| Prefixo dos requisitos                            | `TEC`                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Três letras, como CAN, TRF, OBS, CHS, FLW.                                                                                     | y          |
 
 **Open questions:** none - all resolved or logged above (required before the spec is confirmed).
 
@@ -228,75 +228,75 @@ Cada tipo do catálogo tem hoje um único par capacidade/latência (SQL: 10k rps
 
 ### Dimensões implícitas
 
-| Dimensão                      | Tratamento                                                                                         |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| Validação e limites           | TEC-08, TEC-16, TEC-39, TEC-48.                                                                    |
-| Falha / falha parcial         | Throttling, cotas e saturação viram erros contados (TEC-28, TEC-35, TEC-37, TEC-38); failover por tecnologia (TEC-27). CP/AP sob falha: spec 2. |
-| Idempotência / repetição      | TEC-03 (mesma tecnologia não cria entrada de undo).                                                |
-| Autorização e rate limits     | Cotas dos serviços gerenciados (TEC-35, TEC-37, TEC-38). Autorização: N/A, o app é 100% cliente e sem contas. |
-| Concorrência / ordem          | Aba somente leitura (TEC-07); determinismo (TEC-47). Edição concorrente: N/A, editor de um usuário só. |
-| Ciclo de vida dos dados       | Persistência e import/export dos params novos (TEC-09); sem migração (premissa). TTL/expiração: N/A. |
-| Observabilidade               | TEC-40, TEC-41.                                                                                    |
-| Falha de dependência externa  | N/A: não há chamadas externas; os preços e benchmarks são dados estáticos versionados.             |
-| Integridade de transições     | Trocas de tecnologia e de classe (TEC-02, TEC-04, TEC-15).                                         |
+| Dimensão                     | Tratamento                                                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Validação e limites          | TEC-08, TEC-16, TEC-39, TEC-48.                                                                                                                 |
+| Falha / falha parcial        | Throttling, cotas e saturação viram erros contados (TEC-28, TEC-35, TEC-37, TEC-38); failover por tecnologia (TEC-27). CP/AP sob falha: spec 2. |
+| Idempotência / repetição     | TEC-03 (mesma tecnologia não cria entrada de undo).                                                                                             |
+| Autorização e rate limits    | Cotas dos serviços gerenciados (TEC-35, TEC-37, TEC-38). Autorização: N/A, o app é 100% cliente e sem contas.                                   |
+| Concorrência / ordem         | Aba somente leitura (TEC-07); determinismo (TEC-47). Edição concorrente: N/A, editor de um usuário só.                                          |
+| Ciclo de vida dos dados      | Persistência e import/export dos params novos (TEC-09); sem migração (premissa). TTL/expiração: N/A.                                            |
+| Observabilidade              | TEC-40, TEC-41.                                                                                                                                 |
+| Falha de dependência externa | N/A: não há chamadas externas; os preços e benchmarks são dados estáticos versionados.                                                          |
+| Integridade de transições    | Trocas de tecnologia e de classe (TEC-02, TEC-04, TEC-15).                                                                                      |
 
 ---
 
 ## Requirement Traceability
 
-| Requirement ID | Story                                  | Phase  | Status  |
-| -------------- | -------------------------------------- | ------ | ------- |
-| TEC-01         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-02         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-03         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-04         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-05         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-06         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-07         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-08         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-09         | P1: Escolher a tecnologia              | Design | Pending |
-| TEC-10         | P1: Números de benchmark               | Design | Pending |
-| TEC-11         | P1: Números de benchmark               | Design | Pending |
-| TEC-12         | P1: Números de benchmark               | Design | Pending |
-| TEC-13         | P1: Números de benchmark               | Design | Pending |
-| TEC-14         | P1: Classe de instância                | Design | Pending |
-| TEC-15         | P1: Classe de instância                | Design | Pending |
-| TEC-16         | P1: Classe de instância                | Design | Pending |
-| TEC-17         | P1: Classe de instância                | Design | Pending |
-| TEC-18         | P1: Classe de instância                | Design | Pending |
-| TEC-19         | P1: Classe de instância                | Design | Pending |
-| TEC-20         | P1: Tecnologias na paleta              | Design | Pending |
-| TEC-21         | P1: Tecnologias na paleta              | Design | Pending |
-| TEC-22         | P1: Tecnologias na paleta              | Design | Pending |
-| TEC-23         | P1: Tecnologias na paleta              | Design | Pending |
-| TEC-24         | P1: Tecnologias na paleta              | Design | Pending |
-| TEC-25         | P2: Primário de escrita SQL            | Design | Pending |
-| TEC-26         | P2: Primário de escrita SQL            | Design | Pending |
-| TEC-27         | P2: Primário de escrita SQL            | Design | Pending |
-| TEC-28         | P2: Partição quente e consistência     | Design | Pending |
-| TEC-29         | P2: Partição quente e consistência     | Design | Pending |
-| TEC-30         | P2: Partição quente e consistência     | Design | Pending |
-| TEC-31         | P2: Partição quente e consistência     | Design | Pending |
-| TEC-32         | P2: Partição quente e consistência     | Design | Pending |
-| TEC-33         | P2: Partição quente e consistência     | Design | Pending |
-| TEC-34         | P2: Limites gerenciados                | Design | Pending |
-| TEC-35         | P2: Limites gerenciados                | Design | Pending |
-| TEC-36         | P2: Limites gerenciados                | Design | Pending |
-| TEC-37         | P2: Limites gerenciados                | Design | Pending |
-| TEC-38         | P2: Limites gerenciados                | Design | Pending |
-| TEC-39         | P2: Limites gerenciados                | Design | Pending |
-| TEC-40         | P2: Ver o limite                       | Design | Pending |
-| TEC-41         | P2: Ver o limite                       | Design | Pending |
-| TEC-42         | P2: Ver o limite                       | Design | Pending |
-| TEC-43         | P3: Valores editados à mão             | Design | Pending |
-| TEC-44         | P3: Valores editados à mão             | Design | Pending |
-| TEC-45         | Edge cases                             | Design | Pending |
-| TEC-46         | Edge cases                             | Design | Pending |
-| TEC-47         | Edge cases                             | Design | Pending |
-| TEC-48         | Edge cases                             | Design | Pending |
-| TEC-49         | Edge cases                             | Design | Pending |
-| TEC-50         | Edge cases                             | Design | Pending |
-| TEC-51         | Edge cases                             | Design | Pending |
+| Requirement ID | Story                              | Phase  | Status  |
+| -------------- | ---------------------------------- | ------ | ------- |
+| TEC-01         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-02         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-03         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-04         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-05         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-06         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-07         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-08         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-09         | P1: Escolher a tecnologia          | Design | Pending |
+| TEC-10         | P1: Números de benchmark           | Design | Pending |
+| TEC-11         | P1: Números de benchmark           | Design | Pending |
+| TEC-12         | P1: Números de benchmark           | Design | Pending |
+| TEC-13         | P1: Números de benchmark           | Design | Pending |
+| TEC-14         | P1: Classe de instância            | Design | Pending |
+| TEC-15         | P1: Classe de instância            | Design | Pending |
+| TEC-16         | P1: Classe de instância            | Design | Pending |
+| TEC-17         | P1: Classe de instância            | Design | Pending |
+| TEC-18         | P1: Classe de instância            | Design | Pending |
+| TEC-19         | P1: Classe de instância            | Design | Pending |
+| TEC-20         | P1: Tecnologias na paleta          | Design | Pending |
+| TEC-21         | P1: Tecnologias na paleta          | Design | Pending |
+| TEC-22         | P1: Tecnologias na paleta          | Design | Pending |
+| TEC-23         | P1: Tecnologias na paleta          | Design | Pending |
+| TEC-24         | P1: Tecnologias na paleta          | Design | Pending |
+| TEC-25         | P2: Primário de escrita SQL        | Design | Pending |
+| TEC-26         | P2: Primário de escrita SQL        | Design | Pending |
+| TEC-27         | P2: Primário de escrita SQL        | Design | Pending |
+| TEC-28         | P2: Partição quente e consistência | Design | Pending |
+| TEC-29         | P2: Partição quente e consistência | Design | Pending |
+| TEC-30         | P2: Partição quente e consistência | Design | Pending |
+| TEC-31         | P2: Partição quente e consistência | Design | Pending |
+| TEC-32         | P2: Partição quente e consistência | Design | Pending |
+| TEC-33         | P2: Partição quente e consistência | Design | Pending |
+| TEC-34         | P2: Limites gerenciados            | Design | Pending |
+| TEC-35         | P2: Limites gerenciados            | Design | Pending |
+| TEC-36         | P2: Limites gerenciados            | Design | Pending |
+| TEC-37         | P2: Limites gerenciados            | Design | Pending |
+| TEC-38         | P2: Limites gerenciados            | Design | Pending |
+| TEC-39         | P2: Limites gerenciados            | Design | Pending |
+| TEC-40         | P2: Ver o limite                   | Design | Pending |
+| TEC-41         | P2: Ver o limite                   | Design | Pending |
+| TEC-42         | P2: Ver o limite                   | Design | Pending |
+| TEC-43         | P3: Valores editados à mão         | Design | Pending |
+| TEC-44         | P3: Valores editados à mão         | Design | Pending |
+| TEC-45         | Edge cases                         | Design | Pending |
+| TEC-46         | Edge cases                         | Design | Pending |
+| TEC-47         | Edge cases                         | Design | Pending |
+| TEC-48         | Edge cases                         | Design | Pending |
+| TEC-49         | Edge cases                         | Design | Pending |
+| TEC-50         | Edge cases                         | Design | Pending |
+| TEC-51         | Edge cases                         | Design | Pending |
 
 **Coverage:** 51 total, 0 mapped to tasks, 51 unmapped ⚠️ (Tasks ainda não criadas)
 
