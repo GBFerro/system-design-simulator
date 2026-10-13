@@ -750,15 +750,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: um `countingRng` vê o mesmo número de sorteios num grafo `generic` antes/depois; Cassandra ONE → QUORUM → ALL tem p99 amostrado não decrescente; OpenSearch 1 → 8 shards tem p99 amostrado não decrescente
-- [ ] `engine-golden.test.ts` e `engine-trace.test.ts` passam sem mudança
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: um `countingRng` vê o mesmo número de sorteios num grafo `generic` antes/depois; Cassandra ONE → QUORUM → ALL tem p99 amostrado não decrescente; OpenSearch 1 → 8 shards tem p99 amostrado não decrescente
+- [x] `engine-golden.test.ts` e `engine-trace.test.ts` passam sem mudança
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): sampler amostra latência por classe de requisição`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
