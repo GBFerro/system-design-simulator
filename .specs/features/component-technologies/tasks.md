@@ -297,14 +297,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] A checagem de TEC-11 passa para as 2 tecnologias; teste: os 10 `CENTRAL_TYPES` têm tecnologia padrão e as 26 opções da spec existem (contando Read Replica à parte)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] A checagem de TEC-11 passa para as 2 tecnologias; teste: os 10 `CENTRAL_TYPES` têm tecnologia padrão e as 26 opções da spec existem (contando Read Replica à parte)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(catalog): tecnologias de busca e object storage`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

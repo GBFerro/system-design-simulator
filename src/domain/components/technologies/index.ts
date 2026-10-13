@@ -4,6 +4,7 @@ import { EDGE_TECHNOLOGIES } from "./edge";
 import { MESSAGING_TECHNOLOGIES } from "./messaging";
 import { NOSQL_TECHNOLOGIES } from "./nosql";
 import { SQL_TECHNOLOGIES } from "./sql";
+import { STORAGE_TECHNOLOGIES } from "./storage";
 import type { TechClass, Technology } from "./types";
 
 /**
@@ -31,13 +32,14 @@ export const CENTRAL_TYPES = [
   "object-storage",
 ] as const;
 
-/** Every technology, in display order (the files T2–T7 add). */
+/** Every technology; each type lists its own in this order. */
 export const TECHNOLOGIES: readonly Technology[] = [
   ...EDGE_TECHNOLOGIES,
   ...SQL_TECHNOLOGIES,
   ...NOSQL_TECHNOLOGIES,
   ...CACHE_TECHNOLOGIES,
   ...MESSAGING_TECHNOLOGIES,
+  ...STORAGE_TECHNOLOGIES,
 ];
 
 /** The class asked for, else the technology's default; undefined for a managed technology. */

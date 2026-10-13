@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { PARAM } from "@/domain/components/params";
 import {
   buildTechIndex,
+  CENTRAL_TYPES,
   classOf,
+  defaultTechnologyOf,
   getTechnology,
   techPreset,
   TECHNOLOGIES,
@@ -497,5 +499,91 @@ describe("message queue and pub/sub technologies (T6)", () => {
       15_000, 20_000, 20_000, 20_000,
     ]);
     expect(classOf(rabbit)?.id).toBe("mq.m7g.xlarge");
+  });
+});
+
+/* ---------- T7: search and object storage, and the whole catalog ---------- */
+
+describe("search and object storage technologies (T7)", () => {
+  it("OpenSearch: r6g.xlarge.search 1,000 shard queries/s at 3 ms, $0.335/h, 5 shards + 1 replica, fan-out", () => {
+    const os = getTechnology("search", "opensearch")!;
+    expect(techPreset("search", "opensearch")).toEqual({
+      technology: "opensearch",
+      instanceClass: "r6g.xlarge.search",
+      capacityPerInstance: 1_000,
+      serviceTimeMs: 3,
+      shards: 5,
+      replicas: 1,
+    });
+    expect(classOf(os)?.perInstanceHour).toBe(0.335);
+    expect(os.classes?.map((c) => c.capacityPerInstance)).toEqual([500, 1_000, 2_000, 4_000]);
+    expect(os.mechanics?.kind).toBe("search-fanout");
+    expect(os.mechanics?.indexCostPerDoc).toBeGreaterThan(0);
+  });
+
+  it("S3 Standard: 5,500 GET and 3,500 PUT per prefix, 30 ms, $0.40/M GET and $5.00/M PUT", () => {
+    const s3 = getTechnology("object-storage", "s3")!;
+    expect(s3.mechanics).toEqual({
+      kind: "quota",
+      quota: { readRps: 5_500, writeRps: 3_500, perPrefix: true },
+    });
+    expect(s3.managed).toMatchObject({
+      capacityPerInstance: 5_500,
+      serviceTimeMs: 30,
+      perMillionReads: 0.4,
+      perMillionWrites: 5,
+    });
+  });
+});
+
+/** The technologies of each central type, as the spec's premises list them. */
+const SPEC_OPTIONS: Record<(typeof CENTRAL_TYPES)[number], string[]> = {
+  "load-balancer": ["aws-nlb", "aws-alb", "haproxy", "envoy"],
+  "api-gateway": ["aws-api-gateway", "kong"],
+  "sql-db": ["postgres", "mysql", "aurora-postgres"],
+  "read-replica": ["postgres", "mysql", "aurora-postgres"],
+  "nosql-db": ["dynamodb", "cassandra", "scylladb", "mongodb"],
+  cache: ["redis", "memcached"],
+  "message-queue": ["kafka", "rabbitmq", "sqs-standard", "sqs-fifo"],
+  "pub-sub": ["sns", "kafka"],
+  search: ["opensearch"],
+  "object-storage": ["s3"],
+};
+
+/** The technology a new node of each type starts with (spec premises). */
+const SPEC_DEFAULTS: Record<(typeof CENTRAL_TYPES)[number], string> = {
+  "load-balancer": "aws-alb",
+  "api-gateway": "aws-api-gateway",
+  "sql-db": "postgres",
+  "read-replica": "postgres",
+  "nosql-db": "dynamodb",
+  cache: "redis",
+  "message-queue": "kafka",
+  "pub-sub": "sns",
+  search: "opensearch",
+  "object-storage": "s3",
+};
+
+describe("the whole catalog (T7)", () => {
+  it("the 10 central types offer the spec's 26 options (Read Replica counted apart)", () => {
+    expect([...CENTRAL_TYPES].sort()).toEqual(Object.keys(SPEC_OPTIONS).sort());
+    for (const type of CENTRAL_TYPES) {
+      expect(
+        technologiesOf(type).map((t) => t.id),
+        type,
+      ).toEqual(SPEC_OPTIONS[type]);
+    }
+    expect(CENTRAL_TYPES.reduce((n, type) => n + technologiesOf(type).length, 0)).toBe(26);
+  });
+
+  it("every central type has its default technology; no technology outside them", () => {
+    for (const type of CENTRAL_TYPES) {
+      expect(defaultTechnologyOf(type), type).toBe(SPEC_DEFAULTS[type]);
+    }
+    for (const tech of TECHNOLOGIES) {
+      for (const type of tech.componentIds) {
+        expect(CENTRAL_TYPES as readonly string[], tech.id).toContain(type);
+      }
+    }
   });
 });
