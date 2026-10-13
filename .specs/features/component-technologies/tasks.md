@@ -777,15 +777,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: chamada a um alvo com cota estourada falha na proporção `throttled/λ`; timeout de um alvo `kth` usa a cauda mista pela fração de escrita da aresta; nós `generic` dão o mesmo `success`/`availability` bit a bit
-- [ ] `engine-golden.test.ts` passa sem mudança
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: chamada a um alvo com cota estourada falha na proporção `throttled/λ`; timeout de um alvo `kth` usa a cauda mista pela fração de escrita da aresta; nós `generic` dão o mesmo `success`/`availability` bit a bit
+- [x] `engine-golden.test.ts` passa sem mudança
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): settle e SLO por classe em nós com tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

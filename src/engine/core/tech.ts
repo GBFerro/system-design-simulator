@@ -24,9 +24,17 @@ import {
   type TechProfile,
   type TechThrottle,
 } from "@/domain/components/technologies/profile";
-import { clamp01, probWaitExceeds, sampleWaitMs, station, type StationState } from "./queueing";
+import {
+  clamp01,
+  probSojournExceeds,
+  probWaitExceeds,
+  sampleWaitMs,
+  station,
+  type StationState,
+} from "./queueing";
 import { sampleExponential, type Rng } from "./rng";
 import { callProbability, callsOf, edgeCallsOf, type CallContext } from "./routing";
+import type { FlowView } from "./settle";
 
 /* ---------- read/write split per edge (A.3) ---------- */
 
@@ -310,6 +318,20 @@ export function classTail(cls: TechClassView, t: number): number {
 export function techExceeds(tech: TechFlowView, ws: number, t: number): number {
   const w = clamp01(ws);
   return clamp01((1 - w) * classTail(tech.read, t) + w * classTail(tech.write, t));
+}
+
+/** Share of requests with write share `ws` that a node with a technology serves (not dropped). */
+export function techServed(tech: TechFlowView, ws: number): number {
+  const w = clamp01(ws);
+  return clamp01((1 - w) * (1 - tech.read.dropProbability) + w * (1 - tech.write.dropProbability));
+}
+
+/**
+ * P(hop > t) at any node: the class mix for a node with a technology, the
+ * sojourn tail for every other (exactly `probSojournExceeds`).
+ */
+export function hopExceeds(flow: FlowView, t: number): number {
+  return flow.tech ? techExceeds(flow.tech, flow.tech.ws, t) : probSojournExceeds(flow.st, t);
 }
 
 /** Bisection steps of `techPercentileMs`: fixed, so the result is deterministic. */
