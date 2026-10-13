@@ -697,15 +697,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: nó `generic` compila sem a chave `tech` (deep-equal ao SimNode de hoje); Cassandra RF 5 com 3 instâncias gera o warning; réplica MySQL alimentada por Postgres gera o warning; grafo só `generic` sem warnings novos
-- [ ] `engine-golden.test.ts` passa sem mudar a fixture
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: nó `generic` compila sem a chave `tech` (deep-equal ao SimNode de hoje); Cassandra RF 5 com 3 instâncias gera o warning; réplica MySQL alimentada por Postgres gera o warning; grafo só `generic` sem warnings novos
+- [x] `engine-golden.test.ts` passa sem mudar a fixture
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): compilador resolve a tecnologia de cada nó`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
