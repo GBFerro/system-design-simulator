@@ -17,6 +17,7 @@ import { CATALOG_SCHEMAS } from "@/domain/components/schemas";
 import { parseNumberText, parseParamInput } from "@/domain/components/paramInput";
 import { CORE_PARAM, type ParamSpec } from "@/domain/components/types";
 import { DEFAULT_PRICING, hasOwnPricing, PRICE_TABLE } from "@/domain/components/pricing";
+import { CENTRAL_TYPES } from "@/domain/components/technologies";
 
 const ids = SYSTEM_COMPONENTS.map((c) => c.id);
 const NEW_IDS = ["client", "worker-pool", "waf", "read-replica", "dlq", "autoscaler"];
@@ -146,6 +147,19 @@ describe("schemas (CMP-01)", () => {
     expect(PRICE_TABLE.sources.length).toBeGreaterThan(0);
     for (const s of PRICE_TABLE.sources)
       expect(s.url).toMatch(/^https:\/\/aws\.amazon\.com\/.+\/pricing\//);
+  });
+
+  it("each central type has a `technology` enum defaulting to generic (TEC-01); other types have none", () => {
+    for (const id of ids) {
+      const spec = getSchema(id).params.find((p) => p.key === PARAM.technology);
+      if (!(CENTRAL_TYPES as readonly string[]).includes(id)) {
+        expect(spec, id).toBeUndefined();
+        continue;
+      }
+      expect(spec?.kind, id).toBe("enum");
+      expect(spec?.default, id).toBe("generic");
+      expect(defaultParams(id)[PARAM.technology], id).toBe("generic");
+    }
   });
 
   it("unknown ids (user custom components) get the generic schema", () => {

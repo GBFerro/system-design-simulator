@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { instanceClassSpec, PARAM, technologySpec } from "@/domain/components/params";
-import type { ParamSpec } from "@/domain/components/types";
+import { defaultParams, getSchema } from "@/domain/components/registry";
+import type { ParamSpec, Params } from "@/domain/components/types";
 import {
   buildTechIndex,
   CENTRAL_TYPES,
@@ -740,5 +741,100 @@ describe("technology and instance class param specs (T8)", () => {
     const lb = instanceClassSpec("load-balancer");
     expect(lb.visibleIf!({ technology: "aws-alb" })).toBe(false);
     expect(lb.visibleIf!({ technology: "haproxy" })).toBe(true);
+  });
+});
+
+/* ---------- T10: technology params in the 10 central schemas (TEC-01, TEC-33, TEC-51) ---------- */
+
+describe("technology-dependent visibility in the central schemas (T10)", () => {
+  /** Is `key` shown on a node of `id` with these params? */
+  function shown(id: string, key: string, params: Params): boolean {
+    const spec = getSchema(id).params.find((p) => p.key === key);
+    expect(spec, `${id}.${key}`).toBeDefined();
+    return spec!.visibleIf ? spec!.visibleIf({ ...defaultParams(id), ...params }) : true;
+  }
+  const on = (technology: string) => ({ technology });
+
+  it("consistencyLevel and replicationFactor: Cassandra and ScyllaDB only (generic keeps them)", () => {
+    for (const key of ["consistencyLevel", "replicationFactor"]) {
+      expect(shown("nosql-db", key, on("cassandra")), key).toBe(true);
+      expect(shown("nosql-db", key, on("scylladb")), key).toBe(true);
+      expect(shown("nosql-db", key, on("dynamodb")), key).toBe(false);
+      expect(shown("nosql-db", key, on("mongodb")), key).toBe(false);
+      expect(shown("nosql-db", key, on("generic")), key).toBe(true);
+    }
+  });
+
+  it("readConsistency: DynamoDB only", () => {
+    expect(shown("nosql-db", "readConsistency", on("dynamodb"))).toBe(true);
+    for (const t of ["cassandra", "scylladb", "mongodb", "generic"]) {
+      expect(shown("nosql-db", "readConsistency", on(t)), t).toBe(false);
+    }
+  });
+
+  it("shards, readPreference and writeConcern on nosql-db: MongoDB only", () => {
+    for (const key of ["shards", "readPreference", "writeConcern"]) {
+      expect(shown("nosql-db", key, on("mongodb")), key).toBe(true);
+      for (const t of ["dynamodb", "cassandra", "scylladb", "generic"]) {
+        expect(shown("nosql-db", key, on(t)), `${key} ${t}`).toBe(false);
+      }
+    }
+  });
+
+  it("prefixes: S3 only", () => {
+    expect(shown("object-storage", "prefixes", on("s3"))).toBe(true);
+    expect(shown("object-storage", "prefixes", on("generic"))).toBe(false);
+  });
+
+  it("instances and capacity per instance hidden for the managed services, shown for generic and instance-billed ones (TEC-51)", () => {
+    const managed: [string, string][] = [
+      ["nosql-db", "dynamodb"],
+      ["object-storage", "s3"],
+      ["message-queue", "sqs-standard"],
+      ["message-queue", "sqs-fifo"],
+      ["pub-sub", "sns"],
+      ["api-gateway", "aws-api-gateway"],
+      ["load-balancer", "aws-nlb"],
+      ["load-balancer", "aws-alb"],
+    ];
+    for (const [id, tech] of managed) {
+      expect(shown(id, "instances", on(tech)), `${id} ${tech}`).toBe(false);
+      expect(shown(id, "capacityPerInstance", on(tech)), `${id} ${tech}`).toBe(false);
+    }
+    for (const id of CENTRAL_TYPES) {
+      expect(shown(id, "instances", on("generic")), id).toBe(true);
+      expect(shown(id, "capacityPerInstance", on("generic")), id).toBe(true);
+    }
+    expect(shown("sql-db", "instances", on("postgres"))).toBe(true);
+    expect(shown("nosql-db", "instances", on("cassandra"))).toBe(true);
+  });
+
+  it("instanceClass is in every central schema with classes, not in object storage (S3 only)", () => {
+    for (const id of CENTRAL_TYPES) {
+      const has = getSchema(id).params.some((p) => p.key === "instanceClass");
+      expect(has, id).toBe(id !== "object-storage");
+    }
+  });
+
+  it("the LB algorithm enum offers only what the technology supports (NLB: hash)", () => {
+    const algo = getSchema("load-balancer").params.find((p) => p.key === "lbAlgorithm")!;
+    expect(algo.optionsFor!(on("aws-nlb"))).toEqual(["hash"]);
+    expect(algo.optionsFor!(on("aws-alb"))).toEqual([
+      "round-robin",
+      "least-connections",
+      "weighted",
+    ]);
+    expect(algo.optionsFor!(on("haproxy"))).toEqual([
+      "round-robin",
+      "least-connections",
+      "weighted",
+      "hash",
+    ]);
+    expect(algo.optionsFor!(on("generic"))).toEqual([
+      "round-robin",
+      "least-connections",
+      "weighted",
+      "hash",
+    ]);
   });
 });

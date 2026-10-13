@@ -378,16 +378,16 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `catalog.test.ts`: cada tipo central tem `technology` com padrão `generic`; os padrões de capacidade/latência do schema seguem iguais a `maxQPS`/`latencyMs` (teste existente intacto)
-- [ ] Teste de visibilidade: `consistencyLevel` visível só em Cassandra/ScyllaDB, `readConsistency` só em DynamoDB, `prefixes` só em S3, `instances` invisível em DynamoDB/S3/SQS/SNS/API Gateway/NLB/ALB e visível em `generic`
-- [ ] `engine-golden.test.ts` passa sem mudar a fixture
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `catalog.test.ts`: cada tipo central tem `technology` com padrão `generic`; os padrões de capacidade/latência do schema seguem iguais a `maxQPS`/`latencyMs` (teste existente intacto)
+- [x] Teste de visibilidade: `consistencyLevel` visível só em Cassandra/ScyllaDB, `readConsistency` só em DynamoDB, `prefixes` só em S3, `instances` invisível em DynamoDB/S3/SQS/SNS/API Gateway/NLB/ALB e visível em `generic`
+- [x] `engine-golden.test.ts` passa sem mudar a fixture
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(schemas): tecnologia e classe nos tipos centrais`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

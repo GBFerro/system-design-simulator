@@ -9,7 +9,7 @@ import {
   retrySpecs,
   timeoutSpec,
 } from "../params";
-import { catalogLatencyMs, defineSchema } from "./define";
+import { catalogLatencyMs, defineSchema, defineTechSchema } from "./define";
 import { p99For } from "./service";
 
 const tokenBucket = (p: Params) => p[PARAM.rateLimitAlgorithm] === "token-bucket";
@@ -64,7 +64,7 @@ export const rateLimiterSchema = defineSchema("rate-limiter", "rate-limiter", [
  */
 const throttled = (p: Params) => p[PARAM.rateLimitEnabled] === true;
 
-export const apiGatewaySchema = defineSchema("api-gateway", "service", [
+export const apiGatewaySchema = defineTechSchema("api-gateway", "service", [
   {
     key: PARAM.rateLimitEnabled,
     label: "Throttling",
