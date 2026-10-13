@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { instanceClassSpec, PARAM, technologySpec } from "@/domain/components/params";
-import { defaultParams, getSchema } from "@/domain/components/registry";
+import { SYSTEM_COMPONENTS } from "@/data/components";
+import {
+  defaultParams,
+  getSchema,
+  isValidParam,
+  normalizeTechParams,
+  sanitizeParams,
+} from "@/domain/components/registry";
 import type { ParamSpec, Params } from "@/domain/components/types";
 import {
   buildTechIndex,
@@ -836,5 +843,121 @@ describe("technology-dependent visibility in the central schemas (T10)", () => {
       "weighted",
       "hash",
     ]);
+  });
+});
+
+/* ---------- T9: sanitizing params by technology (TEC-08, TEC-16, TEC-39, TEC-48) ---------- */
+
+describe("sanitizeParams and normalizeTechParams by technology (T9)", () => {
+  /** The per-key validation sanitizeParams did before technologies: valid value, else the schema default. */
+  function perKey(id: string, raw: Record<string, unknown>): Params {
+    const out: Params = {};
+    for (const spec of getSchema(id).params) {
+      out[spec.key] = isValidParam(spec, raw[spec.key]) ? (raw[spec.key] as never) : spec.default;
+    }
+    return out;
+  }
+
+  it("an unknown technology becomes generic (TEC-08), with the generic defaults", () => {
+    const params = sanitizeParams("nosql-db", { technology: "oracle", shards: 5000 });
+    expect(params.technology).toBe("generic");
+    expect(params).toEqual(defaultParams("nosql-db"));
+  });
+
+  it("a class of another technology becomes the technology's default class (TEC-16)", () => {
+    const pg = sanitizeParams("sql-db", {
+      technology: "postgres",
+      instanceClass: "cache.r6g.large",
+    });
+    expect(pg.instanceClass).toBe("db.r6g.xlarge");
+    // A class valid for the type but not for the technology (MongoDB's on Cassandra).
+    const cass = sanitizeParams("nosql-db", {
+      technology: "cassandra",
+      instanceClass: "r6g.2xlarge",
+    });
+    expect(cass.instanceClass).toBe("i4i.xlarge");
+    // A class of the technology itself is kept.
+    const aurora = sanitizeParams("sql-db", {
+      technology: "aurora-postgres",
+      instanceClass: "db.r6g.4xlarge",
+    });
+    expect(aurora.instanceClass).toBe("db.r6g.4xlarge");
+  });
+
+  it("an NLB with round robin resolves to hash (TEC-39); an ALB with hash to its round robin", () => {
+    expect(
+      sanitizeParams("load-balancer", { technology: "aws-nlb", lbAlgorithm: "round-robin" })
+        .lbAlgorithm,
+    ).toBe("hash");
+    expect(
+      sanitizeParams("load-balancer", { technology: "aws-alb", lbAlgorithm: "hash" }).lbAlgorithm,
+    ).toBe("round-robin");
+    expect(
+      sanitizeParams("load-balancer", { technology: "aws-alb", lbAlgorithm: "weighted" })
+        .lbAlgorithm,
+    ).toBe("weighted");
+    expect(
+      sanitizeParams("load-balancer", { technology: "haproxy", lbAlgorithm: "hash" }).lbAlgorithm,
+    ).toBe("hash");
+  });
+
+  it("a mechanic param out of range takes the technology's value, not the schema default (TEC-48)", () => {
+    // MongoDB: shards 5000 > 1024 → MongoDB's 1.
+    expect(sanitizeParams("nosql-db", { technology: "mongodb", shards: 5000 }).shards).toBe(1);
+    // OpenSearch sets 5 shards; the schema default is 1.
+    expect(sanitizeParams("search", { technology: "opensearch", shards: 5000 }).shards).toBe(5);
+    expect(sanitizeParams("search", { technology: "generic", shards: 5000 }).shards).toBe(1);
+    // Cassandra RF 9 > 7 → its 3; S3 prefixes 0 → its 1.
+    expect(
+      sanitizeParams("nosql-db", { technology: "cassandra", replicationFactor: 9 })
+        .replicationFactor,
+    ).toBe(3);
+    expect(sanitizeParams("object-storage", { technology: "s3", prefixes: 0 }).prefixes).toBe(1);
+    // A class-level value too: a missing write capacity is the class's.
+    expect(
+      sanitizeParams("sql-db", { technology: "postgres", instanceClass: "db.r6g.2xlarge" })
+        .writeCapacityRps,
+    ).toBe(8_000);
+  });
+
+  it("valid technology values are kept as given (a user's edit survives)", () => {
+    const params = sanitizeParams("nosql-db", {
+      ...techPreset("nosql-db", "cassandra"),
+      capacityPerInstance: 1234,
+      consistencyLevel: "all",
+    });
+    expect(params.capacityPerInstance).toBe(1234);
+    expect(params.consistencyLevel).toBe("all");
+    expect(params.technology).toBe("cassandra");
+  });
+
+  it("a read replica keeps only its own keys from a SQL preset (no writeCapacityRps)", () => {
+    const params = sanitizeParams("read-replica", techPreset("read-replica", "postgres"));
+    expect(params).not.toHaveProperty("writeCapacityRps");
+    expect(params).not.toHaveProperty("failoverSec");
+    expect(params.replicationLagMs).toBe(100);
+    expect(params.capacityPerInstance).toBe(40_000);
+  });
+
+  it("a generic node sanitizes exactly as the per-key validation did, for every schema", () => {
+    const raws: Record<string, unknown>[] = [
+      {},
+      { instances: 3, shards: 5000, lbAlgorithm: "hash", instanceClass: "nope", bogus: 1 },
+      {
+        technology: "generic",
+        replicationFactor: 9,
+        consistencyLevel: "all",
+        capacityPerInstance: -1,
+      },
+    ];
+    for (const id of SYSTEM_COMPONENTS.map((c) => c.id)) {
+      for (const raw of raws) expect(sanitizeParams(id, raw), id).toEqual(perKey(id, raw));
+    }
+  });
+
+  it("normalizeTechParams leaves generic and unknown technologies untouched", () => {
+    const params = { technology: "generic", lbAlgorithm: "nope" };
+    expect(normalizeTechParams("load-balancer", params)).toEqual(params);
+    expect(normalizeTechParams("cdn", { hitRate: 2 })).toEqual({ hitRate: 2 });
   });
 });

@@ -351,15 +351,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: `technology: "oracle"` → `generic` (TEC-08); Postgres com `instanceClass: "cache.r6g.large"` → `db.r6g.xlarge` (TEC-16); NLB com `lbAlgorithm: "round-robin"` → `hash` (TEC-39); `shards: 5000` num MongoDB → padrão da tecnologia (TEC-48); um nó `generic` sanitiza exatamente como antes (deep-equal com o resultado de hoje para cada schema)
-- [ ] Teste de round-trip do envelope v4 com `technology`/`instanceClass` em `persistence.envelope.test.ts` (TEC-09), sem mudar `SCHEMA_VERSION`
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: `technology: "oracle"` → `generic` (TEC-08); Postgres com `instanceClass: "cache.r6g.large"` → `db.r6g.xlarge` (TEC-16); NLB com `lbAlgorithm: "round-robin"` → `hash` (TEC-39); `shards: 5000` num MongoDB → padrão da tecnologia (TEC-48); um nó `generic` sanitiza exatamente como antes (deep-equal com o resultado de hoje para cada schema)
+- [x] Teste de round-trip do envelope v4 com `technology`/`instanceClass` em `persistence.envelope.test.ts` (TEC-09), sem mudar `SCHEMA_VERSION`
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(params): normaliza combinações inválidas por tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
