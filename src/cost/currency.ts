@@ -1,19 +1,18 @@
 /**
  * Display currency (Spec 10, CST-04). Prices are kept in USD; other
- * currencies use a fixed rate from the price table's date, shown in the UI.
+ * currencies use a fixed rate, dated in the UI.
  */
-import { PRICE_TABLE } from "@/domain/components/pricing";
-
 export type Currency = "USD" | "BRL" | "EUR";
 
 export const CURRENCIES: readonly { id: Currency; label: string; perUsd: number }[] = [
   { id: "USD", label: "US$", perUsd: 1 },
-  // Approximate market rates around the table's date.
+  // Approximate market rates around `RATES_AS_OF`.
   { id: "BRL", label: "R$", perUsd: 5.4 },
   { id: "EUR", label: "€", perUsd: 0.86 },
 ];
 
-export const RATES_AS_OF = PRICE_TABLE.asOf;
+/** When the rates above were taken; review it when they change, apart from the price table. */
+export const RATES_AS_OF = "2025-09";
 
 export function isCurrency(v: unknown): v is Currency {
   return CURRENCIES.some((c) => c.id === v);
