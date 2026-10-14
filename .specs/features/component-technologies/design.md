@@ -2,7 +2,7 @@
 
 **Spec**: `.specs/features/component-technologies/spec.md`
 **Context**: `.specs/features/component-technologies/context.md`
-**Status**: Approved (2026-10-13)
+**Status**: Approved (2026-10-13); atualizado em 2026-10-14 com os desvios aprovados na validação rodada 1 (marcadores `SPEC_DEVIATION` do código) e o token bucket de T41
 
 Pesquisa de números (2026-10-12/13, com fontes) feita por agentes e resumida em [Tabela de tecnologias](#tabela-de-tecnologias). Os arquivos brutos ficaram no scratchpad da sessão; o que vale é o que entra em `src/domain/components/technologies/`, com fonte por linha.
 
@@ -146,7 +146,8 @@ graph TD
 
 - **Purpose**: aplicar as mecânicas só em nós com `tech`.
 - **Location**: novo `src/engine/core/tech.ts`; ganchos em `domain/graph/compile.ts`, `engine/analyze.ts`, `core/tick.ts`, `core/settle.ts`, `core/sampler.ts`, `core/slo.ts`, `core/routing.ts`, `engine/types.ts`, `engine/snapshot.ts`.
-- **Interfaces** (`tech.ts`): `edgeWriteShare`, `admit` (cota, partição quente, token bucket), `techSteadyFlow`, `techTickFlow`, `classTail`/`techExceeds`/`hopExceeds`, `techPercentileMs`, `sampleClassMs`, `kafkaLimit`.
+- **Interfaces** (`tech.ts`): `edgeWriteShare`, `admit` (cota, partição quente, token bucket), `classesOf`, `techSteadyFlow`, `classTail`/`techExceeds`/`hopExceeds`, `techPercentileMs`, `sampleClassMs`, `kafkaLimit`.
+- **`techTickFlow` mora em `core/tick.ts`**, não em `tech.ts`: ele avança cada estação com a fila fluida e os construtores de estação do tick (`stableStation`, `backlogStation`), que vivem lá; `tech.ts` importá-los criaria um ciclo de imports (desvio aprovado, `tick.ts:271`).
 - Detalhe em [Mecânicas](#mecânicas-no-motor).
 
 ### 8. Custo
@@ -158,7 +159,7 @@ graph TD
 
 - `advisor/load.ts:41` — nó com tecnologia: utilização = `techLimitOf(...)` com a mesma demanda (`writeRps` médio da janela); para Kafka, o número do motor. Sem fix de instâncias quando `!scalesWithInstances` (primário de escrita, partição quente, cotas, consumidores presos por partições); título e texto nomeiam o recurso (TEC-42).
 - `scoring/paths.ts:17`, `engine/faults/catalog.ts:341`, `lib/instances.ts:78` — `isManagedMultiZone(componentId, params)` (TEC-50).
-- `compile.ts` — warnings só em nós com tecnologia: "RF > instances" e réplica com tecnologia diferente do primário (TEC-45).
+- `compile.ts` — warnings só em nós com tecnologia: "RF > instances" e réplica com tecnologia diferente do primário, quando os dois são produtos (≠ `generic`) (TEC-45).
 
 ### 10. NodeInsightCard
 
@@ -249,22 +250,24 @@ interface TechMechanics {
 
 Notação: λ oferecido ao nó, ws a fração de escrita do nó (λ_w = λ·ws, λ_r = λ − λ_w), n = `instances`, k₀ = `capacityPerInstance`, S₀ = `serviceTimeMs` (já com faults). Números de máquina escalam com `capScale = k₀/base.k₀` e `timeScale = S₀/base.S₀` (exatamente 1 sem fault), então faults como `iops-throttle` afetam o primário sem mexer em `faultView`. Cotas gerenciadas não escalam.
 
-| Mecânica                                         | Fórmula                                                                                                                                                                                                                                                                                    | Requisito    |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
-| Primário SQL                                     | Estação 0 = (n, k₀, S₀) atende leituras; primário = (`shards`, `writeCapacityRps`·capScale, `writeServiceTimeMs`·timeScale) atende escritas; `maxQueue` por estação                                                                                                                        | TEC-25/26    |
-| Quorum (Cassandra, ScyllaDB)                     | k = 1, ⌊RF/2⌋+1, RF; estação de ops de réplica (n, k₀, S₀); leitura custa k e tem latência = k-ésimo de RF; escrita custa RF e espera k acks (mesma forma)                                                                                                                                 | TEC-29/30    |
-| Partição quente                                  | Demanda em unidades na partição quente U = h·(λ_r·c_r + λ_w·c_w) ÷ C_p; se U > 1, só a partição quente perde: throttled = h·λ·(1 − 1/U). DynamoDB: C_p = 3000 RCU / 1000 WCU, c_r = 0,5 (eventual) ou 1 (forte), c_w = 1. Cassandra/Scylla: C_p = min(RF, n)·k₀·capScale em ops de réplica | TEC-28/31    |
-| MongoDB                                          | s = `shards`, m = n/s membros por shard; primários (s, k₀, S₀) atendem escritas e leituras com `primary`; com `secondaryPreferred` as leituras vão para os n − s secundários (os primários se n = s); `majority` soma `replicationRttMs` à escrita                                         | TEC-32       |
-| OpenSearch                                       | Leitura (consulta) com latência = máx de `shards` amostras; capacidade de consulta = min(n, shards·(replicas+1))·k₀ ÷ shards; escrita custa (replicas+1)·`indexCostPerDoc`                                                                                                                 | TEC-36       |
-| Kafka                                            | `pullers = max(1, min(consumers, target.instances, partitions))`                                                                                                                                                                                                                           | TEC-34       |
-| Cotas (S3, API Gateway, SQS FIFO, RabbitMQ, SNS) | S3: a_r = min(λ_r, 5500·P), a_w = min(λ_w, 3500·P); API Gateway: L = 10.000 req/s e burst 5.000 (analyze: min(λ, L); tick: token bucket); SQS FIFO/RabbitMQ/SNS: L da tabela; excesso = erro                                                                                               | TEC-35/37/38 |
-| Limite reportado                                 | `techLimitOf` sobre a demanda **oferecida**; `utilization` do nó = `limitUtilization`, então status, gargalo, badges e score seguem o recurso limitante                                                                                                                                    | TEC-40/41/42 |
+| Mecânica                                         | Fórmula                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Requisito    |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Estações                                         | Cada perfil lista as suas estações (`stations[]`), cada uma com instâncias, capacidade, tempo de serviço, recurso limitante e se escala com instâncias; a rota de cada classe aponta para o índice da estação. Não há estação 0 implícita de (n, k₀, S₀): as duas estações do MongoDB não têm n instâncias                                                                                                                                                                                                                  | TEC-25…38    |
+| Divisão leitura/escrita                          | Roda quando algum nó do grafo tem tecnologia (não só com classes ou throttle), porque todo nó com tecnologia reporta `writeRps` para o custo; num grafo só generic nada novo roda                                                                                                                                                                                                                                                                                                                                           | TEC-18/41/46 |
+| Primário SQL                                     | Estação 0 = (n, k₀, S₀) atende leituras; estação 1 = primário (`shards`, `writeCapacityRps`·capScale, `writeServiceTimeMs`·timeScale) atende escritas; `maxQueue` por estação. Só no SQL Database: uma Read Replica com tecnologia SQL só lê e não ganha estações                                                                                                                                                                                                                                                           | TEC-25/26    |
+| Quorum (Cassandra, ScyllaDB)                     | k = 1, ⌊RF/2⌋+1, RF; estação de ops de réplica (n, k₀, S₀); leitura custa k e tem latência = k-ésimo de RF; escrita custa RF e espera k acks (mesma forma)                                                                                                                                                                                                                                                                                                                                                                  | TEC-29/30    |
+| Partição quente                                  | Demanda em unidades na partição quente U = h·(λ_r·c_r + λ_w·c_w) ÷ C_p; se U > 1, só a partição quente perde: throttled = h·λ·(1 − 1/U). DynamoDB: C_p = 3000 RCU / 1000 WCU, c_r = 0,5 (eventual) ou 1 (forte), c_w = 1. Cassandra/Scylla: C_p = min(RF, n)·k₀·capScale em ops de réplica                                                                                                                                                                                                                                  | TEC-28/31    |
+| MongoDB                                          | s = min(`shards`, n), m = n/s membros por shard; estação dos secundários (n − s, k₀, S₀) quando n > s e estação dos primários (s, k₀, S₀) por último; escritas e leituras com `primary` nos primários; com `secondaryPreferred` as leituras vão para os secundários (os primários se n = s); `majority` soma `replicationRttMs` à escrita só quando há secundário                                                                                                                                                           | TEC-32       |
+| OpenSearch                                       | Leitura (consulta) com latência = máx de `shards` amostras; capacidade de consulta = min(n, shards·(replicas+1))·k₀ ÷ shards; escrita custa (replicas+1)·`indexCostPerDoc`                                                                                                                                                                                                                                                                                                                                                  | TEC-36       |
+| Kafka                                            | `pullers = max(1, min(consumers, target.instances, partitions))`                                                                                                                                                                                                                                                                                                                                                                                                                                                            | TEC-34       |
+| Cotas (S3, API Gateway, SQS FIFO, RabbitMQ, SNS) | S3: a_r = min(λ_r, 5500·P), a_w = min(λ_w, 3500·P); API Gateway: L = 10.000 req/s e burst 5.000 (analyze: min(λ, L); tick: token bucket que começa cheio, recarga antes do consumo: disponível = tokens + L·dt, admitido = min(λ·dt, disponível), tokens = min(B, disponível − admitido)); SQS FIFO/RabbitMQ/SNS: L da tabela; excesso = erro. Num gerenciado (cobrança por requisição) a estação atrás da cota tem capacidade max(k₀, cota × `QUOTA_HEADROOM`), com `QUOTA_HEADROOM` = 4: a cota limita o nó, não uma fila | TEC-35/37/38 |
+| Limite reportado                                 | `techLimitOf` sobre a demanda **oferecida**; `utilization` do nó = `limitUtilization`, então status, gargalo, badges e score seguem o recurso limitante                                                                                                                                                                                                                                                                                                                                                                     | TEC-40/41/42 |
 
 **Sampler.** `SampleNode.tech = { read, write }`; a classe vem do `isRead` que o sampler já sorteia por requisição. Formas: `one` = Exp(S) + espera; `kth(k, n)` pela representação de Rényi (k sorteios, k ≤ 7); `max(n)` pela CDF inversa (1 sorteio para qualquer n). Para nós `generic` a ordem e o número de sorteios são os mesmos de hoje (teste com `countingRng`).
 
 **Settle e SLO.** Timeouts e sucesso de chamada para nó com tecnologia usam a mistura por classe com a fração de escrita da aresta; `throttled` entra em `dropped` e o status vira `critical`. Percentis por bissecção com 64 iterações fixas (determinístico, monótono em p). Para nós `generic` as expressões e a ordem das multiplicações não mudam.
 
-**Tick.** `NodeState.tech = { primaryBacklog, tokens }`, zerado quando a tecnologia muda; só o trecho de capacidade/fila (`tick.ts:315-363`) ganha o desvio `techTickFlow`; o código genérico não é refatorado.
+**Tick.** `NodeState.tech = { technology, primaryBacklog, tokens? }`, zerado quando a tecnologia muda; só o trecho de capacidade/fila ganha o desvio `techTickFlow` (que mora em `core/tick.ts`, ver o componente 7); o código genérico não é refatorado. O `throttled` abaixo do ruído de float (≤ 1e-9 × max(1, λ), o resto de uma cota que deixou tudo passar) vira 0 pelo mesmo `isThrottled` do `analyze()`, para o status não virar `critical` por arredondamento.
 
 Decisões de fidelidade (do agente de motor, decididas aqui):
 
@@ -340,16 +343,16 @@ Padrões: Redis cache.r6g.xlarge, Kafka kafka.m7g.xlarge com 6 partições, Rabb
 
 ## Error Handling Strategy
 
-| Error Scenario                                | Handling                                                  | User Impact                                            |
-| --------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------ |
-| `technology` salvo desconhecido               | `sanitizeParams` → `generic`                              | O nó abre como Generic com os números atuais.          |
-| `instanceClass` de outra tecnologia           | `normalizeTechParams` → classe padrão da tecnologia       | O Props mostra a classe padrão.                        |
-| Param de mecânica fora da faixa               | padrão da tecnologia; `techProfileOf` prende de novo      | Resultado finito, served ≤ offered.                    |
-| Algoritmo de LB não suportado pela tecnologia | padrão da tecnologia (`hash` no NLB)                      | O select só mostra os suportados.                      |
-| Réplica com tecnologia diferente do primário  | warning do compilador + aviso no Props                    | Simula normalmente.                                    |
-| RF > instances (Cassandra/Scylla)             | warning do compilador; a partição usa min(RF, n) réplicas | Aviso no painel de simulação.                          |
-| Cota excedida / partição quente               | `throttled` conta como erro; status `critical`            | Card mostra o recurso e a %; advisor nomeia o recurso. |
-| Troca de tecnologia em aba somente leitura    | no-op                                                     | Seletores desabilitados.                               |
+| Error Scenario                                                     | Handling                                                  | User Impact                                            |
+| ------------------------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------ |
+| `technology` salvo desconhecido                                    | `sanitizeParams` → `generic`                              | O nó abre como Generic com os números atuais.          |
+| `instanceClass` de outra tecnologia                                | `normalizeTechParams` → classe padrão da tecnologia       | O Props mostra a classe padrão.                        |
+| Param de mecânica fora da faixa                                    | padrão da tecnologia; `techProfileOf` prende de novo      | Resultado finito, served ≤ offered.                    |
+| Algoritmo de LB não suportado pela tecnologia                      | padrão da tecnologia (`hash` no NLB)                      | O select só mostra os suportados.                      |
+| Réplica com tecnologia diferente do primário (os dois ≠ `generic`) | warning do compilador + aviso no Props                    | Simula normalmente.                                    |
+| RF > instances (Cassandra/Scylla)                                  | warning do compilador; a partição usa min(RF, n) réplicas | Aviso no painel de simulação.                          |
+| Cota excedida / partição quente                                    | `throttled` conta como erro; status `critical`            | Card mostra o recurso e a %; advisor nomeia o recurso. |
+| Troca de tecnologia em aba somente leitura                         | no-op                                                     | Seletores desabilitados.                               |
 
 ---
 
@@ -386,7 +389,7 @@ Padrões: Redis cache.r6g.xlarge, Kafka kafka.m7g.xlarge com 6 partições, Rabb
 
 ## Apêndice A — Detalhe do motor (proposta do agente de design, com D1–D5 aplicadas)
 
-Texto da proposta revisada, em inglês como foi escrita, conferida contra o código em 2026-10-12. Onde a proposta original diferia das decisões D1–D5, vale a decisão (marcado **[D#]**).
+Texto da proposta revisada, em inglês como foi escrita, conferida contra o código em 2026-10-12. Onde a proposta original diferia das decisões D1–D5, vale a decisão (marcado **[D#]**). Em 2026-10-14 o apêndice passou a dizer o que o código faz onde a implementação divergiu com motivo (os marcadores `SPEC_DEVIATION`, aceitos na validação rodada 1), marcado **[impl]**.
 
 ### A.0 Findings that shape the design
 
@@ -418,11 +421,18 @@ type TechLimitKind =
   | "consumers"
   | "consumers-partitions";
 interface ClassRoute {
-  station: 0 | 1;
+  station: number; // index into classes.stations
   cost: number;
   serviceScale: number;
   shape: LatencyShape;
   addMs: number;
+}
+interface TechStation {
+  instances: number;
+  capacityPerInstance: number; // before the run-time scale
+  serviceTimeMs: number; // before the run-time scale
+  limit: TechLimitKind;
+  scalesWithInstances: boolean; // the advisor offers "scale out" only when true
 }
 interface TechProfile {
   technology: string;
@@ -430,13 +440,7 @@ interface TechProfile {
   classes?: {
     read: ClassRoute;
     write: ClassRoute;
-    primary?: {
-      instances: number;
-      capacityPerInstance: number;
-      serviceTimeMs: number;
-      limit: TechLimitKind;
-    };
-    mainLimit: TechLimitKind;
+    stations: readonly TechStation[]; // one or two; station 0 holds the node's own backlog in the tick
   };
   throttle?:
     | {
@@ -460,20 +464,22 @@ interface TechProfile {
 }
 ```
 
+- **[impl]** Every station is listed explicitly in `stations[]`, with its own instances, limit and `scalesWithInstances`, instead of `primary?` + `mainLimit` beside an implicit station 0 of (n, k₀, S₀): MongoDB's two stations (secondaries, primaries) have neither n instances (`profile.ts:68`).
 - `techProfileOf` returns `undefined` for generic; clamps RF ∈ [1,7], k ∈ [1,RF], shards ∈ [1,1024], prefixes ∈ [1,1000], costs ≥ 1e-6, capacities finite positive. Never write `tech: undefined`.
 - Types without mechanics (Redis, ALB, Kong…) get a profile with only `technology` and `base` (snapshot reports `limitKind: "capacity"`); every engine path stays generic for them.
 - `capScale = node.capacityPerInstance / base.capacityPerInstance`, `timeScale = node.serviceTimeMs / base.serviceTimeMs`. Machine-bound numbers (primary, node-bound partition, class service times) scale; managed quotas (S3, API Gateway, SQS FIFO, SNS, DynamoDB per-partition units) don't. `kill-instances` on SQL also scales the primary by (n−1)/n (conservative, documented).
 
 ### A.2 Formulas (λ offered, ws write share, λ_w = λ·ws, λ_r = λ − λ_w, λ′ after fault errorRate, n/k₀/S₀ after faults)
 
-- **SQL (TEC-25/26)**: station 0 = (n, k₀, S₀) reads, cost 1, shape one, limit `read-capacity`; primary = (shards, writeCapacityRps·capScale, writeServiceTimeMs·timeScale) writes, cost 1, limit `write-primary`. `maxQueueOf` per station.
+- **SQL (TEC-25/26)**: station 0 = (n, k₀, S₀) reads, cost 1, shape one, limit `read-capacity`; station 1 = primary (shards, writeCapacityRps·capScale, writeServiceTimeMs·timeScale) writes, cost 1, limit `write-primary`, `scalesWithInstances: false`. `maxQueueOf` per station. **[impl]** Only on `sql-db`: a `read-replica` with a SQL technology takes reads only and gets no stations (a profile with `technology` and `base`).
 - **Cassandra/ScyllaDB (TEC-29/30)**: k = 1, ⌊RF/2⌋+1, RF; station 0 = (n, k₀ replica-ops/s, S₀), limit `replica-ops`; reads cost k, shape kth(k, RF); writes cost RF, shape kth(k, RF) **[D1]**. Hot partition node-bound: U_p = h·(k·λ_r + RF·λ_w) / (min(RF, n)·k₀·capScale). Compile warning "RF > instances" (tech only).
 - **DynamoDB (TEC-28/31)**: station 0 = (n, k₀, S₀), cost 1, shape one. Partition quota: U_p = h·(λ_r·c_r/3000 + λ_w·c_w/1000), c_r = 0.5 eventual / 1 strong, c_w = 1.
-- **MongoDB (TEC-32)**: s = shards, m = n/s. Primary station (s, k₀·capScale, S₀) takes writes (cost `writeCost` = 1) and reads with `primary`; with `secondaryPreferred` reads go to a secondaries station of (n − s) members, or the primaries when n = s **[D4]**. `majority` adds `replicationRttMs` to writes. Hot shard: U_p = h·(λ_w + λ_r·[primary]) / (k₀·capScale) + h·λ_r·[secondaryPreferred] / (max(1, m − 1)·k₀·capScale).
-- **OpenSearch (TEC-36)**: station 0 = (n, k₀, S₀) in shard-queries/s; a query costs `shards` shard-queries spread over min(n, shards·(replicas+1)) nodes ⇒ query capacity = min(n, shards·(replicas+1))·k₀ / shards; read shape max(shards); writes cost (replicas+1)·indexCostPerDoc, shape one.
+- **MongoDB (TEC-32)**: s = min(shards, n), m = n/s. **[impl]** Stations: secondaries (n − s, k₀, S₀, limit `read-capacity`) first when n > s, then primaries (s, k₀, S₀, limit `primaries`, `scalesWithInstances: false`) last. The primaries take writes (cost 1) and reads with `primary`; with `secondaryPreferred` reads go to the secondaries, or the primaries when n = s **[D4]**. `majority` adds `replicationRttMs` to writes only when there is a secondary (a shard without one has nobody to replicate to). Hot shard: U_p = h·(λ_w + λ_r·[primary]) / (k₀·capScale) + h·λ_r·[secondaryPreferred] / (max(1, m − 1)·k₀·capScale).
+- **OpenSearch (TEC-36)**: station 0 = (min(n, shards·(replicas+1)), k₀, S₀) in shard-queries/s, limit `query-capacity`, `scalesWithInstances` only while n < shards·(replicas+1); a query costs `shards` shard-queries ⇒ query capacity = min(n, shards·(replicas+1))·k₀ / shards; read shape max(shards); writes cost (replicas+1)·indexCostPerDoc in CPU and in time (`serviceScale` = that cost), shape one.
 - **S3 (TEC-37)**: P = prefixes; a_r = min(a_r⁰, 5500·P), a_w = min(a_w⁰, 3500·P); throttled = Σ(a_c⁰ − a_c); limit `prefix-limit`.
-- **AWS API Gateway (TEC-38)**: L = 10,000, B = 5,000; analyze a = min(λ′, L); tick token bucket (starts full): tokens ← min(B, tokens + L·dt); admitted = min(λ′·dt, tokens)/dt; tokens −= admitted·dt. Limit `account-throttle`.
+- **AWS API Gateway (TEC-38)**: L = 10,000, B = 5,000; analyze a = min(λ′, L); tick token bucket (starts full), **[impl, T41]** the tick's refill spendable before the cap: available = tokens + L·dt; admitted = min(λ′·dt, available)/dt; tokens ← min(B, available − admitted·dt). A full bucket drains at λ − L, so at 15,000 req/s it absorbs B ÷ (λ − L) = 1.0 s, as a continuous bucket does. Limit `account-throttle`.
 - **SQS FIFO, RabbitMQ, SNS (TEC-35)**: shared quota L from the table (RabbitMQ: the class `quota`), no burst; limit `queue-throughput`.
+- **Quota station [impl]**: a quota node gets classes with one station (read and write cost 1). A provisioned one (RabbitMQ) keeps (n, k₀, S₀). A managed one (S3, API Gateway, SQS FIFO, SNS) gets capacity max(k₀, ceiling × `QUOTA_HEADROOM`), `QUOTA_HEADROOM` = 4, ceiling = the shared quota or read + write quotas (`profile.ts:135`): the catalog's managed capacity IS the quota, so traffic admitted at the quota would otherwise saturate the station (ρ = 1) and queue, and S3 with 2 prefixes would still drop reads. At the quota the station runs at utilization 1/4, so a managed node at its quota shows almost no queue: the excess is an error (TEC-35/37/38), not a wait.
 - **Kafka (TEC-34)**: `consumerCapacity` (`routing.ts:235-239`): `pullers = max(1, min(consumers, target.instances, queue.tech?.consumerCap ?? ∞))`.
 - **Hot partition throttle [D2]**: when U_p > 1 only the hot partition loses: throttled = h·λ′·(1 − 1/U_p), split over classes in proportion to their share of the hot partition's demand.
 - **Class-aware stations (analyze)**: per station s, λ_s = Σ_{c→s} a_c·cost_c; st_s = station(λ_s…); f_s = st_s.servedRps/λ_s (1 when λ_s = 0); served_c = a_c·f_{s(c)}; served = Σ served_c ≤ λ; dropP_c = 1 − served_c/λ_c (0 when λ_c = 0), including fault errorRate, throttle and overflow.
@@ -481,12 +487,12 @@ interface TechProfile {
 
 ### A.3 Per-node read/write split
 
-`edgeWriteShare(e, source, wsSource, callCtx)` in `core/tech.ts`: LB edge → wsSource; else Σ P(call)·calls·cw ÷ Σ P(call)·calls over `edgeCallsOf(e, source)`, cw = 1 for `writes`, 0 for `reads`/`on_miss`/`after_miss`, wsSource for `always`/`fraction`; total 0 → fall back on kinds like `writeShareOf` (`catalog.ts:186-203`). In `analyze.ts` and `tick.ts`: `needsSplit = nodes.some(n => n.tech?.classes || n.tech?.throttle)` once per graph (false ⇒ nothing new runs); `inflowWrite` next to `inflow` (entries add share × (1 − r); push adds amplified × ws_e; tick uses totals incl. pending retry generations, consumer edges use `drained`); node ws = inflowWrite/inflow (else 1 − r); `edgeWs: Map<edgeId, number>` for settle. Edge loads untouched.
+`edgeWriteShare(e, source, wsSource, callCtx)` in `core/tech.ts`: LB edge → wsSource; else Σ P(call)·calls·cw ÷ Σ P(call)·calls over `edgeCallsOf(e, source)`, cw = 1 for `writes`, 0 for `reads`/`on_miss`/`after_miss`, wsSource for `always`/`fraction`; total 0 → fall back on kinds like `writeShareOf` (`catalog.ts:186-203`). In `analyze.ts` and `tick.ts`: `needsSplit = nodes.some(n => n.tech !== undefined)` once per graph (false ⇒ nothing new runs). **[impl]** Any node with a technology turns it on, not only one with classes or a throttle: every node with a technology reports `writeRps`, which managed prices charge apart (TEC-18) (`analyze.ts:212`, `tick.ts:464`); an all-generic graph still runs nothing new (the golden guards it); `inflowWrite` next to `inflow` (entries add share × (1 − r); push adds amplified × ws_e; tick uses totals incl. pending retry generations, consumer edges use `drained`); node ws = inflowWrite/inflow (else 1 − r); `edgeWs: Map<edgeId, number>` for settle. Edge loads untouched.
 
 ### A.4 Throttle errors in settle and metrics
 
 - `throttled` next to `rejected` in analyze `NodeFlow` (`dropped = offered − served` already includes it) and tick `TickFlow` (`dropped = min(arriving, rejected + overflow + refused + throttled)`).
-- Status: analyze `throttled > 0` ⇒ `critical` + `isBottleneck`; tick `nodeStatus` adds `|| flow.throttled > 0`. The rate limiter's deliberate rejections stay "warning".
+- Status: analyze `throttled > 0` ⇒ `critical` + `isBottleneck`; tick `nodeStatus` adds `|| flow.throttled > 0`. The rate limiter's deliberate rejections stay "warning". **[impl]** "> 0" means above float noise: `isThrottled(throttled, offered)` (> 1e-9 × max(1, offered)) in both (see A.7).
 - `settle(topo, flows, shares, writeShare?)`: `FlowView.tech?: {ws, read, write}` with per class `{station, serviceTimeMs, shape, addMs, served, dropProbability}`. Timeouts for tech targets: (1 − ws_e)·tail_r(t) + ws_e·tail_w(t); generic targets keep `probSojournExceeds`. Call success for tech targets: `classServed(target.tech, ws_e) × downstream.get(target)`, `downstream` being a second running product kept only for tech nodes; the generic `s` keeps its exact multiplication order. Retries amplify throttled calls through the existing fixed point.
 - `slo.ts:43`: `probSojournExceeds(flow.st, …)` → `hopExceeds(flow, t)` (identical for generic flows).
 
@@ -512,7 +518,10 @@ t′ = t − addMs, q = 1 − e^{−t′/S}: one = e^{−t′/S} + probWaitExcee
 
 ### A.7 Tick
 
-`NodeState.tech?: {technology, primaryBacklog, tokens}` reset in `setGraph` when the technology changes; class-0 station keeps `backlog`. The tech branch replaces only `tick.ts` lines ~315-363 (from `const capacity` to `flows.set`) when `node.tech?.classes || node.tech?.throttle`, calling `techTickFlow` (admission, fluid step per station mirroring `work/done/q/overflow`, per-class completions in proportion to op share). Queue routing (~386-417) stays shared. Generic tick code is not refactored. Export `BACKLOG_NOISE_SEC` and move `stableStation`/`backlogStation` to free functions.
+`NodeState.tech?: {technology, primaryBacklog, tokens?}` reset in `setGraph` when the technology changes; class-0 station keeps `backlog`; `tokens` is absent until the first tick (the bucket starts full). The tech branch replaces only the capacity/queue lines of the node step (from `const capacity` to `flows.set`) when `node.tech?.classes || node.tech?.throttle`, calling `techTickFlow` (admission, fluid step per station mirroring `work/done/q/overflow`, per-class completions in proportion to op share). Queue routing stays shared. Generic tick code is not refactored. Export `BACKLOG_NOISE_SEC` and move `stableStation`/`backlogStation` to free functions.
+
+- **[impl]** `techTickFlow` lives in `core/tick.ts`, not `core/tech.ts`: it steps each station with the tick's own fluid queue and the station builders above, and `tech.ts` importing them would be an import cycle (`tick.ts:271`).
+- **[impl]** Float noise in `throttled` is zeroed: a quota that lets everything through leaves ~1e-12 after `admit`, so `techTickFlow` keeps `throttled` only when `isThrottled(throttled, arriving)` (> 1e-9 × max(1, arriving)), the same test `analyze()` uses for the `critical` status. Without it, a node under its quota would turn `critical` from rounding.
 
 ### A.8 Snapshot and advisor
 

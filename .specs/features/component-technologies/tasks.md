@@ -1241,14 +1241,14 @@ T41 → T42
 
 **Done when**:
 
-- [ ] Cada marcador `SPEC_DEVIATION` tem o texto correspondente no design
-- [ ] `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` passa
-- [ ] Test count: contagem anterior (sem remoções)
+- [x] Cada marcador `SPEC_DEVIATION` tem o texto correspondente no design
+- [x] `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` passa
+- [x] Test count: contagem anterior (sem remoções)
 
 **Tests**: e2e
 **Gate**: build
 **Commit**: `docs(specs): design reflete os desvios aprovados do motor`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
