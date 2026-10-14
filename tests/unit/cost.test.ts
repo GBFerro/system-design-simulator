@@ -1,6 +1,8 @@
 import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
-import { getComponentById } from "@/data/components";
+import { getComponentById, SYSTEM_COMPONENTS } from "@/data/components";
+import { getSchema } from "@/domain/components/registry";
+import type { Params } from "@/domain/components/types";
 import { formatMoney, formatPrice } from "@/cost/currency";
 import { costLine, costPerMillionRequests, estimateCost } from "@/cost/estimate";
 import {
@@ -90,6 +92,80 @@ describe("cost estimate (CST-01/02)", () => {
     expect(formatPrice(0.096)).toBe("$0.096");
     expect(formatPrice(0.4)).toBe("$0.40");
     expect(formatMoney(100, "BRL")).toMatch(/^R\$/);
+  });
+});
+
+describe("cost by technology (TEC-17/18/51)", () => {
+  /** A node of `componentId` created with `technology` (its default class), then `params`. */
+  function techNode(
+    componentId: string,
+    id: string,
+    technology: string,
+    params: Params = {},
+  ): Node<ComponentNodeData> {
+    const created = createComponentNode(getComponentById(componentId)!, { x: 0, y: 0 }, technology);
+    return {
+      ...created,
+      id,
+      data: { ...created.data, params: { ...created.data.params, ...params } },
+    };
+  }
+
+  it("a provisioned technology costs instances x its class's hourly price x 730 (TEC-17)", () => {
+    const large = techNode("sql-db", "db", "postgres", {
+      instanceClass: "db.r6g.large",
+      instances: 2,
+    });
+    expect(costLine(large, 1000).monthly).toBeCloseTo(2 * 0.225 * 730, 6);
+    const bigger = techNode("sql-db", "db", "postgres", {
+      instanceClass: "db.r6g.2xlarge",
+      instances: 2,
+    });
+    const line = costLine(bigger, 1000);
+    expect(line.monthly).toBeCloseTo(2 * 0.899 * 730, 6);
+    // The line says which technology and class it priced (TEC-19)
+    expect(line.technology).toEqual({ id: "postgres", label: "PostgreSQL (RDS)" });
+    expect(line.instanceClass).toBe("db.r6g.2xlarge");
+  });
+
+  it("DynamoDB bills reads and writes apart from the snapshot's writes, whatever its instances (TEC-18/51)", () => {
+    const expected = (800 * 0.5 * 0.125 + 200 * 0.625) * 2.592;
+    for (const instances of [1, 5]) {
+      const line = costLine(techNode("nosql-db", "db", "dynamodb", { instances }), 1000, 200);
+      expect(line.monthly).toBeCloseTo(expected, 9);
+      expect(line.instanceMonthly).toBe(0);
+      expect(line.instanceClass).toBeUndefined();
+    }
+    // Strongly consistent reads cost a full read unit each (TEC-31)
+    const strong = techNode("nosql-db", "db", "dynamodb", { readConsistency: "strong" });
+    expect(costLine(strong, 1000, 200).monthly).toBeCloseTo(
+      (800 * 1 * 0.125 + 200 * 0.625) * 2.592,
+      9,
+    );
+    // Without the snapshot's writes, the read ratio the engine resolved splits the load
+    const dynamo = techNode("nosql-db", "db", "dynamodb");
+    expect(costLine(dynamo, 1000, undefined, 0.8).monthly).toBeCloseTo(expected, 9);
+  });
+
+  it("a managed service's hourly price is per resource, never times instances (TEC-51)", () => {
+    const one = costLine(techNode("load-balancer", "lb", "aws-alb", { instances: 1 }), 1000, 0);
+    const four = costLine(techNode("load-balancer", "lb", "aws-alb", { instances: 4 }), 1000, 0);
+    expect(one.monthly).toBeCloseTo(0.0225 * 730 + 1000 * 2.592 * 0.033, 9);
+    expect(four.monthly).toBe(one.monthly);
+  });
+
+  it("generic nodes cost exactly what they did before technologies", () => {
+    for (const c of SYSTEM_COMPONENTS) {
+      const generic = node(c.id, "n", { instances: 3 });
+      const p = getSchema(c.id).pricing;
+      const line = costLine(generic, 1000, 300);
+      const lookupShare = Number(generic.data.params?.lookupShare ?? 1);
+      const billed = 1000 * Math.min(1, Math.max(0, lookupShare));
+      expect(line.monthly).toBe(
+        3 * p.perInstanceHour * 730 + p.baseMonthly + billed * 2.592 * p.perMillionRequests,
+      );
+      expect(line.technology).toBeUndefined();
+    }
   });
 });
 

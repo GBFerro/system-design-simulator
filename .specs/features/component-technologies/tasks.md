@@ -989,15 +989,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `cost.test.ts`: Postgres db.r6g.large → 2xlarge com 2 instâncias = 2 × 0,899 × 730; DynamoDB com 1.000 req/s e 200 de escrita = 800·RRU·0,5·$0,125 + 200·$0,625 por milhão-mês, independente de `instances`; `generic` igual a hoje
-- [ ] `data.test.ts` passa sem recalibrar
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `cost.test.ts`: Postgres db.r6g.large → 2xlarge com 2 instâncias = 2 × 0,899 × 730; DynamoDB com 1.000 req/s e 200 de escrita = 800·RRU·0,5·$0,125 + 200·$0,625 por milhão-mês, independente de `instances`; `generic` igual a hoje
+- [x] `data.test.ts` passa sem recalibrar
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(cost): custo por tecnologia, classe e leitura/escrita`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
