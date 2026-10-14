@@ -1,6 +1,6 @@
 # Tecnologias dos componentes (spec 1 de 3) — Specification
 
-Oct 12, 2026 · Status: confirmada (2026-10-12); emendas de design em 2026-10-13 (TEC-05, TEC-36, TEC-50, TEC-51); emendas da validação em 2026-10-14 (TEC-45, TEC-38) · Escopo: Complex (catálogo + motor + custo + painel + paleta)
+Oct 12, 2026 · Status: verificada (rodada 3, PASS, 2026-10-14); confirmada em 2026-10-12; emendas de design em 2026-10-13 (TEC-05, TEC-36, TEC-50, TEC-51); emendas da validação em 2026-10-14 (TEC-45, TEC-38) · Escopo: Complex (catálogo + motor + custo + painel + paleta)
 
 ## Problem Statement
 
@@ -244,61 +244,61 @@ Cada tipo do catálogo tem hoje um único par capacidade/latência (SQL: 10k rps
 
 ## Requirement Traceability
 
-| Requirement ID | Story                              | Tasks                           | Phase   | Status      |
-| -------------- | ---------------------------------- | ------------------------------- | ------- | ----------- |
-| TEC-01         | P1: Escolher a tecnologia          | T8, T10                         | Execute | Implemented |
-| TEC-02         | P1: Escolher a tecnologia          | T14                             | Execute | Implemented |
-| TEC-03         | P1: Escolher a tecnologia          | T14                             | Execute | Implemented |
-| TEC-04         | P1: Escolher a tecnologia          | T14                             | Execute | Implemented |
-| TEC-05         | P1: Escolher a tecnologia          | T16                             | Execute | Implemented |
-| TEC-06         | P1: Escolher a tecnologia          | T16                             | Execute | Implemented |
-| TEC-07         | P1: Escolher a tecnologia          | T14, T16                        | Execute | Implemented |
-| TEC-08         | P1: Escolher a tecnologia          | T9                              | Execute | Implemented |
-| TEC-09         | P1: Escolher a tecnologia          | T9                              | Execute | Implemented |
-| TEC-10         | P1: Números de benchmark           | T1, T2, T3, T4, T5, T6, T7, T36 | Execute | Implemented |
-| TEC-11         | P1: Números de benchmark           | T2, T3, T4, T5, T6, T7          | Execute | Implemented |
-| TEC-12         | P1: Números de benchmark           | T1                              | Execute | Implemented |
-| TEC-13         | P1: Números de benchmark           | T11                             | Execute | Implemented |
-| TEC-14         | P1: Classe de instância            | T8, T16                         | Execute | Implemented |
-| TEC-15         | P1: Classe de instância            | T14                             | Execute | Implemented |
-| TEC-16         | P1: Classe de instância            | T9                              | Execute | Implemented |
-| TEC-17         | P1: Classe de instância            | T11, T33, T34                   | Execute | Implemented |
-| TEC-18         | P1: Classe de instância            | T33, T35                        | Execute | Implemented |
-| TEC-19         | P1: Classe de instância            | T35                             | Execute | Implemented |
-| TEC-20         | P1: Tecnologias na paleta          | T17                             | Execute | Implemented |
-| TEC-21         | P1: Tecnologias na paleta          | T13, T17                        | Execute | Implemented |
-| TEC-22         | P1: Tecnologias na paleta          | T13, T17, T18                   | Execute | Implemented |
-| TEC-23         | P1: Tecnologias na paleta          | T17, T18                        | Execute | Implemented |
-| TEC-24         | P1: Tecnologias na paleta          | T19                             | Execute | Implemented |
-| TEC-25         | P2: Primário de escrita SQL        | T20, T27                        | Execute | Implemented |
-| TEC-26         | P2: Primário de escrita SQL        | T23, T27, T28                   | Execute | Implemented |
-| TEC-27         | P2: Primário de escrita SQL        | T30                             | Execute | Implemented |
-| TEC-28         | P2: Partição quente e consistência | T20, T23, T25, T27              | Execute | Implemented |
-| TEC-29         | P2: Partição quente e consistência | T20, T23, T24, T27              | Execute | Implemented |
-| TEC-30         | P2: Partição quente e consistência | T23, T24, T27                   | Execute | Implemented |
-| TEC-31         | P2: Partição quente e consistência | T20, T23, T27, T33              | Execute | Implemented |
-| TEC-32         | P2: Partição quente e consistência | T20, T27                        | Execute | Implemented |
-| TEC-33         | P2: Partição quente e consistência | T10, T15                        | Execute | Implemented |
-| TEC-34         | P2: Limites gerenciados            | T20, T29                        | Execute | Implemented |
-| TEC-35         | P2: Limites gerenciados            | T20, T25, T27                   | Execute | Implemented |
-| TEC-36         | P2: Limites gerenciados            | T20, T23, T24, T27              | Execute | Implemented |
-| TEC-37         | P2: Limites gerenciados            | T20, T23, T25, T27              | Execute | Implemented |
-| TEC-38         | P2: Limites gerenciados            | T20, T23, T25, T27, T28         | Execute | Implemented |
-| TEC-39         | P2: Limites gerenciados            | T9, T15                         | Execute | Implemented |
-| TEC-40         | P2: Ver o limite                   | T21, T31                        | Execute | Implemented |
-| TEC-41         | P2: Ver o limite                   | T21, T26, T27, T28              | Execute | Implemented |
-| TEC-42         | P2: Ver o limite                   | T21, T32                        | Execute | Implemented |
-| TEC-43         | P3: Valores editados à mão         | T16                             | Execute | Implemented |
-| TEC-44         | P3: Valores editados à mão         | T14                             | Execute | Implemented |
-| TEC-45         | Edge cases                         | T16, T22                        | Execute | Implemented |
-| TEC-46         | Edge cases                         | T22, T24, T25, T27, T28         | Execute | Implemented |
-| TEC-47         | Edge cases                         | T30                             | Execute | Implemented |
-| TEC-48         | Edge cases                         | T9, T20, T30                    | Execute | Implemented |
-| TEC-49         | Edge cases                         | T37                             | Execute | Implemented |
-| TEC-50         | Edge cases                         | T12                             | Execute | Implemented |
-| TEC-51         | Edge cases                         | T10, T33, T34                   | Execute | Implemented |
+| Requirement ID | Story                              | Tasks                           | Phase   | Status   |
+| -------------- | ---------------------------------- | ------------------------------- | ------- | -------- |
+| TEC-01         | P1: Escolher a tecnologia          | T8, T10                         | Execute | Verified |
+| TEC-02         | P1: Escolher a tecnologia          | T14                             | Execute | Verified |
+| TEC-03         | P1: Escolher a tecnologia          | T14                             | Execute | Verified |
+| TEC-04         | P1: Escolher a tecnologia          | T14                             | Execute | Verified |
+| TEC-05         | P1: Escolher a tecnologia          | T16                             | Execute | Verified |
+| TEC-06         | P1: Escolher a tecnologia          | T16                             | Execute | Verified |
+| TEC-07         | P1: Escolher a tecnologia          | T14, T16                        | Execute | Verified |
+| TEC-08         | P1: Escolher a tecnologia          | T9                              | Execute | Verified |
+| TEC-09         | P1: Escolher a tecnologia          | T9                              | Execute | Verified |
+| TEC-10         | P1: Números de benchmark           | T1, T2, T3, T4, T5, T6, T7, T36 | Execute | Verified |
+| TEC-11         | P1: Números de benchmark           | T2, T3, T4, T5, T6, T7          | Execute | Verified |
+| TEC-12         | P1: Números de benchmark           | T1                              | Execute | Verified |
+| TEC-13         | P1: Números de benchmark           | T11                             | Execute | Verified |
+| TEC-14         | P1: Classe de instância            | T8, T16                         | Execute | Verified |
+| TEC-15         | P1: Classe de instância            | T14                             | Execute | Verified |
+| TEC-16         | P1: Classe de instância            | T9                              | Execute | Verified |
+| TEC-17         | P1: Classe de instância            | T11, T33, T34                   | Execute | Verified |
+| TEC-18         | P1: Classe de instância            | T33, T35                        | Execute | Verified |
+| TEC-19         | P1: Classe de instância            | T35                             | Execute | Verified |
+| TEC-20         | P1: Tecnologias na paleta          | T17                             | Execute | Verified |
+| TEC-21         | P1: Tecnologias na paleta          | T13, T17                        | Execute | Verified |
+| TEC-22         | P1: Tecnologias na paleta          | T13, T17, T18                   | Execute | Verified |
+| TEC-23         | P1: Tecnologias na paleta          | T17, T18                        | Execute | Verified |
+| TEC-24         | P1: Tecnologias na paleta          | T19                             | Execute | Verified |
+| TEC-25         | P2: Primário de escrita SQL        | T20, T27                        | Execute | Verified |
+| TEC-26         | P2: Primário de escrita SQL        | T23, T27, T28                   | Execute | Verified |
+| TEC-27         | P2: Primário de escrita SQL        | T30                             | Execute | Verified |
+| TEC-28         | P2: Partição quente e consistência | T20, T23, T25, T27              | Execute | Verified |
+| TEC-29         | P2: Partição quente e consistência | T20, T23, T24, T27              | Execute | Verified |
+| TEC-30         | P2: Partição quente e consistência | T23, T24, T27                   | Execute | Verified |
+| TEC-31         | P2: Partição quente e consistência | T20, T23, T27, T33              | Execute | Verified |
+| TEC-32         | P2: Partição quente e consistência | T20, T27                        | Execute | Verified |
+| TEC-33         | P2: Partição quente e consistência | T10, T15                        | Execute | Verified |
+| TEC-34         | P2: Limites gerenciados            | T20, T29                        | Execute | Verified |
+| TEC-35         | P2: Limites gerenciados            | T20, T25, T27                   | Execute | Verified |
+| TEC-36         | P2: Limites gerenciados            | T20, T23, T24, T27              | Execute | Verified |
+| TEC-37         | P2: Limites gerenciados            | T20, T23, T25, T27              | Execute | Verified |
+| TEC-38         | P2: Limites gerenciados            | T20, T23, T25, T27, T28         | Execute | Verified |
+| TEC-39         | P2: Limites gerenciados            | T9, T15                         | Execute | Verified |
+| TEC-40         | P2: Ver o limite                   | T21, T31                        | Execute | Verified |
+| TEC-41         | P2: Ver o limite                   | T21, T26, T27, T28              | Execute | Verified |
+| TEC-42         | P2: Ver o limite                   | T21, T32                        | Execute | Verified |
+| TEC-43         | P3: Valores editados à mão         | T16                             | Execute | Verified |
+| TEC-44         | P3: Valores editados à mão         | T14                             | Execute | Verified |
+| TEC-45         | Edge cases                         | T16, T22                        | Execute | Verified |
+| TEC-46         | Edge cases                         | T22, T24, T25, T27, T28         | Execute | Verified |
+| TEC-47         | Edge cases                         | T30                             | Execute | Verified |
+| TEC-48         | Edge cases                         | T9, T20, T30                    | Execute | Verified |
+| TEC-49         | Edge cases                         | T37                             | Execute | Verified |
+| TEC-50         | Edge cases                         | T12                             | Execute | Verified |
+| TEC-51         | Edge cases                         | T10, T33, T34                   | Execute | Verified |
 
-**Coverage:** 51 total, 51 mapped to tasks (T1–T37), 0 unmapped. All 51 implemented; the Verifier sets "Verified".
+**Coverage:** 51 total, 51 mapped to tasks (T1–T43), 0 unmapped. All 51 verified (validação rodada 3, PASS, 2026-10-14).
 
 ---
 

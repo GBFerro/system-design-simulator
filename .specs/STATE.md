@@ -48,3 +48,9 @@
 - **Status**: active
 
 ## Handoff
+
+- **Feature**: component-technologies (spec 1 de 3) — Done, verificada na rodada 3 (PASS, 2026-10-14); T1–T43 commitadas.
+- **Branch**: `feat/component-technologies`, criada a partir de `feat/guided-ui` (ainda fora da `main`); nada enviado ao remoto, sem PR.
+- **Próximos passos**: (1) push e PR, quando o usuário autorizar; (2) spec 2 — CAP e consistência sob falha (CP recusa, AP serve dado velho, leituras stale); (3) spec 3 — Serverless function, API externa, Workflow orchestrator e tecnologias nos 15 tipos genéricos (ver `context.md` → Deferred Ideas).
+- **Pendências menores**: comentários `SPEC_DEVIATION` em `profile.ts:68,135`, `analyze.ts:212`, `tick.ts:271,464` descrevem o design antigo (o `design.md` já está certo); MongoDB criado pela paleta nasce com 1 membro (o preset não define `instances`).
+- **Uncommitted**: nenhum.

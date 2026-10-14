@@ -19,7 +19,7 @@ Regras do repositório que valem em toda tarefa:
 
 **Spec**: `.specs/features/component-technologies/spec.md`
 **Design**: `.specs/features/component-technologies/design.md`
-**Status**: In Progress (fase 7: correções da validação rodada 1)
+**Status**: Done (fases 1–8: T1–T43 ✅; verificada na rodada 3, PASS)
 
 ---
 
