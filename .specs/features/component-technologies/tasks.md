@@ -911,14 +911,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Para grafos aleatórios com tecnologias: served ≤ offered, todo número finito, p50 ≤ p95 ≤ p99, throughput ≤ offered (TEC-48); mesmo grafo + seed + faults → analyze e ticks deep-equal (TEC-47); Aurora falha escritas por 30 s e PostgreSQL por 90 s (TEC-27)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Para grafos aleatórios com tecnologias: served ≤ offered, todo número finito, p50 ≤ p95 ≤ p99, throughput ≤ offered (TEC-48); mesmo grafo + seed + faults → analyze e ticks deep-equal (TEC-47); Aurora falha escritas por 30 s e PostgreSQL por 90 s (TEC-27)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): propriedades e determinismo com tecnologias`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
