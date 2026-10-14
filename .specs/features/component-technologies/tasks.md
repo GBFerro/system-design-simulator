@@ -1068,14 +1068,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `claude-map.test.ts` passa
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior (sem remoções)
+- [x] `claude-map.test.ts` passa
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior (sem remoções)
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `docs(claude): mapa e invariantes das tecnologias dos componentes`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
