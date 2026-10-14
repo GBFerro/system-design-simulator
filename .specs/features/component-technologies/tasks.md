@@ -1175,7 +1175,7 @@ T41 → T42
 ### T40: Aviso de réplica com primário Generic
 
 **What**: Emendar TEC-45 para dizer que o aviso só aparece quando réplica e primário têm tecnologias não-generic diferentes (um primário Generic são números próprios, não um produto), e adicionar os testes negativos: réplica MySQL alimentada por SQL Generic não gera warning no compilador nem aviso no Props (lacuna 3).
-**Where**: `tests/unit/compile-tech.test.ts`
+**Where**: `tests/unit/engine-tech-compile.test.ts`
 **Depends on**: T37
 **Reuses**: testes de warning de T22, e2e de T16
 **Requirement**: TEC-45
