@@ -147,6 +147,13 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: SPEC_DEVIATION profile.ts:68,135; analyze.ts:212; tick.ts:271,464 (design)
 - last seen: 2026-10-14T16:15:44Z
 
+### L-020 - When an acceptance criterion requires a condition on both sides of a relation, test the negative case for each side, not only one.
+
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `engine` · harmful: 0
+- features: component-technologies
+- evidence: validation.md round 2 W2 (compile.ts:147, TEC-45) (engine)
+- last seen: 2026-10-14T16:42:08Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

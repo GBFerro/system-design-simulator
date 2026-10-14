@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 20,
+  "next_id": 21,
   "lessons": [
     {
       "id": "L-001",
@@ -278,6 +278,20 @@
       "evidence": ["SPEC_DEVIATION profile.ts:68,135; analyze.ts:212; tick.ts:271,464 (design)"],
       "created": "2026-10-14T16:15:44Z",
       "last_seen": "2026-10-14T16:15:44Z"
+    },
+    {
+      "id": "L-020",
+      "key": "surviving_mutant::when an acceptance criterion requires a condition on both sides of a relation test the negative case for each side not only one",
+      "text": "When an acceptance criterion requires a condition on both sides of a relation, test the negative case for each side, not only one.",
+      "signal": "surviving_mutant",
+      "scope": "engine",
+      "status": "candidate",
+      "features": ["component-technologies"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["validation.md round 2 W2 (compile.ts:147, TEC-45) (engine)"],
+      "created": "2026-10-14T16:42:08Z",
+      "last_seen": "2026-10-14T16:42:08Z"
     }
   ]
 }
