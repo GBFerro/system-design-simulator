@@ -804,14 +804,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Teste: um `NodeSteadyState` com os campos chega ao snapshot com os mesmos valores; sem eles, o snapshot não ganha chaves (deep-equal ao de hoje); `nodeMetricsEqual` compartilha o objeto quando os três não mudam
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Teste: um `NodeSteadyState` com os campos chega ao snapshot com os mesmos valores; sem eles, o snapshot não ganha chaves (deep-equal ao de hoje); `nodeMetricsEqual` compartilha o objeto quando os três não mudam
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): recurso limitante no estado e no snapshot`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
