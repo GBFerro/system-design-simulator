@@ -1094,14 +1094,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` passa; o JS inicial fica dentro de +15% da baseline (sem atualizar a baseline)
-- [ ] Tabela de rastreabilidade com cada TEC mapeado para a tarefa que o cobre
-- [ ] Test count: contagem anterior (sem remoções)
+- [x] `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` passa; o JS inicial fica dentro de +15% da baseline (sem atualizar a baseline)
+- [x] Tabela de rastreabilidade com cada TEC mapeado para a tarefa que o cobre
+- [x] Test count: contagem anterior (sem remoções)
 
 **Tests**: e2e
 **Gate**: build
 **Commit**: `chore(release): gate de build das tecnologias dos componentes`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
