@@ -97,7 +97,9 @@ import {
   admit,
   classesOf,
   edgeWriteShare,
+  kafkaLimit,
   techPercentileMs,
+  type ConsumerLimit,
   type TechClassView,
   type TechFlowView,
 } from "./tech";
@@ -159,6 +161,8 @@ interface TickFlow extends FlowView {
   throttled?: number;
   /** Technology nodes: requests waiting over all the stations. */
   queueDepth?: number;
+  /** Kafka: its busiest consumer edge on this tick's new messages (TEC-34). */
+  consumerLimit?: ConsumerLimit;
 }
 
 function finite(v: number, fallback = 0): number {
@@ -708,9 +712,13 @@ export class TickSimulator {
         let lagBefore = 0;
         let delivered = 0;
         let lost = 0;
+        const consumers: { target: SimNode; demand: number }[] = [];
         for (const e of edges) {
           const prev = state.lag.get(e.id) ?? 0;
-          const pendingMsgs = prev + completed * edgeFactor(e, node, callCtx) * dt;
+          const factor = edgeFactor(e, node, callCtx);
+          if (node.tech)
+            consumers.push({ target: byId.get(e.target)!, demand: completed * factor });
+          const pendingMsgs = prev + completed * factor * dt;
           const pull = edgeFx(e)?.severed ? 0 : consumerCapacity(node, byId.get(e.target)!);
           const drained = Math.min(pendingMsgs, pull * dt);
           let next = pendingMsgs - drained;
@@ -727,6 +735,8 @@ export class TickSimulator {
         }
         flow.lag = lagTotal;
         flow.lagGrowing = lagTotal > lagBefore + 1e-9;
+        const consumerLimit = kafkaLimit(node, consumers);
+        if (consumerLimit) flow.consumerLimit = consumerLimit;
         flow.delivered = delivered;
         if (lost > 0) {
           // A full queue refuses publishes: producers see it as drops here.
@@ -837,12 +847,18 @@ export class TickSimulator {
       // the same `techLimitOf` as `analyze()` (TEC-41, D5).
       const sim = topo.byId.get(n.id) ?? n;
       const ws = nodeWs?.get(n.id) ?? clamp01(1 - topo.readRatio);
-      const limit = sim.tech
+      const techLimit = sim.tech
         ? techLimitOf(sim.tech, sim, {
             read: flow.offered * (1 - ws),
             write: flow.offered * ws,
           })
         : undefined;
+      // Kafka: its consumers when their busiest edge is fuller than the brokers.
+      const consumers = flow.consumerLimit;
+      const limit =
+        techLimit && consumers && consumers.utilization > techLimit.utilization
+          ? consumers
+          : techLimit;
       const util = limit
         ? finite(limit.utilization)
         : flow.capacity > 0

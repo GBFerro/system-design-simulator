@@ -33,7 +33,13 @@ import {
   type StationState,
 } from "./queueing";
 import { sampleExponential, type Rng } from "./rng";
-import { callProbability, callsOf, edgeCallsOf, type CallContext } from "./routing";
+import {
+  callProbability,
+  callsOf,
+  consumerPullers,
+  edgeCallsOf,
+  type CallContext,
+} from "./routing";
 import type { FlowView } from "./settle";
 
 /* ---------- read/write split per edge (A.3) ---------- */
@@ -269,6 +275,37 @@ export function techSteadyFlow(input: TechSteadyInput): TechSteady {
     served: Math.min(offered, read.served + write.served),
     throttled: admitted.throttled,
   };
+}
+
+/* ---------- Kafka consumers (TEC-34) ---------- */
+
+/** The busiest consumer edge of a Kafka node: its demand over what its consumers pull. */
+export interface ConsumerLimit {
+  kind: "consumers" | "consumers-partitions";
+  utilization: number;
+}
+
+/**
+ * The consumer side of a Kafka node (A.2): the largest demand_e ÷ pull_e
+ * over its consumer edges, `consumers-partitions` when the partitions cap
+ * that edge's consumers, else `consumers`. Undefined for any other node or
+ * one without consumer edges.
+ */
+export function kafkaLimit(
+  queue: SimNode,
+  consumers: readonly { target: SimNode; demand: number }[],
+): ConsumerLimit | undefined {
+  if (queue.tech?.consumerCap === undefined) return undefined;
+  let top: ConsumerLimit | undefined;
+  for (const { target, demand } of consumers) {
+    const { pullers, byPartitions } = consumerPullers(queue, target);
+    const pull = pullers * target.capacityPerInstance;
+    const utilization = pull > 0 && Number.isFinite(demand) ? Math.max(0, demand) / pull : 0;
+    if (!top || utilization > top.utilization) {
+      top = { kind: byPartitions ? "consumers-partitions" : "consumers", utilization };
+    }
+  }
+  return top;
 }
 
 /* ---------- latency of a class (A.6) ---------- */

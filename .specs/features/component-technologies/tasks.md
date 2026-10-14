@@ -884,15 +884,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: Kafka com 12 consumidores, 6 partições e worker de 12 instâncias drena como 6 no analyze e no tick; os mesmos params numa fila `generic` drenam como 12; `limitKind` = `consumers-partitions`
-- [ ] `engine-golden.test.ts` passa sem mudança
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: Kafka com 12 consumidores, 6 partições e worker de 12 instâncias drena como 6 no analyze e no tick; os mesmos params numa fila `generic` drenam como 12; `limitKind` = `consumers-partitions`
+- [x] `engine-golden.test.ts` passa sem mudança
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): partições limitam os consumidores do Kafka`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

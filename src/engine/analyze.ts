@@ -17,7 +17,7 @@
  * Deterministic for a given graph + config (seeded PRNG). Never throws.
  */
 import { techLimitOf, type TechLimit } from "@/domain/components/technologies/limits";
-import type { SimEdge, SimGraph } from "@/domain/graph/compile";
+import type { SimEdge, SimGraph, SimNode } from "@/domain/graph/compile";
 import { UTILIZATION_CRITICAL, UTILIZATION_WARNING } from "./constants";
 import {
   clamp01,
@@ -46,9 +46,11 @@ import { sanitizeLatencySlo, slowShareOf } from "./core/slo";
 import { drainShares, entryShares, withEffects } from "./core/faultView";
 import {
   edgeWriteShare,
+  kafkaLimit,
   techMeanMs,
   techPercentileMs,
   techSteadyFlow,
+  type ConsumerLimit,
   type TechFlowView,
 } from "./core/tech";
 import type { TickEffects } from "./faults/effects";
@@ -87,6 +89,8 @@ interface NodeFlow {
   stations?: StationState[];
   /** Refused by its quota or hot partition, req/s (part of `dropped`). */
   throttled?: number;
+  /** Kafka: its busiest consumer edge (TEC-34). */
+  consumerLimit?: ConsumerLimit;
 }
 
 interface Pass {
@@ -112,6 +116,24 @@ function status(offered: number, utilization: number): NodeStatus {
 
 function finite(v: number, fallback = 0): number {
   return Number.isFinite(v) ? v : fallback;
+}
+
+/**
+ * A Kafka node's limit (TEC-34): its consumers when their busiest edge is
+ * fuller than the brokers, which the profile's own limit measures.
+ */
+function withConsumers(
+  limit: TechLimit,
+  consumers: ConsumerLimit | undefined,
+  offered: number,
+): TechLimit {
+  if (!consumers || !(consumers.utilization > limit.utilization)) return limit;
+  return {
+    kind: consumers.kind,
+    utilization: consumers.utilization,
+    capacityRps: consumers.utilization > 0 ? finite(offered / consumers.utilization) : 0,
+    scalesWithInstances: consumers.kind === "consumers",
+  };
 }
 
 /** Refusals above float noise (a quota that lets everything through leaves ~1e-12). */
@@ -343,15 +365,19 @@ export function analyzeWithModel(
         // Decoupled: each consumer edge drains at most its consumer capacity;
         // the rest piles up as lag (bounded by maxQueue, then lost).
         let lag = 0;
+        const consumers: { target: SimNode; demand: number }[] = [];
         for (const e of edges) {
           const demand = served * edgeFactor(e, node, callCtx);
           const pull = edgeFx(e)?.severed ? 0 : consumerCapacity(node, byId.get(e.target)!);
           const drained = Math.min(demand, pull);
           lag += demand - drained;
           push(e, drained);
+          if (node.tech) consumers.push({ target: byId.get(e.target)!, demand });
         }
         flow.backlog = Math.min(maxQueue, lag * cfg.horizonSec);
         flow.lagging = lag > 1e-9;
+        const consumerLimit = kafkaLimit(node, consumers);
+        if (consumerLimit) flow.consumerLimit = consumerLimit;
       } else {
         for (const e of edges) push(e, served * edgeFactor(e, node, callCtx));
       }
@@ -413,7 +439,11 @@ export function analyzeWithModel(
     const sim = byId.get(node.id) ?? node;
     const ws = pass.nodeWs?.get(node.id) ?? defaultWs;
     const limit: TechLimit | undefined = sim.tech
-      ? techLimitOf(sim.tech, sim, { read: offered * (1 - ws), write: offered * ws })
+      ? withConsumers(
+          techLimitOf(sim.tech, sim, { read: offered * (1 - ws), write: offered * ws }),
+          flow?.consumerLimit,
+          offered,
+        )
       : undefined;
     const utilization = limit ? finite(limit.utilization) : finite(st.utilization);
     let nodeStatus = status(offered, utilization);
