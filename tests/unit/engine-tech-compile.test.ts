@@ -87,6 +87,19 @@ describe("compileGraph resolves each node's technology (T22)", () => {
     expect(same.warnings.some((w) => w.includes("Replica technology"))).toBe(false);
   });
 
+  it("a MySQL replica fed by a Generic primary doesn't warn: custom numbers aren't a product (TEC-45)", () => {
+    const sim = compileV3(
+      [
+        comp("app", "app-server"),
+        comp("primary", "sql-db", { technology: "generic" }),
+        comp("replica", "read-replica", { technology: "mysql" }),
+      ],
+      [wire("app", "primary"), wire("primary", "replica")],
+    );
+    expect(sim.nodes.find((n) => n.id === "replica")?.tech?.technology).toBe("mysql");
+    expect(sim.warnings.some((w) => w.includes("Replica technology"))).toBe(false);
+  });
+
   it("a design of generic nodes gets no new warnings", () => {
     const nodes = [
       comp("client", "client"),

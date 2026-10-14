@@ -160,6 +160,15 @@ test("TEC-45: a read replica whose technology differs from its primary's says so
   // Same technology as the primary: no warning
   await page.getByLabel("Technology", { exact: true }).selectOption("postgres");
   await expect(warning).toHaveCount(0);
+
+  // A Generic primary is custom numbers, not a product: no warning either
+  await page.getByLabel("Technology", { exact: true }).selectOption("mysql");
+  await expect(warning).toBeVisible();
+  await page.locator('.react-flow__node[data-id^="sql-db-"]').click();
+  await page.getByLabel("Technology", { exact: true }).selectOption("generic");
+  await page.locator('.react-flow__node[data-id^="read-replica-"]').click();
+  await expect(page.getByLabel("Technology", { exact: true })).toHaveValue("mysql");
+  await expect(warning).toHaveCount(0);
 });
 
 test("TEC-07: on a read-only reference the technology and class can't be changed", async ({

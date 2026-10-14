@@ -1187,15 +1187,15 @@ T41 → T42
 
 **Done when**:
 
-- [ ] `spec.md` TEC-45 emendado (texto acima) e `validate_spec.py` passa
-- [ ] Teste unitário: primário Generic + réplica MySQL → sem warning; primário Postgres + réplica MySQL → warning (já existente, mantido)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `spec.md` TEC-45 emendado (texto acima) e `validate_spec.py` passa
+- [x] Teste unitário: primário Generic + réplica MySQL → sem warning; primário Postgres + réplica MySQL → warning (já existente, mantido)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): aviso de réplica só entre tecnologias reais`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
