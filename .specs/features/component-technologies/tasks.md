@@ -1160,15 +1160,15 @@ T41 → T42
 
 **Done when**:
 
-- [ ] O teste chega a uma aba somente leitura com um nó PostgreSQL por um caminho real do app ou por store exposto em `?e2e` (sem mudar código de produção só para o teste, a não ser expor algo já previsto para e2e)
-- [ ] "Instance class" está `disabled`; trocar não é possível; nenhuma entrada de undo
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] O teste chega a uma aba somente leitura com um nó PostgreSQL por um caminho real do app ou por store exposto em `?e2e` (sem mudar código de produção só para o teste, a não ser expor algo já previsto para e2e)
+- [x] "Instance class" está `disabled`; trocar não é possível; nenhuma entrada de undo
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `test(props): seletor de classe desabilitado em aba somente leitura`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

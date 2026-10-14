@@ -172,6 +172,56 @@ test("TEC-07: on a read-only reference the technology and class can't be changed
   await expect(page.getByLabel("Technology", { exact: true })).toHaveValue("generic");
 });
 
+test("TEC-07: on a read-only tab a provisioned technology's class and reset are disabled too", async ({
+  page,
+}) => {
+  await open(page);
+  await addWithTechnology(page, "SQL Database", "postgres");
+  const capacity = page.getByLabel("Read capacity per instance", { exact: true });
+  await capacity.fill("12345");
+  await capacity.press("Enter");
+  await expect(page.getByTestId("technology-modified")).toBeVisible();
+
+  // References are all Generic, so flag this tab read-only in what the app persisted (as a
+  // reopened reference tab is) and open the app again: rehydration brings it back read-only.
+  await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem("systemsim-canvas") as string);
+    saved.state.tabs = saved.state.tabs.map((t: { id: string }) =>
+      t.id === saved.state.activeTabId ? { ...t, readOnly: true } : t,
+    );
+    localStorage.setItem("systemsim-canvas", JSON.stringify(saved));
+  });
+  await page.reload();
+  await page.locator('.react-flow__node[data-id^="sql-db-"]').click();
+
+  const technology = page.getByLabel("Technology", { exact: true });
+  const instanceClass = page.getByLabel("Instance class", { exact: true });
+  await expect(technology).toBeDisabled();
+  await expect(technology).toHaveValue("postgres");
+  await expect(instanceClass).toBeDisabled();
+  await expect(instanceClass).toHaveValue("db.r6g.xlarge");
+  await expect(
+    page.getByTestId("technology-modified").getByRole("button", { name: "Reset to benchmark" }),
+  ).toBeDisabled();
+
+  // A change that reaches the select anyway is a no-op: same class, same numbers, no undo step
+  await instanceClass.evaluate((el) => {
+    (el as HTMLSelectElement).value = "db.r6g.4xlarge";
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(instanceClass).toHaveValue("db.r6g.xlarge");
+  await expect(capacity).toHaveValue("12345");
+  const params = await page.evaluate(
+    () => JSON.parse(localStorage.getItem("systemsim-canvas") as string).state.nodes[0].data.params,
+  );
+  expect(params).toMatchObject({
+    technology: "postgres",
+    instanceClass: "db.r6g.xlarge",
+    capacityPerInstance: 12345,
+  });
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+});
+
 /** The technology the Props panel shows for the node whose id starts with `componentId`. */
 async function technologyOfNode(page: Page, componentId: string) {
   await page.locator(`.react-flow__node[data-id^="${componentId}-"]`).click();
