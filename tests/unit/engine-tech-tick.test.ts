@@ -104,24 +104,34 @@ describe("SQL write primary in the tick (TEC-26)", () => {
 });
 
 describe("AWS API Gateway burst in the tick (TEC-38)", () => {
-  it("the 5,000 burst absorbs ~0.9 s, then 5,000 req/s fail", () => {
-    const graph = compileV3(
+  const gateway = () =>
+    compileV3(
       [comp("client", "client"), techNode("gw", "api-gateway", "aws-api-gateway")],
       [wire("client", "gw")],
     );
-    const sim = new TickSimulator(graph, { seed: 11, tickSamples: 50 });
+
+  it("the 5,000 burst absorbs 1 s (within a tick), then 5,000 req/s fail", () => {
+    const sim = new TickSimulator(gateway(), { seed: 11, tickSamples: 50 });
     const snaps = Array.from({ length: 60 }, () => sim.step(15_000));
     const firstDrop = snaps.find((s) => s.nodes.gw.drops > 0)!;
-    // Full bucket: −750 + 500 per tick after the first: 18 ticks ≈ 0.9 s.
-    expect(firstDrop.t).toBeGreaterThanOrEqual(0.85);
-    expect(firstDrop.t).toBeLessThanOrEqual(1.0);
-    for (const s of snaps.filter((x) => x.t < 0.85)) expect(s.nodes.gw.drops).toBe(0);
-    for (const s of snaps.filter((x) => x.t >= 1.05)) {
+    // Full bucket: −750 + 500 per tick, so B ÷ (λ − L) = 1.0 s; Poisson arrivals move it a tick at most.
+    expect(firstDrop.t).toBeGreaterThanOrEqual(0.95);
+    expect(firstDrop.t).toBeLessThanOrEqual(1.05);
+    for (const s of snaps.filter((x) => x.t < 0.95)) expect(s.nodes.gw.drops).toBe(0);
+    for (const s of snaps.filter((x) => x.t > firstDrop.t)) {
       // Bucket empty: exactly the 10,000 req/s rate gets through.
       expect(s.nodes.gw.drops).toBeCloseTo(s.nodes.gw.rpsIn - 10_000, 6);
       expect(s.nodes.gw.status).toBe("critical");
       expect(s.nodes.gw.limitKind).toBe("account-throttle");
     }
+  });
+
+  it("below 10,000 req/s nothing fails, even on ticks whose Poisson arrivals pass the rate", () => {
+    const sim = new TickSimulator(gateway(), { seed: 11, tickSamples: 50 });
+    const snaps = Array.from({ length: 200 }, () => sim.step(9_800));
+    // The noise does cross the rate on some ticks: the bucket absorbs them.
+    expect(snaps.some((s) => s.nodes.gw.rpsIn > 10_000)).toBe(true);
+    for (const s of snaps) expect(s.nodes.gw.drops).toBe(0);
   });
 });
 

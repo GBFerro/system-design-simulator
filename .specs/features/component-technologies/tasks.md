@@ -1214,15 +1214,15 @@ T41 → T42
 
 **Done when**:
 
-- [ ] Teste: a 15.000 req/s o primeiro erro aparece entre 0,95 s e 1,05 s; com o bucket vazio, erros = λ − 10.000; abaixo de 10.000 req/s, nunca há erro
-- [ ] `engine-golden.test.ts` passa sem mudança
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior (expectativas ajustadas, sem remoções)
+- [x] Teste: a 15.000 req/s o primeiro erro aparece entre 0,95 s e 1,05 s; com o bucket vazio, erros = λ − 10.000; abaixo de 10.000 req/s, nunca há erro
+- [x] `engine-golden.test.ts` passa sem mudança
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior (expectativas ajustadas, sem remoções)
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `fix(engine): token bucket recarrega antes de consumir`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

@@ -272,14 +272,17 @@ describe("admission: quotas, hot partition, token bucket (T23)", () => {
       throttled.push(a.throttled);
     }
     // The full bucket (5,000) pays 250 tokens of excess per 50 ms tick, the
-    // refill capped at the burst: 18 ticks (0.9 s ≈ 1 s) without errors.
-    expect(throttled.slice(0, 18).every((t) => t === 0)).toBe(true);
-    expect(throttled.slice(18).every((t) => Math.abs(t - 5_000) < 1e-6)).toBe(true);
+    // tick's refill spent before the cap: 20 ticks (B ÷ (λ − L) = 1.0 s) without errors.
+    expect(throttled.slice(0, 20).every((t) => t === 0)).toBe(true);
+    expect(throttled.slice(20).every((t) => Math.abs(t - 5_000) < 1e-6)).toBe(true);
     // Steady state (no bucket): min(λ, L).
     expect(admit(gw, { read: 15_000, write: 0 }, 1).throttled).toBe(5_000);
-    // Below the limit the bucket refills up to the burst.
-    const refill = admit(gw, { read: 1_000, write: 0 }, 1, { tokens: 4_990, dtSec: dt });
-    expect(refill.tokens).toBe(5_000 - 1_000 * dt);
+    // Below the limit the bucket refills (+L·dt − λ·dt) up to the burst.
+    const refill = admit(gw, { read: 1_000, write: 0 }, 1, { tokens: 1_000, dtSec: dt });
+    expect(refill.throttled).toBe(0);
+    expect(refill.tokens).toBeCloseTo(1_000 + (10_000 - 1_000) * dt, 9);
+    const capped = admit(gw, { read: 1_000, write: 0 }, 1, { tokens: 4_990, dtSec: dt });
+    expect(capped.tokens).toBe(5_000);
   });
 });
 

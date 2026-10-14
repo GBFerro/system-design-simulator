@@ -1,6 +1,6 @@
 # Tecnologias dos componentes (spec 1 de 3) — Specification
 
-Oct 12, 2026 · Status: confirmada (2026-10-12); emendas de design em 2026-10-13 (TEC-05, TEC-36, TEC-50, TEC-51); emenda da validação em 2026-10-14 (TEC-45) · Escopo: Complex (catálogo + motor + custo + painel + paleta)
+Oct 12, 2026 · Status: confirmada (2026-10-12); emendas de design em 2026-10-13 (TEC-05, TEC-36, TEC-50, TEC-51); emendas da validação em 2026-10-14 (TEC-45, TEC-38) · Escopo: Complex (catálogo + motor + custo + painel + paleta)
 
 ## Problem Statement
 
@@ -180,7 +180,7 @@ Cada tipo do catálogo tem hoje um único par capacidade/latência (SQL: 10k rps
 2. WHILE a tecnologia de uma Message Queue é SQS FIFO ou RabbitMQ, ou a de um Pub/Sub é SNS, the motor SHALL limitar a vazão de entrada ao teto de mensagens por segundo da tecnologia (cota documentada para SQS FIFO e SNS; benchmark por fila para RabbitMQ) e SHALL contar o excesso como erro. <!-- TEC-35 -->
 3. WHILE a tecnologia de um Search é OpenSearch, the motor SHALL dar a cada consulta a latência da mais lenta entre `shards` amostras do tempo de serviço (fan-out) e SHALL dar ao nó a capacidade de consulta min(`instances`, `shards` × (`replicas` + 1)) × capacidade por nó ÷ `shards` (réplicas só aumentam a vazão quando há nós para recebê-las). <!-- TEC-36 -->
 4. WHILE a tecnologia de um Object Storage é S3, the motor SHALL limitar o nó a 5.500 GET/s e 3.500 PUT/s por prefixo, multiplicados pelo parâmetro `prefixes` (1 a 1.000), e SHALL contar o excesso como erro (503 SlowDown). <!-- TEC-37 -->
-5. WHILE a tecnologia de um API Gateway é AWS API Gateway, the motor SHALL limitar o nó à cota de throttling da conta (req/s em regime e burst, valores da cota documentada) e SHALL contar o excesso como erro (429). <!-- TEC-38 -->
+5. WHILE a tecnologia de um API Gateway é AWS API Gateway, the motor SHALL limitar o nó à cota de throttling da conta (req/s em regime e burst, valores da cota documentada) e SHALL contar o excesso como erro (429). No tick, o burst é um token bucket que começa cheio: com λ acima da cota L, o primeiro erro SHALL aparecer depois de burst ÷ (λ − L) segundos, com a resolução de um tick, e daí em diante o erro SHALL ser λ − L; abaixo de L, nenhum erro. <!-- TEC-38 -->
 6. WHILE a tecnologia de um Load Balancer é AWS NLB, the Props SHALL oferecer só o algoritmo `hash` (flow hash) e um valor salvo diferente SHALL resolver para `hash`; para as tecnologias L7, o Props SHALL oferecer só os algoritmos que a tecnologia suporta. <!-- TEC-39 -->
 
 **Independent Test**: Unitário: Kafka com 12 consumidores e 6 partições drena como 6; S3 com 1 prefixo e 10.000 GET/s → ~4.500 req/s de erro; OpenSearch com 1 → 8 shards tem p99 não decrescente.

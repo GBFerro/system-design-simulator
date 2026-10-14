@@ -101,8 +101,9 @@ function nonNegative(v: number): number {
 /**
  * What a node's throttle lets through. Quota: each class up to its own
  * limit, then the shared limit proportionally — with `bucket` and a burst,
- * a token bucket instead (it starts full: tokens ← min(burst, tokens +
- * L·dt), admitted = min(arrivals, tokens)). Hot partition (D2): when its
+ * a token bucket instead (it starts full: available = tokens + L·dt,
+ * admitted = min(arrivals, available), tokens ← min(burst, available −
+ * admitted)). Hot partition (D2): when its
  * load U passes 1 only it loses, a share × (1 − 1/U) of the requests of
  * each class.
  */
@@ -125,9 +126,11 @@ export function admit(
       let allowed = Math.min(total, limit);
       if (bucket && throttle.burst !== undefined) {
         const dt = nonNegative(bucket.dtSec);
-        const full = Math.min(throttle.burst, nonNegative(bucket.tokens) + limit * dt);
-        allowed = dt > 0 ? Math.min(total, full / dt) : 0;
-        tokens = full - allowed * dt;
+        // The tick's refill is spendable before the cap: a full bucket drains
+        // at λ − L, as a continuous token bucket does (TEC-38).
+        const available = nonNegative(bucket.tokens) + limit * dt;
+        allowed = dt > 0 ? Math.min(total, available / dt) : 0;
+        tokens = Math.min(throttle.burst, available - allowed * dt);
       }
       const factor = total > 0 ? allowed / total : 1;
       read *= factor;
