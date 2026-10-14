@@ -112,6 +112,41 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: tests/e2e/drill.spec.ts (e2e)
 - last seen: 2026-10-09T20:50:26Z
 
+### L-015 - Test a formula at parameter values where its plausible variants diverge (even and odd counts, the range bounds), not only at the default configuration.
+
+- signal: `surviving_mutant` · recurrence: 1 feature(s) · scope: `engine` · harmful: 0
+- features: component-technologies
+- evidence: validation.md M3b (profile.ts:174, TEC-29) (engine)
+- last seen: 2026-10-14T16:15:41Z
+
+### L-016 - Give every case an acceptance criterion enumerates its own test assertion.
+
+- signal: `ac_gap` · recurrence: 1 feature(s) · harmful: 0
+- features: component-technologies
+- evidence: TEC-07 (TechnologyPicker.tsx:106, class select disabled untested)
+- last seen: 2026-10-14T16:15:42Z
+
+### L-017 - State in the acceptance criterion whether the neutral default option counts as a distinct value in a comparison rule.
+
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · harmful: 0
+- features: component-technologies
+- evidence: TEC-45 (compile.ts:147 warns only when both technologies are non-generic)
+- last seen: 2026-10-14T16:15:43Z
+
+### L-018 - When an acceptance criterion names a rate limit with a burst, state the expected absorb time and its tolerance.
+
+- signal: `spec_precision_gap` · recurrence: 1 feature(s) · scope: `engine` · harmful: 0
+- features: component-technologies
+- evidence: TEC-38 (tech.ts:127-130 burst absorbs 0.9 s, not 1.0 s) (engine)
+- last seen: 2026-10-14T16:15:44Z
+
+### L-019 - Amend design.md when the implementation records a SPEC_DEVIATION against it, so the design stays the source of truth.
+
+- signal: `spec_deviation` · recurrence: 1 feature(s) · scope: `design` · harmful: 0
+- features: component-technologies
+- evidence: SPEC_DEVIATION profile.ts:68,135; analyze.ts:212; tick.ts:271,464 (design)
+- last seen: 2026-10-14T16:15:44Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.
