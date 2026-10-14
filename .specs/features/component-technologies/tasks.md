@@ -19,7 +19,7 @@ Regras do repositório que valem em toda tarefa:
 
 **Spec**: `.specs/features/component-technologies/spec.md`
 **Design**: `.specs/features/component-technologies/design.md`
-**Status**: Approved (2026-10-13)
+**Status**: In Progress (fase 7: correções da validação rodada 1)
 
 ---
 
@@ -120,6 +120,19 @@ T32 → T36
 T34 → T36
 T35 → T36
 T36 → T37
+```
+
+### Phase 7: Correções da validação (rodada 1)
+
+```
+T37 → T38
+T37 → T39
+T37 → T40
+T37 → T41
+T38 → T42
+T39 → T42
+T40 → T42
+T41 → T42
 ```
 
 ---
@@ -1105,10 +1118,144 @@ T36 → T37
 
 ---
 
+### T38: QUORUM com RF par
+
+**What**: Testes que discriminam a fórmula do QUORUM para RF par (lacuna 1 da validação, mutante M3b ⌈RF/2⌉ sobrevivente): QUORUM dá `kth(2,2)`, `kth(3,4)` e `kth(4,6)` para RF 2, 4 e 6, e o custo de leitura acompanha k.
+**Where**: `tests/unit/tech-profile.test.ts`
+**Depends on**: T37
+**Reuses**: testes de quorum existentes
+**Requirement**: TEC-29
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Asserções para RF 2, 4 e 6 em QUORUM (k = ⌊RF/2⌋ + 1) e para ONE/ALL nos mesmos RF
+- [ ] Com o mutante k = ⌈RF/2⌉ aplicado localmente, pelo menos um teste novo falha (mutante descartado antes do commit)
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Test count: contagem anterior + os novos
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): quorum com fator de replicação par`
+**Status**: Pending
+
+---
+
+### T39: Classe desabilitada em aba somente leitura
+
+**What**: E2E que abre uma aba somente leitura contendo um nó com tecnologia provisionada (ex.: PostgreSQL) e confere que os selects "Technology" e "Instance class" ficam desabilitados e que "Reset to benchmark" não edita (lacuna 2 da validação).
+**Where**: `tests/e2e/technologies.spec.ts`
+**Depends on**: T37
+**Reuses**: helpers de `tests/e2e/helpers.ts`, stores expostos em dev/`?e2e`
+**Requirement**: TEC-07
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] O teste chega a uma aba somente leitura com um nó PostgreSQL por um caminho real do app ou por store exposto em `?e2e` (sem mudar código de produção só para o teste, a não ser expor algo já previsto para e2e)
+- [ ] "Instance class" está `disabled`; trocar não é possível; nenhuma entrada de undo
+- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [ ] Test count: contagem anterior + os novos
+
+**Tests**: e2e
+**Gate**: full
+**Commit**: `test(props): seletor de classe desabilitado em aba somente leitura`
+**Status**: Pending
+
+---
+
+### T40: Aviso de réplica com primário Generic
+
+**What**: Emendar TEC-45 para dizer que o aviso só aparece quando réplica e primário têm tecnologias não-generic diferentes (um primário Generic são números próprios, não um produto), e adicionar os testes negativos: réplica MySQL alimentada por SQL Generic não gera warning no compilador nem aviso no Props (lacuna 3).
+**Where**: `tests/unit/compile-tech.test.ts`
+**Depends on**: T37
+**Reuses**: testes de warning de T22, e2e de T16
+**Requirement**: TEC-45
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] `spec.md` TEC-45 emendado (texto acima) e `validate_spec.py` passa
+- [ ] Teste unitário: primário Generic + réplica MySQL → sem warning; primário Postgres + réplica MySQL → warning (já existente, mantido)
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Test count: contagem anterior + os novos
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): aviso de réplica só entre tecnologias reais`
+**Status**: Pending
+
+---
+
+### T41: Token bucket do API Gateway absorve o burst inteiro
+
+**What**: Em `admit`, somar a recarga do tick antes de consumir e só depois limitar ao burst (`admitted = min(λ·dt, tokens + L·dt)`, `tokens = min(B, tokens + L·dt − admitted)`), para que a 15.000 req/s o burst de 5.000 absorva 1,0 s (um tick de tolerância), como um token bucket contínuo (lacuna 4); ajustar a expectativa do teste do tick para ~1,0 s.
+**Where**: `src/engine/core/tech.ts`
+**Depends on**: T37
+**Reuses**: `admit`, testes de T23/T28
+**Requirement**: TEC-38
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Teste: a 15.000 req/s o primeiro erro aparece entre 0,95 s e 1,05 s; com o bucket vazio, erros = λ − 10.000; abaixo de 10.000 req/s, nunca há erro
+- [ ] `engine-golden.test.ts` passa sem mudança
+- [ ] Gate check passes: `npm run typecheck && npm test`
+- [ ] Test count: contagem anterior (expectativas ajustadas, sem remoções)
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `fix(engine): token bucket recarrega antes de consumir`
+**Status**: Pending
+
+---
+
+### T42: Design atualizado com os desvios aprovados
+
+**What**: Atualizar `design.md` (Apêndice A.1, A.2, A.3, A.7 e a seção de mecânicas) com os cinco `SPEC_DEVIATION` do código: `stations[]` explícitas, folga `QUOTA_HEADROOM` nos gerenciados com cota, divisão leitura/escrita em todo nó com tecnologia, `techTickFlow` em `core/tick.ts`, ruído de float zerado no tick; e rodar o gate de build.
+**Where**: `.specs/features/component-technologies/design.md`
+**Depends on**: T38, T39, T40, T41
+**Reuses**: marcadores `SPEC_DEVIATION` no código
+**Requirement**: TEC-49
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [ ] Cada marcador `SPEC_DEVIATION` tem o texto correspondente no design
+- [ ] `npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run bundle:check && npm run test:e2e` passa
+- [ ] Test count: contagem anterior (sem remoções)
+
+**Tests**: e2e
+**Gate**: build
+**Commit**: `docs(specs): design reflete os desvios aprovados do motor`
+**Status**: Pending
+
+---
+
 ## Phase Execution Map
 
 ```
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7
 ```
 
 As setas de cada tarefa estão nos diagramas das fases acima (incluindo as que vêm de fases anteriores).
