@@ -4,6 +4,7 @@
  * graph with a preview and one undo step (ADV-02).
  */
 import type { Edge, Node } from "@xyflow/react";
+import type { TechLimitKind } from "@/domain/components/technologies/profile";
 import type { Params } from "@/domain/components/types";
 import type { EdgeRulePatch } from "@/domain/graph/edgeRules";
 import type { ComponentNodeData } from "@/store/canvasStore";
@@ -57,10 +58,27 @@ export interface QuickFix {
 export interface AdvisorContext {
   /** Load each node received over the last run's recent window, req/s (absent without a run). */
   load?: Readonly<Record<string, number>>;
+  /**
+   * Writes each node with a technology received over the same window, req/s
+   * (the engine's `writeRps`); without it the advisor splits by `readRatio`.
+   */
+  writeLoad?: Readonly<Record<string, number>>;
+  /**
+   * The engine's limiting resource per node with a technology over the same
+   * window: what the advisor reads for a Kafka node, whose consumers only the
+   * engine sees (TEC-42).
+   */
+  limits?: Readonly<Record<string, EngineLimit>>;
   /** Share of user requests that are reads (the problem's, else the Client's). */
   readRatio: number;
   /** The last score, while it still describes this design. */
   score?: ScoreResult | null;
+}
+
+/** A node's limiting resource as the engine reported it (mean utilization, newest kind). */
+export interface EngineLimit {
+  kind: TechLimitKind;
+  utilization: number;
 }
 
 export const SEVERITY_RANK: Record<Severity, number> = { info: 0, warning: 1, critical: 2 };

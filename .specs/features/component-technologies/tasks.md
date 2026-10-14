@@ -963,14 +963,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `advisor.test.ts`: a utilização do advisor para Postgres com escritas saturadas = `limitUtilization` do snapshot do analyze; AWS API Gateway na cota e Postgres no primário não recebem fix de instâncias; nenhuma referência ganha finding acima de info (teste existente)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `advisor.test.ts`: a utilização do advisor para Postgres com escritas saturadas = `limitUtilization` do snapshot do analyze; AWS API Gateway na cota e Postgres no primário não recebem fix de instâncias; nenhuma referência ganha finding acima de info (teste existente)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(advisor): findings de carga pelo recurso limitante da tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
