@@ -41,7 +41,10 @@ export function suggestedInstances(rps: number, capacityPerInstance: number): nu
 /**
  * One suggestion per tier whose instance count should change. Tiers without
  * load can't be sized from it, and tiers with no per-instance price (managed
- * per-request services, the client) have nothing to size.
+ * per-request services, the client) have nothing to size. Prices come from
+ * the node's technology and class (`pricingOf` through `costLine`), so a
+ * managed technology is never sized (TEC-51) and a provisioned one saves or
+ * costs its class's hourly price per instance (TEC-17).
  */
 export function rightSize(
   nodes: readonly Node[],
@@ -53,7 +56,7 @@ export function rightSize(
     const rps = rpsOf(node.id);
     if (!Number.isFinite(rps) || rps <= 0) continue;
     const before = costLine(node, rps);
-    if (before.pricing.perInstanceHour <= 0) continue;
+    if (before.pricing.managed || before.pricing.perInstanceHour <= 0) continue;
     const capacity = capacityPerInstanceOf(node.data);
     const from = instancesOf(node.data);
     const to = suggestedInstances(rps, capacity);

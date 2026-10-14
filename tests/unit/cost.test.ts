@@ -36,6 +36,21 @@ function node(
 
 const rpsOf = (map: Record<string, number>) => (id: string) => map[id] ?? 0;
 
+/** A node of `componentId` created with `technology` (its default class), then `params`. */
+function techNode(
+  componentId: string,
+  id: string,
+  technology: string,
+  params: Params = {},
+): Node<ComponentNodeData> {
+  const created = createComponentNode(getComponentById(componentId)!, { x: 0, y: 0 }, technology);
+  return {
+    ...created,
+    id,
+    data: { ...created.data, params: { ...created.data.params, ...params } },
+  };
+}
+
 describe("cost estimate (CST-01/02)", () => {
   it("prices a fixed graph as computed by hand", () => {
     const nodes = [
@@ -96,21 +111,6 @@ describe("cost estimate (CST-01/02)", () => {
 });
 
 describe("cost by technology (TEC-17/18/51)", () => {
-  /** A node of `componentId` created with `technology` (its default class), then `params`. */
-  function techNode(
-    componentId: string,
-    id: string,
-    technology: string,
-    params: Params = {},
-  ): Node<ComponentNodeData> {
-    const created = createComponentNode(getComponentById(componentId)!, { x: 0, y: 0 }, technology);
-    return {
-      ...created,
-      id,
-      data: { ...created.data, params: { ...created.data.params, ...params } },
-    };
-  }
-
   it("a provisioned technology costs instances x its class's hourly price x 730 (TEC-17)", () => {
     const large = techNode("sql-db", "db", "postgres", {
       instanceClass: "db.r6g.large",
@@ -206,6 +206,30 @@ describe("right-size (CST-03)", () => {
     expect(s.some((x) => x.nodeId === "cdn" || x.nodeId === "auth")).toBe(false);
     // Only applicable suggestions count toward the delta.
     expect(rightSizeDelta(s)).toBeCloseTo(app.monthlyAfter - app.monthlyBefore, 6);
+  });
+});
+
+describe("right-size by technology (TEC-17/51)", () => {
+  it("never sizes an AWS API Gateway (managed), while a self-managed gateway gets a suggestion", () => {
+    const load = rpsOf({ aws: 50_000, kong: 50_000, gw: 50_000 });
+    const s = rightSize(
+      [
+        techNode("api-gateway", "aws", "aws-api-gateway"),
+        techNode("api-gateway", "kong", "kong"),
+        node("api-gateway", "gw"),
+      ],
+      load,
+    );
+    expect(s.map((x) => x.nodeId).sort()).toEqual(["gw", "kong"]);
+  });
+
+  it("HAProxy's savings use its class's hourly price", () => {
+    const lb = techNode("load-balancer", "lb", "haproxy", { instances: 1 });
+    const [s] = rightSize([lb], rpsOf({ lb: 100_000 }));
+    // c6g.xlarge: 35,000 rps and $0.136/h per instance
+    expect(s).toMatchObject({ from: 1, to: suggestedInstances(100_000, 35_000) });
+    expect(s.monthlyBefore).toBeCloseTo(1 * 0.136 * 730, 6);
+    expect(s.monthlyAfter).toBeCloseTo(s.to * 0.136 * 730, 6);
   });
 });
 

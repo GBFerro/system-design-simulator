@@ -1016,14 +1016,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes: right-size não sugere instâncias para AWS API Gateway; HAProxy usa o preço da classe na economia estimada; os testes de right-size das referências passam sem mudança
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes: right-size não sugere instâncias para AWS API Gateway; HAProxy usa o preço da classe na economia estimada; os testes de right-size das referências passam sem mudança
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(cost): right-size com preço por tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
