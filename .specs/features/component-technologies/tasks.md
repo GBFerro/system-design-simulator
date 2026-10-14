@@ -1133,15 +1133,15 @@ T41 → T42
 
 **Done when**:
 
-- [ ] Asserções para RF 2, 4 e 6 em QUORUM (k = ⌊RF/2⌋ + 1) e para ONE/ALL nos mesmos RF
-- [ ] Com o mutante k = ⌈RF/2⌉ aplicado localmente, pelo menos um teste novo falha (mutante descartado antes do commit)
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Asserções para RF 2, 4 e 6 em QUORUM (k = ⌊RF/2⌋ + 1) e para ONE/ALL nos mesmos RF
+- [x] Com o mutante k = ⌈RF/2⌉ aplicado localmente, pelo menos um teste novo falha (mutante descartado antes do commit)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `test(engine): quorum com fator de replicação par`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

@@ -72,6 +72,47 @@ describe("technology profile per node (T20)", () => {
     expect(all.classes?.write).toMatchObject({ cost: 3, shape: { kind: "kth", k: 3, n: 3 } });
   });
 
+  // An even RF tells ⌊RF/2⌋ + 1 apart from ⌈RF/2⌉ (validation round 1, mutant M3b).
+  it.each([
+    { rf: 2, quorum: 2 },
+    { rf: 4, quorum: 3 },
+    { rf: 6, quorum: 4 },
+  ])(
+    "even RF $rf: QUORUM waits for ⌊RF/2⌋ + 1 = $quorum replies, ONE for 1, ALL for RF (TEC-29)",
+    ({ rf, quorum }) => {
+      for (const technology of ["cassandra", "scylladb"]) {
+        const at = (consistencyLevel: string) =>
+          profileOf("nosql-db", {
+            technology,
+            replicationFactor: rf,
+            consistencyLevel,
+            instances: 8,
+          });
+        const q = at("quorum");
+        expect(q.classes?.read).toMatchObject({
+          cost: quorum,
+          shape: { kind: "kth", k: quorum, n: rf },
+        });
+        expect(q.classes?.write).toMatchObject({
+          cost: rf,
+          shape: { kind: "kth", k: quorum, n: rf },
+        });
+        expect(q.throttle).toMatchObject({ readCost: quorum, writeCost: rf });
+
+        const one = at("one");
+        expect(one.classes?.read).toMatchObject({ cost: 1, shape: { kind: "kth", k: 1, n: rf } });
+        expect(one.classes?.write).toMatchObject({ cost: rf, shape: { kind: "kth", k: 1, n: rf } });
+
+        const all = at("all");
+        expect(all.classes?.read).toMatchObject({ cost: rf, shape: { kind: "kth", k: rf, n: rf } });
+        expect(all.classes?.write).toMatchObject({
+          cost: rf,
+          shape: { kind: "kth", k: rf, n: rf },
+        });
+      }
+    },
+  );
+
   it("Cassandra's hot partition lives on min(RF, n) nodes of replica ops (TEC-28)", () => {
     const p = profileOf("nosql-db", {
       technology: "cassandra",
