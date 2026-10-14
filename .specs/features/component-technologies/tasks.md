@@ -830,15 +830,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] `tests/unit/engine-tech.test.ts` (analyze): PostgreSQL só escritas → vazão = mín(λ, shards·writeCap), 8 → 16 instâncias não muda, 1 → 2 shards dobra (TEC-25/26); leituras escalam com instâncias; DynamoDB hot partition: erros = h·λ·(1 − 1/U) (TEC-28); Cassandra RF 3: capacidade de leitura C, C/2, C/3 de ONE a ALL e p99 não decrescente (TEC-29/30); DynamoDB forte dobra U (TEC-31); MongoDB `primary` vs `secondaryPreferred` e `majority` (TEC-32); SQS FIFO e SNS acima da cota → erro = λ − L (TEC-35); OpenSearch capacidade = min(n, shards·(replicas+1))·k₀ ÷ shards (TEC-36); S3 1 prefixo 10.000 GET → 4.500 erros, 4.000 PUT → 500, 2 prefixos → 0 (TEC-37); API Gateway 15.000 → 5.000 erros (TEC-38)
-- [ ] `engine-golden.test.ts`, `engine-analyze.test.ts`, `engine-references.test.ts`, `scoring.test.ts` passam sem mudança
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] `tests/unit/engine-tech.test.ts` (analyze): PostgreSQL só escritas → vazão = mín(λ, shards·writeCap), 8 → 16 instâncias não muda, 1 → 2 shards dobra (TEC-25/26); leituras escalam com instâncias; DynamoDB hot partition: erros = h·λ·(1 − 1/U) (TEC-28); Cassandra RF 3: capacidade de leitura C, C/2, C/3 de ONE a ALL e p99 não decrescente (TEC-29/30); DynamoDB forte dobra U (TEC-31); MongoDB `primary` vs `secondaryPreferred` e `majority` (TEC-32); SQS FIFO e SNS acima da cota → erro = λ − L (TEC-35); OpenSearch capacidade = min(n, shards·(replicas+1))·k₀ ÷ shards (TEC-36); S3 1 prefixo 10.000 GET → 4.500 erros, 4.000 PUT → 500, 2 prefixos → 0 (TEC-37); API Gateway 15.000 → 5.000 erros (TEC-38)
+- [x] `engine-golden.test.ts`, `engine-analyze.test.ts`, `engine-references.test.ts`, `scoring.test.ts` passam sem mudança
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): mecânicas de tecnologia no analyze`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

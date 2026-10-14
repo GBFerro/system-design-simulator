@@ -16,6 +16,7 @@
  *
  * Deterministic for a given graph + config (seeded PRNG). Never throws.
  */
+import { techLimitOf, type TechLimit } from "@/domain/components/technologies/limits";
 import type { SimEdge, SimGraph } from "@/domain/graph/compile";
 import { UTILIZATION_CRITICAL, UTILIZATION_WARNING } from "./constants";
 import {
@@ -43,6 +44,13 @@ import { sampleLatency, type SampleModel } from "./core/sampler";
 import { sampleNodesFor, settle, type Topology } from "./core/settle";
 import { sanitizeLatencySlo, slowShareOf } from "./core/slo";
 import { drainShares, entryShares, withEffects } from "./core/faultView";
+import {
+  edgeWriteShare,
+  techMeanMs,
+  techPercentileMs,
+  techSteadyFlow,
+  type TechFlowView,
+} from "./core/tech";
 import type { TickEffects } from "./faults/effects";
 import type {
   AnalyzedGraph,
@@ -73,6 +81,12 @@ interface NodeFlow {
   backlog: number;
   lagging: boolean;
   rejected: number;
+  /** A node with a technology's classes or throttle (component-technologies): its classes. */
+  tech?: TechFlowView;
+  /** Its stations (the queue depth adds them up). */
+  stations?: StationState[];
+  /** Refused by its quota or hot partition, req/s (part of `dropped`). */
+  throttled?: number;
 }
 
 interface Pass {
@@ -83,6 +97,10 @@ interface Pass {
   load: Map<string, number>;
   /** LB split shares by edge id. */
   shares: Map<string, number>;
+  /** With technologies: share of each node's offered load that is writes. */
+  nodeWs?: Map<string, number>;
+  /** With technologies: share of each edge's calls that are writes (settle). */
+  edgeWs?: Map<string, number>;
 }
 
 function status(offered: number, utilization: number): NodeStatus {
@@ -94,6 +112,11 @@ function status(offered: number, utilization: number): NodeStatus {
 
 function finite(v: number, fallback = 0): number {
   return Number.isFinite(v) ? v : fallback;
+}
+
+/** Refusals above float noise (a quota that lets everything through leaves ~1e-12). */
+export function isThrottled(throttled: number | undefined, offered: number): boolean {
+  return (throttled ?? 0) > 1e-9 * Math.max(1, offered);
 }
 
 /**
@@ -164,6 +187,12 @@ export function analyzeWithModel(
   // Reads after a cache miss depend on the cache call's failure (a failed
   // call is a miss), which comes out of the reverse pass: same fixed point.
   const lookAside = order.some((id) => (byId.get(id)!.plan?.absorbed.length ?? 0) > 0);
+  // SPEC_DEVIATION: A.3 splits reads and writes only when a node has classes
+  // or a throttle (`needsSplit`). Reason: every node with a technology reports
+  // `writeRps` (managed prices charge writes apart), so the split runs when any
+  // node has one; an all-generic graph still runs nothing new.
+  const needsSplit = order.some((id) => byId.get(id)!.tech !== undefined);
+  const defaultWs = clamp01(1 - cfg.readRatio);
 
   /* ---------- forward pass: load propagation ---------- */
   const propagate = (failure: Map<string, number>): Pass => {
@@ -180,6 +209,11 @@ export function analyzeWithModel(
     const base = new Map<string, number>();
     const load = new Map<string, number>();
     const shares = new Map<string, number>();
+    // Read/write split (A.3), alongside the loads (which it never changes).
+    const inflowWrite = needsSplit ? new Map<string, number>() : undefined;
+    const nodeWs = needsSplit ? new Map<string, number>() : undefined;
+    const edgeWs = needsSplit ? new Map<string, number>() : undefined;
+    if (inflowWrite) for (const [id, v] of inflow) inflowWrite.set(id, v * defaultWs);
 
     for (const id of order) {
       const node = byId.get(id)!;
@@ -187,6 +221,8 @@ export function analyzeWithModel(
       const edges = out.get(id) ?? [];
       const maxQueue = maxQueueOf(node);
       const fx = effects?.nodes.get(id);
+      const ws = offered > 0 ? clamp01((inflowWrite?.get(id) ?? 0) / offered) : defaultWs;
+      nodeWs?.set(id, ws);
       if (fx?.down) {
         // Down: every arrival fails and nothing goes out.
         flows.set(id, {
@@ -212,42 +248,70 @@ export function analyzeWithModel(
         }
         continue;
       }
-      let capacityPerInstance = node.capacityPerInstance;
-      let admitted = offered;
-      let rejected = 0;
+      let flow: NodeFlow;
+      if (node.tech?.classes || node.tech?.throttle) {
+        // A technology's classes, quota or hot partition (A.2).
+        const t = techSteadyFlow({
+          profile: node.tech,
+          core: node,
+          offered,
+          writeShare: ws,
+          errorRate: fx?.errorRate,
+          maxQueue,
+          horizonSec: cfg.horizonSec,
+        });
+        flow = {
+          offered,
+          served: t.served,
+          dropped: Math.max(0, offered - t.served),
+          capacity: t.stations[0].capacityRps,
+          st: t.stations[0],
+          backlog: 0,
+          lagging: false,
+          rejected: 0,
+          tech: t.view,
+          stations: t.stations,
+          throttled: t.throttled,
+        };
+      } else {
+        let capacityPerInstance = node.capacityPerInstance;
+        let admitted = offered;
+        let rejected = 0;
 
-      if (node.routing === "rate-limiter") {
-        const adm = rateLimit(node, offered);
-        admitted = adm.admitted;
-        rejected = adm.rejected;
-        capacityPerInstance = Math.min(capacityPerInstance, adm.capacityLimit / node.instances);
+        if (node.routing === "rate-limiter") {
+          const adm = rateLimit(node, offered);
+          admitted = adm.admitted;
+          rejected = adm.rejected;
+          capacityPerInstance = Math.min(capacityPerInstance, adm.capacityLimit / node.instances);
+        }
+        // A resolver only works on its uncached lookups; cached answers pass straight through.
+        const bypass = admitted * (1 - lookupShareOf(node));
+        // Dead instances still in rotation fail their share (fault, Spec 08) — of
+        // the lookups only, for a resolver: cached answers never reach it.
+        if (fx && fx.errorRate > 0) admitted -= (admitted - bypass) * fx.errorRate;
+
+        const st = station({
+          lambda: admitted - bypass,
+          instances: node.instances,
+          capacityPerInstance,
+          serviceTimeMs: node.serviceTimeMs,
+          maxQueue,
+          horizonSec: cfg.horizonSec,
+        });
+        const served = Math.min(offered, Math.max(0, st.servedRps) + bypass);
+        flow = {
+          offered,
+          served,
+          dropped: Math.max(0, offered - served),
+          capacity: st.capacityRps,
+          st,
+          backlog: 0,
+          lagging: false,
+          rejected,
+        };
       }
-      // A resolver only works on its uncached lookups; cached answers pass straight through.
-      const bypass = admitted * (1 - lookupShareOf(node));
-      // Dead instances still in rotation fail their share (fault, Spec 08) — of
-      // the lookups only, for a resolver: cached answers never reach it.
-      if (fx && fx.errorRate > 0) admitted -= (admitted - bypass) * fx.errorRate;
-
-      const st = station({
-        lambda: admitted - bypass,
-        instances: node.instances,
-        capacityPerInstance,
-        serviceTimeMs: node.serviceTimeMs,
-        maxQueue,
-        horizonSec: cfg.horizonSec,
-      });
-      const served = Math.min(offered, Math.max(0, st.servedRps) + bypass);
-      const flow: NodeFlow = {
-        offered,
-        served,
-        dropped: Math.max(0, offered - served),
-        capacity: st.capacityRps,
-        st,
-        backlog: 0,
-        lagging: false,
-        rejected,
-      };
       flows.set(id, flow);
+      const served = flow.served;
       if (edges.length === 0) continue;
 
       const retries = maxRetriesOf(node);
@@ -255,8 +319,14 @@ export function analyzeWithModel(
         const amplified = baseLoad * retryAmplification(failure.get(e.id) ?? 0, retries);
         base.set(e.id, baseLoad);
         load.set(e.id, amplified);
+        const severed = edgeFx(e)?.severed;
         // A severed link: the calls are made (and fail), nothing arrives.
-        if (!edgeFx(e)?.severed) inflow.set(e.target, (inflow.get(e.target) ?? 0) + amplified);
+        if (!severed) inflow.set(e.target, (inflow.get(e.target) ?? 0) + amplified);
+        if (inflowWrite && edgeWs) {
+          const w = edgeWriteShare(e, node, ws, callCtx);
+          edgeWs.set(e.id, w);
+          if (!severed) inflowWrite.set(e.target, (inflowWrite.get(e.target) ?? 0) + amplified * w);
+        }
       };
 
       if (node.routing === "lb") {
@@ -286,11 +356,17 @@ export function analyzeWithModel(
         for (const e of edges) push(e, served * edgeFactor(e, node, callCtx));
       }
     }
-    return { flows, base, load, shares };
+    return {
+      flows,
+      base,
+      load,
+      shares,
+      ...(nodeWs && edgeWs ? { nodeWs, edgeWs } : {}),
+    };
   };
 
   /* ---------- reverse pass: success, call failure, availability ---------- */
-  const settleOf = (p: Pass) => settle(topo, p.flows, p.shares);
+  const settleOf = (p: Pass) => settle(topo, p.flows, p.shares, p.edgeWs);
 
   /* ---------- fixed point: retry amplification and reads after a miss ---------- */
   let failure = new Map<string, number>();
@@ -332,15 +408,23 @@ export function analyzeWithModel(
     const offered = flow?.offered ?? 0;
     const served = flow?.served ?? 0;
     const dropped = flow?.dropped ?? 0;
-    const utilization = finite(st.utilization);
+    // A node with a technology: utilization of its limiting resource on the
+    // offered demand (TEC-41, D5), so status and bottleneck follow it.
+    const sim = byId.get(node.id) ?? node;
+    const ws = pass.nodeWs?.get(node.id) ?? defaultWs;
+    const limit: TechLimit | undefined = sim.tech
+      ? techLimitOf(sim.tech, sim, { read: offered * (1 - ws), write: offered * ws })
+      : undefined;
+    const utilization = limit ? finite(limit.utilization) : finite(st.utilization);
     let nodeStatus = status(offered, utilization);
     let bottleneck = utilization > UTILIZATION_CRITICAL;
-    if (flow?.lagging) {
+    if (flow?.lagging || isThrottled(flow?.throttled, offered)) {
       nodeStatus = "critical";
       bottleneck = true;
     } else if (flow && flow.rejected > 0 && nodeStatus === "healthy") {
       nodeStatus = "warning";
     }
+    const tech = flow?.tech;
     return {
       nodeId: node.id,
       componentId: node.componentId,
@@ -349,17 +433,30 @@ export function analyzeWithModel(
       servedRps: served,
       droppedRps: dropped,
       errorRate: offered > 0 ? clamp01(dropped / offered) : 0,
-      capacityRps: finite(st.capacityRps),
+      capacityRps: limit ? finite(limit.capacityRps) : finite(st.capacityRps),
       utilization,
-      meanLatencyMs: finite(st.serviceTimeMs + st.meanWaitMs),
-      p50Ms: finite(hopPercentileMs(st, 0.5)),
-      p95Ms: finite(hopPercentileMs(st, 0.95)),
-      p99Ms: finite(hopPercentileMs(st, 0.99)),
-      queueWaitMs: finite(st.meanWaitMs),
-      queueDepth: finite(st.queueDepth + (flow?.backlog ?? 0)),
+      meanLatencyMs: tech ? finite(techMeanMs(tech)) : finite(st.serviceTimeMs + st.meanWaitMs),
+      p50Ms: finite(tech ? techPercentileMs(tech, 0.5) : hopPercentileMs(st, 0.5)),
+      p95Ms: finite(tech ? techPercentileMs(tech, 0.95) : hopPercentileMs(st, 0.95)),
+      p99Ms: finite(tech ? techPercentileMs(tech, 0.99) : hopPercentileMs(st, 0.99)),
+      queueWaitMs: tech
+        ? finite(
+            (1 - tech.ws) * tech.read.station.meanWaitMs + tech.ws * tech.write.station.meanWaitMs,
+          )
+        : finite(st.meanWaitMs),
+      queueDepth: flow?.stations
+        ? finite(flow.stations.reduce((sum, s) => sum + s.queueDepth, 0) + flow.backlog)
+        : finite(st.queueDepth + (flow?.backlog ?? 0)),
       availability: clamp01(1 - (1 - availabilityOf(node)) ** node.instances),
       status: nodeStatus,
       isBottleneck: bottleneck,
+      ...(limit
+        ? {
+            limitKind: limit.kind,
+            limitUtilization: utilization,
+            writeRps: finite(offered * ws),
+          }
+        : {}),
     };
   });
 
