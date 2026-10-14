@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { MOD, center, connect, open, quickAdd } from "./helpers";
+import { MOD, center, connect, open, openTab, quickAdd } from "./helpers";
 
 // component-technologies: choosing the real product behind a node.
 
@@ -312,39 +312,47 @@ type RuntimeHandle = {
 };
 
 /** One analyze-style snapshot: each node id gets 1,000 req/s plus its own fields. */
-function pushNodes(page: Page, nodes: Record<string, Record<string, unknown>>) {
-  return page.evaluate((extra) => {
-    const store = (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore;
-    const base = {
-      rpsIn: 1000,
-      rpsOut: 1000,
-      utilization: 0.5,
-      queueDepth: 0,
-      p50: 5,
-      p95: 9,
-      p99: 12,
-      errorRate: 0,
-      drops: 0,
-      status: "ok",
-    };
-    const metrics: Record<string, unknown> = {};
-    for (const [id, fields] of Object.entries(extra)) metrics[id] = { ...base, ...fields };
-    store.getState().pushSnapshot({
-      t: 0,
-      offeredRps: 1000,
-      nodes: metrics,
-      edges: {},
-      global: {
-        throughput: 1000,
-        goodput: 1000,
-        errorRate: 0,
+function pushNodes(
+  page: Page,
+  nodes: Record<string, Record<string, unknown>>,
+  global: Record<string, unknown> = {},
+) {
+  return page.evaluate(
+    ({ extra, globalExtra }) => {
+      const store = (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore;
+      const base = {
+        rpsIn: 1000,
+        rpsOut: 1000,
+        utilization: 0.5,
+        queueDepth: 0,
         p50: 5,
         p95: 9,
         p99: 12,
-        availability: 1,
-      },
-    });
-  }, nodes);
+        errorRate: 0,
+        drops: 0,
+        status: "ok",
+      };
+      const metrics: Record<string, unknown> = {};
+      for (const [id, fields] of Object.entries(extra)) metrics[id] = { ...base, ...fields };
+      store.getState().pushSnapshot({
+        t: 0,
+        offeredRps: 1000,
+        nodes: metrics,
+        edges: {},
+        global: {
+          throughput: 1000,
+          goodput: 1000,
+          errorRate: 0,
+          p50: 5,
+          p95: 9,
+          p99: 12,
+          availability: 1,
+          ...globalExtra,
+        },
+      });
+    },
+    { extra: nodes, globalExtra: global },
+  );
 }
 
 test("TEC-40: the node card names the technology's limiting resource and its utilization", async ({
@@ -383,4 +391,63 @@ test("TEC-40: the node card names the technology's limiting resource and its uti
   await app.click();
   await expect(card).toContainText("App Server");
   await expect(card.getByTestId("node-limit")).toHaveCount(0);
+});
+
+test("TEC-19: the Cost tab names a node's technology, class and price source; the class sets the price", async ({
+  page,
+}) => {
+  await open(page, "/?e2e=1");
+  await quickAdd(page, "SQL Database");
+  const sql = page.locator('.react-flow__node[data-id^="sql-db-"]');
+  await openTab(page, "Cost");
+  const panel = page.getByTestId("cost-panel");
+  const monthly = panel.getByTestId("cost-monthly");
+  // PostgreSQL db.r6g.xlarge: 1 x $0.45/h x 730 h
+  await expect(monthly).toHaveText("$329");
+
+  await panel.getByRole("button", { name: /SQL Database/ }).click();
+  await expect(panel.getByTestId("cost-line-technology")).toHaveText(
+    "PostgreSQL (RDS) · db.r6g.xlarge",
+  );
+  await expect(panel.getByText("1 × $0.45/h × 730 h = $329")).toBeVisible();
+  await expect(
+    panel.getByText(/db\.r6g\.xlarge \(4 vCPU\): \$0\.45\/h per instance, AWS us-east-1 on-demand/),
+  ).toBeVisible();
+
+  // A bigger class: $0.899/h
+  await sql.click();
+  await openTab(page, "Props");
+  await page.getByLabel("Instance class", { exact: true }).selectOption("db.r6g.2xlarge");
+  await openTab(page, "Cost");
+  await expect(monthly).toHaveText("$656");
+  await panel.getByRole("button", { name: /SQL Database/ }).click();
+  await expect(panel.getByTestId("cost-line-technology")).toHaveText(
+    "PostgreSQL (RDS) · db.r6g.2xlarge",
+  );
+});
+
+test("TEC-18: a per-request technology is billed for the snapshot's reads and writes apart", async ({
+  page,
+}) => {
+  await open(page, "/?e2e=1");
+  await quickAdd(page, "NoSQL Database");
+  const id = (await page
+    .locator('.react-flow__node[data-id^="nosql-db-"]')
+    .getAttribute("data-id"))!;
+  await openTab(page, "Cost");
+  const panel = page.getByTestId("cost-panel");
+  const monthly = panel.getByTestId("cost-monthly");
+  // DynamoDB on-demand, eventual reads: (800 x 0.5 x $0.125 + 200 x $0.625) x 2.592 M/month
+  await pushNodes(page, { [id]: { writeRps: 200 } });
+  await expect(monthly).toHaveText("$454");
+  await panel.getByRole("button", { name: /NoSQL Database/ }).click();
+  await expect(panel.getByTestId("cost-line-technology")).toHaveText("DynamoDB (on-demand)");
+  await expect(panel.getByTestId("cost-line-requests")).toContainText("200 rps writes");
+
+  // Without the node's writes, the run's read ratio splits the load
+  await pushNodes(page, { [id]: {} }, { readRatio: 0.8 });
+  await expect(monthly).toHaveText("$454");
+  await pushNodes(page, { [id]: {} }, { readRatio: 0.5 });
+  // (500 x 0.5 x $0.125 + 500 x $0.625) x 2.592
+  await expect(monthly).toHaveText("$891");
 });

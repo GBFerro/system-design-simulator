@@ -1042,14 +1042,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] E2E: um Postgres db.r6g.xlarge no canvas aparece no Cost com "PostgreSQL (RDS) · db.r6g.xlarge" e o texto de premissas; trocar a classe muda o $/mês
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] E2E: um Postgres db.r6g.xlarge no canvas aparece no Cost com "PostgreSQL (RDS) · db.r6g.xlarge" e o texto de premissas; trocar a classe muda o $/mês
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(cost): painel mostra tecnologia, classe e origem do preço`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

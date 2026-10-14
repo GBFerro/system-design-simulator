@@ -60,7 +60,14 @@ export function useCostEstimate(): LiveCost {
   const nodes = useCanvasStore((s) => s.nodes);
   const snapshot = useThrottledSnapshot(COST_REFRESH_MS);
   return useMemo(() => {
-    const estimate = estimateCost(nodes, (id) => snapshot?.nodes[id]?.rpsIn ?? 0);
+    // Writes are priced apart for per-request technologies (TEC-18): the node's
+    // offered writes, else the read ratio the engine resolved.
+    const estimate = estimateCost(
+      nodes,
+      (id) => snapshot?.nodes[id]?.rpsIn ?? 0,
+      (id) => snapshot?.nodes[id]?.writeRps,
+      snapshot?.global.readRatio,
+    );
     const perMillion = snapshot
       ? costPerMillionRequests(estimate.monthly, snapshot.offeredRps)
       : null;
