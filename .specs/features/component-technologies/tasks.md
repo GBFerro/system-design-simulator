@@ -857,15 +857,15 @@ T36 → T37
 
 **Done when**:
 
-- [ ] Testes (tick): backlog de escrita do Postgres cresce enquanto o de leitura fica 0, `maxQueue` causa overflow; API Gateway: o burst absorve ~1 s e depois 5.000 req/s de erro; `limitUtilization` do tick = do analyze para a mesma carga constante (TEC-41)
-- [ ] `engine-golden.test.ts`, `engine-tick.test.ts`, `engine-parity.test.ts` passam sem mudança
-- [ ] Gate check passes: `npm run typecheck && npm test`
-- [ ] Test count: contagem anterior + os novos
+- [x] Testes (tick): backlog de escrita do Postgres cresce enquanto o de leitura fica 0, `maxQueue` causa overflow; API Gateway: o burst absorve ~1 s e depois 5.000 req/s de erro; `limitUtilization` do tick = do analyze para a mesma carga constante (TEC-41)
+- [x] `engine-golden.test.ts`, `engine-tick.test.ts`, `engine-parity.test.ts` passam sem mudança
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: unit
 **Gate**: quick
 **Commit**: `feat(engine): mecânicas de tecnologia no tick`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 
