@@ -135,6 +135,12 @@ T40 → T42
 T41 → T42
 ```
 
+### Phase 8: Correções da validação (rodada 2)
+
+```
+T42 → T43
+```
+
 ---
 
 ## Task Breakdown
@@ -1252,10 +1258,37 @@ T41 → T42
 
 ---
 
+### T43: Réplica Generic com primário real não avisa
+
+**What**: Teste negativo do outro lado da condição de TEC-45 (lacuna da validação rodada 2, mutante W2 sobrevivente): réplica `generic` alimentada por um `sql-db` PostgreSQL não gera o warning "Replica technology".
+**Where**: `tests/unit/engine-tech-compile.test.ts`
+**Depends on**: T42
+**Reuses**: testes de TEC-45 de T22/T40
+**Requirement**: TEC-45
+
+**Tools**:
+
+- MCP: NONE
+- Skill: NONE
+
+**Done when**:
+
+- [x] Caso novo: primário `postgres` + réplica `generic` → nenhum warning "Replica technology"
+- [x] Com o mutante W2 (condição sem o lado da réplica) aplicado localmente, o caso novo falha (mutante descartado antes do commit)
+- [x] Gate check passes: `npm run typecheck && npm test`
+- [x] Test count: contagem anterior + 1
+
+**Tests**: unit
+**Gate**: quick
+**Commit**: `test(engine): réplica generic com primário real não avisa`
+**Status**: ✅ Complete
+
+---
+
 ## Phase Execution Map
 
 ```
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8
 ```
 
 As setas de cada tarefa estão nos diagramas das fases acima (incluindo as que vêm de fases anteriores).

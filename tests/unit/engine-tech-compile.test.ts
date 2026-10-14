@@ -100,6 +100,19 @@ describe("compileGraph resolves each node's technology (T22)", () => {
     expect(sim.warnings.some((w) => w.includes("Replica technology"))).toBe(false);
   });
 
+  it("a Generic replica fed by a PostgreSQL primary doesn't warn either (TEC-45)", () => {
+    const sim = compileV3(
+      [
+        comp("app", "app-server"),
+        comp("primary", "sql-db", { technology: "postgres" }),
+        comp("replica", "read-replica", { technology: "generic" }),
+      ],
+      [wire("app", "primary"), wire("primary", "replica")],
+    );
+    expect(sim.nodes.find((n) => n.id === "primary")?.tech?.technology).toBe("postgres");
+    expect(sim.warnings.some((w) => w.includes("Replica technology"))).toBe(false);
+  });
+
   it("a design of generic nodes gets no new warnings", () => {
     const nodes = [
       comp("client", "client"),
