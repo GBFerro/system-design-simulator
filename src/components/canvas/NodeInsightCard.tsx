@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useInternalNode, useStore } from "@xyflow/react";
 import { X } from "lucide-react";
 import { instancesOf } from "@/domain/components/registry";
+import { LIMIT_LABELS } from "@/domain/components/technologies/limits";
+import type { NodeRuntimeMetrics } from "@/engine/types";
 import { instanceNodeId } from "@/lib/instances";
 import { abbrev, fmtMs, fmtPct } from "@/lib/runtimeMetrics";
 import { useIsMobile } from "@/hooks/useBreakpoint";
@@ -11,6 +13,7 @@ import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
 import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import { usePenStore } from "@/store/penStore";
 import { useNodeRuntime, useRuntimeStore } from "@/store/runtimeStore";
+import { RUNTIME_STATUS_META } from "./nodes/runtimeStatus";
 import {
   NodeCharts,
   NodeMetricGrid,
@@ -115,6 +118,7 @@ function Card({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
                 tone={m.drops > 0 ? "bad" : undefined}
               />
             </div>
+            <TechLimitLine m={m} />
             <NodeMetricGrid m={m} summarized />
             <NodeCharts nodeId={nodeId} />
           </>
@@ -125,6 +129,35 @@ function Card({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
         )}
       </section>
     </Anchored>
+  );
+}
+
+/**
+ * The resource the node's technology is limited by (TEC-40): highlighted with
+ * the critical status color and icon once it's full, plain below that. Only
+ * nodes with a technology carry the fields.
+ */
+function TechLimitLine({ m }: { m: NodeRuntimeMetrics }) {
+  if (m.limitKind === undefined || m.limitUtilization === undefined) return null;
+  const saturated = m.limitUtilization >= 1;
+  const meta = RUNTIME_STATUS_META.critical;
+  return (
+    <p
+      data-testid="node-limit"
+      data-saturated={saturated}
+      className={`flex items-center gap-1.5 rounded-lg bg-zinc-800/70 px-2.5 py-1.5 text-[11px] ${
+        saturated ? `font-semibold ${meta.text}` : "text-zinc-400"
+      }`}
+    >
+      {saturated && (
+        <span role="img" aria-label={`Status: ${meta.label}`} className="flex shrink-0">
+          <meta.Icon className="h-3.5 w-3.5" aria-hidden />
+        </span>
+      )}
+      <span>
+        {LIMIT_LABELS[m.limitKind]}: {Math.round(m.limitUtilization * 100)}%
+      </span>
+    </p>
   );
 }
 

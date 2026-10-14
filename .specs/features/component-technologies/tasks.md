@@ -937,14 +937,14 @@ T36 → T37
 
 **Done when**:
 
-- [ ] E2E com snapshot sintético (`window.__runtimeStore`): Postgres com `limitKind: "write-primary"`, `limitUtilization: 1.3` mostra "Write primary: 130%"; um nó sem os campos não mostra a linha
-- [ ] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
-- [ ] Test count: contagem anterior + os novos
+- [x] E2E com snapshot sintético (`window.__runtimeStore`): Postgres com `limitKind: "write-primary"`, `limitUtilization: 1.3` mostra "Write primary: 130%"; um nó sem os campos não mostra a linha
+- [x] Gate check passes: `npm run typecheck && npm test && npm run test:e2e`
+- [x] Test count: contagem anterior + os novos
 
 **Tests**: e2e
 **Gate**: full
 **Commit**: `feat(metrics): card do nó nomeia o limite da tecnologia`
-**Status**: Pending
+**Status**: ✅ Complete
 
 ---
 

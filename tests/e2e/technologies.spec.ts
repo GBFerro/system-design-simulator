@@ -306,3 +306,81 @@ test("TEC-24: the node shows its technology's short name without changing size",
     page.locator('.react-flow__node[data-id^="load-balancer-"] [data-technology]'),
   ).toHaveText("ALB · L7");
 });
+
+type RuntimeHandle = {
+  getState(): { pushSnapshot(s: unknown): void };
+};
+
+/** One analyze-style snapshot: each node id gets 1,000 req/s plus its own fields. */
+function pushNodes(page: Page, nodes: Record<string, Record<string, unknown>>) {
+  return page.evaluate((extra) => {
+    const store = (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore;
+    const base = {
+      rpsIn: 1000,
+      rpsOut: 1000,
+      utilization: 0.5,
+      queueDepth: 0,
+      p50: 5,
+      p95: 9,
+      p99: 12,
+      errorRate: 0,
+      drops: 0,
+      status: "ok",
+    };
+    const metrics: Record<string, unknown> = {};
+    for (const [id, fields] of Object.entries(extra)) metrics[id] = { ...base, ...fields };
+    store.getState().pushSnapshot({
+      t: 0,
+      offeredRps: 1000,
+      nodes: metrics,
+      edges: {},
+      global: {
+        throughput: 1000,
+        goodput: 1000,
+        errorRate: 0,
+        p50: 5,
+        p95: 9,
+        p99: 12,
+        availability: 1,
+      },
+    });
+  }, nodes);
+}
+
+test("TEC-40: the node card names the technology's limiting resource and its utilization", async ({
+  page,
+}) => {
+  await open(page, "/?e2e=1");
+  await addWithTechnology(page, "SQL Database", "postgres");
+  await quickAdd(page, "App Server");
+  const sql = page.locator('.react-flow__node[data-id^="sql-db-"]');
+  const app = page.locator('.react-flow__node[data-id^="app-server-"]');
+  const sqlId = (await sql.getAttribute("data-id"))!;
+  const appId = (await app.getAttribute("data-id"))!;
+  await pushNodes(page, {
+    [sqlId]: { utilization: 1.3, limitKind: "write-primary", limitUtilization: 1.3, writeRps: 900 },
+    [appId]: {},
+  });
+
+  await sql.click();
+  const card = page.getByTestId("node-insight-card");
+  const limit = card.getByTestId("node-limit");
+  await expect(limit).toHaveText("Write primary: 130%");
+  // Saturated: status color and icon
+  await expect(limit).toHaveAttribute("data-saturated", "true");
+  await expect(limit.getByRole("img", { name: "Status: Critical" })).toBeVisible();
+
+  // Below 1 the resource shows without highlight
+  await pushNodes(page, {
+    [sqlId]: { utilization: 0.4, limitKind: "write-primary", limitUtilization: 0.4, writeRps: 300 },
+    [appId]: {},
+  });
+  await expect(limit).toHaveText("Write primary: 40%");
+  await expect(limit).toHaveAttribute("data-saturated", "false");
+  await expect(limit.getByRole("img")).toHaveCount(0);
+
+  // A node without the fields has no line
+  await app.click();
+  await expect(card).toContainText("App Server");
+  await expect(card.getByTestId("node-limit")).toHaveCount(0);
+});
