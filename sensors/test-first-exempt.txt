@@ -1,0 +1,25 @@
+# Files exempt from sensors/require-test-first.sh. One glob per line, then "# <why no unit test applies>".
+# An entry without a reason does not count, and scripts/check-harness.sh fails on it.
+# Adding an entry is a harness change: it needs the user's OK and shows in the PR.
+src/index.*  # entry wiring, covered by integration tests
+# Next.js app router and the React UI: behavior is tested in Playwright (tests/e2e), not in unit tests.
+src/app/*  # App Router entry, layout, metadata and CSS: covered by the e2e smoke spec
+src/components/*.tsx  # React components: editor and panel behavior is tested in Playwright (tests/e2e), see AGENTS.md
+src/components/*/use*.ts  # React hooks over the stores: exercised through the e2e specs
+src/components/canvas/canvasEvents.ts  # window-event helpers between the canvas and the panel, exercised through the e2e specs
+src/components/canvas/edges/edgeTypes.ts  # module-level ReactFlow edgeTypes registry, no logic
+src/components/canvas/nodes/nodeTypes.ts  # module-level ReactFlow nodeTypes registry, no logic
+src/components/panel/styles.ts  # shared Tailwind class strings, no logic
+src/hooks/*  # React hooks over the browser APIs: exercised through the e2e specs
+# Declarations and static data.
+src/types/*  # type declarations only
+src/*/types.ts  # type declarations only
+src/data/*  # static content tables (components, problems, concepts, cards): validated by catalog.test.ts and data.test.ts
+src/domain/components/schemas/*  # per-type param schemas, data tables: validated by catalog.test.ts and the registry sanitize tests
+src/lib/icons.ts  # icon registry for the catalog: catalog.test.ts checks every component has one
+src/lib/utils.ts  # shadcn cn() class-merge helper, no domain logic
+src/engine/constants.ts  # engine constants, no logic
+src/domain/persistence/version.ts  # SCHEMA_VERSION constant: persistence.versions.test.ts guards it
+src/store/persistVersion.ts  # STORE_VERSION constant: persistence.versions.test.ts guards it
+src/engine/worker.ts  # Comlink worker entry wiring: exercised by the live-run e2e specs
+src/engine/legacy/*  # v1 simulator kept only as a comparison oracle inside the tests
