@@ -1,0 +1,82 @@
+# The remote gate: the same checks as the local hooks, where nobody can skip them.
+# Make these jobs required in the branch protection of your protected branches on the host.
+name: factory-gate
+
+on:
+  # `edited` re-runs pr-policy when only the PR body changes.
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  push:
+    # Rendered by bootstrap.sh as one quoted item per protected branch.
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factory-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash sensors/test.sh
+      - run: bash scripts/check-harness.sh
+
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Every check in FACTORY_CHECKS: harness, lint, format, typecheck, unit tests, build and the
+      # initial-bundle budget.
+      - run: bash scripts/verify.sh
+      # E2E is the named check `e2e` in factory.config.sh, outside the receipt (too slow for every
+      # push). It serves the production build the step above just made (CI=true makes
+      # playwright.config.ts use `next start`).
+      - name: Install Playwright system dependencies
+        run: npx playwright install-deps chromium
+      - name: E2E tests
+        run: bash scripts/verify.sh e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (pinned release)
+        env:
+          GITLEAKS_VERSION: 8.18.4
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks detect --source . --config .gitleaks.toml --redact --no-banner
+
+  pr-policy:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-pr-body.sh
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
