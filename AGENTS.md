@@ -12,9 +12,7 @@ and may never do; this file is the map. Keep it under 120 lines: it loads into e
 
 ## The project
 
-SystemForge: an open-source system-design interview simulator. Drag components onto a React Flow
-canvas, wire them, simulate production-scale traffic and get scored on 5 dimensions. 100%
-client-side (`localStorage`; saved designs in IndexedDB), no backend.
+SystemForge — an open-source system-design interview simulator. Drag infrastructure components onto a React Flow canvas, wire them, simulate production-scale traffic (Kahn's topological sort), and get scored across 5 interview dimensions. 100% client-side; state persists in the browser (`localStorage`; saved designs in IndexedDB). No backend.
 
 Stack: Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12
 (ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion ·
