@@ -1,6 +1,6 @@
 ---
 name: harness-review
-description: Review a PR diff (or the current branch vs main) for continuous-improvement opportunities — code that could be better, guardrails that could be added, and harness pieces (CLAUDE.md/AGENTS.md rules, lint config, CI steps, PR template, hooks, skills) that should be added, updated or removed. Use when the user asks to review a PR "for improvements", "for guardrails", "for the harness", or runs /harness-review. Not a bug hunt — use /code-review for correctness.
+description: Review a PR diff (or the current branch vs main) for continuous-improvement opportunities — code that could be better, guardrails that could be added, and harness pieces (AGENTS.md and docs/architecture.md rules, lint config, CI steps, PR template, hooks, skills) that should be added, updated or removed. Use when the user asks to review a PR "for improvements", "for guardrails", "for the harness", or runs /harness-review. Not a bug hunt — use /code-review for correctness.
 argument-hint: "[PR number | branch | base..head] [--comment]"
 allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(gh pr view:*), Bash(gh pr diff:*), Read, Grep, Glob
 ---
@@ -30,12 +30,12 @@ If the diff is empty, report that there is nothing to review and stop.
 
 Read these before judging anything — a suggestion to "add a rule" is wrong if the rule already exists:
 
-- `CLAUDE.md`, `AGENTS.md`
+- `AGENTS.md`, `docs/architecture.md`, `docs/testing.md`, `.claude/rules/`, `factory.config.sh`
 - `.oxlintrc.json`, `.oxfmtrc.json`, `package.json` (scripts, deps), `tsconfig.json`
 - `.github/workflows/*.yml`, `.github/PULL_REQUEST_TEMPLATE.md`
 - `.claude/` (skills, `settings.json` hooks/permissions, if present), `.gitignore`
 
-Then map each touched path to the `CLAUDE.md` section that governs it (e.g. `src/engine/**` → "Simulation engine", `src/scoring/**` → "Scoring", `src/store/**` → "Stores" + "Persistence schema", `src/data/**` → "Data conventions", `src/components/canvas/**` and `dialogs/**` → "Canvas/UI"). Read the current text of those sections; do not rely on memory of them.
+Then map each touched path to the `docs/architecture.md` section that governs it (e.g. `src/engine/**` → "Simulation engine", `src/scoring/**` → "Scoring", `src/store/**` → "Stores" + "Persistence schema", `src/data/**` → "Data conventions", `src/components/canvas/**` and `dialogs/**` → "Canvas/UI"). Read the current text of those sections; do not rely on memory of them.
 
 ## 3. Recurrence signal
 
@@ -55,7 +55,7 @@ Not bugs (that's `/code-review`). Look for:
 
 ### B. Guardrails — turn prose into enforcement
 
-For each `CLAUDE.md` invariant the diff touched (or nearly broke), ask: is it enforced by anything other than someone reading `CLAUDE.md`? If not, and the diff shows it's at risk, propose the cheapest mechanism that would catch a violation:
+For each `docs/architecture.md` invariant the diff touched (or nearly broke), ask: is it enforced by anything other than someone reading `docs/architecture.md`? If not, and the diff shows it's at risk, propose the cheapest mechanism that would catch a violation:
 
 1. **Type** — a stricter TS type, `satisfies`, a branded/literal union, `as const` tuple (zero runtime cost, caught by `npm run build`).
 2. **Lint** — enabling an oxlint rule or category already available in `.oxlintrc.json`'s plugins; re-enabling a disabled rule if the diff shows it would have helped.
@@ -67,16 +67,16 @@ Prefer the lowest number that works. State what the mechanism would have caught 
 
 ### C. Harness — what to add or update
 
-- **Drift:** facts in `CLAUDE.md`/`AGENTS.md`/`README.md` the diff made false — counts (component specs, problems, tradeoff cards), file/module names in the architecture map, commands, stack versions, store names/fields. Verify by grepping/counting the real code before claiming drift.
+- **Drift:** facts in `AGENTS.md`/`docs/architecture.md`/`README.md` the diff made false — counts (component specs, problems, tradeoff cards), file/module names in the architecture map, commands, stack versions, store names/fields. Verify by grepping/counting the real code before claiming drift.
 - **Missing invariant:** the diff introduces a new non-obvious rule (a new store, a new persisted field, a new edge/node type, a new cross-file data reference) that future changes must respect and that is not written down anywhere.
 - **PR template / CI:** a checklist item or CI step that would have prompted the author to verify what this diff needed verified.
 - **Skill/command:** a workflow the diff shows being done by hand that a skill would standardize (only if it's clearly recurring).
 
 ### D. Harness — what to remove or simplify
 
-- Rules in `CLAUDE.md`/`AGENTS.md` that reference code, files, or behavior this diff deleted.
+- Rules in `AGENTS.md`/`docs/architecture.md` that reference code, files, or behavior this diff deleted.
 - Prose rules now enforced mechanically (by this diff or already) — shorten to a pointer so instructions don't grow unbounded.
-- Duplication between `CLAUDE.md` and `AGENTS.md` (or the PR template) that the diff shows drifting apart — keep one source, point to it from the other.
+- Duplication between `AGENTS.md`, `docs/architecture.md` and the `.claude/rules/` pointers (or the PR template) that the diff shows drifting apart — keep one source, point to it from the other.
 - Disabled lint rules, CI steps, or checklist items that no longer earn their keep.
 
 ## 5. Verify before reporting
