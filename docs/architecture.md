@@ -190,3 +190,7 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 - All 35 problems must have entries in `interviewData.ts` and a learning-path tier.
 - `tests/unit/catalog.test.ts` and `tests/unit/data.test.ts` check these rules.
 - Content teaches interview candidates — every formula, figure, API shape, and real-world attribution must be correct.
+
+## Conventions
+
+- Dark theme only (`<html class="dark">`); there is no theme toggle. Use zinc-* palette; sub-11px labels use `text-zinc-400`+ for contrast.

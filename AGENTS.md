@@ -14,11 +14,15 @@ and may never do; this file is the map. Keep it under 120 lines: it loads into e
 
 SystemForge: an open-source system-design interview simulator. Drag components onto a React Flow
 canvas, wire them, simulate production-scale traffic and get scored on 5 dimensions. 100%
-client-side (`localStorage`; saved designs in IndexedDB), no backend. Next.js 16 (App Router, one
-static `/` route) · React 19 · TypeScript · @xyflow/react v12 · Zustand v5 · Tailwind v4 · base-ui ·
-comlink (engine in a Web Worker). No new runtime deps without good reason. Dark theme only (zinc
-palette, sub-11px labels `text-zinc-400`+). Commit messages carry no Claude/AI attribution or
-co-author trailers. Keep scratch files out of the repo.
+client-side (`localStorage`; saved designs in IndexedDB), no backend.
+
+Stack: Next.js 16 (App Router, single static `/` route) · React 19 · TypeScript · @xyflow/react v12
+(ReactFlow) · Zustand v5 (persisted) · Tailwind v4 · base-ui dialogs/primitives · framer-motion ·
+perfect-freehand (pen) · html-to-image (export) · @dnd-kit/core (palette drag) · comlink (engine Web
+Worker RPC). No new runtime deps without good reason.
+
+- Temp/scratch files: keep them out of the repo.
+- Commit messages: do NOT add Claude/AI attribution or co-author trailers.
 
 ## Commands
 
@@ -43,7 +47,9 @@ The full map, the invariants and the data conventions are in
 The ones that matter most:
 
 - Engine: same graph + seed gives bit-identical results; never fork `core/settle.ts` or
-  `core/faultView.ts`, and never update the `engine-golden` fixture to make a change pass.
+  `core/faultView.ts` (shared by `analyze()` and the tick); never add fault-specific code to the
+  tick (add a catalog entry built from modifiers); never update the `engine-golden` fixture to make
+  a change pass.
 - Live metrics live only in the unpersisted `runtimeStore`: never in `node.data`, never a
   `canvasStore` write from a tick.
 - Persisted stores use `STORE_VERSION`, `skipHydration` and a real `migrate`; selection is
@@ -97,7 +103,7 @@ and outside the repo (a temporary worktree).
 ## Harness changes
 
 The harness is `sensors/`, `scripts/`, `.claude/`, `lefthook.yml`, `.lefthook/`,
-`factory.config.sh` and `.github/`. Change it only in a PR of its own, with the user's OK, never mixed with product code.
+`factory.config.sh` and `.github/`. Change it only in a PR of its own, with the user's OK, never mixed with product code. That PR may carry the docs the harness owns (`FACTORY.md`, `docs/harness.md`, `docs/model-routing.md`, the ADRs in `docs/decisions/`, the `specs/` template).
 If a sensor blocks you wrongly, report it and propose the fix; do not route around it.
 
 ## Working habits
