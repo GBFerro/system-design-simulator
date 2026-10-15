@@ -49,6 +49,13 @@ except `docs/model-routing.md`, listed in `.oxfmtrc.json` `ignorePatterns`: `che
 matches its routing table rows byte for byte (`| \`explorer\` | haiku | medium |`) and the formatter
 pads them.
 
+**Pins.** The values above are repo-specific, and the template's checks pass without them (an
+emptied protected-branch list, `--deny-warnings` dropped, `build` removed from `FACTORY_CHECKS`,
+empty test-first globs, the e2e step or Node 22 gone from `factory-gate.yml`). `scripts/check-harness.pins`
+lists those lines and `check-harness.sh` fails when one is missing; it is a data file read by the
+drift check, because `sensors/test.sh` only runs the sensors against a throwaway repo and never
+reads this repo's config. Changing a pin is a harness change.
+
 **Numbering.** The template's own records moved to 0004 (model routing) and 0005 (lessons ledger),
 so this repository's decisions come first. [0002](0002-retire-tlc-spec-driven.md) retires the
 previous workflow.
