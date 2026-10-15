@@ -5,6 +5,7 @@
 #  - every skill and agent has name + description frontmatter
 #  - every agent pins model + effort, matching its row in docs/model-routing.md
 #  - test-first exemptions carry a reason
+#  - the lines pinned in scripts/check-harness.pins are still there (repo-specific config values)
 #  - relative markdown links resolve
 #  - no template placeholder is left (outside the template itself)
 # It does not read prose for meaning: that stays the reviewer's job.
@@ -96,6 +97,29 @@ while IFS= read -r md; do
 done <<EOF
 $files
 EOF
+
+# Pinned lines: scripts/check-harness.pins lists, per file, whole lines that must stay as they are
+# (the repo-specific values a drifted config or workflow would silently lose). Format, one per line:
+#   <file> | <line, compared without leading or trailing spaces>        # lines starting with # skip
+# A repo without the file pins nothing. Changing a pin is a harness change, like the value it guards.
+if [ -f scripts/check-harness.pins ]; then
+  while IFS= read -r pin || [ -n "$pin" ]; do
+    pin="${pin%$'\r'}"
+    case "$pin" in '' | '#'*) continue ;; esac
+    pin_file="${pin%% | *}"
+    pin_line="${pin#* | }"
+    pin_file="${pin_file%"${pin_file##*[![:space:]]}"}"
+    pin_line="${pin_line#"${pin_line%%[![:space:]]*}"}"
+    pin_line="${pin_line%"${pin_line##*[![:space:]]}"}"
+    if [ "$pin_file" = "$pin" ] || [ -z "$pin_line" ]; then
+      problem "scripts/check-harness.pins: malformed line '$pin' (want '<file> | <line>')"
+    elif [ ! -f "$pin_file" ]; then
+      problem "$pin_file is pinned in scripts/check-harness.pins but does not exist"
+    elif ! tr -d '\r' <"$pin_file" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -qxF -- "$pin_line"; then
+      problem "$pin_file lost the pinned line: $pin_line"
+    fi
+  done <scripts/check-harness.pins
+fi
 
 # Placeholders left behind (the template keeps them on purpose).
 if ! factory_is_template; then

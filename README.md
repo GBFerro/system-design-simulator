@@ -18,7 +18,7 @@ Build real architectures · simulate production traffic · get scored like a rea
 [![Tailwind](https://img.shields.io/badge/Tailwind_v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![ReactFlow](https://img.shields.io/badge/ReactFlow_v12-FF0072?style=for-the-badge)](https://reactflow.dev)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/vijaygupta18/system-design-simulator/factory-gate.yml?branch=main&style=flat-square&label=CI)](https://github.com/vijaygupta18/system-design-simulator/actions/workflows/factory-gate.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/GBFerro/system-design-simulator/factory-gate.yml?branch=main&style=flat-square&label=CI)](https://github.com/GBFerro/system-design-simulator/actions/workflows/factory-gate.yml)
 [![License: MIT](https://img.shields.io/github/license/vijaygupta18/system-design-simulator?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-22c55e.svg?style=flat-square)](#contributing)
 [![Stars](https://img.shields.io/github/stars/vijaygupta18/system-design-simulator?style=flat-square)](https://github.com/vijaygupta18/system-design-simulator/stargazers)
