@@ -1,0 +1,27 @@
+# Lines that must stay in these files, checked by scripts/check-harness.sh (check `harness`).
+# Format: <file> | <whole line, compared without leading or trailing spaces>
+# They are the repo-specific values nothing else would notice losing: the template's own checks
+# pass without them (a protected branch list emptied, --deny-warnings dropped, `build` or the
+# test-first globs gone, the e2e step deleted). Changing one is a harness change, like the value.
+# The owner is the drift check and not sensors/test.sh: that suite runs the sensors against a
+# throwaway repo and never reads this repo's config (docs/harness.md, "Where new guidance goes").
+
+factory.config.sh | FACTORY_PROTECTED_BRANCHES='main'
+factory.config.sh | FACTORY_LINT_CMD='npm run lint -- --deny-warnings'
+factory.config.sh | FACTORY_FORMAT_CHECK_CMD='npm run format:check'
+factory.config.sh | FACTORY_TYPECHECK_CMD='npm run typecheck'
+factory.config.sh | FACTORY_TEST_CMD='npm test'
+factory.config.sh | FACTORY_CHECKS="harness lint format typecheck test build"
+factory.config.sh | FACTORY_CHECK_BUILD='npm run build && npm run bundle:check'
+factory.config.sh | FACTORY_CHECK_E2E='npx playwright install chromium >/dev/null && npm run test:e2e'
+factory.config.sh | FACTORY_STOP_CHECKS="lint format"
+factory.config.sh | FACTORY_SOURCE_GLOBS='src/*.ts src/*.tsx'
+factory.config.sh | FACTORY_TEST_GLOBS='*.test.* *.spec.* tests/*'
+
+.github/workflows/factory-gate.yml | branches: ["main"]
+.github/workflows/factory-gate.yml | node-version: 22
+.github/workflows/factory-gate.yml | cache: npm
+.github/workflows/factory-gate.yml | - run: npm ci
+.github/workflows/factory-gate.yml | - run: bash scripts/verify.sh
+.github/workflows/factory-gate.yml | run: bash scripts/verify.sh e2e
+.github/workflows/factory-gate.yml | run: npx playwright install-deps chromium
