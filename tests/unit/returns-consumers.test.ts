@@ -76,7 +76,7 @@ describe("topologySignature and the responses (RET-07)", () => {
 });
 
 /**
- * "Only `src/domain/graph/returns.ts` knows what a response is" (CLAUDE.md,
+ * "Only `src/domain/graph/returns.ts` knows what a response is" (docs/architecture.md,
  * Calls and responses): the field `responseTo` and the id prefix `ret:` appear
  * in no other source file (comments aside), so every reader goes through the
  * helpers (`responseToOf`, `returnData`, `returnIdOf`, ...). A file that must

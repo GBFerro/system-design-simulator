@@ -26,8 +26,7 @@ recorded here as a new ADR.
 - Playwright is the named check `e2e` and is **not** in `FACTORY_CHECKS`: it takes minutes and needs
   a browser, too slow for the receipt every push needs. CI runs it after `verify.sh`, on the build
   that run made (`bash scripts/verify.sh e2e`, no receipt). The rule that a change to navigation,
-  layout or handles runs the whole suite locally stays in the project docs (`CLAUDE.md` today,
-  `docs/testing.md` after the docs fold).
+  layout or handles runs the whole suite locally stays in [testing.md](../testing.md).
 - `FACTORY_STOP_CHECKS="lint format"`: the fast ones only.
 
 **One workflow.** `.github/workflows/ci.yml` is gone; `factory-gate.yml` holds its steps: Node 22 with

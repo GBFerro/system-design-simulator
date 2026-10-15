@@ -18,7 +18,7 @@ Build real architectures · simulate production traffic · get scored like a rea
 [![Tailwind](https://img.shields.io/badge/Tailwind_v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![ReactFlow](https://img.shields.io/badge/ReactFlow_v12-FF0072?style=for-the-badge)](https://reactflow.dev)
 
-[![CI](https://img.shields.io/github/actions/workflow/status/vijaygupta18/system-design-simulator/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/vijaygupta18/system-design-simulator/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/GBFerro/system-design-simulator/factory-gate.yml?branch=main&style=flat-square&label=CI)](https://github.com/GBFerro/system-design-simulator/actions/workflows/factory-gate.yml)
 [![License: MIT](https://img.shields.io/github/license/vijaygupta18/system-design-simulator?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-22c55e.svg?style=flat-square)](#contributing)
 [![Stars](https://img.shields.io/github/stars/vijaygupta18/system-design-simulator?style=flat-square)](https://github.com/vijaygupta18/system-design-simulator/stargazers)
@@ -302,7 +302,7 @@ No backend, no database, no telemetry — the entire app ships as a static bundl
 
 ### Project Structure
 
-The full, per-file map lives in [`CLAUDE.md`](CLAUDE.md#architecture-map) (a unit test keeps it in sync with `src/`). In short:
+The full, per-file map lives in [`docs/architecture.md`](docs/architecture.md#architecture-map) (a unit test keeps it in sync with `src/`). In short:
 
 - `src/components/` — the editor UI: ReactFlow canvas, sidebar, right panel (Props, Simulate, Chaos, SLO, Score, Advisor, Cost, Capacity, Trade-offs), interview mode, dialogs
 - `src/domain/` — component schemas and prices, edge rules, the canvas → simulation graph compiler, persistence
@@ -325,7 +325,7 @@ npm run format    # Format with oxfmt
 npm run build     # Production build (also type-checks)
 ```
 
-CI runs `npm run lint`, `npm run format:check` and `npm run build` on every push and pull request, so run them locally before opening a PR. Bug reports and feature requests have [issue templates](.github/ISSUE_TEMPLATE) — filling them in makes triage much faster.
+The repo is built with a software factory harness (see [`FACTORY.md`](FACTORY.md) for the rules and [`AGENTS.md`](AGENTS.md) for the map), so changes follow one workflow: a spec in [`specs/`](specs/README.md) when the change needs one, a task branch, tests first, then the gate `bash scripts/verify.sh` (lint, format, typecheck, unit tests, build and the bundle budget) and a cold audit of the pull request. CI (`.github/workflows/factory-gate.yml`) runs the same gate, then the Playwright e2e suite, on every pull request and on pushes to `main`; run `bash scripts/verify.sh` locally before opening a PR. After cloning, run `lefthook install` once to turn on the git hooks. The commands and the tests are explained in [`docs/testing.md`](docs/testing.md), and past decisions are in [`docs/decisions/`](docs/decisions/0001-record-decisions.md). Bug reports and feature requests have [issue templates](.github/ISSUE_TEMPLATE) — filling them in makes triage much faster.
 
 **Good first contributions:** add a design problem to `src/data/problems.ts` (+ its `interviewData.ts` entry), author a trade-off card, or improve concept-library content. Every formula, figure, and real-world attribution should be technically correct — this content teaches people preparing for real interviews.
 

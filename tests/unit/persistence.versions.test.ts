@@ -12,7 +12,7 @@ import { useSavedDesignsStore } from "@/store/savedDesignsStore";
 import { useSloStore } from "@/store/sloStore";
 import { useTradeoffStore } from "@/store/tradeoffStore";
 
-// CLAUDE.md: every persisted store uses STORE_VERSION, deferred hydration and a
+// docs/architecture.md: every persisted store uses STORE_VERSION, deferred hydration and a
 // real migrate. Keyed by file name so a new persisted store cannot be forgotten.
 const STORES = {
   "appStore.ts": useAppStore,

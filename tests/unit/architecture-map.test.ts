@@ -5,14 +5,14 @@ import { SYSTEM_COMPONENTS } from "@/data/components";
 import { PROBLEMS } from "@/data/problems";
 import { TRADEOFF_CARDS } from "@/data/tradeoffCards";
 
-// The "Architecture map" block of CLAUDE.md went stale in almost every PR of the
+// The "Architecture map" block of docs/architecture.md went stale in almost every PR of the
 // v2 stack (backlog M1, PR #12). This keeps it honest: every src/ folder two
 // levels deep, every file in the small shared folders and in the UI folders of the
 // guided layout (layout, panel, interview), and the catalog counts.
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const claude = readFileSync(root + "CLAUDE.md", "utf8").replace(/\r\n/g, "\n");
-const block = claude.match(/## Architecture map\s*\n+```\n([\s\S]*?)\n```/);
+const doc = readFileSync(root + "docs/architecture.md", "utf8").replace(/\r\n/g, "\n");
+const block = doc.match(/## Architecture map\s*\n+```\n([\s\S]*?)\n```/);
 const map = block?.[1] ?? "";
 
 /** Map text of each first-level src/ folder: its line plus the lines indented under it. */
@@ -70,7 +70,7 @@ const UNNAMED_OK: Record<string, string[]> = {
   "components/interview": [],
 };
 
-describe("CLAUDE.md architecture map", () => {
+describe("docs/architecture.md architecture map", () => {
   it("has the map block", () => {
     expect(map).toContain("src/");
   });
@@ -88,7 +88,7 @@ describe("CLAUDE.md architecture map", () => {
           missing.push(`src/${top}/${sub}/`);
       }
     }
-    expect(missing, "folders missing from the CLAUDE.md architecture map").toEqual([]);
+    expect(missing, "folders missing from the architecture map").toEqual([]);
   });
 
   it.each(["lib", "hooks", "store"])("names every file of src/%s in its entry", (folder) => {
@@ -96,7 +96,7 @@ describe("CLAUDE.md architecture map", () => {
     const missing = files(`src/${folder}`).filter(
       (name) => !new RegExp(`\\b${escape(name)}\\b`).test(text),
     );
-    expect(missing, `src/${folder} files missing from the CLAUDE.md architecture map`).toEqual([]);
+    expect(missing, `src/${folder} files missing from the architecture map`).toEqual([]);
   });
 
   it.each(Object.keys(UNNAMED_OK))("names every file of src/%s in its entry", (folder) => {
@@ -108,7 +108,7 @@ describe("CLAUDE.md architecture map", () => {
         // kebab-case files (app-shell.tsx) are named in PascalCase in the map (AppShell)
         !new RegExp(`\\b${escape(name.replace(/-/g, "").toLowerCase())}\\b`).test(text),
     );
-    expect(missing, `src/${folder} files missing from the CLAUDE.md architecture map`).toEqual([]);
+    expect(missing, `src/${folder} files missing from the architecture map`).toEqual([]);
   });
 
   it("names the files at the top of src/components", () => {
@@ -116,7 +116,7 @@ describe("CLAUDE.md architecture map", () => {
     const missing = files("src/components").filter(
       (name) => !new RegExp(`\\b${escape(name)}\\b`).test(text),
     );
-    expect(missing, "src/components files missing from the CLAUDE.md architecture map").toEqual([]);
+    expect(missing, "src/components files missing from the architecture map").toEqual([]);
   });
 
   it("states the real catalog counts", () => {
