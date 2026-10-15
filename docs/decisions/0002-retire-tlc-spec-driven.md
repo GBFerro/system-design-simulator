@@ -44,13 +44,12 @@ The factory is the only workflow.
   (`AD-005` arrives with `component-technologies`). Nobody edits them. The scripts that maintained
   `LESSONS.md` and `lessons.json` are gone, so the ledger is frozen at this commit.
 - The decisions of `STATE.md` that are still active are already stated as invariants in
-  `CLAUDE.md`: `AD-001` and `AD-002` (edge calls, `callPlan.ts`), `AD-003` (calls and responses),
-  `AD-004` (changing step only changes what is visible). The one lesson that was written down as a
-  rule, `L-014` (run the whole e2e suite for a change to navigation, layout or handles), is in
-  `CLAUDE.md` too.
-- `CLAUDE.md` itself is not touched by this record. The follow-up docs PR (`docs/fold-claude-md`)
-  turns it into a one-line pointer to `AGENTS.md` and moves its content to `AGENTS.md`,
-  `docs/architecture.md` (the invariants above) and `docs/testing.md` (`L-014`).
+  [docs/architecture.md](../architecture.md): `AD-001` and `AD-002` (edge calls, `callPlan.ts`),
+  `AD-003` (calls and responses), `AD-004` (changing step only changes what is visible). The one
+  lesson that was written down as a rule, `L-014` (run the whole e2e suite for a change to
+  navigation, layout or handles), lives in [docs/testing.md](../testing.md).
+- `CLAUDE.md` becomes a one-line pointer to `AGENTS.md`; its content moved to `AGENTS.md`,
+  `docs/architecture.md` and `docs/testing.md`.
 
 ## Alternatives considered
 
@@ -63,11 +62,11 @@ The factory is the only workflow.
 ## Consequences
 
 - One way to start a change, and every gate (receipt, pre-push, CI, cold audit) applies to it.
-- The old specs stay readable and are cited by the invariants ("Detail: `.specs/features/...`").
-  Nothing checks them any more; if one drifts from the code, the code and the invariants win.
+- The old specs stay readable and cited by `docs/architecture.md` ("Detail: `.specs/features/...`").
+  Nothing checks them any more; if one drifts from the code, the code and `docs/architecture.md`
+  win.
 - Branches opened before this PR (for example `feat/component-technologies`) still edit `CLAUDE.md`
-  and add files under `.specs/`. Merging them after the follow-up docs PR conflicts on
-  `CLAUDE.md`: port their changes to `docs/architecture.md` (or to `AGENTS.md`) and keep their
-  `.specs/` files as they are.
+  and add files under `.specs/`. Merging them after this PR conflicts on `CLAUDE.md`: port their
+  changes to `docs/architecture.md` (or to `AGENTS.md`) and keep their `.specs/` files as they are.
 - The lessons recorded so far (`L-001` onward) are not loaded as guidance. Anything that still
   matters has to move to its owner (a test, a check, a rule) in a PR of its own.

@@ -5,21 +5,110 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-## Before you start
+# system-design-simulator
 
-- **Read `CLAUDE.md`.** It is the single place for the architecture map and the invariants you must not break (engine, scoring, stores, runtime metrics, persistence, canvas) plus the data conventions. Most subtle bugs here come from violating one of them.
-- Verify with the commands in its Commands section (lint, format, typecheck, unit tests, build; CI also runs the bundle check and Playwright E2E), and exercise UI changes in the browser.
+Guidance for agents (and humans) working in this repo. [FACTORY.md](FACTORY.md) says what you may
+and may never do; this file is the map. Keep it under 120 lines: it loads into every session.
 
-## Quick rules of thumb
+## The project
 
-- Invariants live only in `CLAUDE.md`; don't restate them here. When a rule can be a test, prefer the test (`tests/unit/`) and point to it.
-- Many invariants are already enforced: scoring budgets (`scoring.test.ts`), catalog and data conventions (`catalog.test.ts`, `data.test.ts`), persisted store versions (`persistence.versions.test.ts`). Run `npm test` instead of checking by hand.
-- Stack, dependencies, theme and commit-message rules: `CLAUDE.md` (Tech stack, Conventions).
-- PR checklist: `.github/PULL_REQUEST_TEMPLATE.md`.
+SystemForge: an open-source system-design interview simulator. Drag components onto a React Flow
+canvas, wire them, simulate production-scale traffic and get scored on 5 dimensions. 100%
+client-side (`localStorage`; saved designs in IndexedDB), no backend. Next.js 16 (App Router, one
+static `/` route) · React 19 · TypeScript · @xyflow/react v12 · Zustand v5 · Tailwind v4 · base-ui ·
+comlink (engine in a Web Worker). No new runtime deps without good reason. Dark theme only (zinc
+palette, sub-11px labels `text-zinc-400`+). Commit messages carry no Claude/AI attribution or
+co-author trailers. Keep scratch files out of the repo.
 
-## Factory
+## Commands
 
-This repo runs under a software factory harness at level 2. [FACTORY.md](FACTORY.md) says what you may and may never do; the `deliver` skill is the procedure for a change (branch, spec when needed, test first, `bash scripts/verify.sh`, draft PR, cold audit). Specs go to `specs/` through the `spec-first` skill; `.specs/` is history ([ADR 0002](docs/decisions/0002-retire-tlc-spec-driven.md)). Where new rules go: [docs/harness.md](docs/harness.md). Keep this file under 120 lines (`bash scripts/check-harness.sh` enforces it).
+```bash
+bash scripts/verify.sh            # full gate: every check in factory.config.sh, writes .factory/receipt.json
+bash scripts/receipt-check.sh     # exit 0 only if the receipt passed for the current working tree
+bash scripts/pr-ready.sh          # draft PR -> ready, only when checks and the cold audit cover its head
+bash sensors/test.sh              # the sensors' own tests, both directions
+bash scripts/check-harness.sh     # drift: sensor wiring, links, placeholders, line caps
+```
 
-- Gate: `bash scripts/verify.sh` writes the receipt, `bash scripts/receipt-check.sh` checks it. `bash scripts/verify.sh e2e` runs Playwright (outside the receipt; CI runs it).
-- Harness files (`sensors/`, `scripts/`, `.claude/`, `lefthook.yml`, `.lefthook/`, `factory.config.sh`, `.github/`) change only in a PR of their own, never mixed with product code or docs.
+Project commands live in `factory.config.sh`: run them through `verify.sh`. `bash scripts/verify.sh
+lint test` runs just those checks and writes no receipt: a subset certifies nothing. `npm run dev`
+starts the app on :3000. `bash scripts/verify.sh e2e` runs Playwright (minutes, outside the receipt,
+CI runs it): run the whole suite for a change to navigation, layout or handles. Details in
+[docs/testing.md](docs/testing.md). `bash scripts/doctor.sh` checks the tools (bash >= 4.4 among them).
+
+## Architecture and invariants
+
+The full map, the invariants and the data conventions are in
+[docs/architecture.md](docs/architecture.md). Read the section for the area before you change it.
+The ones that matter most:
+
+- Engine: same graph + seed gives bit-identical results; never fork `core/settle.ts` or
+  `core/faultView.ts`, and never update the `engine-golden` fixture to make a change pass.
+- Live metrics live only in the unpersisted `runtimeStore`: never in `node.data`, never a
+  `canvasStore` write from a tick.
+- Persisted stores use `STORE_VERSION`, `skipHydration` and a real `migrate`; selection is
+  `node.selected`; graph-editing actions are in `MUTATING_ACTIONS`.
+- Only `domain/graph/returns.ts` knows what a response is; only `callPlan.ts` resolves call order.
+- Scoring rules score through `BUDGET` summing to 20; measured checks never reward an empty design.
+- Changing step only changes what is visible: no graph edit, undo entry or run reset.
+- Canvas: module-level `nodeTypes`/`edgeTypes`; read-only tabs hide edit affordances; one delete
+  path; dialogs through `ModalShell`; nodes from `lib/nodeFactory.ts`.
+- Data: references are sized, have an entry node, and hold their SLO and budget; the content
+  teaches interview candidates, so every figure must be correct.
+
+## Orchestration
+
+The main session orchestrates: it decides, dispatches subagents, integrates their results and runs
+the gates (verify, commit, push, PR, audit verdict, `pr-ready.sh`). Searches go to `explorer`, and
+specs, code and tests to the agent [docs/model-routing.md](docs/model-routing.md) routes them to;
+each agent pins its model and effort. Independent work runs in parallel. The
+`require-routed-subagent` sensor blocks unrouted subagents and per-call model or effort overrides.
+
+## Delivering a change
+
+Follow the `deliver` skill. In short:
+
+1. Start from an up-to-date trunk and create a task branch: `<type>/<short-slug>`.
+2. If the change needs a spec (`spec-first` skill), `spec-writer` drafts it into `specs/`; get the
+   user's OK before code. The old `.specs/` is history, see [docs/decisions/](docs/decisions/0002-retire-tlc-spec-driven.md).
+3. Workers write the failing test first; the `require-test-first` sensor blocks production edits without one.
+4. Implement in small slices, one worker each; keep the end-of-turn checks green.
+5. Verify (`verify-before-done` skill): `bash scripts/verify.sh`, then map each acceptance
+   criterion to its evidence.
+6. Commit with Conventional Commits, push the task branch, open a **draft** PR from the template.
+7. Run the cold audit with the `auditor` subagent (never in your own context) and post its verdict.
+8. Fix what it finds, push, and audit the new head. Repeat until `Verdict: PASS` on the head.
+9. `bash scripts/pr-ready.sh`, then the `task-retro` skill. Stop there: the human merges.
+
+## Verified means
+
+A receipt in `.factory/receipt.json` with `"status": "passed"` whose tree is the tree you are
+claiming about. Anything else (no receipt, failed, stale, another tree) is unverified, and
+you say so. Never edit a check, the config, a sensor or a baseline to make a receipt pass.
+The pre-push hook refuses a push whose commit tree has no passed receipt.
+
+## Editing files
+
+Create or change files inside the repo with Edit or Write, never through the shell (`>`, `tee`,
+`sed -i`, `cp`/`mv` onto a file, `python -c`/`node -e` writes). Edit hooks only see the Edit and
+Write tools, and shell writes cannot be rewound. Shell output is fine in ignored paths (`.factory/`)
+and outside the repo (a temporary worktree).
+
+## Harness changes
+
+The harness is `sensors/`, `scripts/`, `.claude/`, `lefthook.yml`, `.lefthook/`,
+`factory.config.sh` and `.github/`. Change it only in a PR of its own, with the user's OK, never mixed with product code.
+If a sensor blocks you wrongly, report it and propose the fix; do not route around it.
+
+## Working habits
+
+- **Read the file instead of recalling it.** Commands, paths and rules change; your memory of
+  them does not.
+- When a rule here and the code disagree, that is a finding: raise it, do not pick one silently.
+- Report what you ran and what you skipped, with the exit status. "Should pass" is not a result.
+
+## Where guidance goes
+
+New rules go to the most enforced owner that can hold them: a sensor or check first, a doc last.
+The ladder and the reasons are in [docs/harness.md](docs/harness.md). Lessons from retros are in
+each PR's `## Retro` comment (`task-retro` skill); decisions in `docs/decisions/`.
