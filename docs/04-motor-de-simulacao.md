@@ -161,7 +161,7 @@ interface Engine {
 **Fase 2**
 
 - [x] Um spike ×5 enche a fila e se recupera quando termina
-- [x] Tick ≤ 5 ms com 50 nós e 80 arestas, a 20×
+- [x] Tick ≤ 5 ms com 50 nós e 80 arestas, a 20× (laptop médio; o gate de CI verifica 25 ms, metade do tick de 50 ms e cerca de 4× o pior valor medido no runner)
 - [x] A mesma seed e o mesmo grafo dão o mesmo `TickSnapshot`, bit a bit
 
 ## Testes (Vitest)
