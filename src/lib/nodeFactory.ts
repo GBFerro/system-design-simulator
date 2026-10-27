@@ -1,7 +1,8 @@
 import type { Node, XYPosition } from "@xyflow/react";
 import type { SystemComponent } from "@/types/component";
 import type { ComponentNodeData } from "@/store/canvasStore";
-import { defaultParams } from "@/domain/components/registry";
+import { defaultParams, sanitizeParams } from "@/domain/components/registry";
+import { techPreset } from "@/domain/components/technologies";
 
 /** crypto.randomUUID is unavailable on non-secure (http) origins, e.g. a phone on the LAN. */
 export function randomId(): string {
@@ -22,11 +23,24 @@ export function isComponentNode(n: Node): n is Node<ComponentNodeData> {
   );
 }
 
+/**
+ * A new component node. With `technology` (component-technologies, TEC-21/22)
+ * its params start from that technology's preset and its default class;
+ * without one the node is `generic`, with the schema defaults (references
+ * and quick fixes build nodes that way).
+ */
 export function createComponentNode(
   component: SystemComponent,
   position: XYPosition,
+  technology?: string,
 ): Node<ComponentNodeData> {
-  return componentNodeWithId(component, `${component.id}-${randomId()}`, position);
+  const node = componentNodeWithId(component, `${component.id}-${randomId()}`, position);
+  if (!technology) return node;
+  const params = sanitizeParams(component.id, {
+    ...node.data.params,
+    ...techPreset(component.id, technology),
+  });
+  return { ...node, data: { ...node.data, params } };
 }
 
 /** `createComponentNode` with a given id (pure: the advisor's quick fixes build nodes this way). */

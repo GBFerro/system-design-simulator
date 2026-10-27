@@ -26,6 +26,7 @@ import type { EdgeCallKind } from "@/domain/components/types";
 import type { LatencySummary } from "../types";
 import { sampleServiceMs, sampleWaitMs, type StationState } from "./queueing";
 import type { Rng } from "./rng";
+import { sampleClassMs, type SampleClass } from "./tech";
 
 /** A load balancer's target. */
 export interface SampleEdge {
@@ -82,6 +83,18 @@ export interface SampleNode {
   absorbed: string[];
   /** Rule nodes: async calls in step order, for the trace only (never read without a recorder). */
   asyncCalls?: SampleCall[];
+  /**
+   * A node with a technology (component-technologies, A.5): reads and
+   * writes drop and take their latency by class. Absent on generic nodes,
+   * which draw exactly as before.
+   */
+  tech?: { read: SampleTechClass; write: SampleTechClass };
+}
+
+/** One request class at a node with a technology. */
+export interface SampleTechClass extends SampleClass {
+  /** P(a request of the class is dropped/rejected/throttled here). */
+  dropProbability: number;
 }
 
 /** A call as a recorder hears about it. */
@@ -168,10 +181,13 @@ export function sampleLatency(
   const visit = (id: string, at: number): Hop => {
     const node = model.nodes.get(id)!;
     visits++;
-    if (rng() < node.dropProbability) return { ok: false, ms: 0 };
+    // A node with a technology: the class of this request (already drawn).
+    const cls = node.tech ? (isRead ? node.tech.read : node.tech.write) : undefined;
+    if (rng() < (cls ? cls.dropProbability : node.dropProbability)) return { ok: false, ms: 0 };
     // (short-circuit: a share of 1 consumes no extra random numbers)
-    let ms =
-      node.latencyShare >= 1 || rng() < node.latencyShare
+    let ms = cls
+      ? sampleClassMs(cls, rng)
+      : node.latencyShare >= 1 || rng() < node.latencyShare
         ? sampleServiceMs(node.station, rng) + sampleWaitMs(node.station, rng)
         : 0;
     if (node.kind === "queue" || (node.kind === "lb" ? node.edges : node.steps).length === 0) {

@@ -228,14 +228,29 @@ export function rateLimit(node: SimNode, lambda: number): Admission {
 /* ---------- queue / stream ---------- */
 
 /**
- * How fast one consumer edge drains a queue: `consumers` parallel consumers
- * (bounded by the target's instances), each at the target's per-instance
- * capacity. Nodes without a `consumers` param drain at the target's capacity.
+ * Consumers that pull one consumer edge of a queue: `consumers` (bounded by
+ * the target's instances) and, on Kafka, by its partitions (TEC-34: a
+ * consumer group has at most one consumer per partition). `byPartitions`:
+ * the partitions are the term that limits.
+ */
+export function consumerPullers(
+  queue: SimNode,
+  target: SimNode,
+): { pullers: number; byPartitions: boolean } {
+  const consumers = Math.floor(paramNumber(queue, PARAM.consumers, target.instances));
+  const free = Math.min(consumers > 0 ? consumers : 1, target.instances);
+  const cap = queue.tech?.consumerCap;
+  const byPartitions = cap !== undefined && cap < free;
+  return { pullers: Math.max(1, byPartitions ? cap : free), byPartitions };
+}
+
+/**
+ * How fast one consumer edge drains a queue: its pullers (`consumerPullers`),
+ * each at the target's per-instance capacity. Nodes without a `consumers`
+ * param drain at the target's capacity.
  */
 export function consumerCapacity(queue: SimNode, target: SimNode): number {
-  const consumers = Math.floor(paramNumber(queue, PARAM.consumers, target.instances));
-  const pullers = Math.max(1, Math.min(consumers > 0 ? consumers : 1, target.instances));
-  return pullers * target.capacityPerInstance;
+  return consumerPullers(queue, target).pullers * target.capacityPerInstance;
 }
 
 /** Forward (non-back) edges out of each node, in edge order. */

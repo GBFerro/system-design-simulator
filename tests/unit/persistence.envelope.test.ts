@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { PROBLEMS } from "@/data/problems";
-import { PARAM } from "@/domain/components/registry";
+import { PARAM, sanitizeParams } from "@/domain/components/registry";
+import { techPreset } from "@/domain/components/technologies";
+import { SCHEMA_VERSION } from "@/domain/persistence/version";
 import type { EdgeRule } from "@/domain/components/types";
 import { MAX_CALL_STEP, MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
 import { isReturnEdge } from "@/domain/graph/returns";
@@ -446,5 +448,49 @@ describe("envelope v4 and responses (RET-23, RET-24, RET-32)", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.design.edges.map((e) => e.id)).toEqual(["e-a-b"]);
+  });
+});
+
+describe("technology params in the v4 envelope (component-technologies, TEC-09)", () => {
+  it("export → import keeps technology and instanceClass in data.params, at schemaVersion 4", () => {
+    const params = sanitizeParams("nosql-db", {
+      ...techPreset("nosql-db", "cassandra", "i4i.2xlarge"),
+      instances: 6,
+    });
+    const nodes = [
+      {
+        id: "db",
+        type: "component",
+        position: { x: 0, y: 0 },
+        data: {
+          componentId: "nosql-db",
+          label: "Cassandra",
+          icon: "",
+          category: "",
+          scalable: true,
+          params,
+        },
+      },
+    ];
+    const json = stringifyEnvelope({
+      name: "tech",
+      problemId: null,
+      nodes: serializeNodes(nodes),
+      edges: [],
+      strokes: [],
+    });
+    expect(SCHEMA_VERSION).toBe(4);
+    expect((JSON.parse(json) as DesignEnvelope).schemaVersion).toBe(4);
+
+    const result = parseEnvelopeJson(json);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.warnings).toEqual([]);
+    const back = deserializeNodes(result.design.nodes)[0].data.params as Record<string, unknown>;
+    expect(back.technology).toBe("cassandra");
+    expect(back.instanceClass).toBe("i4i.2xlarge");
+    expect(back).toEqual(params);
+    // And it sanitizes back to itself (what compile and the Props form read).
+    expect(sanitizeParams("nosql-db", back)).toEqual(params);
   });
 });

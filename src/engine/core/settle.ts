@@ -18,6 +18,7 @@ import {
   type CallContext,
 } from "./routing";
 import type { SampleCall, SampleEdge, SampleNode } from "./sampler";
+import { techExceeds, techServed, type TechFlowView } from "./tech";
 
 /** The graph as both passes walk it. */
 export interface Topology {
@@ -39,6 +40,11 @@ export interface FlowView {
   served: number;
   /** Arrivals dropped/rejected, req/s. */
   dropped: number;
+  /**
+   * A node with a technology (component-technologies, A.4): its read and
+   * write classes. Absent on generic nodes, which settle exactly as before.
+   */
+  tech?: TechFlowView;
 }
 
 export interface Settled {
@@ -57,17 +63,28 @@ export interface Settled {
   avail: Map<string, number>;
 }
 
-/** Reverse pass over the sync path: success, call failure, availability. */
+/**
+ * Reverse pass over the sync path: success, call failure, availability.
+ *
+ * `writeShare` (edge id -> share of its calls that are writes) matters only
+ * for calls into a node with a technology: they time out by its class mix
+ * and succeed by the class they carry (`techServed`) times what the node's
+ * own calls give (`downstream`, kept for those nodes only). Calls into a
+ * generic node, and every node's `success`, are computed as before.
+ */
 export function settle(
   topo: Topology,
   flows: ReadonlyMap<string, FlowView>,
   shares: ReadonlyMap<string, number>,
+  writeShare?: ReadonlyMap<string, number>,
 ): Settled {
   const { byId, order, out, readRatio } = topo;
   const success = new Map<string, number>();
   const failure = new Map<string, number>();
   const linkFailure = new Map<string, number>();
   const avail = new Map<string, number>();
+  /** Nodes with a technology: success of their own calls, without their drops. */
+  const downstream = new Map<string, number>();
   for (let i = order.length - 1; i >= 0; i--) {
     const id = order[i];
     const node = byId.get(id)!;
@@ -79,13 +96,18 @@ export function settle(
 
     for (const e of edges) {
       const target = flows.get(e.target)!;
+      const ws = target.tech ? (writeShare?.get(e.id) ?? target.tech.ws) : 0;
       // The round trip on the link eats into the caller's timeout (as in the sampler).
       const timedOut =
         timeout === undefined
           ? 0
-          : probSojournExceeds(target.st, timeout - 2 * e.rule.networkLatencyMs);
+          : target.tech
+            ? techExceeds(target.tech, ws, timeout - 2 * e.rule.networkLatencyMs)
+            : probSojournExceeds(target.st, timeout - 2 * e.rule.networkLatencyMs);
       const linkOk = (1 - e.rule.packetLoss) * (1 - timedOut);
-      const ok = linkOk * (success.get(e.target) ?? 1);
+      const ok = target.tech
+        ? linkOk * techServed(target.tech, ws) * (downstream.get(e.target) ?? 1)
+        : linkOk * (success.get(e.target) ?? 1);
       failure.set(e.id, clamp01(1 - ok));
       linkFailure.set(e.id, clamp01(1 - linkOk));
     }
@@ -96,6 +118,8 @@ export function settle(
 
     let s = servedFraction;
     let a = nodeAvail;
+    // (the same factors as `s`, without the node's own served fraction)
+    let d = 1;
     if (sync.length > 0 && node.routing === "lb") {
       // Exactly one target per request; targets are redundant for availability.
       let ok = 0;
@@ -106,6 +130,7 @@ export function settle(
         if (!e.async) down *= 1 - (avail.get(e.target) ?? 1);
       }
       s *= ok;
+      d *= ok;
       a *= 1 - down;
     } else {
       // A look-aside cache call's failure is a miss (the call after it goes
@@ -117,11 +142,14 @@ export function settle(
         for (const c of edgeCallsOf(e, node)) {
           const q = callProbability(c.call, node, ctx, c.dependsOn);
           const k = callsOf(c.call);
-          s *= 1 - q + q * callOk(e) ** k;
+          const callsOk = 1 - q + q * callOk(e) ** k;
+          s *= callsOk;
+          d *= callsOk;
           a *= 1 - q + q * (avail.get(e.target) ?? 1);
         }
       }
     }
+    if (flow.tech) downstream.set(id, clamp01(d));
     success.set(id, clamp01(s));
     avail.set(id, clamp01(a));
   }
@@ -199,6 +227,7 @@ export function sampleNodesFor(
       steps: steps.filter((group) => group.length > 0),
       absorbed: plan?.absorbed ?? [],
       asyncCalls,
+      ...(flow.tech ? { tech: { read: flow.tech.read, write: flow.tech.write } } : {}),
     });
   }
   return sampleNodes;

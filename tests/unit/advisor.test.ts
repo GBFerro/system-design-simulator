@@ -3,12 +3,16 @@ import type { Edge, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { applyAllFixes, applyFix, computeFindings, readRatioFor } from "@/advisor/advisor";
 import { applyDiff } from "@/advisor/graph";
+import { nodeLoadLimit } from "@/advisor/load";
 import { edgeRuleOf } from "@/domain/graph/edgeRules";
 import { structureFindings } from "@/advisor/structure";
 import type { AdvisorContext } from "@/advisor/types";
 import { suggestedInstances } from "@/cost/rightSize";
 import { PROBLEMS } from "@/data/problems";
+import { pct } from "@/scoring/steady";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
+import { techPreset } from "@/domain/components/technologies";
+import type { Params } from "@/domain/components/types";
 import { analyze } from "@/engine/analyze";
 import type { GlobalRuntimeMetrics, NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { buildReferenceGraph } from "@/lib/loadReference";
@@ -16,6 +20,7 @@ import {
   applyAllFindings,
   applyFinding,
   recentLoad,
+  recentTechLoad,
   setAdvisorPreview,
   useAdvisorStore,
 } from "@/store/advisorStore";
@@ -201,6 +206,96 @@ describe("load findings (ADV-01)", () => {
     const after = fixed(g, { load: { c: 500, app: 500, gw: 400 } }, "rate-limit");
     expect(after.nodes).toHaveLength(3);
     expect(paramsOf(after, "gw")).toMatchObject({ rateLimitEnabled: true, limitRps: 800 });
+  });
+});
+
+describe("technology limits (TEC-42)", () => {
+  /** A node of `type` with `technology`'s preset (its default class). */
+  const tech = (id: string, type: string, technology: string, params: Params = {}) =>
+    node(id, type, { ...techPreset(type, technology), ...params });
+
+  /** Analyze `g` at `rps` and read node `id`'s steady state. */
+  const steadyOf = (g: Graph, rps: number, readRatio: number, id: string) =>
+    analyze(compileV3(g.nodes, requestEdges(g.edges)), rps, { seed: 1, readRatio }).nodes.find(
+      (n) => n.nodeId === id,
+    )!;
+
+  it("a Postgres with saturated writes: the advisor's utilization is the engine's limitUtilization", () => {
+    const g = webApp({ node: tech("db", "sql-db", "postgres", { instances: 8 }) });
+    g.nodes[1] = node("app", "app-server", { instances: 50 });
+    const primary = Number(techPreset("sql-db", "postgres").writeCapacityRps);
+    const db = steadyOf(g, 1.3 * primary, 0, "db");
+    expect(db.limitKind).toBe("write-primary");
+    expect(db.limitUtilization!).toBeGreaterThan(1);
+    const ctx: AdvisorContext = {
+      load: { c: db.offeredRps, app: db.offeredRps, db: db.offeredRps },
+      writeLoad: { db: db.writeRps! },
+      readRatio: 0,
+    };
+    const advisor = nodeLoadLimit(nodeOf(g, "db") as never, db.offeredRps, ctx);
+    expect(advisor.utilization).toBeCloseTo(db.limitUtilization!, 9);
+    expect(advisor.tech?.kind).toBe("write-primary");
+    // Not the instances x capacity of the generic rule, which 8 instances keep under 1.
+    expect(db.offeredRps / (8 * capacityPerInstanceOf(nodeOf(g, "db").data as never))).toBeLessThan(
+      1,
+    );
+
+    const f = find(g, ctx, "hot:db")!;
+    expect(f.severity).toBe("critical");
+    expect(f.title).toBe(`db is saturated (Write primary at ${pct(db.limitUtilization!)})`);
+    expect(f.detail).toContain("write");
+    // The primary doesn't grow with instances: no instance fix
+    expect(f.fix).toBeUndefined();
+  });
+
+  it("an AWS API Gateway at its account quota gets no instance fix; a generic gateway does", () => {
+    const load = { c: 15_000, app: 15_000, gw: 15_000 };
+    const aws = webApp({ node: tech("gw", "api-gateway", "aws-api-gateway") });
+    const f = find(aws, { load }, "hot:gw")!;
+    expect(f.severity).toBe("critical");
+    expect(f.title).toBe("gw is saturated (Account throttle at 150%)");
+    expect(f.fix).toBeUndefined();
+
+    const generic = webApp({
+      node: node("gw", "api-gateway", { capacityPerInstance: 10_000 }),
+    });
+    expect(find(generic, { load }, "hot:gw")!.fix).toBeDefined();
+  });
+
+  it("a HAProxy whose capacity scales with instances is scaled out from the same limit", () => {
+    const g = webApp({ node: tech("lb", "load-balancer", "haproxy"), from: "c" });
+    const capacity = Number(techPreset("load-balancer", "haproxy").capacityPerInstance);
+    const load = { c: 1.5 * capacity, lb: 1.5 * capacity, app: 1 };
+    const f = find(g, { load }, "hot:lb")!;
+    expect(f.title).toBe("lb is saturated (Capacity at 150%)");
+    const after = fixed(g, { load }, "hot:lb");
+    expect(instances(after, "lb")).toBe(suggestedInstances(1.5 * capacity, capacity));
+    expect(find(after, { load }, "hot:lb")).toBeUndefined();
+  });
+
+  it("a Kafka node reads the engine's number: only the engine sees its consumers", () => {
+    const g: Graph = {
+      nodes: [
+        node("c", "client"),
+        tech("q", "message-queue", "kafka", { consumers: 12, partitions: 6 }),
+        node("w", "worker-pool", { instances: 12, capacityPerInstance: 100 }),
+      ],
+      edges: withReturns([wire("c", "q"), wire("q", "w")]),
+    };
+    const q = steadyOf(g, 2_000, 0.5, "q");
+    expect(q.limitKind).toBe("consumers-partitions");
+    const ctx: AdvisorContext = {
+      load: { c: 2_000, q: q.offeredRps, w: 600 },
+      writeLoad: { q: q.writeRps! },
+      limits: { q: { kind: q.limitKind!, utilization: q.limitUtilization! } },
+      readRatio: 0.5,
+    };
+    const advisor = nodeLoadLimit(nodeOf(g, "q") as never, q.offeredRps, ctx);
+    expect(advisor.utilization).toBeCloseTo(q.limitUtilization!, 9);
+    expect(advisor.tech?.kind).toBe("consumers-partitions");
+    expect(find(g, ctx, "hot:q")!.title).toBe(
+      `q is saturated (Consumers capped by partitions at ${pct(q.limitUtilization!)})`,
+    );
   });
 });
 
@@ -506,5 +601,27 @@ describe("recentLoad", () => {
     // A new run after a reset doesn't average with the old one.
     const again = [...run, snap(0.5, 10), snap(1, 20)];
     expect(recentLoad(again, again[5])).toEqual({ a: 15 });
+  });
+
+  it("averages the writes and the limit's utilization of nodes with a technology over the same window", () => {
+    const tech = (t: number, writeRps: number, limitUtilization: number): TickSnapshot => ({
+      ...snap(t, 100),
+      nodes: {
+        a: { rpsIn: 100 } as NodeRuntimeMetrics,
+        db: {
+          rpsIn: 100,
+          writeRps,
+          limitUtilization,
+          limitKind: t > 5 ? "write-primary" : "read-capacity",
+        } as NodeRuntimeMetrics,
+      },
+    });
+    expect(recentTechLoad([], null)).toBeUndefined();
+    const run = [tech(0, 999, 9), tech(1, 10, 0.5), tech(4, 20, 0.7), tech(7, 30, 1.2)];
+    // t in [2, 7]; the newest snapshot names the resource; a generic node has neither
+    expect(recentTechLoad(run, run[3])).toEqual({
+      writeLoad: { db: 25 },
+      limits: { db: { kind: "write-primary", utilization: (0.7 + 1.2) / 2 } },
+    });
   });
 });

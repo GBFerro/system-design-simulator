@@ -5,6 +5,7 @@
  * tick loop (`play`/`pause`/`reset`/`setSpeed`/`setTraffic`/`onTick`), and
  * Spec 08 (chaos) `inject`/`heal`.
  */
+import type { TechLimitKind } from "@/domain/components/technologies/profile";
 import type { RoutingKind } from "@/domain/components/types";
 import type { SimGraph } from "@/domain/graph/compile";
 import type { NodeStatus } from "@/types/simulation";
@@ -71,6 +72,15 @@ export interface NodeSteadyState {
   availability: number;
   status: NodeStatus;
   isBottleneck: boolean;
+  /**
+   * A node with a technology only (component-technologies, TEC-41): the
+   * resource that limits it, its offered demand over that resource's
+   * capacity (= `utilization` on these nodes) and the offered writes, req/s.
+   * Flat primitives, absent on generic nodes.
+   */
+  limitKind?: TechLimitKind;
+  limitUtilization?: number;
+  writeRps?: number;
 }
 
 export interface EdgeSteadyState {
@@ -167,6 +177,15 @@ export interface NodeRuntimeMetrics {
   status: RuntimeNodeStatus;
   /** Set while faults are active (and until the node recovers). */
   blast?: BlastRole;
+  /**
+   * A node with a technology only (TEC-40/41): the limiting resource, its
+   * utilization (offered demand ÷ capacity, the same number in `analyze()`
+   * and the tick) and the offered writes, req/s. Flat primitives, so
+   * `nodeMetricsEqual` keeps sharing the object.
+   */
+  limitKind?: TechLimitKind;
+  limitUtilization?: number;
+  writeRps?: number;
   /** OBS-03, by component type. */
   extra?: {
     hitRatio?: number;

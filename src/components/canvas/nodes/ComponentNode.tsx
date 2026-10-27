@@ -14,6 +14,7 @@ import { RUNTIME_STATUS_META } from "./runtimeStatus";
 import { useNodeBlast, useNodeStatus } from "@/store/runtimeStore";
 import { useNodeFindingSeverity, useNodePreviewChange } from "@/store/advisorStore";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
+import { technologyOf } from "@/domain/components/params";
 import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
@@ -46,6 +47,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   const previewChange = useNodePreviewChange(id);
   const replicas = instancesOf(nodeData);
   const capacity = capacityPerInstanceOf(nodeData);
+  // component-technologies (TEC-24): the real product's short name; none for generic
+  const tech = technologyOf(nodeData.componentId, nodeData.params ?? {});
 
   const isCustom = nodeData.componentId === "custom";
   const [editing, setEditing] = useState(false);
@@ -217,6 +220,16 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
           ×{replicas}
           <ChevronDown className="h-2 w-2" aria-hidden />
         </button>
+      )}
+
+      {/* Technology tag: on the bottom border, outside the layout, so the node never resizes */}
+      {tech && (
+        <span
+          data-technology={tech.id}
+          className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-zinc-700 bg-zinc-800 px-1.5 font-mono text-[9px] leading-[14px] text-zinc-300"
+        >
+          {tech.layer ? `${tech.short} · ${tech.layer}` : tech.short}
+        </span>
       )}
 
       {/* Runtime metrics (OBS-01): RPS in, utilization, p99, status icon */}

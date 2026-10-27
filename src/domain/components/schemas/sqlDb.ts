@@ -1,12 +1,12 @@
 import { PARAM } from "../params";
-import { defineSchema } from "./define";
+import { defineTechSchema } from "./define";
 
 /**
  * SQL database. `instances` is the primary plus in-node replicas; model
  * replicas as Read Replica nodes to route reads explicitly. Writes only go
  * to the primary, so write capacity never grows with replicas.
  */
-export const sqlDbSchema = defineSchema(
+export const sqlDbSchema = defineTechSchema(
   "sql-db",
   "fixed",
   [
@@ -78,7 +78,7 @@ export const sqlDbSchema = defineSchema(
 );
 
 /** Explicit read replica: receives `reads` edges and trails the primary. */
-export const readReplicaSchema = defineSchema(
+export const readReplicaSchema = defineTechSchema(
   "read-replica",
   "fixed",
   [

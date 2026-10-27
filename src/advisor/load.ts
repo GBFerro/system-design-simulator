@@ -10,7 +10,16 @@
 import type { Edge, Node } from "@xyflow/react";
 import { suggestedInstances, TARGET_UTILIZATION } from "@/cost/rightSize";
 import { getComponentById } from "@/data/components";
-import { capacityPerInstanceOf, instancesOf, numParam, PARAM } from "@/domain/components/registry";
+import {
+  capacityPerInstanceOf,
+  instancesOf,
+  numParam,
+  PARAM,
+  resolvedParams,
+  serviceTimeMsOf,
+} from "@/domain/components/registry";
+import { LIMIT_LABELS, techLimitOf } from "@/domain/components/technologies/limits";
+import { techProfileOf, type TechLimitKind } from "@/domain/components/technologies/profile";
 import { OVERPROVISIONED_UTILIZATION, PEAK_UTILIZATION, SURGE_FACTOR } from "@/scoring/budget";
 import { pct, rps } from "@/scoring/steady";
 import type { ComponentNodeData } from "@/store/canvasStore";
@@ -38,10 +47,91 @@ function stationRps(node: Node<ComponentNodeData>, load: number): number {
   return load * Math.min(1, Math.max(0, numParam(node.data, PARAM.lookupShare, 1)));
 }
 
-function utilizationOf(node: Node<ComponentNodeData>, load: number): number {
-  const capacity = instancesOf(node.data) * capacityPerInstanceOf(node.data);
-  return capacity > 0 ? stationRps(node, load) / capacity : 0;
+/** How busy a node is at a load and what bounds it. */
+export interface NodeLoadLimit {
+  /** Load over the capacity of the busiest resource (can exceed 1). */
+  utilization: number;
+  /** Instances right-size would run for this load; absent when instances don't add capacity. */
+  sizedInstances?: number;
+  /** A node with a technology: the resource that limits it (TEC-42). */
+  tech?: { kind: TechLimitKind; capacityRps: number };
 }
+
+/**
+ * Utilization of a node at `load` req/s over its CURRENT capacity. A node
+ * with a technology reads the limiting resource the engine reports
+ * (`techLimitOf` on the same read/write demand, TEC-42); a Kafka node takes
+ * the engine's own number, since only the engine sees its consumers. Any
+ * other node: instances x capacity per instance, like right-size.
+ */
+export function nodeLoadLimit(
+  node: Node<ComponentNodeData>,
+  load: number,
+  ctx: AdvisorContext,
+): NodeLoadLimit {
+  const profile = techProfileOf(node.data.componentId, resolvedParams(node.data));
+  const n = instancesOf(node.data);
+  if (!profile) {
+    const perInstance = capacityPerInstanceOf(node.data);
+    const capacity = n * perInstance;
+    const served = stationRps(node, load);
+    return {
+      utilization: capacity > 0 ? served / capacity : 0,
+      sizedInstances: suggestedInstances(served, perInstance),
+    };
+  }
+  const write = Math.min(load, Math.max(0, ctx.writeLoad?.[node.id] ?? load * (1 - ctx.readRatio)));
+  const own = techLimitOf(
+    profile,
+    {
+      instances: n,
+      capacityPerInstance: capacityPerInstanceOf(node.data),
+      serviceTimeMs: serviceTimeMsOf(node.data),
+    },
+    { read: load - write, write },
+  );
+  const engine = profile.consumerCap !== undefined ? ctx.limits?.[node.id] : undefined;
+  const limit = engine
+    ? {
+        kind: engine.kind,
+        utilization: engine.utilization,
+        capacityRps: engine.utilization > 0 ? load / engine.utilization : 0,
+        // As the engine's consumer limit: consumers capped by partitions don't scale.
+        scalesWithInstances:
+          engine.kind === "consumers"
+            ? true
+            : engine.kind === "consumers-partitions"
+              ? false
+              : own.scalesWithInstances,
+      }
+    : own;
+  return {
+    utilization: limit.utilization,
+    sizedInstances:
+      limit.scalesWithInstances && limit.capacityRps > 0
+        ? suggestedInstances(load, limit.capacityRps / n)
+        : undefined,
+    tech: { kind: limit.kind, capacityRps: limit.capacityRps },
+  };
+}
+
+/** What to change when a limit that more instances don't raise is full. */
+const LIMIT_ADVICE: Partial<Record<TechLimitKind, string>> = {
+  "write-primary":
+    "Every write goes to one primary per shard, so more instances (replicas) only add read capacity: shard the writes, batch them or move them behind a queue.",
+  "hot-partition":
+    "One partition key takes too much of the traffic and throttles while the rest idle: spread it with a better partition key or write sharding, or cache its reads.",
+  "account-throttle":
+    "The account's throttling quota rejects the excess with 429: request a higher quota, or cache and rate-limit in front of it.",
+  "prefix-limit":
+    "S3 serves a fixed rate per key prefix and answers the excess with 503 SlowDown: spread the keys over more prefixes.",
+  "queue-throughput":
+    "The queue has a fixed message ceiling: shard over more queues or pick a higher-throughput option.",
+  "consumers-partitions":
+    "Consumers beyond the partition count sit idle: add partitions so more consumers can pull.",
+  primaries:
+    "Its primaries take these requests and replicas don't help them: add shards, or read from secondaries.",
+};
 
 const isStateless = (n: Node<ComponentNodeData>) =>
   getComponentById(n.data.componentId)?.stateful === false;
@@ -64,44 +154,51 @@ export function loadFindings(view: DesignView, ctx: AdvisorContext): Finding[] {
     if (!view.scoring.reachable.has(node.id)) continue;
     const n = instancesOf(node.data);
     const capacity = capacityPerInstanceOf(node.data);
-    const util = utilizationOf(node, rpsIn);
-    const target = suggestedInstances(stationRps(node, rpsIn), capacity);
-    const serving = `${rps(rpsIn)} rps on ${n} × ${rps(capacity)} rps`;
+    const { utilization: util, sizedInstances: target, tech } = nodeLoadLimit(node, rpsIn, ctx);
+    const resource = tech ? LIMIT_LABELS[tech.kind] : undefined;
+    const serving = tech
+      ? `${rps(rpsIn)} rps; its ${resource!.toLowerCase()} takes ${rps(tech.capacityRps)} rps at this read/write mix`
+      : `${rps(rpsIn)} rps on ${n} × ${rps(capacity)} rps`;
+    const share = resource ? `${resource} at ${pct(util)}` : pct(util);
 
     if (util >= PEAK_UTILIZATION) {
       const saturated = util >= 1;
       const stateless = isStateless(node);
+      const advice =
+        target === undefined
+          ? ((tech && LIMIT_ADVICE[tech.kind]) ??
+            "More instances don't raise this limit: take load off it (a cache, a queue) or pick a technology or class with more headroom.")
+          : stateless
+            ? `Run more instances: ~${pct(TARGET_UTILIZATION)} at this load leaves room for a ${SURGE_FACTOR}× surge.`
+            : "It's stateful, so adding nodes moves data: shard it, cache its reads or add read replicas to take load off it.";
       findings.push({
         id: `hot:${node.id}`,
         severity: saturated ? "critical" : "warning",
         title: saturated
-          ? `${node.data.label} is saturated (${pct(util)})`
-          : `${node.data.label} runs hot (${pct(util)})`,
+          ? `${node.data.label} is saturated (${share})`
+          : `${node.data.label} runs hot (${share})`,
         detail: `${serving}. ${
           saturated
             ? "Past full capacity requests queue without bound, time out and get dropped, and every caller's latency climbs with them."
             : `Above ${pct(PEAK_UTILIZATION)} queueing delay grows steeply, and a slow instance or a small burst tips it over.`
-        } ${
-          stateless
-            ? `Run more instances: ~${pct(TARGET_UTILIZATION)} at this load leaves room for a ${SURGE_FACTOR}× surge.`
-            : "It's stateful, so adding nodes moves data: shard it, cache its reads or add read replicas to take load off it."
-        }`,
+        } ${advice}`,
         targetIds: [node.id],
         source: "metrics",
         fix:
-          stateless && target > n
+          stateless && target !== undefined && target > n
             ? instancesFix(node, target, `~${pct(TARGET_UTILIZATION)} at this load`)
             : undefined,
       });
       continue;
     }
 
-    // The scorer's over-provisioning check: idle even with one instance fewer.
-    if (n >= 3 && (util * n) / (n - 1) < OVERPROVISIONED_UTILIZATION) {
+    // The scorer's over-provisioning check: idle even with one instance fewer
+    // (only where instances carry the limiting resource).
+    if (target !== undefined && n >= 3 && (util * n) / (n - 1) < OVERPROVISIONED_UTILIZATION) {
       findings.push({
         id: `idle:${node.id}`,
         severity: "info",
-        title: `${node.data.label} is over-provisioned (${n} instances at ${pct(util)})`,
+        title: `${node.data.label} is over-provisioned (${n} instances at ${share})`,
         detail: `${serving}: even with one instance fewer it would idle under ${pct(OVERPROVISIONED_UTILIZATION)}, so you pay for machines that do nothing. Scale it in (or autoscale) and keep the headroom where the load is.`,
         targetIds: [node.id],
         source: "metrics",

@@ -5,9 +5,10 @@
  */
 import type { SimNode } from "@/domain/graph/compile";
 import type { LatencySlo } from "../types";
-import { clamp01, probSojournExceeds } from "./queueing";
+import { clamp01 } from "./queueing";
 import { lookupShareOf } from "./routing";
 import type { FlowView } from "./settle";
+import { hopExceeds } from "./tech";
 
 /** A usable latency SLO, or null (no threshold: every success is good). */
 export function sanitizeLatencySlo(slo: LatencySlo | null | undefined): LatencySlo | null {
@@ -22,7 +23,7 @@ export function sanitizeLatencySlo(slo: LatencySlo | null | undefined): LatencyS
  * Share of successful requests slower than the SLO's threshold. End to end
  * it's what the sampler counted (`endToEnd`). Scoped to a component type, it's
  * P(hop > threshold) at the nodes of that type, weighted by their load — the
- * same sojourn tail the timeouts use; requests a resolver answers from cache
+ * same sojourn tail the timeouts use (by class at a node with a technology); requests a resolver answers from cache
  * never pay its hop. No such node with traffic → the end-to-end share.
  */
 export function slowShareOf(
@@ -40,7 +41,7 @@ export function slowShareOf(
     const flow = flows.get(n.id);
     if (!flow || !(flow.served > 0)) continue;
     load += flow.served;
-    slow += flow.served * lookupShareOf(n) * probSojournExceeds(flow.st, slo.thresholdMs);
+    slow += flow.served * lookupShareOf(n) * hopExceeds(flow, slo.thresholdMs);
   }
   return load > 0 ? clamp01(slow / load) : clamp01(endToEnd);
 }

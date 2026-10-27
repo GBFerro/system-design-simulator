@@ -1,6 +1,6 @@
 # Spec 03: Catálogo de componentes e regras de aresta
 
-Parte da [v2](00-visao-geral.md) · Fase 1 (CMP-03/04 na Fase 6) · Status: CMP-01, CMP-02 e regras de aresta implementados
+Parte da [v2](00-visao-geral.md) · Fase 1 (CMP-03/04 na Fase 6) · Status: CMP-01, CMP-02 e regras de aresta implementados; CMP-03 substituído pelas tecnologias dos componentes (implementado, ver [Presets](#presets-cmp-03)); CMP-04 pendente
 
 | Campo               | Valor                                                                                               |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
@@ -17,7 +17,7 @@ Trocar os três números fixos por nó (`maxQPS`, `latencyMs`, `replicas`) por u
 
 1. **CMP-01 (P0)** Cada tipo declara um schema de parâmetros (`ParamSpec[]`) que gera o formulário do painel e os valores default. Nada de formulário escrito à mão.
 2. **CMP-02 (P0)** Os componentes atuais continuam (os ids são usados por `problems.ts`, `conceptLibrary.ts` e `learningPath.ts`). Novos: Client/Traffic Source, Worker Pool, WAF, Read Replica explícita, DLQ, Autoscaler.
-3. **CMP-03 (P1)** Presets por tecnologia (Redis, Memcached, Postgres, DynamoDB, Kafka, RabbitMQ, SQS) que só preenchem defaults do schema.
+3. **CMP-03 (P1)** Presets por tecnologia (Redis, Memcached, Postgres, DynamoDB, Kafka, RabbitMQ, SQS) que só preenchem defaults do schema. **Substituído** pela feature [tecnologias dos componentes](../.specs/features/component-technologies/spec.md) (TEC-01…TEC-51), que vai além de preencher defaults.
 4. **CMP-04 (P1)** Componente custom com schema próprio (hoje só tem label, QPS e latência).
 
 **Contagem atual:** `components.ts` tem hoje 36 ids (a spec original dizia 37 e o `CLAUDE.md` diz 30). Atualizar o `CLAUDE.md` junto com esta spec.
@@ -131,7 +131,14 @@ Cada novo componente entra em `components.ts`, ganha entrada na Concept Library 
 
 ### Presets (CMP-03)
 
-Um preset é `{ id, componentId, label, params: Partial<...> }`. Aplicar um preset só preenche params; o usuário pode editar depois. Ex.: Redis (cache, `hitRate` 0,9, `serviceTimeMs` 0,5), Postgres (sql-db, pool 100), Kafka (queue, partições 12).
+**Status: substituído e implementado pelas tecnologias dos componentes** ([spec](../.specs/features/component-technologies/spec.md), [design](../.specs/features/component-technologies/design.md)). O preset de params que só preenchia defaults virou um parâmetro `technology` nos 10 tipos centrais (Load Balancer, API Gateway, SQL Database, Read Replica, NoSQL Database, Cache, Message Queue, Pub/Sub, Search, Object Storage), com `generic` ("Generic — custom numbers") como padrão do schema:
+
+- **Dados:** `domain/components/technologies/` guarda cada tecnologia real (PostgreSQL, MySQL, Aurora PostgreSQL, DynamoDB, Cassandra, ScyllaDB, MongoDB, NLB, ALB, HAProxy, Envoy, AWS API Gateway, Kong, Redis, Memcached, Kafka, RabbitMQ, SQS Standard, SQS FIFO, SNS, OpenSearch, S3) com capacidade, tempo de serviço, classes de instância, preço, fonte citada (URL, ano), premissas de carga e o rótulo de evidência (measured, derived ou estimate).
+- **Edição:** escolher a tecnologia ou a classe no Props grava o preset nos params (um passo de undo); "Reset to benchmark" volta aos números da tabela. A paleta e o Ctrl/Cmd+K listam as tecnologias; um nó criado pela entrada do tipo nasce com a tecnologia padrão dele.
+- **Motor:** diferente do preset original, a tecnologia muda o comportamento, não só os números: primário de escrita no SQL, quorum e partição quente no NoSQL, partições de consumo do Kafka, fan-out de shards do OpenSearch, prefixos do S3 e cotas dos serviços gerenciados. Um nó `generic` dá o resultado de antes, bit a bit.
+- **Custo:** `pricingOf` cobra a classe por instância-hora, ou leituras e escritas à parte num serviço gerenciado, sem multiplicar por `instances`.
+
+As referências continuam em `generic`.
 
 ### Custom (CMP-04)
 

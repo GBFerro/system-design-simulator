@@ -1,6 +1,6 @@
 import { PARAM } from "../params";
 import type { ParamSpec } from "../types";
-import { defineSchema } from "./define";
+import { defineSchema, defineTechSchema } from "./define";
 
 function consumersSpec(def: number, min: number, help: string): ParamSpec {
   return {
@@ -94,9 +94,9 @@ function queueParams(): ParamSpec[] {
   ];
 }
 
-export const messageQueueSchema = defineSchema("message-queue", "queue", queueParams());
+export const messageQueueSchema = defineTechSchema("message-queue", "queue", queueParams());
 
-export const pubSubSchema = defineSchema("pub-sub", "queue", queueParams(), {
+export const pubSubSchema = defineTechSchema("pub-sub", "queue", queueParams(), {
   capacityPerInstance: { help: "Messages published per second; every subscriber gets each one." },
 });
 

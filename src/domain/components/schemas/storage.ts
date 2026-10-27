@@ -1,24 +1,42 @@
 import { PARAM } from "../params";
-import { defineSchema } from "./define";
+import { defineTechSchema, shownFor } from "./define";
 
 /** Object storage: fixed-capacity service; throughput scales with key prefixes. */
-export const objectStorageSchema = defineSchema("object-storage", "fixed", [], {
-  capacityPerInstance: {
-    label: "Request rate",
-    help: "S3 sustains at least 3,500 writes and 5,500 reads per second per key prefix; spread keys across prefixes to go higher.",
+export const objectStorageSchema = defineTechSchema(
+  "object-storage",
+  "fixed",
+  [
+    {
+      key: PARAM.prefixes,
+      label: "Key prefixes",
+      kind: "number",
+      default: 1,
+      min: 1,
+      max: 1000,
+      step: 1,
+      group: "capacity",
+      help: "S3 serves 5,500 GET and 3,500 PUT/s per prefix; spreading keys over more prefixes multiplies both.",
+      visibleIf: shownFor("object-storage", ["s3"], false),
+    },
+  ],
+  {
+    capacityPerInstance: {
+      label: "Request rate",
+      help: "S3 sustains at least 3,500 writes and 5,500 reads per second per key prefix; spread keys across prefixes to go higher.",
+    },
+    serviceTimeMs: {
+      label: "First-byte latency",
+      help: "Typical time to first byte for a small object (tens of ms); large objects add transfer time.",
+    },
+    availability: {
+      default: 0.9999,
+      help: "S3 Standard is designed for 99.99% availability (and 11 nines of durability).",
+    },
   },
-  serviceTimeMs: {
-    label: "First-byte latency",
-    help: "Typical time to first byte for a small object (tens of ms); large objects add transfer time.",
-  },
-  availability: {
-    default: 0.9999,
-    help: "S3 Standard is designed for 99.99% availability (and 11 nines of durability).",
-  },
-});
+);
 
 /** Search cluster. Shard/replica defaults match Elasticsearch 7+ (1 primary, 1 replica). */
-export const searchSchema = defineSchema("search", "fixed", [
+export const searchSchema = defineTechSchema("search", "fixed", [
   {
     key: PARAM.shards,
     label: "Primary shards",

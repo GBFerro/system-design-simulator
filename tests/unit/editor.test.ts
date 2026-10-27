@@ -184,6 +184,9 @@ describe("canvas store editing", () => {
     setInstanceCounts: [{ a: 4, b: 3 }],
     applyGraphEdit: [(g) => ({ nodes: [], edges: g.edges })],
     updateNodeParams: ["a", { instances: 5 }],
+    setNodeTechnology: ["a", "postgres"],
+    setNodeInstanceClass: ["a", "db.r6g.large"],
+    resetNodeToBenchmark: ["a"],
     updateEdgeRule: ["a->b", { kind: "reads" }],
     updateNodeData: ["a", { label: "Renamed" }],
     updateEdgeData: ["a->b", { label: "renamed" }],
@@ -349,5 +352,164 @@ describe("edge calls in the store", () => {
     s().duplicateSelection();
     const { calls, idOf } = pastedCalls(before, "app-server", "sql-db");
     expect(calls?.[1]).toEqual({ kind: "after_miss", missOf: idOf("cache"), callsPerRequest: 1 });
+  });
+});
+
+describe("technology, instance class and reset actions (T14)", () => {
+  /** A component node of `componentId` with id `id` and params over its defaults. */
+  function tech(id: string, componentId: string, params: Record<string, unknown> = {}): Node {
+    const created = createComponentNode(comp(componentId), { x: 0, y: 0 });
+    return {
+      ...created,
+      id,
+      data: { ...created.data, params: { ...created.data.params, ...params } },
+    };
+  }
+  const params = (id = "db") =>
+    s().nodes.find((n) => n.id === id)!.data.params as Record<string, unknown>;
+
+  it("switching to PostgreSQL writes its preset and keeps instances and what it doesn't set (TEC-02)", () => {
+    setCanvas([tech("db", "sql-db", { instances: 4, connectionPool: 250 })]);
+    s().setNodeTechnology("db", "postgres");
+    expect(params()).toMatchObject({
+      technology: "postgres",
+      instanceClass: "db.r6g.xlarge",
+      capacityPerInstance: 40_000,
+      serviceTimeMs: 0.1,
+      writeCapacityRps: 5_000,
+      writeServiceTimeMs: 1.5,
+      failoverSec: 90,
+      instances: 4,
+      connectionPool: 250,
+    });
+    expect(s().history).toHaveLength(1);
+  });
+
+  it("a timeout the technology doesn't set survives the switch (Kong); one it sets is written (AWS API Gateway)", () => {
+    setCanvas([tech("gw", "api-gateway", { timeoutMs: 5_000, maxRetries: 2, instances: 3 })]);
+    s().setNodeTechnology("gw", "kong");
+    expect(params("gw")).toMatchObject({
+      technology: "kong",
+      instanceClass: "c6g.xlarge",
+      capacityPerInstance: 36_000,
+      timeoutMs: 5_000,
+      maxRetries: 2,
+      instances: 3,
+    });
+    s().setNodeTechnology("gw", "aws-api-gateway");
+    expect(params("gw").timeoutMs).toBe(30_000);
+    expect(params("gw").instances).toBe(3);
+    expect(s().history).toHaveLength(2);
+  });
+
+  it("the same technology again is a no-op with no undo entry (TEC-03)", () => {
+    setCanvas([tech("db", "sql-db")]);
+    s().setNodeTechnology("db", "postgres");
+    const nodes = s().nodes;
+    s().setNodeTechnology("db", "postgres");
+    expect(s().nodes).toBe(nodes);
+    expect(s().history).toHaveLength(1);
+    // generic → generic too, and a technology the type doesn't offer.
+    setCanvas([tech("db", "sql-db")]);
+    s().setNodeTechnology("db", "generic");
+    s().setNodeTechnology("db", "dynamodb");
+    expect(s().history).toHaveLength(0);
+  });
+
+  it("switching to generic keeps the current numbers (TEC-04)", () => {
+    setCanvas([tech("db", "sql-db")]);
+    s().setNodeTechnology("db", "aurora-postgres");
+    const before = params();
+    s().setNodeTechnology("db", "generic");
+    expect(params()).toEqual({ ...before, technology: "generic" });
+    expect(s().history).toHaveLength(2);
+  });
+
+  it("every technology action is a no-op on a read-only tab (TEC-07)", () => {
+    setCanvas([tech("db", "sql-db", { technology: "postgres", capacityPerInstance: 7 })], [], true);
+    const nodes = s().nodes;
+    s().setNodeTechnology("db", "mysql");
+    s().setNodeInstanceClass("db", "db.r6g.4xlarge");
+    s().resetNodeToBenchmark("db");
+    expect(s().nodes).toBe(nodes);
+    expect(s().history).toHaveLength(0);
+  });
+
+  it("a class change writes that class's numbers and keeps the rest (TEC-15)", () => {
+    setCanvas([tech("db", "sql-db", { instances: 3 })]);
+    s().setNodeTechnology("db", "postgres");
+    s().updateNodeParams("db", { failoverSec: 45 });
+    s().setNodeInstanceClass("db", "db.r6g.2xlarge");
+    expect(params()).toMatchObject({
+      instanceClass: "db.r6g.2xlarge",
+      capacityPerInstance: 80_000,
+      serviceTimeMs: 0.1,
+      writeCapacityRps: 8_000,
+      instances: 3,
+      failoverSec: 45,
+    });
+    expect(s().history).toHaveLength(3);
+    // The current class, or a class of another technology: no-op.
+    s().setNodeInstanceClass("db", "db.r6g.2xlarge");
+    s().setNodeInstanceClass("db", "i4i.xlarge");
+    expect(s().history).toHaveLength(3);
+  });
+
+  it("no class change on generic or a managed technology", () => {
+    setCanvas([tech("db", "sql-db"), tech("dyn", "nosql-db", { technology: "dynamodb" })]);
+    s().setNodeInstanceClass("db", "db.r6g.large");
+    s().setNodeInstanceClass("dyn", "i4i.large");
+    expect(s().history).toHaveLength(0);
+  });
+
+  it("reset rewrites the current technology and class's values in one step (TEC-44)", () => {
+    setCanvas([tech("db", "nosql-db", { instances: 6 })]);
+    s().setNodeTechnology("db", "cassandra");
+    s().setNodeInstanceClass("db", "i4i.2xlarge");
+    s().updateNodeParams("db", { capacityPerInstance: 1_234, serviceTimeMs: 9 });
+    const historyBefore = s().history.length;
+    s().resetNodeToBenchmark("db");
+    expect(params()).toMatchObject({
+      technology: "cassandra",
+      instanceClass: "i4i.2xlarge",
+      capacityPerInstance: 32_000,
+      serviceTimeMs: 1.5,
+      instances: 6,
+    });
+    expect(s().history).toHaveLength(historyBefore + 1);
+    // Already at the benchmark, or generic: nothing to reset.
+    s().resetNodeToBenchmark("db");
+    expect(s().history).toHaveLength(historyBefore + 1);
+    setCanvas([tech("g", "nosql-db")]);
+    s().resetNodeToBenchmark("g");
+    expect(s().history).toHaveLength(0);
+  });
+
+  it("one undo reverts each action", () => {
+    setCanvas([tech("db", "sql-db", { instances: 2 })]);
+    const original = params();
+    s().setNodeTechnology("db", "mysql");
+    const mysql = params();
+    s().setNodeInstanceClass("db", "db.r6g.large");
+    const large = params();
+    s().updateNodeParams("db", { capacityPerInstance: 5 });
+    s().resetNodeToBenchmark("db");
+    s().undo();
+    expect(params().capacityPerInstance).toBe(5);
+    s().undo();
+    expect(params()).toEqual(large);
+    s().undo();
+    expect(params()).toEqual(mysql);
+    s().undo();
+    expect(params()).toEqual(original);
+  });
+
+  it("a Read Replica switched to PostgreSQL gets no SQL-primary keys", () => {
+    setCanvas([tech("rr", "read-replica")]);
+    s().setNodeTechnology("rr", "postgres");
+    expect(params("rr").technology).toBe("postgres");
+    expect(params("rr").capacityPerInstance).toBe(40_000);
+    expect(params("rr")).not.toHaveProperty("writeCapacityRps");
+    expect(params("rr")).not.toHaveProperty("failoverSec");
   });
 });

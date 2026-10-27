@@ -1,8 +1,8 @@
 import { lbAlgorithmSpec, PARAM } from "../params";
-import { defineSchema } from "./define";
+import { defineTechSchema } from "./define";
 
 /** Health-check defaults follow AWS ALB target groups (30 s, 2 to fail, 5 to recover). */
-export const loadBalancerSchema = defineSchema("load-balancer", "lb", [
+export const loadBalancerSchema = defineTechSchema("load-balancer", "lb", [
   lbAlgorithmSpec(),
   {
     key: PARAM.healthCheckIntervalSec,

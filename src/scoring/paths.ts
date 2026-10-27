@@ -7,14 +7,19 @@
  */
 import type { Edge, Node } from "@xyflow/react";
 import { instancesOf, routingFor } from "@/domain/components/registry";
-import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
+import { isManagedMultiZone } from "@/domain/components/traits";
 import { isAsyncEdge } from "@/domain/graph/edgeRules";
 import { isReturnEdge } from "@/domain/graph/returns";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import type { ScoringGraph } from "@/types/scoring";
 
-/** Tiers where "one instance" isn't a single point of failure (`domain/components/traits.ts`). */
-export const INHERENTLY_REDUNDANT = MANAGED_MULTI_ZONE;
+/**
+ * Tiers where "one instance" isn't a single point of failure: managed
+ * multi-zone types and managed technologies (`domain/components/traits.ts`).
+ */
+export function isInherentlyRedundant(data: { componentId: string; params?: unknown }): boolean {
+  return isManagedMultiZone(data.componentId, data.params);
+}
 
 /** A SQL primary is backed by a read replica that can be promoted. */
 const STANDBY_FOR: Record<string, string> = { "sql-db": "read-replica" };
@@ -125,7 +130,7 @@ export function findSpofs(
   const out: Node<ComponentNodeData>[] = [];
   for (const id of path.onPath) {
     const n = byId.get(id)!;
-    if (n.data.scalable || INHERENTLY_REDUNDANT.has(n.data.componentId)) continue;
+    if (n.data.scalable || isInherentlyRedundant(n.data)) continue;
     if (instancesOf(n.data) > 1 || hasBackup(n)) continue;
     out.push(n);
   }

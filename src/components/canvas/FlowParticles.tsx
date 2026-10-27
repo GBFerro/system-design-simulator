@@ -261,7 +261,13 @@ export function FlowParticles() {
       if (count <= 1) return undefined;
       let down = downCache.get(nodeId);
       if (!down) {
-        down = downInstances(useChaosStore.getState().faults, nodeId, data.componentId, count);
+        down = downInstances(
+          useChaosStore.getState().faults,
+          nodeId,
+          data.componentId,
+          count,
+          data.params,
+        );
         downCache.set(nodeId, down);
       }
       return { count, down };

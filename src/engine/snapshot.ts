@@ -108,6 +108,9 @@ export function steadyStateToSnapshot(
       errorRate: n.errorRate,
       drops: n.droppedRps,
       status,
+      ...(n.limitKind !== undefined ? { limitKind: n.limitKind } : {}),
+      ...(n.limitUtilization !== undefined ? { limitUtilization: n.limitUtilization } : {}),
+      ...(n.writeRps !== undefined ? { writeRps: n.writeRps } : {}),
     };
     const extra = extrasOf(n, simById.get(n.nodeId));
     if (extra) metrics.extra = extra;

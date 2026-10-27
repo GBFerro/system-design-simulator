@@ -30,8 +30,8 @@ function InstanceNodeInner({ data, selected }: NodeProps<InstanceNodeType>) {
   const m = useNodeRuntime(nodeId);
   const faults = useChaosStore((s) => s.faults);
   const down = useMemo(
-    () => downInstances(faults, nodeId, base.componentId, instances),
-    [faults, nodeId, base.componentId, instances],
+    () => downInstances(faults, nodeId, base.componentId, instances, base.params),
+    [faults, nodeId, base.componentId, instances, base.params],
   );
 
   // Instances this card holds: its own, or the overflow on the stacked card.

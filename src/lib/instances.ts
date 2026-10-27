@@ -4,7 +4,7 @@
  * live run's faults. Pure; `components/canvas/instanceGraph.ts` builds the
  * ReactFlow elements and `lib/flowBalls.ts` routes balls over them.
  */
-import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
+import { isManagedMultiZone } from "@/domain/components/traits";
 import { returnIdOf } from "@/domain/graph/returns";
 import type { FaultRecord } from "@/engine/faults/types";
 
@@ -64,6 +64,8 @@ export function downInstances(
   nodeId: string,
   componentId: string,
   instances: number,
+  /** The node's params: a managed technology rides out a zone outage too (TEC-50). */
+  params?: unknown,
 ): boolean[] {
   const n = Math.max(0, Math.floor(instances));
   const down: boolean[] = Array.from({ length: n }, () => false);
@@ -75,7 +77,7 @@ export function downInstances(
     } else if (type === "kill-instances" && target.id === nodeId) {
       const k = Math.min(n, Math.round(intensity ?? 1));
       for (let i = n - k; i < n; i++) down[i] = true;
-    } else if (type === "zone-failure" && !MANAGED_MULTI_ZONE.has(componentId)) {
+    } else if (type === "zone-failure" && !isManagedMultiZone(componentId, params)) {
       const zones = Math.max(1, Math.round(intensity ?? 3));
       for (let i = 0; i < n; i += zones) down[i] = true;
     }

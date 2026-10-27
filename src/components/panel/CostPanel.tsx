@@ -254,6 +254,21 @@ function CostLineRow({ line, currency }: { line: CostLine; currency: Currency })
               {price(p.perMillionRequests)}/1M = {money(line.requestMonthly)}
             </p>
           )}
+          {line.billedWriteRps !== undefined && (
+            <p data-testid="cost-line-requests">
+              ({formatRps(line.billedRps - line.billedWriteRps)} rps reads ×{" "}
+              {p.readUnitsPerRead !== undefined && `${p.readUnitsPerRead} units × `}
+              {price(p.perMillionReads ?? 0)}/1M + {formatRps(line.billedWriteRps)} rps writes ×{" "}
+              {price(p.perMillionWrites ?? 0)}/1M) × {MILLION_REQUESTS_PER_RPS_MONTH} M/month ={" "}
+              {money(line.requestMonthly)}
+            </p>
+          )}
+          {line.technology && (
+            <p className="font-sans text-[11px] text-zinc-300" data-testid="cost-line-technology">
+              {line.technology.label}
+              {line.instanceClass && ` · ${line.instanceClass}`}
+            </p>
+          )}
           <p className="font-sans text-[11px] text-zinc-400">{p.assumptions}</p>
         </div>
       )}

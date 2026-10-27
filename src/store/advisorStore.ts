@@ -5,6 +5,7 @@ import { applyDiff, describeParamPatch, isEmptyDiff } from "@/advisor/graph";
 import {
   SEVERITY_RANK,
   type AdvisorContext,
+  type EngineLimit,
   type Finding,
   type GraphDiff,
   type QuickFix,
@@ -12,7 +13,7 @@ import {
 } from "@/advisor/types";
 import { getProblemById } from "@/data/problems";
 import { topologySignature } from "@/lib/topology";
-import type { TickSnapshot } from "@/engine/types";
+import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
 import { useAppStore } from "./appStore";
 import { useCanvasStore, type ComponentNodeData } from "./canvasStore";
 import { useRuntimeStore } from "./runtimeStore";
@@ -99,6 +100,11 @@ export function recentLoad(
   latest: TickSnapshot | null,
 ): Record<string, number> | undefined {
   if (!latest) return undefined;
+  return meanOf(recentWindow(history, latest), (m) => m.rpsIn);
+}
+
+/** The newest snapshots of the current run, newest first (see `recentLoad`). */
+function recentWindow(history: readonly TickSnapshot[], latest: TickSnapshot): TickSnapshot[] {
   const window: TickSnapshot[] = [latest];
   for (let i = history.length - 1; i >= 0 && latest.t > 0; i--) {
     const s = history[i];
@@ -107,23 +113,56 @@ export function recentLoad(
     if (s.t >= prev.t || s.t < latest.t - LOAD_WINDOW_SEC) break;
     window.push(s);
   }
+  return window;
+}
+
+/** Mean of a per-node field over the snapshots that carry it. */
+function meanOf(
+  window: readonly TickSnapshot[],
+  read: (m: NodeRuntimeMetrics) => number | undefined,
+): Record<string, number> {
   const sum: Record<string, number> = {};
   const count: Record<string, number> = {};
   for (const s of window) {
     for (const [id, m] of Object.entries(s.nodes)) {
-      sum[id] = (sum[id] ?? 0) + m.rpsIn;
+      const v = read(m);
+      if (v === undefined) continue;
+      sum[id] = (sum[id] ?? 0) + v;
       count[id] = (count[id] ?? 0) + 1;
     }
   }
   return Object.fromEntries(Object.keys(sum).map((id) => [id, sum[id] / count[id]]));
 }
 
+/**
+ * Over the same window as `recentLoad`, for nodes with a technology (TEC-42):
+ * the mean offered writes and the mean utilization of the limiting resource,
+ * with the newest snapshot's resource.
+ */
+export function recentTechLoad(
+  history: readonly TickSnapshot[],
+  latest: TickSnapshot | null,
+): { writeLoad: Record<string, number>; limits: Record<string, EngineLimit> } | undefined {
+  if (!latest) return undefined;
+  const window = recentWindow(history, latest);
+  const utilization = meanOf(window, (m) => m.limitUtilization);
+  const limits: Record<string, EngineLimit> = {};
+  for (const [id, u] of Object.entries(utilization)) {
+    const kind = window.find((s) => s.nodes[id]?.limitKind !== undefined)?.nodes[id].limitKind;
+    if (kind) limits[id] = { kind, utilization: u };
+  }
+  return { writeLoad: meanOf(window, (m) => m.writeRps), limits };
+}
+
 let load: Record<string, number> | undefined;
+let techLoad: ReturnType<typeof recentTechLoad>;
 let loadVersion = 0;
 
 function readLoad(): void {
   const { history, latest } = useRuntimeStore.getState();
-  load = recentLoad(history.toArray(), latest);
+  const snapshots = history.toArray();
+  load = recentLoad(snapshots, latest);
+  techLoad = recentTechLoad(snapshots, latest);
   loadVersion++;
 }
 
@@ -137,6 +176,7 @@ function currentContext(nodes: readonly Node[], signature: string): AdvisorConte
   const score = useSimulationStore.getState().scoreResult;
   return {
     load,
+    ...(techLoad ? { writeLoad: techLoad.writeLoad, limits: techLoad.limits } : {}),
     readRatio: readRatioFor(nodes, getProblemById(useAppStore.getState().selectedProblemId)),
     score: score && scoredSignature === signature ? score : null,
   };

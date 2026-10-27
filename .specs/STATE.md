@@ -38,4 +38,19 @@
 - **Date**: 2026-10-09
 - **Status**: active
 
+### AD-005
+
+- **Decision**: A tecnologia de um componente (Postgres, Cassandra, ALB…) é o parâmetro `params.technology` do tipo existente, nunca um tipo novo; números, preços, fontes, evidência, opções permitidas e constantes de mecânica vivem só em `src/domain/components/technologies/`. Escolher tecnologia ou classe grava um preset nos params; o motor aplica as mecânicas de tecnologia só quando `technology ≠ generic`, e `generic` (o padrão do schema e de todo design salvo) é bit-idêntico ao motor anterior.
+- **Reason**: Score, faults, drills, advisor e referências seguem lendo o tipo sem migração; um lugar só para números com fonte evita que custo, motor e Props divirjam; o golden continua guardando o comportamento antigo.
+- **Trade-off**: Validação que depende de outro param (`optionsFor`, `normalizeTechParams`); custo e "gerenciado multi-AZ" passam a depender dos params (`pricingOf`, `isManagedMultiZone`), não só do tipo.
+- **Scope**: `domain/components`, `domain/graph/compile.ts`, `engine/`, `cost/`, `advisor/`, `scoring/paths.ts`, `store/canvasStore.ts`, `components/panel`, `components/sidebar`, `lib/nodeFactory.ts`.
+- **Date**: 2026-10-13
+- **Status**: active
+
 ## Handoff
+
+- **Feature**: component-technologies (spec 1 de 3) — Done, verificada na rodada 3 (PASS, 2026-10-14); T1–T43 commitadas.
+- **Branch**: `feat/component-technologies`, criada a partir de `feat/guided-ui` (ainda fora da `main`); nada enviado ao remoto, sem PR.
+- **Próximos passos**: (1) push e PR, quando o usuário autorizar; (2) spec 2 — CAP e consistência sob falha (CP recusa, AP serve dado velho, leituras stale); (3) spec 3 — Serverless function, API externa, Workflow orchestrator e tecnologias nos 15 tipos genéricos (ver `context.md` → Deferred Ideas).
+- **Pendências menores**: comentários `SPEC_DEVIATION` em `profile.ts:68,135`, `analyze.ts:212`, `tick.ts:271,464` descrevem o design antigo (o `design.md` já está certo); MongoDB criado pela paleta nasce com 1 membro (o preset não define `instances`).
+- **Uncommitted**: nenhum.

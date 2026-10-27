@@ -15,8 +15,9 @@ this map (`architecture-map.test.ts`). When a rule can be a test, prefer the tes
 ```
 src/
   app/            App Router entry, layout, globals.css (dark-only theme)
-  cost/           Spec 10, pure: estimate.ts ($/month per node and area, $/1M requests), rightSize.ts
-                  (CST-03 suggestions), currency.ts (USD/BRL/EUR display, fixed rates)
+  cost/           Spec 10, pure: estimate.ts ($/month per node and area, $/1M requests; priced by
+                  `pricingOf`, reads and writes apart for a per-request technology), rightSize.ts
+                  (CST-03 suggestions; skips managed technologies), currency.ts (USD/BRL/EUR display, fixed rates)
   advisor/        Spec 12, pure: types.ts (Finding/QuickFix/GraphDiff/AdvisorContext), view.ts (DesignView:
                   ScoringGraph + sync path, built once per analysis), structure.ts (ADV-03: no entry point,
                   disconnected node, SPOF), load.ts (hot/saturated/over-provisioned tiers, no rate limiter),
@@ -43,7 +44,9 @@ src/
                   calls in the Props tab: condition, cache of a look-aside call, step, add/remove; link
                   fields); FlowPanel (Flow tab, lazy: one read/write request as a sequence diagram via
                   traceCanvas) + SequenceDiagram (its SVG; hover/focus/tap highlights the edge);
-                  ParamsForm (Props tab, generated from the schema), ProblemBrief (the statement, constraints and
+                  ParamsForm (Props tab, generated from the schema; `optionsFor` filters enums, `omitKeys`
+                  leaves out what TechnologyPicker renders), TechnologyPicker (a central type's technology and
+                  instance class, the source of its numbers, "Modified from" + Reset), ProblemBrief (the statement, constraints and
                   budget of the selected problem), CapacityCalculator (Capacity), SimulationControls + MetricsDisplay
                   + TimeSeriesChart (Sim tab and its charts), ScoreReport (Score tab), TradeoffCards + TradeoffLog
                   (Trade-offs tab); styles.ts = shared section title and input classes (reuse them in a new tab)
@@ -67,9 +70,16 @@ src/
   domain/
     components/   types.ts (ParamSpec/ComponentSchema/EdgeRule), params.ts (PARAM keys + spec builders),
                   paramInput.ts (text <-> value conversions of the generated params form, pure),
-                  schemas/<type>.ts (per-type schemas), registry.ts (getSchema/defaultParams/sanitizeParams/readers),
-                  pricing.ts (Spec 10: versioned price table → every schema's `pricing`),
-                  traits.ts (component sets the engine, scorer and advisor share: MANAGED_MULTI_ZONE, DATABASES)
+                  schemas/<type>.ts (per-type schemas), registry.ts (getSchema/defaultParams/sanitizeParams/readers,
+                  normalizeTechParams), pricing.ts (Spec 10: versioned price table → every schema's `pricing`;
+                  `pricingOf(componentId, params)` = the node's technology and class price),
+                  traits.ts (component sets the engine, scorer and advisor share: MANAGED_MULTI_ZONE, DATABASES,
+                  `isManagedMultiZone(componentId, params)`),
+                  technologies/ (component-technologies: the real products of the 10 central types, pure data
+                  with numbers, classes, prices, sources and mechanics constants — sql, nosql, edge, cache,
+                  messaging, storage; index.ts = lookups, `techPreset`, CENTRAL_TYPES; profile.ts =
+                  `techProfileOf` (a node's TechProfile: stations, read/write routes, throttles; shared by the
+                  engine and the advisor); limits.ts = `techLimitOf` + LIMIT_LABELS (the limiting resource))
     graph/        compile.ts (ReactFlow nodes/edges → validated SimGraph),
                   returns.ts (the response of a call: `isReturnEdge`, `makeReturnEdge`, `requestEdges`, `asyncRequestIds`,
                   `requestsWithAsync`, `withReturns`, `isValidHandlePair`; the only place that knows what a response is),
@@ -82,7 +92,9 @@ src/
                   rng (+ Poisson), settle = shared reverse pass/sampler model, tick = TickSimulator,
                   faultView = fault effects on a topology, shared by tick and analyze,
                   slo = slow share for goodput, shared by tick and analyze,
-                  trace = one request through the sampler with a recorder: traceRequest/traceGraph),
+                  trace = one request through the sampler with a recorder: traceRequest/traceGraph,
+                  tech = technology mechanics: admission (quotas, hot partition, token bucket), per-class
+                  stations, quorum/fan-out latency, Kafka consumers; only for nodes with a TechProfile),
                   config.ts (resolveConfig: seed, samples, horizon, read ratio; kept apart so the snapshot
                   needn't load analyze),
                   engine.ts (FlowEngine: analyze + tick loop scheduler), session.ts (throttled frame
@@ -151,6 +163,8 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 - **Faults (Spec 08, `engine/faults/`):** a `FaultSpec` compiles (pure, `compileFault`) into `CompiledModifier`s with start/end and targets; the tick loop only sees `effectsAt(mods, t)` (null when nothing is active → exactly the fault-free tick) and applies it by rewriting the tick's view of the graph (`withEffects` in `core/faultView.ts`: capacity/service time/hit rate/availability of nodes, latency/loss of edges) plus down nodes, severed edges and drained LB edges. Never add fault-specific code to the tick: add a catalog entry built from modifiers. `inject` applies from the next tick and never edits the graph; auto-heal runs after each tick; `load()` recompiles active faults (a missing target heals); `reset()` clears them. The blast radius (`blast` on node/edge metrics) compares with the snapshot before the first fault and marks callers of degraded edges. `analyze(graph, rps, config, effects?)` applies faults only when given effects (`faults/steady.ts`, read at the end of the fault's window, for Spec 09 scoring); the topology rewrite lives in `core/faultView.ts`, shared with the tick — don't fork it.
 - **Resolvers (DNS, `PARAM.lookupShare`):** only the uncached share of requests loads the node's station and pays its latency (browser/OS/resolver caches answer the rest); the other requests pass straight through. Same in `analyze()`, the tick and the sampler (which draws the hop only with that probability). A fault's node error rate hits only that share too (a DNS outage fails the fresh lookups; cached answers go through). Every other node has share 1, so nothing else changes.
 - Tests: `tests/unit/engine-*.test.ts` (chaos: `engine-chaos`), `traffic-patterns`, `sim-controller`, e2e `traffic.spec.ts`, `chaos.spec.ts`.
+
+**Component technologies (component-technologies, TEC-\*).** A technology is a param, never a new component type (AD-005): `params.technology` (plus `instanceClass` for one billed per instance) on the 10 central types (`CENTRAL_TYPES`), validated by the schema (an unknown technology → `generic`, an unknown class → the technology's default class), with no migration and no `SCHEMA_VERSION` change; score, faults, drills, advisor and references keep reading the component type. `domain/components/technologies/` is the only source of a technology's numbers, prices, sources and mechanics constants (every non-generic row cites an `https` source with its year, assumptions and evidence: `technologies.test.ts`). Choosing a technology or a class writes its preset into the params (`setNodeTechnology`/`setNodeInstanceClass`/`resetNodeToBenchmark`: one undo step, no-op on the same value and on read-only tabs; `normalizeTechParams`); a node created from a type's palette, search or menu entry gets the type's default technology, while the schema default stays `generic`. **Mechanics apply only off `generic`:** `compileGraph` sets `SimNode.tech` (`techProfileOf`) only on a node with a technology, and every engine hook (`analyze`, tick, settle, slo, sampler, routing) falls back to the existing expression without it, so an all-generic design is bit-identical (the golden stays untouched; `engine-tech-sampler.test.ts` counts the draws). The math lives in `engine/core/tech.ts`. A node with a technology carries `limitKind`, `limitUtilization` and `writeRps` (offered writes) on `NodeSteadyState`/`NodeRuntimeMetrics` (absent on generic nodes): `techLimitOf` over the OFFERED read/write demand, computed the same way in `analyze()` and the tick, with `utilization` = `limitUtilization`, so status, bottleneck, badges, score and the NodeInsightCard (`LIMIT_LABELS`) follow the limiting resource. The advisor runs `techLimitOf` on its averaged load (`recentTechLoad`; a Kafka node takes the engine's number, since only the engine sees its consumers) and never offers an instance fix for a resource that doesn't scale with instances (write primary, hot partition, quotas, consumers capped by partitions). Prices: `pricingOf(componentId, params)` replaces `getSchema(id).pricing` (`generic` = the table price, exactly as before); a provisioned technology costs instances × its class's hourly price × 730, a managed one a fixed part per resource plus reads and writes priced apart (the snapshot's `writeRps`, else the resolved read ratio) and never × instances (`pricing.managed`; right-size skips it). `isManagedMultiZone(componentId, params)` replaces `MANAGED_MULTI_ZONE.has(id)`: a managed multi-AZ technology is never a SPOF and a zone outage leaves its instances up. Detail: `.specs/features/component-technologies/spec.md`, `design.md`.
 
 **Scoring (`scoring/`, measured rubric Spec 09).** `scorer.ts` builds a shared `ScoringGraph` (cleaned adjacency + reachable-from-entry set) once and passes it, with the optional `Measurements`, to every rule. Scalability, availability, latency and cost are **measured**: `measure.ts` (lazy-loaded by the Score button) runs `analyze()` in the engine worker at the problem's peak and 2× it with the problem's read mix, and under each of its drill faults (deduplicated); a finished interview drill replaces the fault check. Without measurements, or when no request reaches the design, measured checks score 0 and say why — never award them for an empty or entry-less design. Latency and availability judge against the problem's SLO (`Measurements.slo` = `problemSlo(requirements)`, never the user's override): latency at the SLO's percentile and threshold, end to end unless the problem sets `requirements.slaScope` (then that component's hop); a drill fault "holds" when its error rate × its duration fits one window of the availability budget (`faultErrorAllowance`). Cost (Spec 10) prices every node at the peak's `offeredRps` (`cost/estimate.ts`) against `Measurements.budgetMonthlyUsd` (the problem's `requirements.budgetMonthlyUsd`, scaled up when an interview measures above the reference peak); a problem without a budget doesn't award those points and says so. Presence checks must require reachability. Each rule scores only through its exported `BUDGET` (plus `PARTIAL`), which must sum to exactly 20 (`CATEGORY_MAX_SCORE`), and never goes negative. `tests/unit/scoring.test.ts` checks the sums, that a complete design reaches 20, and that every reference solution, measured at its own peak, scores ≥ 16 in scalability and latency — so a data or engine change that breaks a reference fails CI.
 

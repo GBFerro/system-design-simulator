@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 15,
+  "next_id": 21,
   "lessons": [
     {
       "id": "L-001",
@@ -208,6 +208,90 @@
       "evidence": ["tests/e2e/drill.spec.ts (e2e)"],
       "created": "2026-10-09T20:50:26Z",
       "last_seen": "2026-10-09T20:50:26Z"
+    },
+    {
+      "id": "L-015",
+      "key": "surviving_mutant::test a formula at parameter values where its plausible variants diverge even and odd counts the range bounds not only at the default configuration",
+      "text": "Test a formula at parameter values where its plausible variants diverge (even and odd counts, the range bounds), not only at the default configuration.",
+      "signal": "surviving_mutant",
+      "scope": "engine",
+      "status": "candidate",
+      "features": ["component-technologies"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["validation.md M3b (profile.ts:174, TEC-29) (engine)"],
+      "created": "2026-10-14T16:15:41Z",
+      "last_seen": "2026-10-14T16:15:41Z"
+    },
+    {
+      "id": "L-016",
+      "key": "ac_gap::give every case an acceptance criterion enumerates its own test assertion",
+      "text": "Give every case an acceptance criterion enumerates its own test assertion.",
+      "signal": "ac_gap",
+      "scope": "",
+      "status": "candidate",
+      "features": ["component-technologies"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["TEC-07 (TechnologyPicker.tsx:106, class select disabled untested)"],
+      "created": "2026-10-14T16:15:42Z",
+      "last_seen": "2026-10-14T16:15:42Z"
+    },
+    {
+      "id": "L-017",
+      "key": "spec_precision_gap::state in the acceptance criterion whether the neutral default option counts as a distinct value in a comparison rule",
+      "text": "State in the acceptance criterion whether the neutral default option counts as a distinct value in a comparison rule.",
+      "signal": "spec_precision_gap",
+      "scope": "",
+      "status": "candidate",
+      "features": ["component-technologies"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["TEC-45 (compile.ts:147 warns only when both technologies are non-generic)"],
+      "created": "2026-10-14T16:15:43Z",
+      "last_seen": "2026-10-14T16:15:43Z"
+    },
+    {
+      "id": "L-018",
+      "key": "spec_precision_gap::when an acceptance criterion names a rate limit with a burst state the expected absorb time and its tolerance",
+      "text": "When an acceptance criterion names a rate limit with a burst, state the expected absorb time and its tolerance.",
+      "signal": "spec_precision_gap",
+      "scope": "engine",
+      "status": "candidate",
+      "features": ["component-technologies"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["TEC-38 (tech.ts:127-130 burst absorbs 0.9 s, not 1.0 s) (engine)"],
+      "created": "2026-10-14T16:15:44Z",
+      "last_seen": "2026-10-14T16:15:44Z"
+    },
+    {
+      "id": "L-019",
+      "key": "spec_deviation::amend design md when the implementation records a spec deviation against it so the design stays the source of truth",
+      "text": "Amend design.md when the implementation records a SPEC_DEVIATION against it, so the design stays the source of truth.",
+      "signal": "spec_deviation",
+      "scope": "design",
+      "status": "candidate",
+      "features": ["component-technologies"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["SPEC_DEVIATION profile.ts:68,135; analyze.ts:212; tick.ts:271,464 (design)"],
+      "created": "2026-10-14T16:15:44Z",
+      "last_seen": "2026-10-14T16:15:44Z"
+    },
+    {
+      "id": "L-020",
+      "key": "surviving_mutant::when an acceptance criterion requires a condition on both sides of a relation test the negative case for each side not only one",
+      "text": "When an acceptance criterion requires a condition on both sides of a relation, test the negative case for each side, not only one.",
+      "signal": "surviving_mutant",
+      "scope": "engine",
+      "status": "candidate",
+      "features": ["component-technologies"],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": ["validation.md round 2 W2 (compile.ts:147, TEC-45) (engine)"],
+      "created": "2026-10-14T16:42:08Z",
+      "last_seen": "2026-10-14T16:42:08Z"
     }
   ]
 }

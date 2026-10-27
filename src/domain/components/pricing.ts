@@ -1,4 +1,5 @@
-import type { PricingSpec } from "./types";
+import { getTechnology } from "./technologies";
+import type { Params, PricingSpec } from "./types";
 
 /**
  * Price table (Spec 10, CST-01). One versioned table, reviewed each release;
@@ -7,14 +8,22 @@ import type { PricingSpec } from "./types";
  * discounts), rounded: estimates for learning, not a quote.
  */
 export const PRICE_TABLE = {
-  version: 1,
-  /** When the list prices were taken. Review it, and the sources, each release. */
-  asOf: "2025-09",
+  version: 2,
+  /**
+   * When the list prices were taken. Review it, and the sources, each release.
+   * Version 2 adds the technology and instance-class prices
+   * (component-technologies, read from the AWS price list on 2026-10-12).
+   */
+  asOf: "2026-10",
   region: "AWS us-east-1, on-demand",
   /** The official pricing pages every figure below comes from. */
   sources: [
     { label: "EC2 On-Demand", url: "https://aws.amazon.com/ec2/pricing/on-demand/" },
     { label: "RDS for PostgreSQL", url: "https://aws.amazon.com/rds/postgresql/pricing/" },
+    { label: "RDS for MySQL", url: "https://aws.amazon.com/rds/mysql/pricing/" },
+    { label: "Aurora", url: "https://aws.amazon.com/rds/aurora/pricing/" },
+    { label: "DynamoDB", url: "https://aws.amazon.com/dynamodb/pricing/" },
+    { label: "Amazon MQ", url: "https://aws.amazon.com/amazon-mq/pricing/" },
     { label: "ElastiCache", url: "https://aws.amazon.com/elasticache/pricing/" },
     { label: "CloudFront", url: "https://aws.amazon.com/cloudfront/pricing/" },
     { label: "Route 53", url: "https://aws.amazon.com/route53/pricing/" },
@@ -211,4 +220,61 @@ export function pricingFor(componentId: string): PricingSpec {
 /** Ids with their own entry in the table (catalog tests check every catalog id has one). */
 export function hasOwnPricing(componentId: string): boolean {
   return Object.hasOwn(PRICING, componentId);
+}
+
+/* ---------- per technology and instance class (component-technologies) ---------- */
+
+/** Hours billed per month (as in `cost/estimate.ts`). */
+const HOURS_PER_MONTH = 730;
+
+const usd = (n: number) => `$${n}`;
+
+/**
+ * The price of a node (TEC-13, TEC-17): its technology's (and instance
+ * class's) when it has one, else the type's (`pricingFor`, what the schema
+ * carries). A technology billed per instance-hour charges
+ * `instances × perInstanceHour × 730`; a managed one bills a fixed part per
+ * resource (`baseMonthly`) and per read/write (`perMillionReads`,
+ * `perMillionWrites`, `readUnitsPerRead`), never per instance (`managed`).
+ */
+export function pricingOf(componentId: string, params: Params): PricingSpec {
+  const techId = params.technology;
+  const tech = typeof techId === "string" ? getTechnology(componentId, techId) : undefined;
+  if (!tech) return pricingFor(componentId);
+
+  const region = "AWS us-east-1 on-demand";
+  if (tech.billing === "instance") {
+    const cls =
+      tech.classes?.find((c) => c.id === params.instanceClass) ??
+      tech.classes?.find((c) => c.id === tech.defaultClass);
+    if (!cls) return pricingFor(componentId);
+    return instances(
+      cls.perInstanceHour,
+      `${tech.label}, ${cls.id} (${cls.vCpu} vCPU): ${usd(cls.perInstanceHour)}/h per instance, ${region}. Storage and data transfer not included.`,
+    );
+  }
+
+  const m = tech.managed;
+  if (!m) return pricingFor(componentId);
+  const unitCost = tech.mechanics?.readUnitCost;
+  const readUnitsPerRead = unitCost
+    ? params.readConsistency === "strong"
+      ? unitCost.strong
+      : unitCost.eventual
+    : undefined;
+  const fixed = (m.perHour ?? 0) * HOURS_PER_MONTH + (m.baseMonthly ?? 0);
+  const fixedText = m.perHour ? `${usd(m.perHour)}/h per resource plus ` : "";
+  const readText = readUnitsPerRead
+    ? `${usd(m.perMillionReads)} per million read units (${readUnitsPerRead} per read)`
+    : `${usd(m.perMillionReads)} per million reads`;
+  return {
+    perInstanceHour: 0,
+    baseMonthly: fixed,
+    perMillionRequests: 0,
+    perMillionReads: m.perMillionReads,
+    perMillionWrites: m.perMillionWrites,
+    ...(readUnitsPerRead !== undefined ? { readUnitsPerRead } : {}),
+    managed: true,
+    assumptions: `${tech.label}, managed: ${fixedText}${readText} and ${usd(m.perMillionWrites)} per million writes, ${region}; not multiplied by instances. Storage and data transfer not included.`,
+  };
 }

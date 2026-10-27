@@ -12,7 +12,7 @@ import { isAsyncEdge } from "@/domain/graph/edgeRules";
 import { requestsWithAsync } from "@/domain/graph/returns";
 import type { FaultSpec } from "@/engine/faults/types";
 import { isComponentNode } from "@/lib/nodeFactory";
-import { INHERENTLY_REDUNDANT } from "@/scoring/paths";
+import { isInherentlyRedundant } from "@/scoring/paths";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { emptyDiff, insertBetween, newComponentNode, newEdge, uniqueId } from "./graph";
 import { hasRateLimit, rateLimitFix } from "./load";
@@ -54,7 +54,7 @@ function callers(graph: CanvasGraph, targetId: string, ctx: AdvisorContext): Edg
 
 /** N+1: one more instance (two for a single instance), so a survivor takes over. */
 function redundancyFix(n: CompNode): QuickFix | undefined {
-  if (INHERENTLY_REDUNDANT.has(n.data.componentId)) return undefined;
+  if (isInherentlyRedundant(n.data)) return undefined;
   const from = instancesOf(n.data);
   const to = from + 1;
   return paramsFix(
@@ -175,7 +175,7 @@ export function mitigationsFor(
 
     case "zone-failure": {
       const single = comps(graph).filter(
-        (n) => !INHERENTLY_REDUNDANT.has(n.data.componentId) && instancesOf(n.data) === 1,
+        (n) => !isInherentlyRedundant(n.data) && instancesOf(n.data) === 1,
       );
       return [
         tip(

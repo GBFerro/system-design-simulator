@@ -61,8 +61,13 @@ export function scoreCost(
       "This problem has no monthly budget, so the cost isn't judged. Give the problem a budget to score it.",
     );
   } else {
-    const offered = new Map(m.atPeak.nodes.map((n) => [n.nodeId, n.offeredRps]));
-    const estimate = estimateCost(nodes, (id) => offered.get(id) ?? 0);
+    const offered = new Map(m.atPeak.nodes.map((n) => [n.nodeId, n]));
+    // Nodes with a technology carry their offered writes (priced apart, TEC-18).
+    const estimate = estimateCost(
+      nodes,
+      (id) => offered.get(id)?.offeredRps ?? 0,
+      (id) => offered.get(id)?.writeRps,
+    );
     const budget = m.budgetMonthlyUsd;
     const ratio = estimate.monthly / budget;
     const top = estimate.lines

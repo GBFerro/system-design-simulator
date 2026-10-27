@@ -1,4 +1,5 @@
 import type { SystemComponent } from "@/types/component";
+import { getTechnology, technologiesOf, type Technology } from "./technologies";
 import { CORE_PARAM, type ParamSpec, type Params, type RoutingKind } from "./types";
 
 /**
@@ -122,6 +123,21 @@ export const PARAM = {
   minimumCalls: "minimumCalls",
   /** WAF: fraction of requests blocked. 0–1. */
   blockRate: "blockRate",
+
+  /* ----- added by component-technologies ----- */
+
+  /** Central types: the real product behind the node ("generic" = custom numbers). */
+  technology: "technology",
+  /** Technologies billed per instance-hour: the instance size ("db.r6g.xlarge"). */
+  instanceClass: "instanceClass",
+  /** Object storage (S3): key prefixes the request rate limits multiply by. */
+  prefixes: "prefixes",
+  /** MongoDB: where reads go ("primary" or "secondaryPreferred"). */
+  readPreference: "readPreference",
+  /** MongoDB: acknowledgment a write waits for ("1" or "majority"). */
+  writeConcern: "writeConcern",
+  /** DynamoDB: "eventual" or "strong" reads (a strong read costs twice the units). */
+  readConsistency: "readConsistency",
 } as const;
 
 /** Upper bound of `instances` everywhere (form, toolbar, context menu). */
@@ -465,5 +481,61 @@ export function lbAlgorithmSpec(): ParamSpec {
     ],
     group: "capacity",
     help: "How requests are spread across healthy targets.",
+  };
+}
+
+/* ---------- technology and instance class (component-technologies) ---------- */
+
+/** Value of `technology` that means "no real product, custom numbers" (TEC-12). */
+export const GENERIC_TECHNOLOGY = "generic";
+
+/** The technology `p` names for this type; undefined for `generic` or an unknown id. */
+export function technologyOf(componentId: string, p: Params): Technology | undefined {
+  const id = p[PARAM.technology];
+  return typeof id === "string" ? getTechnology(componentId, id) : undefined;
+}
+
+/** Select label: the name, plus the layer in parentheses when it has one (TEC-06). */
+function technologyLabel(tech: Technology): string {
+  return tech.layer ? `${tech.label} (${tech.layer})` : tech.label;
+}
+
+/** `technology`: `generic` plus the type's technologies, default `generic` (TEC-01). */
+export function technologySpec(componentId: string): ParamSpec {
+  return {
+    key: PARAM.technology,
+    label: "Technology",
+    kind: "enum",
+    default: GENERIC_TECHNOLOGY,
+    options: [
+      { value: GENERIC_TECHNOLOGY, label: "Generic — custom numbers" },
+      ...technologiesOf(componentId).map((t) => ({ value: t.id, label: technologyLabel(t) })),
+    ],
+    group: "capacity",
+    help: "The real product behind this node: its benchmark capacity, latency and price.",
+  };
+}
+
+/**
+ * `instanceClass`: every class of the type's technologies (each once), the
+ * ones of the node's technology allowed, shown only for a technology billed
+ * per instance-hour (TEC-14). Default: the default class of the type's
+ * default technology, else of its first technology with classes.
+ */
+export function instanceClassSpec(componentId: string): ParamSpec {
+  const techs = technologiesOf(componentId);
+  const ids = [...new Set(techs.flatMap((t) => (t.classes ?? []).map((c) => c.id)))];
+  const sized = techs.filter((t) => t.defaultClass);
+  const preferred = sized.find((t) => t.defaultFor?.includes(componentId)) ?? sized[0];
+  return {
+    key: PARAM.instanceClass,
+    label: "Instance class",
+    kind: "enum",
+    default: preferred?.defaultClass ?? ids[0] ?? "",
+    options: ids.map((id) => ({ value: id, label: id })),
+    group: "capacity",
+    help: "The machine size: capacity and price per instance grow together (scale up).",
+    visibleIf: (p) => technologyOf(componentId, p)?.billing === "instance",
+    optionsFor: (p) => (technologyOf(componentId, p)?.classes ?? []).map((c) => c.id),
   };
 }

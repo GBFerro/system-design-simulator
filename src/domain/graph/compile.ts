@@ -6,6 +6,8 @@ import {
   sanitizeParams,
   serviceTimeMsOf,
 } from "@/domain/components/registry";
+import { getTechnology } from "@/domain/components/technologies";
+import { techProfileOf, type TechProfile } from "@/domain/components/technologies/profile";
 import type { EdgeRule, Params, RoutingKind } from "@/domain/components/types";
 import { planFor, type CallPlan } from "./callPlan";
 import { defaultEdgeRule, sanitizeEdgeRule } from "./edgeRules";
@@ -38,6 +40,12 @@ export interface SimNode {
    * reads it and never reinterprets steps (AD-002).
    */
   plan?: CallPlan;
+  /**
+   * Its technology's profile (component-technologies): present only on a
+   * node whose `technology` isn't `generic`, so a generic node is exactly
+   * what it was (never `tech: undefined`).
+   */
+  tech?: TechProfile;
 }
 
 export interface SimEdge {
@@ -100,6 +108,7 @@ function compileNode(raw: RawNode): SimNode | null {
   params[PARAM.instances] = instances;
   params[PARAM.capacityPerInstance] = capacityPerInstance;
   params[PARAM.serviceTimeMs] = serviceTimeMs;
+  const tech = techProfileOf(componentId, params);
 
   return {
     id: raw.id,
@@ -110,7 +119,38 @@ function compileNode(raw: RawNode): SimNode | null {
     instances,
     capacityPerInstance,
     serviceTimeMs,
+    ...(tech ? { tech } : {}),
   };
+}
+
+/**
+ * Warnings about technologies (TEC-45, design "Error Handling"): only nodes
+ * with one can raise them, so a design of generic nodes gets none.
+ * - Cassandra/ScyllaDB with a replication factor above its instances.
+ * - A read replica whose technology differs from the SQL database feeding it.
+ */
+function technologyWarnings(nodes: readonly SimNode[], edges: readonly SimEdge[]): string[] {
+  const warnings: string[] = [];
+  for (const node of nodes) {
+    const shape = node.tech?.classes?.read.shape;
+    if (shape?.kind === "kth" && shape.n > node.instances) {
+      warnings.push(
+        `${node.label}: replication factor ${shape.n} is above its ${node.instances} instance(s), so each partition has only ${node.instances} replica(s).`,
+      );
+    }
+  }
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  for (const e of edges) {
+    const primary = byId.get(e.source);
+    const replica = byId.get(e.target);
+    if (primary?.componentId !== "sql-db" || replica?.componentId !== "read-replica") continue;
+    if (!primary.tech || !replica.tech || primary.tech.technology === replica.tech.technology) {
+      continue;
+    }
+    const name = getTechnology("sql-db", primary.tech.technology)?.label ?? primary.tech.technology;
+    warnings.push(`${replica.label}: Replica technology differs from its primary (${name}).`);
+  }
+  return warnings;
 }
 
 function labelList(ids: string[], byId: Map<string, SimNode>, max = 5): string {
@@ -190,6 +230,7 @@ export function compileGraph(rawNodes: readonly unknown[], rawEdges: readonly un
   }
   if (selfLoops > 0) warnings.push(`Ignored ${selfLoops} self-loop edge(s).`);
   if (duplicates > 0) warnings.push(`Ignored ${duplicates} duplicate parallel edge(s).`);
+  warnings.push(...technologyWarnings(nodes, edges));
 
   /* ---- adjacency ---- */
   const out = new Map<string, string[]>();

@@ -1,8 +1,16 @@
 import { getComponentById } from "@/data/components";
 import type { SystemComponent } from "@/types/component";
-import { coreParams, finitePositive, MAX_INSTANCES, PARAM, routingParams } from "./params";
+import {
+  coreParams,
+  finitePositive,
+  MAX_INSTANCES,
+  PARAM,
+  routingParams,
+  technologyOf,
+} from "./params";
 import { pricingFor } from "./pricing";
 import { CATALOG_SCHEMAS } from "./schemas";
+import { techPreset } from "./technologies";
 import {
   type ComponentSchema,
   type ParamSpec,
@@ -127,15 +135,51 @@ export function isValidParam(spec: ParamSpec, value: unknown): value is ParamVal
  * Validate raw params against the schema: keys outside the schema are
  * dropped, invalid values fall back to the default, missing keys get the
  * default. Never throws.
+ *
+ * On a node with a technology (component-technologies) the default is the
+ * technology's (and its class's) value where it sets one (TEC-48), and the
+ * result goes through `normalizeTechParams`. An unknown `technology` fails
+ * validation and becomes `generic` (TEC-08), which sanitizes as before.
  */
 export function sanitizeParams(componentId: string, raw: unknown): Params {
   const input = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+  const schema = getSchema(componentId);
+  const techSpec = schema.params.find((spec) => spec.key === PARAM.technology);
+  const techId = input[PARAM.technology];
+  const classId = input[PARAM.instanceClass];
+  const preset =
+    techSpec && isValidParam(techSpec, techId) && typeof techId === "string"
+      ? techPreset(componentId, techId, typeof classId === "string" ? classId : undefined)
+      : {};
   const params: Params = {};
-  for (const spec of getSchema(componentId).params) {
+  for (const spec of schema.params) {
     const value = input[spec.key];
-    params[spec.key] = isValidParam(spec, value) ? value : spec.default;
+    const fallback = isValidParam(spec, preset[spec.key]) ? preset[spec.key] : spec.default;
+    params[spec.key] = isValidParam(spec, value) ? value : fallback;
   }
-  return params;
+  return technologyOf(componentId, params) ? normalizeTechParams(componentId, params) : params;
+}
+
+/**
+ * Combinations a param can't make alone, on a node with a technology: an
+ * enum outside the options its technology allows (`ParamSpec.optionsFor`)
+ * becomes the technology's value, else the schema default, else the first
+ * allowed option. That covers an `instanceClass` of another technology →
+ * its default class (TEC-16) and an algorithm an NLB lacks → `hash`
+ * (TEC-39). `generic` (and an unknown technology) comes back unchanged.
+ */
+export function normalizeTechParams(componentId: string, params: Params): Params {
+  const tech = technologyOf(componentId, params);
+  if (!tech) return params;
+  const preset = techPreset(componentId, tech.id);
+  const out: Params = { ...params };
+  for (const spec of getSchema(componentId).params) {
+    const allowed = spec.optionsFor?.(params);
+    if (!allowed || allowed.length === 0 || allowed.includes(String(out[spec.key]))) continue;
+    const preferred = [preset[spec.key], spec.default].find((v) => allowed.includes(String(v)));
+    out[spec.key] = preferred ?? allowed[0];
+  }
+  return out;
 }
 
 export function getParamSpec(componentId: string, key: string): ParamSpec | undefined {

@@ -47,9 +47,16 @@
  * Deterministic: the same graph, options, λ and effects sequence give
  * bit-identical snapshots (one mulberry32 stream, fixed consumption order).
  */
+import { techLimitOf } from "@/domain/components/technologies/limits";
+import {
+  capScaleOf,
+  scaledStation,
+  type TechCore,
+  type TechProfile,
+} from "@/domain/components/technologies/profile";
 import type { SimEdge, SimGraph, SimNode } from "@/domain/graph/compile";
 import { UTILIZATION_CRITICAL, UTILIZATION_WARNING } from "../constants";
-import { resolveConfig } from "../analyze";
+import { isThrottled, resolveConfig } from "../analyze";
 import type { TickEffects } from "../faults/effects";
 import { drainShares, entryShares, withEffects } from "./faultView";
 import { EDGE_ERROR_THRESHOLD } from "../snapshot";
@@ -86,12 +93,22 @@ import {
 import { sampleLatency } from "./sampler";
 import { sampleNodesFor, settle, type FlowView, type Settled, type Topology } from "./settle";
 import { sanitizeLatencySlo, slowShareOf } from "./slo";
+import {
+  admit,
+  classesOf,
+  edgeWriteShare,
+  kafkaLimit,
+  techPercentileMs,
+  type ConsumerLimit,
+  type TechClassView,
+  type TechFlowView,
+} from "./tech";
 
 /** Synthetic requests per tick for end-to-end percentiles (Spec 04: 1000). */
 export const TICK_SAMPLES = 1000;
 
 /** Backlog below this many seconds of work is treated as queueing noise (Erlang C covers it). */
-const BACKLOG_NOISE_SEC = 0.01;
+export const BACKLOG_NOISE_SEC = 0.01;
 
 export interface TickOptions extends SimConfig {
   /** Synthetic requests per tick. Default TICK_SAMPLES. */
@@ -105,6 +122,21 @@ interface NodeState {
   lag: Map<string, number>;
   /** Circuit breaker nodes: closed / open / half-open (`core/breaker.ts`). */
   breaker?: Breaker;
+  /**
+   * A node with a technology's classes or throttle (component-technologies,
+   * A.7): the second station's backlog (`backlog` holds station 0's) and a
+   * burst quota's tokens. Dropped when the node's technology changes.
+   */
+  tech?: TechTickState;
+}
+
+/** The tick state of a node with a technology. */
+export interface TechTickState {
+  technology: string;
+  /** Requests (operations) waiting at station 1: the SQL write primary, MongoDB's primaries. */
+  primaryBacklog: number;
+  /** Token bucket of a burst quota (AWS API Gateway); absent until the first tick. */
+  tokens?: number;
 }
 
 interface TickFlow extends FlowView {
@@ -125,6 +157,12 @@ interface TickFlow extends FlowView {
   /** Failed right away by a fault (dead instances still in rotation, node down). */
   refused: number;
   down: boolean;
+  /** Technology nodes: refused by the quota or the hot partition, req/s (in `dropped`). */
+  throttled?: number;
+  /** Technology nodes: requests waiting over all the stations. */
+  queueDepth?: number;
+  /** Kafka: its busiest consumer edge on this tick's new messages (TEC-34). */
+  consumerLimit?: ConsumerLimit;
 }
 
 function finite(v: number, fallback = 0): number {
@@ -133,6 +171,215 @@ function finite(v: number, fallback = 0): number {
 
 function round6(v: number): number {
   return Math.round(v * 1e6) / 1e6;
+}
+
+/* ---------- stations ---------- */
+
+/** What a station is built from: a node, or one station of a technology. */
+type StationCore = Pick<SimNode, "instances" | "serviceTimeMs">;
+
+/** The station as Erlang C / the bounded queue sees it at arrival rate `lambda`. */
+export function stableStation(
+  core: StationCore,
+  lambda: number,
+  capacityPerInstance: number,
+  maxQueue: number,
+  horizonSec: number,
+): StationState {
+  return station({
+    lambda,
+    instances: core.instances,
+    capacityPerInstance,
+    serviceTimeMs: core.serviceTimeMs,
+    maxQueue,
+    horizonSec,
+  });
+}
+
+/** Arrivals queue behind a real backlog: everyone waits Q/(cμ) (FIFO). */
+export function backlogStation(
+  core: StationCore,
+  admitted: number,
+  completed: number,
+  overflow: number,
+  capacityPerInstance: number,
+  backlog: number,
+  horizonSec: number,
+): StationState {
+  const idle = stableStation(core, 0, capacityPerInstance, Infinity, horizonSec);
+  const waitMs = finite((backlog / idle.capacityRps) * 1000);
+  return {
+    ...idle,
+    regime: "overloaded",
+    utilization: finite(admitted / idle.capacityRps),
+    servedRps: completed,
+    unservedRps: overflow,
+    waitProbability: 1,
+    meanWaitMs: waitMs,
+    queueDepth: backlog,
+    drainPerMs: 0,
+    fixedWaitMs: waitMs,
+    waitCapMs: Math.max(waitMs, idle.waitCapMs),
+  };
+}
+
+/* ---------- technology nodes (component-technologies, A.7) ---------- */
+
+export interface TechTickInput {
+  profile: TechProfile;
+  /** The node as faults left it. */
+  core: TechCore;
+  /** Arrivals this tick, req/s. */
+  arriving: number;
+  /** Share of them that are writes. */
+  writeShare: number;
+  /** Fault: share of the arrivals failed right away. */
+  errorRate?: number;
+  /** Station 0's backlog before this tick. */
+  backlog: number;
+  /** Station 1's backlog before this tick. */
+  primaryBacklog: number;
+  /** A burst quota's tokens before this tick (absent: the bucket starts full). */
+  tokens?: number;
+  maxQueue: number;
+  dtSec: number;
+  horizonSec: number;
+}
+
+export interface TechTick {
+  /** One per station of the profile, in its order. */
+  stations: StationState[];
+  view: TechFlowView;
+  /** Requests completed this tick (a draining backlog included), req/s. */
+  completed: number;
+  /** Arrivals that won't fail here, req/s (≤ arriving). */
+  served: number;
+  dropped: number;
+  /** Refused by the quota or the hot partition, req/s. */
+  throttled: number;
+  /** Lost to a full station, req/s. */
+  overflow: number;
+  /** Failed by the fault's error rate, req/s. */
+  refused: number;
+  backlog: number;
+  primaryBacklog: number;
+  tokens?: number;
+  /** Requests waiting over all the stations. */
+  queueDepth: number;
+}
+
+// SPEC_DEVIATION: design.md lists `techTickFlow` in `core/tech.ts`.
+// Reason: it steps each station with the tick's own fluid queue and station
+// builders, which live here; `tech.ts` importing them would be a cycle.
+/**
+ * One tick of a node with a technology: the fault's error rate, then the
+ * throttle (a burst quota through its token bucket), then each station's
+ * fluid backlog exactly like a generic node's (work, done, overflow at
+ * `maxQueue`), fed by the operations its classes send it. A station's
+ * completions and overflow go back to the classes in proportion to their
+ * operations this tick (the node's mix while only a backlog drains).
+ */
+export function techTickFlow(input: TechTickInput): TechTick {
+  const { profile, core, maxQueue, horizonSec } = input;
+  const dt = input.dtSec;
+  const arriving = finite(Math.max(0, input.arriving));
+  const ws = clamp01(input.writeShare);
+  const failed = clamp01(input.errorRate ?? 0);
+  const arrivingByClass = [arriving * (1 - ws), arriving * ws];
+  const refused = arriving * failed;
+  const throttle = profile.throttle;
+  const bucket =
+    throttle?.kind === "quota" && throttle.burst !== undefined
+      ? { tokens: input.tokens ?? throttle.burst, dtSec: dt }
+      : undefined;
+  const adm = admit(
+    throttle,
+    { read: arrivingByClass[0] * (1 - failed), write: arrivingByClass[1] * (1 - failed) },
+    capScaleOf(profile, core),
+    bucket,
+  );
+  const classes = classesOf(profile, core);
+  const routes = [classes.read, classes.write];
+  const admitted = [adm.read, adm.write];
+  const backlogs = [input.backlog, input.primaryBacklog];
+  const completedByClass = [0, 0];
+  const overflowByClass = [0, 0];
+  let queueDepth = 0;
+  const stations = classes.stations.map((s, i) => {
+    const run = scaledStation(profile, s, core);
+    const capacity = run.instances * run.capacityPerInstance;
+    const opsByClass = routes.map((r, c) => (r.station === i ? admitted[c] * r.cost : 0));
+    const ops = opsByClass[0] + opsByClass[1];
+    let doneOps: number;
+    let overflowOps = 0;
+    let q: number;
+    let st: StationState;
+    if (maxQueue === 0) {
+      st = stableStation(run, ops, run.capacityPerInstance, maxQueue, horizonSec);
+      doneOps = Math.min(ops, st.servedRps);
+      overflowOps = ops - doneOps;
+      q = 0;
+    } else {
+      const work = (backlogs[i] ?? 0) + ops * dt;
+      const done = Math.min(work, capacity * dt);
+      q = work - done;
+      if (q > maxQueue) {
+        overflowOps = (q - maxQueue) / dt;
+        q = maxQueue;
+      }
+      doneOps = done / dt;
+      const backlogged = ops >= capacity || q > Math.max(1, capacity * BACKLOG_NOISE_SEC);
+      st = backlogged
+        ? backlogStation(run, ops, doneOps, overflowOps, run.capacityPerInstance, q, horizonSec)
+        : stableStation(run, ops, run.capacityPerInstance, maxQueue, horizonSec);
+    }
+    backlogs[i] = q;
+    queueDepth += st.regime === "stable" ? Math.max(q, st.queueDepth) : q;
+    // Operations back to requests, by each class's share of the station's work.
+    const weights =
+      ops > 0
+        ? opsByClass
+        : routes.map((r, c) => (r.station === i ? (c === 0 ? 1 - ws : ws) * r.cost : 0));
+    const total = weights[0] + weights[1];
+    for (let c = 0; c < 2; c++) {
+      if (!(total > 0) || weights[c] === 0) continue;
+      const share = weights[c] / total / routes[c].cost;
+      completedByClass[c] += doneOps * share;
+      overflowByClass[c] += overflowOps * share;
+    }
+    return st;
+  });
+  const view = (c: number): TechClassView => {
+    const route = routes[c];
+    const st = stations[route.station] ?? stations[0];
+    const served = Math.min(arrivingByClass[c], Math.max(0, admitted[c] - overflowByClass[c]));
+    return {
+      station: st,
+      serviceTimeMs: st.serviceTimeMs * route.serviceScale,
+      shape: route.shape,
+      addMs: route.addMs,
+      served,
+      dropProbability: arrivingByClass[c] > 0 ? clamp01(1 - served / arrivingByClass[c]) : 0,
+    };
+  };
+  const overflow = overflowByClass[0] + overflowByClass[1];
+  // (a quota that let everything through leaves float noise in `throttled`)
+  const throttled = isThrottled(adm.throttled, arriving) ? adm.throttled : 0;
+  const dropped = Math.min(arriving, refused + throttled + overflow);
+  return {
+    stations,
+    view: { ws, read: view(0), write: view(1) },
+    completed: finite(completedByClass[0] + completedByClass[1]),
+    served: Math.max(0, arriving - dropped),
+    dropped,
+    throttled,
+    overflow,
+    refused,
+    backlog: backlogs[0],
+    primaryBacklog: backlogs[1] ?? 0,
+    ...(adm.tokens !== undefined ? { tokens: adm.tokens } : {}),
+    queueDepth: finite(queueDepth),
+  };
 }
 
 export class TickSimulator {
@@ -154,6 +401,8 @@ export class TickSimulator {
   private readonly options: TickOptions;
   private horizonSec = 10;
   private latencySlo: LatencySlo | null;
+  /** Some node has a technology: split reads and writes (A.3). */
+  private needsSplit = false;
 
   constructor(graph: SimGraph, options: TickOptions = {}) {
     this.options = { ...options };
@@ -208,6 +457,13 @@ export class TickSimulator {
     this.edgesById = new Map(valid.map((e) => [e.id, e]));
     // (deleting the current key while iterating a Map is safe)
     for (const id of this.nodeState.keys()) if (!byId.has(id)) this.nodeState.delete(id);
+    // A node whose technology changed starts its technology state afresh.
+    for (const [id, st] of this.nodeState) {
+      if (st.tech && st.tech.technology !== byId.get(id)?.tech?.technology) delete st.tech;
+    }
+    // SPEC_DEVIATION: A.3 splits only with classes or a throttle; every node
+    // with a technology reports `writeRps`, so any technology turns it on.
+    this.needsSplit = graph.nodes.some((n) => n.tech !== undefined);
     for (const [id, gens] of this.pending) {
       const e = this.edgesById.get(id);
       const r = e && !e.back ? maxRetriesOf(byId.get(e.source)!) : 0;
@@ -247,6 +503,12 @@ export class TickSimulator {
     const shares = new Map<string, number>();
     const flows = new Map<string, TickFlow>();
     const callCtx: CallContext = { readRatio, byId, failure: this.lastFailure };
+    // Read/write split (A.3), alongside the loads (which it never changes).
+    const defaultWs = clamp01(1 - readRatio);
+    const inflowWrite = this.needsSplit ? new Map<string, number>() : undefined;
+    const nodeWs = this.needsSplit ? new Map<string, number>() : undefined;
+    const edgeWs = this.needsSplit ? new Map<string, number>() : undefined;
+    if (inflowWrite) for (const [id, v] of inflow) inflowWrite.set(id, v * defaultWs);
 
     // 2–3. propagate in order
     for (const id of order) {
@@ -256,15 +518,18 @@ export class TickSimulator {
       const maxQueue = maxQueueOf(node);
       const edges = out.get(id) ?? [];
       const fx = effects?.nodes.get(id);
+      const ws = arriving > 0 ? clamp01((inflowWrite?.get(id) ?? 0) / arriving) : defaultWs;
+      nodeWs?.set(id, ws);
 
       if (fx?.down) {
         // Down: every arrival fails, in-flight work is lost, nothing goes out.
         // A queue keeps its undelivered messages for when it comes back.
         state.backlog = 0;
+        if (state.tech) state.tech.primaryBacklog = 0;
         let lag = 0;
         for (const v of state.lag.values()) lag += v;
         flows.set(id, {
-          st: this.stableStation(node, 0, node.capacityPerInstance, maxQueue),
+          st: stableStation(node, 0, node.capacityPerInstance, maxQueue, this.horizonSec),
           offered: arriving,
           served: 0,
           dropped: arriving,
@@ -288,79 +553,131 @@ export class TickSimulator {
         continue;
       }
 
-      let capacityPerInstance = node.capacityPerInstance;
-      let admitted = arriving;
-      let rejected = 0;
-      if (node.routing === "rate-limiter") {
-        const adm = rateLimit(node, arriving);
-        admitted = adm.admitted;
-        rejected = adm.rejected;
-        capacityPerInstance = Math.min(capacityPerInstance, adm.capacityLimit / node.instances);
-      }
-      // A resolver only works on its uncached lookups; cached answers pass straight through.
-      const share = lookupShareOf(node);
-      const bypass = admitted * (1 - share);
-      admitted -= bypass;
-      // Dead instances still in rotation fail their share fast (no capacity
-      // used) — of the lookups only, for a resolver.
-      let refused = fx && fx.errorRate > 0 ? admitted * fx.errorRate : 0;
-      admitted -= refused;
-      if (node.routing === "breaker") {
-        // Open (or half-open past its probes): fail fast, nothing reaches the dependency.
-        state.breaker ??= closedBreaker(this.time);
-        const pass = breakerAdmits(state.breaker, breakerParams(node), admitted, dt);
-        refused += admitted - pass;
-        admitted = pass;
-      }
-      const capacity = node.instances * capacityPerInstance;
-
-      let completed: number;
-      let overflow = 0;
-      let st: StationState;
-      if (maxQueue === 0) {
-        // No buffer: M/M/c/c loss system, nothing carries over.
-        st = this.stableStation(node, admitted, capacityPerInstance, maxQueue);
-        completed = Math.min(admitted, st.servedRps);
-        overflow = admitted - completed;
-        state.backlog = 0;
+      let flow: TickFlow;
+      if (node.tech?.classes || node.tech?.throttle) {
+        // A technology's classes, quota or hot partition (A.7).
+        state.tech ??= { technology: node.tech.technology, primaryBacklog: 0 };
+        const t = techTickFlow({
+          profile: node.tech,
+          core: node,
+          arriving,
+          writeShare: ws,
+          errorRate: fx?.errorRate,
+          backlog: state.backlog,
+          primaryBacklog: state.tech.primaryBacklog,
+          tokens: state.tech.tokens,
+          maxQueue,
+          dtSec: dt,
+          horizonSec: this.horizonSec,
+        });
+        state.backlog = t.backlog;
+        state.tech.primaryBacklog = t.primaryBacklog;
+        if (t.tokens !== undefined) state.tech.tokens = t.tokens;
+        flow = {
+          st: t.stations[0],
+          offered: arriving,
+          served: t.served,
+          dropped: t.dropped,
+          completed: t.completed,
+          stationIn: arriving,
+          stationOut: t.completed,
+          capacity: t.stations[0].capacityRps,
+          backlog: t.backlog + t.primaryBacklog,
+          lag: 0,
+          lagGrowing: false,
+          delivered: 0,
+          rejected: 0,
+          overflow: t.overflow,
+          refused: t.refused,
+          down: false,
+          tech: t.view,
+          throttled: t.throttled,
+          queueDepth: t.queueDepth,
+        };
       } else {
-        const work = state.backlog + admitted * dt;
-        const done = Math.min(work, capacity * dt);
-        let q = work - done;
-        if (q > maxQueue) {
-          overflow = (q - maxQueue) / dt;
-          q = maxQueue;
+        let capacityPerInstance = node.capacityPerInstance;
+        let admitted = arriving;
+        let rejected = 0;
+        if (node.routing === "rate-limiter") {
+          const adm = rateLimit(node, arriving);
+          admitted = adm.admitted;
+          rejected = adm.rejected;
+          capacityPerInstance = Math.min(capacityPerInstance, adm.capacityLimit / node.instances);
         }
-        state.backlog = q;
-        completed = done / dt;
-        const backlogged = admitted >= capacity || q > Math.max(1, capacity * BACKLOG_NOISE_SEC);
-        st = backlogged
-          ? this.backlogStation(node, admitted, completed, overflow, capacityPerInstance, q)
-          : this.stableStation(node, admitted, capacityPerInstance, maxQueue);
-      }
+        // A resolver only works on its uncached lookups; cached answers pass straight through.
+        const share = lookupShareOf(node);
+        const bypass = admitted * (1 - share);
+        admitted -= bypass;
+        // Dead instances still in rotation fail their share fast (no capacity
+        // used) — of the lookups only, for a resolver.
+        let refused = fx && fx.errorRate > 0 ? admitted * fx.errorRate : 0;
+        admitted -= refused;
+        if (node.routing === "breaker") {
+          // Open (or half-open past its probes): fail fast, nothing reaches the dependency.
+          state.breaker ??= closedBreaker(this.time);
+          const pass = breakerAdmits(state.breaker, breakerParams(node), admitted, dt);
+          refused += admitted - pass;
+          admitted = pass;
+        }
+        const capacity = node.instances * capacityPerInstance;
 
-      const stationOut = completed;
-      completed += bypass; // cached answers leave with the completed lookups
-      const dropped = Math.min(arriving, rejected + overflow + refused);
-      const flow: TickFlow = {
-        st,
-        offered: arriving,
-        served: Math.max(0, arriving - dropped),
-        dropped,
-        completed,
-        stationIn: share < 1 ? admitted : arriving,
-        stationOut,
-        capacity,
-        backlog: state.backlog,
-        lag: 0,
-        lagGrowing: false,
-        delivered: 0,
-        rejected,
-        overflow,
-        refused,
-        down: false,
-      };
+        let completed: number;
+        let overflow = 0;
+        let st: StationState;
+        if (maxQueue === 0) {
+          // No buffer: M/M/c/c loss system, nothing carries over.
+          st = stableStation(node, admitted, capacityPerInstance, maxQueue, this.horizonSec);
+          completed = Math.min(admitted, st.servedRps);
+          overflow = admitted - completed;
+          state.backlog = 0;
+        } else {
+          const work = state.backlog + admitted * dt;
+          const done = Math.min(work, capacity * dt);
+          let q = work - done;
+          if (q > maxQueue) {
+            overflow = (q - maxQueue) / dt;
+            q = maxQueue;
+          }
+          state.backlog = q;
+          completed = done / dt;
+          const backlogged = admitted >= capacity || q > Math.max(1, capacity * BACKLOG_NOISE_SEC);
+          st = backlogged
+            ? backlogStation(
+                node,
+                admitted,
+                completed,
+                overflow,
+                capacityPerInstance,
+                q,
+                this.horizonSec,
+              )
+            : stableStation(node, admitted, capacityPerInstance, maxQueue, this.horizonSec);
+        }
+
+        const stationOut = completed;
+        completed += bypass; // cached answers leave with the completed lookups
+        const dropped = Math.min(arriving, rejected + overflow + refused);
+        flow = {
+          st,
+          offered: arriving,
+          served: Math.max(0, arriving - dropped),
+          dropped,
+          completed,
+          stationIn: share < 1 ? admitted : arriving,
+          stationOut,
+          capacity,
+          backlog: state.backlog,
+          lag: 0,
+          lagGrowing: false,
+          delivered: 0,
+          rejected,
+          overflow,
+          refused,
+          down: false,
+        };
+      }
       flows.set(id, flow);
+      const completed = flow.completed;
       if (edges.length === 0) continue;
 
       const push = (e: SimEdge, baseLoad: number) => {
@@ -369,8 +686,14 @@ export class TickSimulator {
         if (gens) for (const g of gens) total += g;
         base.set(e.id, baseLoad);
         load.set(e.id, total);
+        const severed = edgeFx(e)?.severed;
         // A severed link: the calls are made (and fail), nothing arrives.
-        if (!edgeFx(e)?.severed) inflow.set(e.target, (inflow.get(e.target) ?? 0) + total);
+        if (!severed) inflow.set(e.target, (inflow.get(e.target) ?? 0) + total);
+        if (inflowWrite && edgeWs) {
+          const w = edgeWriteShare(e, node, ws, callCtx);
+          edgeWs.set(e.id, w);
+          if (!severed) inflowWrite.set(e.target, (inflowWrite.get(e.target) ?? 0) + total * w);
+        }
       };
 
       if (node.routing === "lb") {
@@ -389,9 +712,13 @@ export class TickSimulator {
         let lagBefore = 0;
         let delivered = 0;
         let lost = 0;
+        const consumers: { target: SimNode; demand: number }[] = [];
         for (const e of edges) {
           const prev = state.lag.get(e.id) ?? 0;
-          const pendingMsgs = prev + completed * edgeFactor(e, node, callCtx) * dt;
+          const factor = edgeFactor(e, node, callCtx);
+          if (node.tech)
+            consumers.push({ target: byId.get(e.target)!, demand: completed * factor });
+          const pendingMsgs = prev + completed * factor * dt;
           const pull = edgeFx(e)?.severed ? 0 : consumerCapacity(node, byId.get(e.target)!);
           const drained = Math.min(pendingMsgs, pull * dt);
           let next = pendingMsgs - drained;
@@ -408,6 +735,8 @@ export class TickSimulator {
         }
         flow.lag = lagTotal;
         flow.lagGrowing = lagTotal > lagBefore + 1e-9;
+        const consumerLimit = kafkaLimit(node, consumers);
+        if (consumerLimit) flow.consumerLimit = consumerLimit;
         flow.delivered = delivered;
         if (lost > 0) {
           // A full queue refuses publishes: producers see it as drops here.
@@ -421,7 +750,7 @@ export class TickSimulator {
     }
 
     // reverse pass: timeouts, call failure, success, availability
-    const settled = settle(topo, flows, shares);
+    const settled = settle(topo, flows, shares, edgeWs);
     this.lastFailure = settled.failure;
     this.advanceBreakers(topo, flows, load, settled, dt);
 
@@ -451,7 +780,7 @@ export class TickSimulator {
     const slowShare = slowShareOf(this.latencySlo, sampled.slowShare, byId.values(), flows);
 
     this.ticks++;
-    return this.snapshot(topo, offered, flows, load, settled, sampled.latency, slowShare);
+    return this.snapshot(topo, offered, flows, load, settled, sampled.latency, slowShare, nodeWs);
   }
 
   /**
@@ -485,50 +814,6 @@ export class TickSimulator {
     }
   }
 
-  /* ---------- stations ---------- */
-
-  private stableStation(
-    node: SimNode,
-    lambda: number,
-    capacityPerInstance: number,
-    maxQueue: number,
-  ): StationState {
-    return station({
-      lambda,
-      instances: node.instances,
-      capacityPerInstance,
-      serviceTimeMs: node.serviceTimeMs,
-      maxQueue,
-      horizonSec: this.horizonSec,
-    });
-  }
-
-  /** Arrivals queue behind a real backlog: everyone waits Q/(cμ) (FIFO). */
-  private backlogStation(
-    node: SimNode,
-    admitted: number,
-    completed: number,
-    overflow: number,
-    capacityPerInstance: number,
-    backlog: number,
-  ): StationState {
-    const idle = this.stableStation(node, 0, capacityPerInstance, Infinity);
-    const waitMs = finite((backlog / idle.capacityRps) * 1000);
-    return {
-      ...idle,
-      regime: "overloaded",
-      utilization: finite(admitted / idle.capacityRps),
-      servedRps: completed,
-      unservedRps: overflow,
-      waitProbability: 1,
-      meanWaitMs: waitMs,
-      queueDepth: backlog,
-      drainPerMs: 0,
-      fixedWaitMs: waitMs,
-      waitCapMs: Math.max(waitMs, idle.waitCapMs),
-    };
-  }
-
   private stateOf(id: string): NodeState {
     let s = this.nodeState.get(id);
     if (!s) {
@@ -548,6 +833,7 @@ export class TickSimulator {
     settled: Settled,
     latency: { p50Ms: number; p95Ms: number; p99Ms: number },
     slowShare: number,
+    nodeWs?: ReadonlyMap<string, number>,
   ): TickSnapshot {
     const { entries } = this.topo;
     const nodes: Record<string, NodeRuntimeMetrics> = {};
@@ -557,21 +843,49 @@ export class TickSimulator {
         nodes[n.id] = idleMetrics();
         continue;
       }
-      const util =
-        flow.capacity > 0 ? Math.max(flow.stationIn, flow.stationOut) / flow.capacity : 0;
+      // A node with a technology: its limiting resource on the offered demand,
+      // the same `techLimitOf` as `analyze()` (TEC-41, D5).
+      const sim = topo.byId.get(n.id) ?? n;
+      const ws = nodeWs?.get(n.id) ?? clamp01(1 - topo.readRatio);
+      const techLimit = sim.tech
+        ? techLimitOf(sim.tech, sim, {
+            read: flow.offered * (1 - ws),
+            write: flow.offered * ws,
+          })
+        : undefined;
+      // Kafka: its consumers when their busiest edge is fuller than the brokers.
+      const consumers = flow.consumerLimit;
+      const limit =
+        techLimit && consumers && consumers.utilization > techLimit.utilization
+          ? consumers
+          : techLimit;
+      const util = limit
+        ? finite(limit.utilization)
+        : flow.capacity > 0
+          ? Math.max(flow.stationIn, flow.stationOut) / flow.capacity
+          : 0;
       const queueDepth =
-        flow.st.regime === "stable" ? Math.max(flow.backlog, flow.st.queueDepth) : flow.backlog;
+        flow.queueDepth ??
+        (flow.st.regime === "stable" ? Math.max(flow.backlog, flow.st.queueDepth) : flow.backlog);
+      const tech = flow.tech;
       const m: NodeRuntimeMetrics = {
         rpsIn: finite(flow.offered),
         rpsOut: finite(flow.completed),
         utilization: finite(util),
         queueDepth: finite(queueDepth + flow.lag),
-        p50: finite(hopPercentileMs(flow.st, 0.5)),
-        p95: finite(hopPercentileMs(flow.st, 0.95)),
-        p99: finite(hopPercentileMs(flow.st, 0.99)),
+        p50: finite(tech ? techPercentileMs(tech, 0.5) : hopPercentileMs(flow.st, 0.5)),
+        p95: finite(tech ? techPercentileMs(tech, 0.95) : hopPercentileMs(flow.st, 0.95)),
+        p99: finite(tech ? techPercentileMs(tech, 0.99) : hopPercentileMs(flow.st, 0.99)),
         errorRate: flow.offered > 0 ? clamp01(flow.dropped / flow.offered) : 0,
         drops: finite(flow.dropped),
         status: nodeStatus(flow, util),
+        ...(limit
+          ? {
+              limitKind: limit.kind,
+              limitUtilization: finite(util),
+              writeRps: finite(flow.offered * ws),
+            }
+          : {}),
       };
       if (n.routing === "queue") {
         // Lag in seconds of consumption; unknown (omitted) when nothing is consumed.
@@ -646,7 +960,13 @@ function idleMetrics(): NodeRuntimeMetrics {
 function nodeStatus(flow: TickFlow, util: number): RuntimeNodeStatus {
   if (flow.down) return "down";
   if (flow.offered <= 0 && flow.backlog <= 0 && flow.lag <= 0) return "ok";
-  if (util > UTILIZATION_CRITICAL || flow.overflow > 0 || flow.lagGrowing || flow.refused > 0)
+  if (
+    util > UTILIZATION_CRITICAL ||
+    flow.overflow > 0 ||
+    flow.lagGrowing ||
+    flow.refused > 0 ||
+    isThrottled(flow.throttled, flow.offered)
+  )
     return "critical";
   if (util > UTILIZATION_WARNING || flow.lag > 0.5 || flow.rejected > 0) return "warn";
   return "ok";

@@ -29,6 +29,8 @@ import {
   resolvedParams,
   sanitizeParams,
 } from "@/domain/components/registry";
+import { GENERIC_TECHNOLOGY, technologyOf } from "@/domain/components/params";
+import { classOf, techPreset } from "@/domain/components/technologies";
 import type { EdgeRule, Params } from "@/domain/components/types";
 import {
   applyEdgeRulePatch,
@@ -113,6 +115,33 @@ function pushedHistory(state: {
   history: HistoryEntry[];
 }): HistoryEntry[] {
   return [...state.history, snapshot(state)].slice(-MAX_HISTORY);
+}
+
+/**
+ * Replace one component node's params with `compute(componentId, current)`
+ * (sanitized) in one undo step. No-op on a read-only tab, for a missing or
+ * non-component node, when `compute` returns null, or when nothing changes.
+ */
+function withNodeParams(
+  state: CanvasState,
+  nodeId: string,
+  compute: (componentId: string, current: Params) => Params | null,
+): Partial<CanvasState> {
+  const node = state.nodes.find((n) => n.id === nodeId);
+  if (!node || node.type !== "component" || isActiveTabReadOnly(state)) return state;
+  const data = node.data as ComponentNodeData;
+  const current = resolvedParams(data);
+  const patch = compute(data.componentId, current);
+  if (!patch) return state;
+  const next = sanitizeParams(data.componentId, { ...current, ...patch });
+  if (Object.keys(next).every((k) => next[k] === current[k])) return state;
+  return {
+    history: pushedHistory(state),
+    future: [],
+    nodes: state.nodes.map((n) =>
+      n.id === nodeId ? { ...n, data: { ...n.data, params: next } } : n,
+    ),
+  };
 }
 
 /** Consecutive arrow-key nudges within this window share one undo step. */
@@ -392,6 +421,22 @@ interface CanvasState {
   applyGraphEdit: (edit: (graph: { nodes: Node[]; edges: Edge[] }) => GraphEditResult) => void;
   /** Merge a params edit (validated by the node's schema) in one undo step. */
   updateNodeParams: (nodeId: string, patch: Params) => void;
+  /**
+   * Switch a node's technology (component-technologies) in one undo step:
+   * writes the technology's preset (capacity, service time, its params, its
+   * default class) and keeps `instances` and everything it doesn't set
+   * (TEC-02); `generic` keeps the current numbers (TEC-04); the same
+   * technology, or one the type doesn't offer, is a no-op (TEC-03).
+   */
+  setNodeTechnology: (nodeId: string, technology: string) => void;
+  /**
+   * Switch the instance class of a node's technology in one undo step: writes
+   * that class's capacity, service time and params, keeps the rest (TEC-15).
+   * A class the technology lacks, or the current one, is a no-op.
+   */
+  setNodeInstanceClass: (nodeId: string, instanceClass: string) => void;
+  /** Rewrite the current technology and class's values in one undo step (TEC-44). */
+  resetNodeToBenchmark: (nodeId: string) => void;
   /**
    * Merge an edge rule edit (normalized) in one undo step: link fields, the
    * first call's fields, or a whole call list (`calls`; an empty list is refused).
@@ -773,6 +818,41 @@ export const useCanvasStore = create<CanvasState>()(
           };
         });
       },
+      setNodeTechnology: (nodeId, technology) => {
+        set((state) =>
+          withNodeParams(state, nodeId, (componentId, current) => {
+            if (current[PARAM.technology] === technology) return null;
+            if (technology === GENERIC_TECHNOLOGY) return { [PARAM.technology]: technology };
+            const preset = techPreset(componentId, technology);
+            return Object.keys(preset).length > 0 ? preset : null;
+          }),
+        );
+      },
+      setNodeInstanceClass: (nodeId, instanceClass) => {
+        set((state) =>
+          withNodeParams(state, nodeId, (componentId, current) => {
+            const tech = technologyOf(componentId, current);
+            const cls = tech?.classes?.find((c) => c.id === instanceClass);
+            if (!cls || current[PARAM.instanceClass] === instanceClass) return null;
+            return {
+              [PARAM.instanceClass]: cls.id,
+              [PARAM.capacityPerInstance]: cls.capacityPerInstance,
+              [PARAM.serviceTimeMs]: cls.serviceTimeMs,
+              ...cls.params,
+            };
+          }),
+        );
+      },
+      resetNodeToBenchmark: (nodeId) => {
+        set((state) =>
+          withNodeParams(state, nodeId, (componentId, current) => {
+            const tech = technologyOf(componentId, current);
+            if (!tech) return null;
+            const cls = classOf(tech, String(current[PARAM.instanceClass]));
+            return techPreset(componentId, tech.id, cls?.id);
+          }),
+        );
+      },
       updateEdgeRule: (edgeId, patch) => {
         set((state) => {
           const edge = state.edges.find((e) => e.id === edgeId);
@@ -943,6 +1023,9 @@ export const MUTATING_ACTIONS = [
   "setInstanceCounts",
   "applyGraphEdit",
   "updateNodeParams",
+  "setNodeTechnology",
+  "setNodeInstanceClass",
+  "resetNodeToBenchmark",
   "updateEdgeRule",
   "updateNodeData",
   "updateEdgeData",

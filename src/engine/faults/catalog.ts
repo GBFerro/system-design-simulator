@@ -5,7 +5,7 @@
  * inputs are the spec (already sanitized) and the compiled graph.
  */
 import { PARAM } from "@/domain/components/params";
-import { MANAGED_MULTI_ZONE } from "@/domain/components/traits";
+import { isManagedMultiZone } from "@/domain/components/traits";
 import type { SimEdge, SimGraph, SimNode } from "@/domain/graph/compile";
 import type { EdgeCallKind } from "@/domain/components/types";
 import {
@@ -338,7 +338,7 @@ export const FAULT_CATALOG: readonly FaultTypeSpec[] = [
       const modifiers: RelativeModifier[] = [];
       const gone: string[] = [];
       for (const n of ctx.graph.nodes) {
-        if (MANAGED_MULTI_ZONE.has(n.componentId)) continue;
+        if (isManagedMultiZone(n.componentId, n.params)) continue;
         // The lost zone held instances 0, z, 2z, … of every tier.
         const lost = Math.ceil(n.instances / zones);
         if (lost >= n.instances) gone.push(n.label);

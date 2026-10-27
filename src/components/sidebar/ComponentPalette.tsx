@@ -6,7 +6,21 @@ import { useReactFlow } from "@xyflow/react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SYSTEM_COMPONENTS, COMPONENT_CATEGORIES, getComponentById } from "@/data/components";
 import { CONCEPT_LIBRARY } from "@/data/conceptLibrary";
-import { Server, GripVertical, Plus, Search as SearchIcon, Sparkles, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Server,
+  GripVertical,
+  Plus,
+  Search as SearchIcon,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
+import {
+  defaultTechnologyOf,
+  technologiesOf,
+  type Technology,
+} from "@/domain/components/technologies";
 import { ICON_MAP } from "@/lib/icons";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 import { createComponentNode } from "@/lib/nodeFactory";
@@ -55,9 +69,12 @@ export function ComponentPalette({
   const allComponents: SystemComponent[] = [...customComponents, ...SYSTEM_COMPONENTS];
   const customIds = new Set(customComponents.map((c) => c.id));
 
-  /** Tap-to-add: place the component near the visible canvas center, clear of other nodes. */
+  /**
+   * Tap-to-add: place the component near the visible canvas center, clear of
+   * other nodes, with the technology given (component-technologies, TEC-21).
+   */
   const handleQuickAdd = useCallback(
-    (componentId: string) => {
+    (componentId: string, technology?: string) => {
       const component = getComponentById(componentId);
       if (!component) return;
       if (isActiveTabReadOnly(useCanvasStore.getState())) {
@@ -65,7 +82,7 @@ export function ComponentPalette({
         return;
       }
       placeNode(
-        createComponentNode(component, { x: 0, y: 0 }),
+        createComponentNode(component, { x: 0, y: 0 }, technology),
         visibleCanvasCenter(screenToFlowPosition),
       );
       useAppStore.getState().showToast(`Added ${component.label}`, "success");
@@ -75,11 +92,22 @@ export function ComponentPalette({
   );
 
   const query = search.toLowerCase().trim();
+  // Technology lists the user opened or closed; others open while a search matches a technology
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+
+  /** The type's technologies whose name matches the search (TEC-23). */
+  const techMatches = (c: SystemComponent): readonly Technology[] =>
+    query === ""
+      ? []
+      : technologiesOf(c.id).filter(
+          (t) => t.label.toLowerCase().includes(query) || t.short.toLowerCase().includes(query),
+        );
 
   const matches = (c: SystemComponent) =>
     query === "" ||
     c.label.toLowerCase().includes(query) ||
-    c.description.toLowerCase().includes(query);
+    c.description.toLowerCase().includes(query) ||
+    techMatches(c).length > 0;
 
   const totalMatches = query ? allComponents.filter(matches).length : allComponents.length;
 
@@ -100,7 +128,10 @@ export function ComponentPalette({
             aria-label="Search components"
             placeholder="Search components..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setToggled({});
+            }}
             className="w-full rounded-md border border-zinc-700 bg-zinc-800 py-2 pl-8 pr-3 text-xs text-zinc-200 placeholder:text-zinc-500 outline-none transition-colors focus:border-cyan-500"
           />
         </div>
@@ -147,65 +178,133 @@ export function ComponentPalette({
                       const concept = CONCEPT_LIBRARY[item.id];
                       const tipText = concept?.whenToUse[0] ?? item.description;
                       const isCustom = customIds.has(item.id);
+                      // A central type starts with its default technology (TEC-22)
+                      const technology = defaultTechnologyOf(item.id);
+                      const techs = technologiesOf(item.id);
+                      const found = techMatches(item);
+                      const techsOpen = toggled[item.id] ?? found.length > 0;
                       return (
-                        <Tooltip key={item.id}>
-                          <TooltipTrigger
-                            render={
-                              <PaletteDraggable
-                                dragId={`${dragIdPrefix}:${item.id}`}
-                                componentId={item.id}
-                                // On touch, a quick tap adds the component; press-and-hold drags it
-                                onClick={isCoarse ? () => handleQuickAdd(item.id) : undefined}
-                              >
-                                <GripVertical className="h-3 w-3 shrink-0 text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100" />
-                                <div
-                                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${iconBg}`}
+                        <div key={item.id}>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <PaletteDraggable
+                                  dragId={`${dragIdPrefix}:${item.id}`}
+                                  itemId={item.id}
+                                  componentId={item.id}
+                                  technology={technology}
+                                  // On touch, a quick tap adds the component; press-and-hold drags it
+                                  onClick={
+                                    isCoarse ? () => handleQuickAdd(item.id, technology) : undefined
+                                  }
                                 >
-                                  <Icon
-                                    className={`h-3.5 w-3.5 shrink-0 transition-colors ${accent}`}
-                                  />
-                                </div>
-                                <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                                {isCustom && (
-                                  <span className="shrink-0 rounded bg-cyan-500/15 px-1 text-[9px] font-semibold uppercase tracking-wider text-cyan-400">
-                                    Custom
-                                  </span>
-                                )}
-                                <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">
-                                  {item.maxQPS === Infinity
-                                    ? "\u221e"
-                                    : item.maxQPS < 1000
-                                      ? String(item.maxQPS)
-                                      : `${(item.maxQPS / 1000).toFixed(0)}k`}
-                                </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleQuickAdd(item.id);
-                                  }}
-                                  className={`flex ${isCoarse ? "h-9 w-9" : "h-5 w-5"} shrink-0 items-center justify-center rounded text-zinc-500 opacity-60 transition-[opacity,color,background-color] hover:bg-zinc-700 hover:text-cyan-400 hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100`}
-                                  title="Add to canvas"
-                                  aria-label={`Add ${item.label} to canvas`}
-                                >
-                                  <Plus className={isCoarse ? "h-4 w-4" : "h-3 w-3"} />
-                                </button>
-                                {isCustom && (
-                                  <button
-                                    onClick={(e) => handleDeleteCustom(e, item.id, item.label)}
-                                    className={`flex ${isCoarse ? "h-9 w-9" : "h-5 w-5"} shrink-0 items-center justify-center rounded text-zinc-500 opacity-60 transition-[opacity,color,background-color] hover:bg-zinc-700 hover:text-rose-400 hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100`}
-                                    title="Delete custom component"
-                                    aria-label={`Delete ${item.label}`}
+                                  <GripVertical className="h-3 w-3 shrink-0 text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100" />
+                                  <div
+                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${iconBg}`}
                                   >
-                                    <Trash2 className={isCoarse ? "h-4 w-4" : "h-3 w-3"} />
+                                    <Icon
+                                      className={`h-3.5 w-3.5 shrink-0 transition-colors ${accent}`}
+                                    />
+                                  </div>
+                                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                                  {isCustom && (
+                                    <span className="shrink-0 rounded bg-cyan-500/15 px-1 text-[9px] font-semibold uppercase tracking-wider text-cyan-400">
+                                      Custom
+                                    </span>
+                                  )}
+                                  <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">
+                                    {item.maxQPS === Infinity
+                                      ? "\u221e"
+                                      : item.maxQPS < 1000
+                                        ? String(item.maxQPS)
+                                        : `${(item.maxQPS / 1000).toFixed(0)}k`}
+                                  </span>
+                                  {techs.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setToggled((t) => ({ ...t, [item.id]: !techsOpen }));
+                                      }}
+                                      className={`flex ${isCoarse ? "h-9 w-9" : "h-5 w-5"} shrink-0 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-cyan-400`}
+                                      title="Technologies"
+                                      aria-expanded={techsOpen}
+                                      aria-label={`${item.label} technologies`}
+                                    >
+                                      {techsOpen ? (
+                                        <ChevronDown className={isCoarse ? "h-4 w-4" : "h-3 w-3"} />
+                                      ) : (
+                                        <ChevronRight
+                                          className={isCoarse ? "h-4 w-4" : "h-3 w-3"}
+                                        />
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleQuickAdd(item.id, technology);
+                                    }}
+                                    className={`flex ${isCoarse ? "h-9 w-9" : "h-5 w-5"} shrink-0 items-center justify-center rounded text-zinc-500 opacity-60 transition-[opacity,color,background-color] hover:bg-zinc-700 hover:text-cyan-400 hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100`}
+                                    title="Add to canvas"
+                                    aria-label={`Add ${item.label} to canvas`}
+                                  >
+                                    <Plus className={isCoarse ? "h-4 w-4" : "h-3 w-3"} />
                                   </button>
-                                )}
-                              </PaletteDraggable>
-                            }
-                          />
-                          <TooltipContent side="right" sideOffset={8} className="max-w-[220px]">
-                            <p className="text-xs leading-relaxed">{tipText}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                                  {isCustom && (
+                                    <button
+                                      onClick={(e) => handleDeleteCustom(e, item.id, item.label)}
+                                      className={`flex ${isCoarse ? "h-9 w-9" : "h-5 w-5"} shrink-0 items-center justify-center rounded text-zinc-500 opacity-60 transition-[opacity,color,background-color] hover:bg-zinc-700 hover:text-rose-400 hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100`}
+                                      title="Delete custom component"
+                                      aria-label={`Delete ${item.label}`}
+                                    >
+                                      <Trash2 className={isCoarse ? "h-4 w-4" : "h-3 w-3"} />
+                                    </button>
+                                  )}
+                                </PaletteDraggable>
+                              }
+                            />
+                            <TooltipContent side="right" sideOffset={8} className="max-w-[220px]">
+                              <p className="text-xs leading-relaxed">{tipText}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          {techsOpen && (
+                            <div role="group" aria-label={`${item.label} technologies`}>
+                              {(found.length > 0 ? found : techs).map((tech) => {
+                                const name = tech.layer
+                                  ? `${tech.label} (${tech.layer})`
+                                  : tech.label;
+                                return (
+                                  <PaletteDraggable
+                                    key={tech.id}
+                                    dragId={`${dragIdPrefix}:${item.id}:${tech.id}`}
+                                    itemId={`${item.id}:${tech.id}`}
+                                    componentId={item.id}
+                                    technology={tech.id}
+                                    title={tech.description}
+                                    onClick={
+                                      isCoarse ? () => handleQuickAdd(item.id, tech.id) : undefined
+                                    }
+                                    className="pl-10"
+                                  >
+                                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickAdd(item.id, tech.id);
+                                      }}
+                                      className={`flex ${isCoarse ? "h-9 w-9" : "h-5 w-5"} shrink-0 items-center justify-center rounded text-zinc-500 opacity-60 transition-[opacity,color,background-color] hover:bg-zinc-700 hover:text-cyan-400 hover:opacity-100 group-focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100`}
+                                      title="Add to canvas"
+                                      aria-label={`Add ${name} to canvas as ${item.label}`}
+                                    >
+                                      <Plus className={isCoarse ? "h-4 w-4" : "h-3 w-3"} />
+                                    </button>
+                                  </PaletteDraggable>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -222,21 +321,28 @@ export function ComponentPalette({
 /** A palette row that can be dragged onto the canvas (see PaletteDndProvider). */
 function PaletteDraggable({
   dragId,
+  itemId,
   componentId,
+  technology,
   onClick,
   children,
   ref,
+  className = "",
   ...rest
 }: {
   dragId: string;
+  /** `data-palette-item`: the type's id, or "<type>:<technology>" for a technology row. */
+  itemId: string;
   componentId: string;
+  /** The technology the dropped node starts with; omitted = generic. */
+  technology?: string;
   onClick?: () => void;
   children: ReactNode;
   ref?: Ref<HTMLDivElement>;
 } & React.HTMLAttributes<HTMLDivElement>) {
   const { setNodeRef, listeners, isDragging } = useDraggable({
     id: dragId,
-    data: { componentId } satisfies PaletteDragData,
+    data: { componentId, technology } satisfies PaletteDragData,
   });
   // The tooltip trigger passes its own ref (for anchoring) — keep both
   const mergedRef = useCallback(
@@ -253,9 +359,9 @@ function PaletteDraggable({
       ref={mergedRef}
       {...listeners}
       onClick={onClick}
-      data-palette-item={componentId}
+      data-palette-item={itemId}
       style={{ touchAction: "manipulation" }}
-      className={`group flex cursor-grab items-center gap-2 rounded-md px-2 py-2 text-xs text-zinc-300 transition-colors hover:bg-zinc-800/80 hover:text-zinc-100 active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
+      className={`group flex cursor-grab items-center gap-2 rounded-md px-2 py-2 text-xs text-zinc-300 transition-colors hover:bg-zinc-800/80 hover:text-zinc-100 active:cursor-grabbing ${isDragging ? "opacity-50" : ""} ${className}`}
     >
       {children}
     </div>

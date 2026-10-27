@@ -27,6 +27,7 @@ import { PROBLEMS } from "@/data/problems";
 import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { useCustomComponentsStore } from "@/store/customComponentsStore";
 import { useCanvasStore } from "@/store/canvasStore";
+import { defaultTechnologyOf, technologiesOf } from "@/domain/components/technologies";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { visibleCanvasCenter } from "@/lib/placement";
 import { useAppStore } from "@/store/appStore";
@@ -101,10 +102,11 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
   const customProblems = useCustomProblemsStore((s) => s.problems);
   const customComponents = useCustomComponentsStore((s) => s.components);
 
+  /** Add a node; a central type starts with `technology` (component-technologies, TEC-22/23). */
   const addComponent = useCallback(
-    (component: SystemComponent) => {
+    (component: SystemComponent, technology?: string) => {
       placeNode(
-        createComponentNode(component, { x: 0, y: 0 }),
+        createComponentNode(component, { x: 0, y: 0 }, technology),
         visibleCanvasCenter(screenToFlowPosition),
       );
       showToast(`Added ${component.label}`, "success");
@@ -208,9 +210,20 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
       label: c.label,
       hint: "Add to canvas",
       icon: ICON_MAP[c.icon] ?? Puzzle,
-      run: () => addComponent(c),
+      run: () => addComponent(c, defaultTechnologyOf(c.id)),
     }));
-    return [...actionItems, ...problemItems, ...componentItems];
+    // "Apache Cassandra — NoSQL Database": a technology creates its type with it
+    const technologyItems: CommandItem[] = allComponents.flatMap((c) =>
+      technologiesOf(c.id).map((t) => ({
+        id: `comp-${c.id}-${t.id}`,
+        group: "Components" as const,
+        label: `${t.layer ? `${t.label} (${t.layer})` : t.label} — ${c.label}`,
+        hint: "Add to canvas",
+        icon: ICON_MAP[c.icon] ?? Puzzle,
+        run: () => addComponent(c, t.id),
+      })),
+    );
+    return [...actionItems, ...problemItems, ...componentItems, ...technologyItems];
   }, [
     actions,
     customProblems,

@@ -1,8 +1,8 @@
 import { hitRateSpec, PARAM, ttlSpec } from "../params";
-import { defineSchema } from "./define";
+import { defineTechSchema } from "./define";
 
 /** In-memory cache (Redis/Memcached): misses become calls down `on_miss` edges. */
-export const cacheSchema = defineSchema("cache", "cache", [
+export const cacheSchema = defineTechSchema("cache", "cache", [
   hitRateSpec(
     0.9,
     "Share of reads served from memory; misses go down on_miss edges (usually to the database).",
