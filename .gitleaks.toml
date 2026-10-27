@@ -1,0 +1,6 @@
+# Secret scanning (pre-push hook and CI). The default rules catch the common providers;
+# add an allowlist here only for a proven false positive, with a comment saying why.
+title = "factory gitleaks config"
+
+[extend]
+useDefault = true

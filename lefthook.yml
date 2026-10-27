@@ -1,0 +1,26 @@
+# Git hooks: the same signals the agent gets, for every committer.
+# Install once from the main checkout: `lefthook install`. Never set core.hooksPath by hand.
+#   pre-commit  the quick subset (lint + format), seconds; writes no receipt
+#   commit-msg  Conventional Commits subject
+#   pre-push    the gate: protected branches, secrets, a passed receipt for the pushed tip
+# The harness suite (sensors/test.sh, check-harness) runs inside the full verify that the pre-push
+# receipt requires, so it is not repeated on every commit.
+assert_lefthook_installed: true
+
+pre-commit:
+  commands:
+    quick:
+      run: bash scripts/verify.sh lint format
+
+commit-msg:
+  commands:
+    conventional:
+      run: bash sensors/check-commit-msg.sh {1}
+
+# A script always runs, whatever files the push touches; git sends the pushed refs on stdin once,
+# so one script reads them for every check.
+pre-push:
+  scripts:
+    "gate.sh":
+      runner: bash
+      use_stdin: true
