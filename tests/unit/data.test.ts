@@ -17,7 +17,7 @@ import type { Problem } from "@/types/problem";
 import { compileV3 } from "./engineFixtures";
 
 // Ids, duplicates and learning-path coverage are in catalog.test.ts; this file
-// checks the "Data conventions" of CLAUDE.md that are about order and wiring.
+// checks the "Data conventions" of docs/architecture.md that are about order and wiring.
 
 /** Problem ids in learning-path order (tiers in order, problems in tier order). */
 const pathOrder = LEARNING_PATH.flatMap((tier) => tier.problemIds);
