@@ -931,6 +931,32 @@ describe("replica loss (CAP under a lost replica)", () => {
     }
   });
 
+  it("clamps an out-of-range intensity to replicas - 1 (the picker offers up to 7)", () => {
+    // The picker's range is 1..7 for every store, but a lost primary is
+    // `db-primary-failure`, so `build()` caps the loss at `replicas - 1`. On a
+    // 3-replica set asking for 7 must isolate 2, and the notes the ChaosPanel
+    // renders must say so: an unclamped 7 would report -4 survivors.
+    const g = capStore("one");
+    const r = compileFault(replicaLoss(7), 0, { graph: g, readRatio: 0.9 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // `compileFault` only clamps to the picker's range; the entry clamps again.
+    expect(r.spec.intensity).toBe(7);
+    const lost = r.modifiers.filter((m) => m.kind === "lostReplicas");
+    expect(lost).toHaveLength(1);
+    expect(lost[0]).toMatchObject({ targetIds: ["store"], value: 2, startT: 0 });
+    expect(r.notes[0]).toMatch(/2 of 3 replicas isolated/);
+    expect(r.notes[0]).toMatch(/1 survive/);
+
+    // An in-range intensity passes through unchanged: the clamp is not eager.
+    const one = compileFault(replicaLoss(1), 0, { graph: g, readRatio: 0.9 });
+    expect(one.ok).toBe(true);
+    if (!one.ok) return;
+    expect(one.modifiers.find((m) => m.kind === "lostReplicas")?.value).toBe(1);
+    expect(one.notes[0]).toMatch(/1 of 3 replicas isolated/);
+    expect(one.notes[0]).toMatch(/2 survive/);
+  });
+
   it("ONE, RF 3, one replica lost: reads are served, stale, and no error above the baseline", () => {
     const g = capStore("one");
     const base = steadyNode(analyze(g, RPS), "store");
