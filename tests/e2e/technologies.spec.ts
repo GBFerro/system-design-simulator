@@ -97,6 +97,28 @@ test("TEC-02/05/06: choosing a technology writes its numbers, shows their source
   await expect(picker.getByTestId("technology-source")).toHaveCount(0);
 });
 
+test("CAP: the picker labels a CP or AP technology, and shows no label for the others", async ({
+  page,
+}) => {
+  await open(page);
+  await addWithTechnology(page, "NoSQL Database", "cassandra");
+  const picker = page.getByTestId("technology-picker");
+  const cap = picker.getByTestId("technology-cap");
+  await expect(cap).toHaveText("CAP: AP");
+  await expect(cap).toHaveAttribute("data-cap", "ap");
+
+  await page.getByLabel("Technology", { exact: true }).selectOption("mongodb");
+  await expect(cap).toHaveText("CAP: CP");
+  await expect(cap).toHaveAttribute("data-cap", "cp");
+
+  // Generic is custom numbers, not a product: no label
+  await page.getByLabel("Technology", { exact: true }).selectOption("generic");
+  await expect(cap).toHaveCount(0);
+
+  await addWithTechnology(page, "Object Storage", "s3");
+  await expect(picker.getByTestId("technology-cap")).toHaveText("CAP: CP");
+});
+
 test("TEC-14: the instance class shows for a provisioned technology only, and scales capacity", async ({
   page,
 }) => {

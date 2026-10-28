@@ -35,7 +35,7 @@ import {
   technologiesOf,
 } from "@/domain/components/technologies";
 import type { Technology } from "@/domain/components/technologies";
-import { techProfileOf } from "@/domain/components/technologies/profile";
+import { techProfileOf, type TechReplicaSet } from "@/domain/components/technologies/profile";
 
 /* ---------- T1: lookups over a fixture list (TEC-10, TEC-12) ---------- */
 
@@ -1231,17 +1231,112 @@ describe("CAP label and the replica set of the quorum stores (CAP-01)", () => {
     ).toEqual({ replicas: 5, readQuorum: 5, writeQuorum: 5, eventualReads: false });
   });
 
-  it("generic has no profile, and no other mechanic carries a replica set in this slice", () => {
+  it("generic has no profile, and each data store carries the replica set its params imply (CAP-04/05/06)", () => {
     expect(profile({ technology: "generic" })).toBeUndefined();
-    for (const [id, params] of [
-      ["nosql-db", { technology: "dynamodb" }],
-      ["nosql-db", { technology: "mongodb" }],
-      ["sql-db", { technology: "postgres" }],
-      ["cache", { technology: "redis" }],
-      ["search", { technology: "opensearch" }],
-      ["object-storage", { technology: "s3" }],
-    ] as const) {
-      expect(techProfileOf(id, params)?.replicaSet, id).toBeUndefined();
+
+    // `replicas` = the copies of the set, `readQuorum`/`writeQuorum` = what a
+    // read and a write must reach, `eventualReads` = a read may come back stale.
+    const cases: [string, string, Params, TechReplicaSet | undefined][] = [
+      // DynamoDB: 3 replicas across AZs, quorum writes; a strong read waits for 2.
+      [
+        "nosql-db",
+        "dynamodb, eventual",
+        { technology: "dynamodb" },
+        { replicas: 3, readQuorum: 1, writeQuorum: 2, eventualReads: true },
+      ],
+      [
+        "nosql-db",
+        "dynamodb, strong",
+        { technology: "dynamodb", readConsistency: "strong" },
+        { replicas: 3, readQuorum: 2, writeQuorum: 2, eventualReads: false },
+      ],
+      // MongoDB: members per shard; majority writes need ⌊m/2⌋ + 1 of them.
+      [
+        "nosql-db",
+        "mongodb, secondaryPreferred + majority",
+        {
+          technology: "mongodb",
+          instances: 3,
+          shards: 1,
+          readPreference: "secondaryPreferred",
+          writeConcern: "majority",
+        },
+        { replicas: 3, readQuorum: 1, writeQuorum: 2, eventualReads: true },
+      ],
+      [
+        "nosql-db",
+        "mongodb, primary + majority",
+        {
+          technology: "mongodb",
+          instances: 3,
+          shards: 1,
+          readPreference: "primary",
+          writeConcern: "majority",
+        },
+        { replicas: 3, readQuorum: 1, writeQuorum: 2, eventualReads: false },
+      ],
+      [
+        "nosql-db",
+        "mongodb, secondaryPreferred + w:1",
+        {
+          technology: "mongodb",
+          instances: 3,
+          shards: 1,
+          readPreference: "secondaryPreferred",
+          writeConcern: "1",
+        },
+        { replicas: 3, readQuorum: 1, writeQuorum: 1, eventualReads: true },
+      ],
+      [
+        "nosql-db",
+        "mongodb, n = 1",
+        { technology: "mongodb", instances: 1 },
+        { replicas: 1, readQuorum: 1, writeQuorum: 1, eventualReads: false },
+      ],
+      // SQL: the primary is fresh; a read replica trails it (async replication).
+      [
+        "sql-db",
+        "sql-db",
+        { technology: "postgres", instances: 3 },
+        { replicas: 3, readQuorum: 1, writeQuorum: 1, eventualReads: false },
+      ],
+      [
+        "read-replica",
+        "read-replica",
+        { technology: "postgres", instances: 2 },
+        { replicas: 2, readQuorum: 1, writeQuorum: 1, eventualReads: true },
+      ],
+      // Redis replicas are asynchronous; Memcached has no replication at all.
+      [
+        "cache",
+        "redis",
+        { technology: "redis", instances: 2 },
+        { replicas: 2, readQuorum: 1, writeQuorum: 1, eventualReads: true },
+      ],
+      ["cache", "memcached", { technology: "memcached", instances: 2 }, undefined],
+      // OpenSearch: copies per shard = min(instances, 1 + replicas).
+      [
+        "search",
+        "opensearch, n = 3 replicas = 1",
+        { technology: "opensearch", instances: 3, replicas: 1 },
+        { replicas: 2, readQuorum: 1, writeQuorum: 1, eventualReads: true },
+      ],
+      [
+        "search",
+        "opensearch, n = 1 replicas = 1",
+        { technology: "opensearch", instances: 1, replicas: 1 },
+        { replicas: 1, readQuorum: 1, writeQuorum: 1, eventualReads: true },
+      ],
+      // S3 Standard stores each object across a minimum of three AZs.
+      [
+        "object-storage",
+        "s3",
+        { technology: "s3" },
+        { replicas: 3, readQuorum: 1, writeQuorum: 1, eventualReads: false },
+      ],
+    ];
+    for (const [id, label, params, expected] of cases) {
+      expect(techProfileOf(id, params)?.replicaSet, label).toEqual(expected);
     }
   });
 

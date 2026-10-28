@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GENERIC_DRILL_QA } from "@/data/interviewData";
-import { type SimGraph, type SimNode } from "@/domain/graph/compile";
+import { type SimGraph } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { FlowEngine } from "@/engine/engine";
 import { analyzeUnderFault } from "@/engine/faults/steady";
@@ -94,6 +94,31 @@ function capStore(
         serviceTimeMs: 1.5,
         replicationFactor: 3,
         consistencyLevel,
+        ...params,
+      }),
+    ],
+    [wire("client", "app"), wire("app", "store", storeRule ? { rule: storeRule } : {})],
+  );
+}
+
+/**
+ * Client → App → Store for any store technology (slice 2): the store is the
+ * given component with the given params. `storeRule` overrides the
+ * app → store call (a `reads` edge gives a read-only design, `writes` a
+ * write-only one, where no read can explain an error).
+ */
+function techStore(
+  componentId: string,
+  params: Record<string, unknown>,
+  storeRule?: Partial<EdgeRuleV2>,
+): SimGraph {
+  return compileV3(
+    [
+      comp("client", "client"),
+      comp("app", "app-server", { instances: 4, capacityPerInstance: 5000, maxRetries: 0 }),
+      comp("store", componentId, {
+        capacityPerInstance: 20_000,
+        serviceTimeMs: 1.5,
         ...params,
       }),
     ],
@@ -1161,21 +1186,268 @@ describe("replica loss (CAP under a lost replica)", () => {
     expect(store.servedRps).toBeCloseTo(base.servedRps, 6);
   });
 
+  it("DynamoDB, 2 of 3 lost: eventual reads are served stale, strong ones are refused", () => {
+    // DynamoDB keeps 3 replicas and quorum writes; an eventually consistent
+    // read needs one copy, a strongly consistent read two.
+    const eventual = techStore("nosql-db", { technology: "dynamodb" }, { kind: "reads" });
+    const base = steadyNode(analyze(eventual, RPS), "store");
+    expect(base.errorRate).toBe(0);
+    const r = analyzeUnderFault(eventual, RPS, replicaLoss(2));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    // One survivor still serves the read; two thirds of the served reads may
+    // come from a copy that missed the last write. No write exists to blame.
+    expect(store.writeRps).toBe(0);
+    expect(store.servedRps).toBeGreaterThan(0);
+    expect(store.errorRate).toBe(0);
+    expect(store.staleReadRps).toBeCloseTo(store.servedRps * (2 / 3), 6);
+    expect(store.staleReadShare).toBeCloseTo(2 / 3, 9);
+
+    // The live tick agrees on the same share of the reads it completed.
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(eventual);
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    engine.inject(replicaLoss(2));
+    const during = run(engine, 2.5);
+    expect(during).toHaveLength(50);
+    const live = mean(during, (s) => s.nodes.store.staleReadRps ?? 0);
+    expect(live).toBeGreaterThan(0);
+    expect(Math.abs(live / store.staleReadRps! - 1)).toBeLessThan(0.05);
+
+    const strong = techStore(
+      "nosql-db",
+      { technology: "dynamodb", readConsistency: "strong" },
+      { kind: "reads" },
+    );
+    const s = analyzeUnderFault(strong, RPS, replicaLoss(2));
+    expect(s.ok).toBe(true);
+    if (!s.ok) return;
+    const strongStore = steadyNode(s.steady, "store");
+    // A strong read needs two copies and only one survives: refused, not stale.
+    expect(strongStore.errorRate).toBeGreaterThan(0);
+    expect(strongStore.servedRps).toBe(0);
+    expect(strongStore.staleReadRps ?? 0).toBe(0);
+  });
+
+  it("DynamoDB, 2 of 3 lost on a write-only graph: the write quorum refuses every write", () => {
+    for (const readConsistency of ["eventual", "strong"] as const) {
+      const g = techStore(
+        "nosql-db",
+        { technology: "dynamodb", readConsistency },
+        { kind: "writes" },
+      );
+      const base = steadyNode(analyze(g, RPS), "store");
+      expect(base.errorRate, readConsistency).toBe(0);
+      const r = analyzeUnderFault(g, RPS, replicaLoss(2));
+      expect(r.ok, readConsistency).toBe(true);
+      if (!r.ok) continue;
+      const store = steadyNode(r.steady, "store");
+      expect(store.writeRps, readConsistency).toBeCloseTo(store.offeredRps, 6);
+      // A write needs two of three copies; one survivor cannot reach it.
+      expect(store.errorRate, readConsistency).toBeGreaterThan(0);
+      expect(store.servedRps, readConsistency).toBe(0);
+      expect(store.staleReadRps ?? 0, readConsistency).toBe(0);
+    }
+  });
+
+  it("MongoDB, one of three members lost: secondary reads go stale, primary reads do not", () => {
+    const secondary = techStore(
+      "nosql-db",
+      {
+        technology: "mongodb",
+        instances: 3,
+        shards: 1,
+        readPreference: "secondaryPreferred",
+        writeConcern: "majority",
+      },
+      { kind: "reads" },
+    );
+    const base = steadyNode(analyze(secondary, RPS), "store");
+    expect(base.errorRate).toBe(0);
+    const r = analyzeUnderFault(secondary, RPS, replicaLoss(1));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    expect(store.servedRps).toBeGreaterThan(0);
+    expect(store.errorRate).toBe(0);
+    expect(store.staleReadRps).toBeCloseTo(store.servedRps * (1 / 3), 6);
+    expect(store.staleReadShare).toBeCloseTo(1 / 3, 9);
+
+    const primary = techStore(
+      "nosql-db",
+      {
+        technology: "mongodb",
+        instances: 3,
+        shards: 1,
+        readPreference: "primary",
+        writeConcern: "majority",
+      },
+      { kind: "reads" },
+    );
+    const p = analyzeUnderFault(primary, RPS, replicaLoss(1));
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    const primaryStore = steadyNode(p.steady, "store");
+    expect(primaryStore.servedRps).toBeGreaterThan(0);
+    expect(primaryStore.errorRate).toBe(0);
+    // The primary serves the read: fresh even with a secondary gone.
+    expect(primaryStore.staleReadRps ?? 0).toBe(0);
+  });
+
+  it("MongoDB, two of three members lost on a write-only graph: majority refuses, w:1 serves", () => {
+    for (const [writeConcern, refused] of [
+      ["majority", true],
+      ["1", false],
+    ] as const) {
+      const g = techStore(
+        "nosql-db",
+        { technology: "mongodb", instances: 3, shards: 1, writeConcern },
+        { kind: "writes" },
+      );
+      const base = steadyNode(analyze(g, RPS), "store");
+      expect(base.errorRate, writeConcern).toBe(0);
+      const r = analyzeUnderFault(g, RPS, replicaLoss(2));
+      expect(r.ok, writeConcern).toBe(true);
+      if (!r.ok) continue;
+      const store = steadyNode(r.steady, "store");
+      expect(store.writeRps, writeConcern).toBeCloseTo(store.offeredRps, 6);
+      if (refused) {
+        // A majority write needs two of three members; one survivor can't.
+        expect(store.errorRate, writeConcern).toBeGreaterThan(0);
+        expect(store.servedRps, writeConcern).toBe(0);
+      } else {
+        // w:1 needs the primary only, and the primary is the last copy lost.
+        expect(store.errorRate, writeConcern).toBe(0);
+        expect(store.servedRps, writeConcern).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("SQL read replica with lag: a lost replica marks its reads stale, the primary stays as it was", () => {
+    const graph = (lagMs: number): SimGraph =>
+      compileV3(
+        [
+          comp("client", "client"),
+          comp("app", "app-server", { instances: 4, capacityPerInstance: 5000, maxRetries: 0 }),
+          comp("primary", "sql-db", {
+            technology: "postgres",
+            instances: 3,
+            capacityPerInstance: 20_000,
+            writeCapacityRps: 5_000,
+            writeServiceTimeMs: 1.5,
+          }),
+          comp("replica", "read-replica", {
+            technology: "postgres",
+            instances: 2,
+            capacityPerInstance: 20_000,
+            serviceTimeMs: 1.5,
+            replicationLagMs: lagMs,
+          }),
+        ],
+        [
+          wire("client", "app"),
+          wire("app", "primary", { rule: { kind: "writes" } }),
+          wire("app", "replica", { rule: { kind: "reads" } }),
+        ],
+      );
+    const g = graph(100);
+    // Only the read replica is offered the fault: the primary belongs to
+    // db-primary-failure.
+    expect(nodeTargets(getFaultType("replica-loss")!, g).map((n) => n.id)).toEqual(["replica"]);
+
+    const fault: FaultSpec = {
+      type: "replica-loss",
+      target: { kind: "node", id: "replica" },
+      intensity: 1,
+      durationSec: 120,
+    };
+    const base = analyze(g, RPS);
+    const r = analyzeUnderFault(g, RPS, fault);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const replica = steadyNode(r.steady, "replica");
+    expect(steadyNode(base, "replica").staleReadRps).toBeUndefined();
+    // One of two copies gone: half of the reads the replica served may be stale.
+    expect(replica.servedRps).toBeGreaterThan(0);
+    expect(replica.staleReadRps).toBeCloseTo(replica.servedRps * (1 / 2), 6);
+    expect(replica.staleReadShare).toBeCloseTo(1 / 2, 9);
+
+    // The primary keeps the numbers it has without the fault, and never goes stale.
+    const primary = steadyNode(r.steady, "primary");
+    const primaryBase = steadyNode(base, "primary");
+    expect(primary.errorRate).toBe(primaryBase.errorRate);
+    expect(primary.servedRps).toBe(primaryBase.servedRps);
+    expect(primary.staleReadRps).toBeUndefined();
+    expect(primary.staleReadShare).toBeUndefined();
+
+    // Lag 0: the copy is in sync, so a lost copy is never stale.
+    const inSync = analyzeUnderFault(graph(0), RPS, fault);
+    expect(inSync.ok).toBe(true);
+    if (!inSync.ok) return;
+    expect(steadyNode(inSync.steady, "replica").staleReadRps ?? 0).toBe(0);
+  });
+
+  it("Redis and OpenSearch go stale under a loss; S3 (CP, multi-AZ) keeps serving fresh", () => {
+    // Redis has no classes or throttle: the replica set alone must turn the CAP
+    // path on. Two copies, one lost: half of the served reads may be stale.
+    const redis = techStore("cache", { technology: "redis", instances: 2 }, { kind: "reads" });
+    const rr = analyzeUnderFault(redis, RPS, replicaLoss(1));
+    expect(rr.ok).toBe(true);
+    if (!rr.ok) return;
+    const redisStore = steadyNode(rr.steady, "store");
+    expect(redisStore.servedRps).toBeGreaterThan(0);
+    expect(redisStore.staleReadRps).toBeCloseTo(redisStore.servedRps * (1 / 2), 6);
+
+    // OpenSearch: 1 replica per shard over 2 instances = 2 copies of a shard.
+    const search = techStore(
+      "search",
+      { technology: "opensearch", instances: 2, shards: 5, replicas: 1 },
+      { kind: "reads" },
+    );
+    const sr = analyzeUnderFault(search, RPS, replicaLoss(1));
+    expect(sr.ok).toBe(true);
+    if (!sr.ok) return;
+    const searchStore = steadyNode(sr.steady, "store");
+    expect(searchStore.servedRps).toBeGreaterThan(0);
+    expect(searchStore.staleReadRps).toBeCloseTo(searchStore.servedRps * (1 / 2), 6);
+
+    // S3 is strongly consistent: 3 copies, but losing 2 refuses nothing and
+    // never marks a read stale.
+    const s3 = techStore("object-storage", { technology: "s3" }, { kind: "reads" });
+    const s3Base = steadyNode(analyze(s3, RPS), "store");
+    const s3r = analyzeUnderFault(s3, RPS, replicaLoss(2));
+    expect(s3r.ok).toBe(true);
+    if (!s3r.ok) return;
+    const s3Store = steadyNode(s3r.steady, "store");
+    expect(s3Store.servedRps).toBeCloseTo(s3Base.servedRps, 6);
+    expect(s3Store.errorRate).toBe(s3Base.errorRate);
+    expect(s3Store.staleReadRps).toBeUndefined();
+
+    // Memcached has no replication: a lost node is a miss, so no fault is offered.
+    const memcached = compileV3(
+      [comp("m", "cache", { technology: "memcached", instances: 3 })],
+      [],
+    );
+    expect(nodeTargets(getFaultType("replica-loss")!, memcached)).toEqual([]);
+  });
+
   it("never targets the SQL primary once it carries a replica set (db-primary-failure owns it)", () => {
-    // Slice 1 never gives PostgreSQL a `replicaSet`, so the guard is invisible
-    // through a compiled graph: check the filter directly against the node the
-    // slice-2 profile will produce.
-    const filter = getFaultType("replica-loss")!.nodeFilter!;
-    const graph = capStore("one");
-    const store = (componentId: string): SimNode =>
-      ({
-        componentId,
-        tech: {
-          replicaSet: { replicas: 3, readQuorum: 1, writeQuorum: 1, eventualReads: false },
-        },
-      }) as unknown as SimNode;
-    expect(filter(store("sql-db"), graph)).toBe(false);
-    expect(filter(store("nosql-db"), graph)).toBe(true);
+    // Slice 2 gives both SQL types a replica set; the primary stays out of
+    // `replica-loss` (its failover is `db-primary-failure`), while the read
+    // replica in the same graph is offered.
+    const g = compileV3(
+      [
+        comp("client", "client"),
+        comp("app", "app-server", { instances: 4, capacityPerInstance: 5000, maxRetries: 0 }),
+        comp("primary", "sql-db", { technology: "postgres", instances: 3 }),
+        comp("replica", "read-replica", { technology: "postgres", instances: 2 }),
+      ],
+      [wire("client", "app"), wire("app", "primary"), wire("app", "replica")],
+    );
+    const primary = g.nodes.find((n) => n.id === "primary")!;
+    expect(primary.tech?.replicaSet).toMatchObject({ replicas: 3 });
+    expect(nodeTargets(getFaultType("replica-loss")!, g).map((n) => n.id)).toEqual(["replica"]);
   });
 
   it("analyzeUnderFault and 50 ticks agree on the stale reads; healing clears them", () => {

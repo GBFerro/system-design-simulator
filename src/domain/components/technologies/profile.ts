@@ -208,6 +208,11 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
     base: { capacityPerInstance: k0, serviceTimeMs: s0 },
   };
   const mechanics = tech.mechanics;
+  // Redis has no classes or throttle, but its replicas are asynchronous: a read
+  // may come from one that missed the last write (Memcached has no replicas).
+  if (tech.id === "redis") {
+    profile.replicaSet = { replicas: n, readQuorum: 1, writeQuorum: 1, eventualReads: true };
+  }
   if (!mechanics) return profile;
   const scales = tech.billing === "instance";
   const node = (limit: TechLimitKind, instances = n): TechStation => ({
@@ -221,8 +226,17 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
 
   switch (mechanics.kind) {
     case "sql-primary": {
-      // A read replica takes reads only: no primary in it.
-      if (componentId !== "sql-db") return profile;
+      // A read replica takes reads only: no primary in it. Both reach one copy
+      // for a read and for a write; only the replica (async replication) can
+      // serve a stale read. A lost primary is `db-primary-failure`'s job.
+      const readOnly = componentId !== "sql-db";
+      profile.replicaSet = {
+        replicas: n,
+        readQuorum: 1,
+        writeQuorum: 1,
+        eventualReads: readOnly,
+      };
+      if (readOnly) return profile;
       const shards = clampInt(params, PARAM.shards, 1, MAX_SHARDS, 1);
       profile.classes = {
         read: route(0, 1),
@@ -273,14 +287,19 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
     case "dynamo": {
       const units = mechanics.perPartition ?? { readUnits: 3_000, writeUnits: 1_000 };
       const cost = mechanics.readUnitCost ?? { eventual: 0.5, strong: 1 };
+      const strong = params[PARAM.readConsistency] === "strong";
+      // Three replicas across AZs with quorum writes; a strong read waits for two.
+      profile.replicaSet = {
+        replicas: 3,
+        readQuorum: strong ? 2 : 1,
+        writeQuorum: 2,
+        eventualReads: !strong,
+      };
       profile.classes = { read: route(0, 1), write: route(0, 1), stations: [node("capacity")] };
       profile.throttle = {
         kind: "partition",
         share: hot,
-        readCost: Math.max(
-          MIN_COST,
-          params[PARAM.readConsistency] === "strong" ? cost.strong : cost.eventual,
-        ),
+        readCost: Math.max(MIN_COST, strong ? cost.strong : cost.eventual),
         writeCost: 1,
         readUnits: units.readUnits,
         writeUnits: units.writeUnits,
@@ -301,6 +320,15 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
       // A shard without secondaries has nobody to replicate to.
       const majority = params[PARAM.writeConcern] === "majority" && secondaries > 0;
       const membersPerShard = n / shards;
+      // Members of the set per shard. The real majority is ⌊members/2⌋ + 1,
+      // which equals the spec's ⌈secondaries/2⌉ + 1 for members = secondaries + 1.
+      const members = Math.max(1, Math.round(membersPerShard));
+      profile.replicaSet = {
+        replicas: members,
+        readQuorum: 1,
+        writeQuorum: majority ? Math.floor(members / 2) + 1 : 1,
+        eventualReads: toSecondaries,
+      };
       profile.classes = {
         read: route(toSecondaries ? 0 : primary, 1),
         write: route(primary, 1, ONE, majority ? (mechanics.replicationRttMs ?? 0) : 0),
@@ -319,7 +347,9 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
     }
     case "search-fanout": {
       const shards = clampInt(params, PARAM.shards, 1, MAX_SHARDS, 1);
-      const copies = shards * (clampInt(params, PARAM.replicas, 0, MAX_REPLICAS, 1) + 1);
+      const replicasPerShard = clampInt(params, PARAM.replicas, 0, MAX_REPLICAS, 1);
+      // One primary plus `replicas` copies of every shard (TEC-36).
+      const copies = shards * (replicasPerShard + 1);
       // A query goes to one copy of every shard; only nodes holding copies serve (TEC-36).
       // Indexing a document works on every copy of its shard, about
       // `indexCostPerDoc` shard queries each, in CPU and in time.
@@ -333,6 +363,15 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
             scalesWithInstances: n < copies,
           },
         ],
+      };
+      // A GET by id is real-time, but a near-real-time index can answer a query
+      // before the last document indexed reached every copy. The set is the
+      // copies of one shard; the node cannot hold more than it has instances.
+      profile.replicaSet = {
+        replicas: Math.min(n, replicasPerShard + 1),
+        readQuorum: 1,
+        writeQuorum: 1,
+        eventualReads: true,
       };
       return profile;
     }
@@ -349,6 +388,10 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
           };
       profile.classes = { read: route(0, 1), write: route(0, 1), stations: [station] };
       profile.throttle = throttle;
+      // S3 Standard redundantly stores every object across at least three AZs.
+      if (tech.id === "s3") {
+        profile.replicaSet = { replicas: 3, readQuorum: 1, writeQuorum: 1, eventualReads: false };
+      }
       return profile;
     }
     case "kafka":

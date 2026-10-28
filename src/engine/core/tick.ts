@@ -588,8 +588,9 @@ export class TickSimulator {
       }
 
       let flow: TickFlow;
-      if (node.tech?.classes || node.tech?.throttle) {
-        // A technology's classes, quota or hot partition (A.7).
+      if (node.tech?.classes || node.tech?.throttle || node.tech?.replicaSet) {
+        // A technology's classes, quota or hot partition (A.7). A store with
+        // only a replica set (Redis, a read replica) still needs the CAP math.
         state.tech ??= { technology: node.tech.technology, primaryBacklog: 0 };
         const t = techTickFlow({
           profile: node.tech,

@@ -125,6 +125,11 @@ export function TechnologyPicker({ nodeId, componentId, params, disabled }: Tech
           <p className="text-zinc-400" data-testid="technology-consistency">
             {tech.consistency}
           </p>
+          {(tech.cap === "cp" || tech.cap === "ap") && (
+            <p className="text-zinc-400" data-testid="technology-cap" data-cap={tech.cap}>
+              CAP: {tech.cap.toUpperCase()}
+            </p>
+          )}
           {source && sized && (
             <p
               className="text-zinc-400"
