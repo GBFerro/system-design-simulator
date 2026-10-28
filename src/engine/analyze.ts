@@ -276,8 +276,9 @@ export function analyzeWithModel(
         continue;
       }
       let flow: NodeFlow;
-      if (node.tech?.classes || node.tech?.throttle) {
-        // A technology's classes, quota or hot partition (A.2).
+      if (node.tech?.classes || node.tech?.throttle || node.tech?.replicaSet) {
+        // A technology's classes, quota or hot partition (A.2). A store with
+        // only a replica set (Redis, a read replica) still needs the CAP math.
         const t = techSteadyFlow({
           profile: node.tech,
           core: node,

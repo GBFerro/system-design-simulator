@@ -121,12 +121,17 @@ export const STORAGE_TECHNOLOGIES: readonly Technology[] = [
         year: 2020,
       },
       {
+        title: "Data protection in Amazon S3 (AWS docs)",
+        url: "https://docs.aws.amazon.com/AmazonS3/latest/userguide/DataDurability.html",
+        year: 2026,
+      },
+      {
         title: "AWS Price List API: AmazonS3, us-east-1",
         url: "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonS3/current/us-east-1/index.json",
         year: 2026,
       },
     ],
     assumptions:
-      'At least 5,500 GET/HEAD and 3,500 PUT/COPY/POST/DELETE requests per second per partitioned prefix, with no limit on the number of prefixes; S3 scales gradually and returns 503 Slow Down until it has. A node starts at one prefix. The 30 ms service time is derived from AWS\'s "median latencies are often in the tens of milliseconds" for requests under 512 KB (first byte of larger objects: 100–200 ms). $0.40 per million GETs, $5.00 per million PUTs; storage ($0.023/GB-month) and transfer not modeled.',
+      'At least 5,500 GET/HEAD and 3,500 PUT/COPY/POST/DELETE requests per second per partitioned prefix, with no limit on the number of prefixes; S3 scales gradually and returns 503 Slow Down until it has. A node starts at one prefix. S3 Standard redundantly stores objects across a minimum of three Availability Zones. The 30 ms service time is derived from AWS\'s "median latencies are often in the tens of milliseconds" for requests under 512 KB (first byte of larger objects: 100–200 ms). $0.40 per million GETs, $5.00 per million PUTs; storage ($0.023/GB-month) and transfer not modeled.',
   },
 ];

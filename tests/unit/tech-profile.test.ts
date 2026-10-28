@@ -36,10 +36,12 @@ describe("technology profile per node (T20)", () => {
       serviceTimeMs: 7,
     });
     expect(p.base).toEqual({ capacityPerInstance: 1234, serviceTimeMs: 7 });
-    // Redis has no mechanics beyond capacity and latency: no classes, throttle or consumer cap.
+    // Redis has no mechanics beyond capacity and latency: no classes, throttle
+    // or consumer cap. Its replicas are asynchronous, so a read may be stale.
     expect(p).toEqual({
       technology: "redis",
       base: { capacityPerInstance: 1234, serviceTimeMs: 7 },
+      replicaSet: { replicas: 1, readQuorum: 1, writeQuorum: 1, eventualReads: true },
     });
   });
 
