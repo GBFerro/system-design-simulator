@@ -1026,6 +1026,74 @@ describe("replica loss (CAP under a lost replica)", () => {
     }
   });
 
+  it("QUORUM with two lost: the LIVE tick refuses every read too, and never marks one stale", () => {
+    // The Analyze path is covered above; the tick is the other producer of the
+    // same rule (`refusedByClass` in `core/tick.ts`) and had no test of its
+    // own. Zeroing that block left the whole suite green while the tick served
+    // traffic the quorum can't reach, and then reported it as stale reads.
+    const g = capStore("quorum");
+    const fault = replicaLoss(2);
+    const steady = analyzeUnderFault(g, RPS, fault);
+    expect(steady.ok).toBe(true);
+    if (!steady.ok) return;
+    const store = steadyNode(steady.steady, "store");
+    expect(store.errorRate).toBeGreaterThan(0.9);
+    expect(store.droppedRps).toBeCloseTo(store.offeredRps, 6);
+    expect(store.servedRps).toBeCloseTo(0, 6);
+
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(g); // the default seed
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    engine.inject(fault);
+    const during = run(engine, 2.5); // 50 ticks with the fault active
+    expect(during).toHaveLength(50);
+    // One survivor can't reach a read quorum of two or a write quorum of two:
+    // every request is refused at the store, exactly as `analyzeUnderFault` says.
+    expect(mean(during, (s) => s.nodes.store.errorRate)).toBeGreaterThan(0.9);
+    const offered = mean(during, (s) => s.nodes.store.rpsIn);
+    expect(offered).toBeGreaterThan(RPS * 0.95);
+    // Every offered request is dropped (the refusal is all of them, not a share).
+    expect(mean(during, (s) => s.nodes.store.drops)).toBeGreaterThanOrEqual(offered * 0.999);
+    expect(mean(during, (s) => s.nodes.store.rpsOut)).toBeLessThan(1);
+    expect(mean(during, errorRate)).toBeGreaterThan(0.9);
+    // Refused, never served: no read came back from a copy, so no stale field.
+    expect(during.every((s) => (s.nodes.store.staleReadRps ?? 0) === 0)).toBe(true);
+    expect(during.every((s) => (s.nodes.store.staleReadShare ?? 0) === 0)).toBe(true);
+    expect(store.staleReadRps ?? 0).toBe(0);
+    expect(store.staleReadShare ?? 0).toBe(0);
+  });
+
+  it("QUORUM with one lost (survivors == readQuorum): reads are served FRESH, never stale", () => {
+    // `eventualReads` gates the stale share: a QUORUM read reaches both
+    // survivors, so the answer is fresh even though a third copy is gone.
+    // Dropping that guard made the store report a third of its reads as stale.
+    const g = capStore("quorum");
+    const base = steadyNode(analyze(g, RPS), "store");
+    expect(base.errorRate).toBe(0);
+    const r = analyzeUnderFault(g, RPS, replicaLoss(1));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    // Served, not refused: two of three survivors still reach a quorum of two.
+    expect(store.errorRate).toBe(base.errorRate);
+    expect(store.droppedRps).toBe(base.droppedRps);
+    expect(store.servedRps).toBeGreaterThan(0);
+    // ...and every served read is fresh: a strong read never hits a lagging copy.
+    expect(store.staleReadRps ?? 0).toBe(0);
+    expect(store.staleReadShare ?? 0).toBe(0);
+
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(g); // the default seed
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    engine.inject(replicaLoss(1));
+    const during = run(engine, 2.5); // 50 ticks
+    expect(during).toHaveLength(50);
+    expect(mean(during, (s) => s.nodes.store.errorRate)).toBeLessThan(0.01);
+    expect(mean(during, (s) => s.nodes.store.rpsOut)).toBeGreaterThan(RPS * 0.9);
+    expect(during.every((s) => (s.nodes.store.staleReadRps ?? 0) === 0)).toBe(true);
+    expect(during.every((s) => (s.nodes.store.staleReadShare ?? 0) === 0)).toBe(true);
+  });
+
   it("reads alone are refused by a lost read quorum, with no write to blame", () => {
     // A read-only design (`reads` call kind): the error can only come from the
     // read quorum, never from a write refused by the write quorum.
