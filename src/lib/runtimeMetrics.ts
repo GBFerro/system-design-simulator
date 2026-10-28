@@ -169,3 +169,11 @@ export function fmtPct(ratio: number, digits = 1): string {
   if (pct > 0 && pct < 0.1) return `${pct.toFixed(3)}%`;
   return `${pct.toFixed(digits)}%`;
 }
+
+/**
+ * The "Stale reads" cell (CAP under a replica loss): reads per second that may
+ * come from a copy behind the last write, and their share of the served reads.
+ */
+export function fmtStaleReads(rps: number, share: number): string {
+  return `${abbrev(rps)}/s · ${fmtPct(share, 0)}`;
+}
