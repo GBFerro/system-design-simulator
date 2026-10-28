@@ -52,6 +52,7 @@ export const CACHE_TECHNOLOGIES: readonly Technology[] = [
       "In-memory data store: sub-millisecond key-value reads plus data structures (sorted sets, streams, pub/sub), with optional replicas.",
     consistency:
       "One primary per shard with asynchronous replicas: replica reads can be stale and a failover can lose the last acknowledged writes.",
+    cap: "ap",
     billing: "instance",
     classes: cacheR6gClasses(),
     defaultClass: "cache.r6g.xlarge",
@@ -86,6 +87,7 @@ export const CACHE_TECHNOLOGIES: readonly Technology[] = [
       "Multithreaded in-memory key-value cache: plain GET/SET, no persistence or replication; grows by adding nodes.",
     consistency:
       "No replication: each key lives on one node picked by client-side hashing; losing a node turns its keys into misses; last write wins.",
+    cap: "none",
     billing: "instance",
     classes: cacheR6gClasses(),
     defaultClass: "cache.r6g.xlarge",

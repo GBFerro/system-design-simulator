@@ -81,6 +81,14 @@ export interface NodeSteadyState {
   limitKind?: TechLimitKind;
   limitUtilization?: number;
   writeRps?: number;
+  /**
+   * Data stores under a replica loss (CAP): reads served that may come from a
+   * copy behind the last write, req/s. Flat primitive, absent when 0 and on
+   * every node without a replica set (generic nodes included).
+   */
+  staleReadRps?: number;
+  /** Share of the served reads that is stale (`lost / replicas`); with `staleReadRps` only. */
+  staleReadShare?: number;
 }
 
 export interface EdgeSteadyState {
@@ -186,6 +194,14 @@ export interface NodeRuntimeMetrics {
   limitKind?: TechLimitKind;
   limitUtilization?: number;
   writeRps?: number;
+  /**
+   * Data stores under a replica loss (CAP): reads served that may come from a
+   * copy behind the last write, req/s. Absent when 0 and on every node
+   * without a replica set (`analyze()` and the tick emit the same key).
+   */
+  staleReadRps?: number;
+  /** Share of the served reads that is stale (`lost / replicas`); with `staleReadRps` only. */
+  staleReadShare?: number;
   /** OBS-03, by component type. */
   extra?: {
     hitRatio?: number;

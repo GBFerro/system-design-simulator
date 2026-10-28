@@ -21,7 +21,7 @@ const ctx: AdvisorContext = { readRatio: 0.9, load: { lb: 1000, a: 500, b: 500, 
 
 /**
  * DNS → LB → App A, App B (no retries) → Payments; A → Cache → DB; A, B → DB;
- * A → Queue → Worker.
+ * A → Queue → Worker; A → Store (Cassandra, RF 3, for `replica-loss`).
  * One of everything a fault in the catalog can target.
  */
 function design(): Graph {
@@ -33,6 +33,12 @@ function design(): Graph {
       comp("b", "app-server", { instances: 2, maxRetries: 0 }),
       comp("pay", "app-server", { instances: 1 }),
       comp("db", "sql-db", { instances: 1 }),
+      comp("store", "nosql-db", {
+        technology: "cassandra",
+        instances: 3,
+        capacityPerInstance: 20_000,
+        replicationFactor: 3,
+      }),
       comp("cache", "cache"),
       comp("q", "message-queue"),
       comp("wk", "worker-pool"),
@@ -46,6 +52,7 @@ function design(): Graph {
       wire("cache", "db", { sourceComponent: "cache" }),
       wire("a", "db"),
       wire("b", "db"),
+      wire("a", "store", { rule: { kind: "writes" } }),
       wire("a", "q"),
       wire("q", "wk"),
     ]),

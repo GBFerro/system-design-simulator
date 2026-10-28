@@ -10,7 +10,7 @@ import { effectsAt } from "@/engine/faults/effects";
 import { BLAST_TAIL_SEC, FaultError } from "@/engine/faults/runner";
 import type { CompiledModifier, FaultSpec } from "@/engine/faults/types";
 import { TICK_SEC } from "@/engine/traffic/types";
-import type { TickSnapshot } from "@/engine/types";
+import type { SteadyState, TickSnapshot } from "@/engine/types";
 import type { Edge } from "@xyflow/react";
 import type { EdgeCall } from "@/domain/components/types";
 import { comp, wire, compileV3 } from "./engineFixtures";
@@ -69,6 +69,32 @@ function wide(): SimGraph {
       comp("db", "sql-db", { instances: 2, capacityPerInstance: 5000 }),
     ],
     [wire("dns", "lb"), wire("lb", "a"), wire("lb", "b"), wire("a", "db"), wire("b", "db")],
+  );
+}
+
+/**
+ * Client → App → Store, a Cassandra node with RF 3 over 3 instances (the
+ * profile's `replicaSet`, slice 1a): every request calls it, 10% of them writes.
+ */
+function capStore(
+  consistencyLevel: "one" | "quorum" | "all" = "one",
+  params: Record<string, unknown> = {},
+): SimGraph {
+  return compileV3(
+    [
+      comp("client", "client"),
+      comp("app", "app-server", { instances: 4, capacityPerInstance: 5000, maxRetries: 0 }),
+      comp("store", "nosql-db", {
+        technology: "cassandra",
+        instances: 3,
+        capacityPerInstance: 20_000,
+        serviceTimeMs: 1.5,
+        replicationFactor: 3,
+        consistencyLevel,
+        ...params,
+      }),
+    ],
+    [wire("client", "app"), wire("app", "store")],
   );
 }
 
@@ -136,7 +162,7 @@ describe("compileFault", () => {
         f.targets.includes("global") ||
         nodeTargets(f, g).length > 0 ||
         edgeTargets(f, g).length > 0;
-      const make = hasTarget(shop()) ? shop : wide;
+      const make = [shop, wide, () => capStore("one")].find((g) => hasTarget(g()))!;
       const graph = make();
       const target: FaultSpec["target"] = f.targets.includes("global")
         ? { kind: "global" }
@@ -842,6 +868,142 @@ describe("CHS-03 faults in the tick loop (baseline → inject → heal → basel
     expect(mean(snaps.slice(50, 70), (s) => s.nodes.a.rpsIn)).toBe(0);
     expect(Math.max(...aIn)).toBeGreaterThan(0);
     expect(mean(run(engine, 2), (s) => s.nodes.a.rpsIn)).toBeGreaterThan(RPS * 0.4);
+  });
+});
+
+describe("replica loss (CAP under a lost replica)", () => {
+  const replicaLoss = (intensity: number): FaultSpec => ({
+    type: "replica-loss",
+    target: { kind: "node", id: "store" },
+    intensity,
+    durationSec: 120,
+  });
+  const steadyNode = (s: SteadyState, id: string) => s.nodes.find((n) => n.nodeId === id)!;
+
+  it("is offered only to a store with a technology and at least two replicas", () => {
+    const type = getFaultType("replica-loss")!;
+    expect(type).toMatchObject({
+      label: "Replica loss",
+      category: "data",
+      targets: ["node"],
+      defaultDurationSec: 120,
+    });
+    expect(type.intensity).toMatchObject({
+      label: "Replicas lost",
+      min: 1,
+      max: 7,
+      step: 1,
+      default: 1,
+      format: "count",
+    });
+
+    const mixed = compileV3(
+      [
+        comp("lb", "load-balancer"),
+        comp("q", "message-queue"),
+        comp("plain", "nosql-db"),
+        comp("single", "nosql-db", { technology: "cassandra", instances: 1 }),
+        comp("db", "nosql-db", { technology: "cassandra", instances: 3 }),
+        comp("sql", "sql-db", { technology: "postgres", instances: 3 }),
+      ],
+      [],
+    );
+    expect(nodeTargets(type, mixed).map((n) => n.id)).toEqual(["db"]);
+    for (const id of ["lb", "q", "plain", "single", "sql"]) {
+      const r = compileFault({ type: "replica-loss", target: { kind: "node", id } }, 0, {
+        graph: mixed,
+        readRatio: 0.9,
+      });
+      expect(r.ok, id).toBe(false);
+    }
+  });
+
+  it("ONE, RF 3, one replica lost: reads are served, stale, and no error above the baseline", () => {
+    const g = capStore("one");
+    const base = steadyNode(analyze(g, RPS), "store");
+    const r = analyzeUnderFault(g, RPS, replicaLoss(1));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    // One of three copies is gone: a third of the SERVED reads may come from a
+    // copy that missed the last write — `read.served × lost / replicas`.
+    const servedReads = store.servedRps * 0.9;
+    expect(store.staleReadRps).toBeGreaterThan(0);
+    expect(store.staleReadRps!).toBeLessThanOrEqual(servedReads);
+    expect(store.staleReadRps!).toBeCloseTo(servedReads * (1 / 3), 6);
+    expect(store.staleReadShare).toBeCloseTo(1 / 3, 9);
+    expect(store.errorRate).toBe(base.errorRate);
+    expect(store.droppedRps).toBe(base.droppedRps);
+  });
+
+  it("an overloaded store counts only the reads it served, never the dropped ones", () => {
+    // 3 × 100 rps of capacity against 1500 rps (90% reads): most reads are
+    // dropped, and a dropped read was never served, so it can't be stale.
+    const g = capStore("one", { capacityPerInstance: 100 });
+    const r = analyzeUnderFault(g, RPS, replicaLoss(1));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    const offeredReads = store.offeredRps * 0.9;
+    expect(store.droppedRps).toBeGreaterThan(0);
+    expect(store.staleReadRps).toBeGreaterThan(0);
+    // Served reads only: at most what left the node, and well below the
+    // third of the OFFERED reads the old (wrong) count would report.
+    expect(store.staleReadRps!).toBeLessThanOrEqual(store.servedRps);
+    expect(store.staleReadRps!).toBeLessThan(offeredReads * (1 / 3));
+    expect(store.staleReadShare).toBeCloseTo(1 / 3, 9);
+  });
+
+  it("QUORUM with two lost and ALL with one: every read is refused, none is stale", () => {
+    for (const [level, lost] of [
+      ["quorum", 2],
+      ["all", 1],
+    ] as const) {
+      const r = analyzeUnderFault(capStore(level), RPS, replicaLoss(lost));
+      expect(r.ok, level).toBe(true);
+      if (!r.ok) continue;
+      const store = steadyNode(r.steady, "store");
+      expect(store.errorRate, level).toBeGreaterThan(0);
+      expect(store.droppedRps, level).toBeGreaterThan(0);
+      expect(store.staleReadRps ?? 0, level).toBe(0);
+    }
+  });
+
+  it("analyzeUnderFault and 50 ticks agree on the stale reads; healing clears them", () => {
+    const g = capStore("one");
+    const fault = replicaLoss(1);
+    const steady = analyzeUnderFault(g, RPS, fault);
+    expect(steady.ok).toBe(true);
+    if (!steady.ok) return;
+    const store = steadyNode(steady.steady, "store");
+    expect(store.staleReadRps).toBeGreaterThan(0);
+    expect(store.staleReadShare).toBeCloseTo(1 / 3, 9);
+
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(g); // the default seed
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    const id = engine.inject(fault);
+    const during = run(engine, 2.5); // 50 ticks
+    expect(during).toHaveLength(50);
+    const live = mean(during, (s) => s.nodes.store.staleReadRps ?? 0);
+    expect(live).toBeGreaterThan(0);
+    expect(Math.abs(live / store.staleReadRps! - 1)).toBeLessThan(0.05);
+    // Same key presence in both producers; generic nodes never carry it.
+    expect(Object.keys(store)).toContain("staleReadRps");
+    expect(Object.keys(store)).toContain("staleReadShare");
+    expect(Object.keys(during.at(-1)!.nodes.store)).toContain("staleReadRps");
+    expect(during.at(-1)!.nodes.store.staleReadShare).toBeCloseTo(1 / 3, 9);
+    expect(during.every((s) => s.nodes.app.staleReadRps === undefined)).toBe(true);
+    expect(during.every((s) => s.nodes.app.staleReadShare === undefined)).toBe(true);
+    expect(Object.keys(steadyNode(steady.steady, "app"))).not.toContain("staleReadRps");
+    expect(Object.keys(steadyNode(steady.steady, "app"))).not.toContain("staleReadShare");
+
+    // Healed (no effects active): the field is absent, not 0.
+    engine.heal(id);
+    const healed = run(engine, 1);
+    expect(healed.every((s) => s.nodes.store.staleReadRps === undefined)).toBe(true);
+    expect(healed.every((s) => s.nodes.store.staleReadShare === undefined)).toBe(true);
+    expect(steadyNode(analyze(g, RPS), "store").staleReadRps).toBeUndefined();
   });
 });
 

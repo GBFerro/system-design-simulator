@@ -111,6 +111,8 @@ export function steadyStateToSnapshot(
       ...(n.limitKind !== undefined ? { limitKind: n.limitKind } : {}),
       ...(n.limitUtilization !== undefined ? { limitUtilization: n.limitUtilization } : {}),
       ...(n.writeRps !== undefined ? { writeRps: n.writeRps } : {}),
+      ...(n.staleReadRps !== undefined ? { staleReadRps: n.staleReadRps } : {}),
+      ...(n.staleReadShare !== undefined ? { staleReadShare: n.staleReadShare } : {}),
     };
     const extra = extrasOf(n, simById.get(n.nodeId));
     if (extra) metrics.extra = extra;

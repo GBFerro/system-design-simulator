@@ -67,6 +67,7 @@ export const SQL_TECHNOLOGIES: readonly Technology[] = [
     description:
       "General-purpose relational database: ACID transactions, rich SQL and indexes, one primary for every write.",
     consistency: SINGLE_PRIMARY,
+    cap: "cp",
     billing: "instance",
     classes: r6gClasses(
       [
@@ -113,6 +114,7 @@ export const SQL_TECHNOLOGIES: readonly Technology[] = [
     description:
       "Widely used relational database (InnoDB): ACID transactions and fast point reads, one primary for every write.",
     consistency: SINGLE_PRIMARY,
+    cap: "cp",
     billing: "instance",
     classes: r6gClasses(
       [
@@ -168,6 +170,7 @@ export const SQL_TECHNOLOGIES: readonly Technology[] = [
       "AWS's PostgreSQL-compatible database on a shared storage volume replicated across 3 AZs: fast failover, readers share the volume.",
     consistency:
       "One writer; storage commits on a 4-of-6 quorum across 3 AZs; readers lag usually well under 100 ms, so replica reads can be slightly stale.",
+    cap: "cp",
     billing: "instance",
     classes: r6gClasses(
       [

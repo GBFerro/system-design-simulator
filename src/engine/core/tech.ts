@@ -14,6 +14,7 @@
  * - `sampleClassMs`: one sampled latency of a class (A.5, D3).
  */
 import type { SimEdge, SimNode } from "@/domain/graph/compile";
+import { PARAM } from "@/domain/components/params";
 import { partitionUtilization, type ClassDemand } from "@/domain/components/technologies/limits";
 import {
   capScaleOf,
@@ -22,6 +23,7 @@ import {
   type TechClasses,
   type TechCore,
   type TechProfile,
+  type TechReplicaSet,
   type TechThrottle,
 } from "@/domain/components/technologies/profile";
 import {
@@ -77,6 +79,52 @@ export function edgeWriteShare(
   if (calls.length > 0 && calls.every((c) => c.call.kind === "writes")) return 1;
   if (calls.every((c) => callWriteShare(c.call.kind, 1) === 0)) return 0;
   return ws;
+}
+
+/* ---------- replica loss: CAP under a lost copy ---------- */
+
+/**
+ * How a replica loss changes a store's reads and writes (the spec's behavior
+ * rule, shared by `analyze()` and the tick): the copies go first and the
+ * primary last, so `lost = min(lost, replicas − 1)` (a dead primary is
+ * `db-primary-failure`'s job) and the same graph and fault always leave the
+ * same survivors. A class whose quorum the survivors can't reach is refused;
+ * an eventual store serves the rest and counts `lost / replicas` of its reads
+ * as stale — unless its copies replicate synchronously (`replicationLagMs ≤ 0`).
+ */
+export interface ReplicaEffect {
+  lost: number;
+  survivors: number;
+  /** Every read is refused: the survivors can't reach the read quorum. */
+  refuseReads: boolean;
+  /** Every write is refused: the survivors can't reach the write quorum. */
+  refuseWrites: boolean;
+  /** Share of the served reads that may come from a copy behind the last write. */
+  staleShare: number;
+}
+
+export function replicaEffect(
+  set: TechReplicaSet,
+  lostReplicas: number | undefined,
+  replicationLagMs: number | undefined,
+): ReplicaEffect {
+  const raw =
+    lostReplicas !== undefined && Number.isFinite(lostReplicas) ? Math.round(lostReplicas) : 0;
+  const lost = Math.min(Math.max(0, raw), set.replicas - 1);
+  const survivors = set.replicas - lost;
+  const refuseReads = survivors < set.readQuorum;
+  const refuseWrites = survivors < set.writeQuorum;
+  const inSync =
+    replicationLagMs !== undefined && Number.isFinite(replicationLagMs) && replicationLagMs <= 0;
+  const staleShare =
+    lost > 0 && !refuseReads && set.eventualReads && !inSync ? lost / set.replicas : 0;
+  return { lost, survivors, refuseReads, refuseWrites, staleShare };
+}
+
+/** A node's `replicationLagMs` when it has one (absent = unknown, not in sync). */
+export function replicationLagOf(node: Pick<SimNode, "params">): number | undefined {
+  const v = node.params[PARAM.replicationLagMs];
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
 /* ---------- admission: quotas and the hot partition ---------- */
@@ -186,6 +234,10 @@ export interface TechSteadyInput {
   writeShare: number;
   /** Fault: share of the arrivals failed before the node works on them. */
   errorRate?: number;
+  /** Fault: copies of its replica set a `replica-loss` isolated. */
+  lostReplicas?: number;
+  /** The node's `replicationLagMs`, when it has one (a synchronous copy: 0). */
+  replicationLagMs?: number;
   maxQueue: number;
   horizonSec: number;
 }
@@ -198,6 +250,10 @@ export interface TechSteady {
   served: number;
   /** Requests per second refused by the throttle. */
   throttled: number;
+  /** Reads per second served that may come from a copy behind the last write (0 without a loss). */
+  staleReadRps: number;
+  /** Share of the served reads that is stale (`lost / replicas`), only with `staleReadRps > 0`. */
+  staleReadShare?: number;
 }
 
 /** The profile's classes, or the node's own station for both (a throttle alone). */
@@ -232,11 +288,18 @@ export function techSteadyFlow(input: TechSteadyInput): TechSteady {
   const offeredRead = offered * (1 - ws);
   const offeredWrite = offered * ws;
   const healthy = 1 - clamp01(input.errorRate ?? 0);
-  const capScale = capScaleOf(profile, core);
+  const replica = profile.replicaSet
+    ? replicaEffect(profile.replicaSet, input.lostReplicas, input.replicationLagMs)
+    : undefined;
+  // A refused class reaches neither the stations nor the throttle: it is lost
+  // to the lost quorum (`dropped`), the same as an error from a fault.
   const admitted = admit(
     profile.throttle,
-    { read: offeredRead * healthy, write: offeredWrite * healthy },
-    capScale,
+    {
+      read: offeredRead * (replica?.refuseReads ? 0 : healthy),
+      write: offeredWrite * (replica?.refuseWrites ? 0 : healthy),
+    },
+    capScaleOf(profile, core),
   );
   const classes = classesOf(profile, core);
   const stations = classes.stations.map((s, i) => {
@@ -272,11 +335,17 @@ export function techSteadyFlow(input: TechSteadyInput): TechSteady {
   };
   const read = view(classes.read, admitted.read, offeredRead);
   const write = view(classes.write, admitted.write, offeredWrite);
+  // Only reads the node served can be stale: one it dropped or refused never
+  // came back from any copy.
+  const staleReadShare = replica?.staleShare ?? 0;
+  const staleReadRps = read.served * staleReadShare;
   return {
     stations,
     view: { ws, read, write },
     served: Math.min(offered, read.served + write.served),
     throttled: admitted.throttled,
+    staleReadRps,
+    ...(staleReadRps > 0 ? { staleReadShare } : {}),
   };
 }
 

@@ -67,6 +67,7 @@ export const MESSAGING_TECHNOLOGIES: readonly Technology[] = [
       "AWS's managed pub/sub: pushes every published message to all of a topic's subscriptions (SQS, Lambda, HTTP, email, mobile).",
     consistency:
       "At-least-once with best-effort ordering: subscribers can get duplicates or out-of-order messages; each message is stored in several AZs before the publish returns.",
+    cap: "none",
     billing: "managed",
     managed: {
       capacityPerInstance: 30_000,
@@ -112,6 +113,7 @@ export const MESSAGING_TECHNOLOGIES: readonly Technology[] = [
       "Distributed commit log: partitioned, replicated topics that consumers read at their own pace and can replay; built for high-throughput streams.",
     consistency:
       "Order only within a partition; acks=all with min.insync.replicas 2 survives a broker loss; at-least-once by default, exactly-once with idempotent producers and transactions.",
+    cap: "none",
     billing: "instance",
     classes: KAFKA_CLASSES,
     defaultClass: "kafka.m7g.xlarge",
@@ -158,6 +160,7 @@ export const MESSAGING_TECHNOLOGIES: readonly Technology[] = [
       "Message broker with exchanges, routing keys and per-message acks; quorum queues replicate each queue with Raft.",
     consistency:
       "Quorum queues go through a Raft leader: at-least-once with publisher confirms and consumer acks; FIFO per queue, but redeliveries can reorder.",
+    cap: "none",
     billing: "instance",
     classes: RABBITMQ_CLASSES,
     defaultClass: "mq.m7g.xlarge",
@@ -208,6 +211,7 @@ export const MESSAGING_TECHNOLOGIES: readonly Technology[] = [
       "AWS's managed message queue: nearly unlimited throughput; consumers poll, process and delete each message.",
     consistency:
       "At-least-once with best-effort ordering: a message can arrive twice or out of order, so consumers must be idempotent; stored across AZs.",
+    cap: "none",
     billing: "managed",
     managed: {
       capacityPerInstance: 1_000_000,
@@ -248,6 +252,7 @@ export const MESSAGING_TECHNOLOGIES: readonly Technology[] = [
       "AWS's ordered message queue: strict order per message group and deduplicated sends, at a capped rate.",
     consistency:
       "Strict order within a message group; a send retried within 5 minutes is deduplicated (exactly-once processing); parallelism comes from many groups.",
+    cap: "none",
     billing: "managed",
     managed: {
       capacityPerInstance: 3_000,
