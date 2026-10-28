@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GENERIC_DRILL_QA } from "@/data/interviewData";
-import { type SimGraph } from "@/domain/graph/compile";
+import { type SimGraph, type SimNode } from "@/domain/graph/compile";
 import { analyze } from "@/engine/analyze";
 import { FlowEngine } from "@/engine/engine";
 import { analyzeUnderFault } from "@/engine/faults/steady";
@@ -10,9 +10,9 @@ import { effectsAt } from "@/engine/faults/effects";
 import { BLAST_TAIL_SEC, FaultError } from "@/engine/faults/runner";
 import type { CompiledModifier, FaultSpec } from "@/engine/faults/types";
 import { TICK_SEC } from "@/engine/traffic/types";
-import type { TickSnapshot } from "@/engine/types";
+import type { SteadyState, TickSnapshot } from "@/engine/types";
 import type { Edge } from "@xyflow/react";
-import type { EdgeCall } from "@/domain/components/types";
+import type { EdgeCall, EdgeRuleV2 } from "@/domain/components/types";
 import { comp, wire, compileV3 } from "./engineFixtures";
 
 const TICKS_PER_SEC = Math.round(1 / TICK_SEC);
@@ -69,6 +69,35 @@ function wide(): SimGraph {
       comp("db", "sql-db", { instances: 2, capacityPerInstance: 5000 }),
     ],
     [wire("dns", "lb"), wire("lb", "a"), wire("lb", "b"), wire("a", "db"), wire("b", "db")],
+  );
+}
+
+/**
+ * Client → App → Store, a Cassandra node with RF 3 over 3 instances (the
+ * profile's `replicaSet`, slice 1a): every request calls it, 10% of them writes.
+ * `storeRule` overrides the app → store call (a `reads` edge gives a read-only
+ * design, where no write can explain an error).
+ */
+function capStore(
+  consistencyLevel: "one" | "quorum" | "all" = "one",
+  params: Record<string, unknown> = {},
+  storeRule?: Partial<EdgeRuleV2>,
+): SimGraph {
+  return compileV3(
+    [
+      comp("client", "client"),
+      comp("app", "app-server", { instances: 4, capacityPerInstance: 5000, maxRetries: 0 }),
+      comp("store", "nosql-db", {
+        technology: "cassandra",
+        instances: 3,
+        capacityPerInstance: 20_000,
+        serviceTimeMs: 1.5,
+        replicationFactor: 3,
+        consistencyLevel,
+        ...params,
+      }),
+    ],
+    [wire("client", "app"), wire("app", "store", storeRule ? { rule: storeRule } : {})],
   );
 }
 
@@ -136,7 +165,7 @@ describe("compileFault", () => {
         f.targets.includes("global") ||
         nodeTargets(f, g).length > 0 ||
         edgeTargets(f, g).length > 0;
-      const make = hasTarget(shop()) ? shop : wide;
+      const make = [shop, wide, () => capStore("one")].find((g) => hasTarget(g()))!;
       const graph = make();
       const target: FaultSpec["target"] = f.targets.includes("global")
         ? { kind: "global" }
@@ -215,6 +244,16 @@ describe("effectsAt", () => {
     expect(fx.nodes.get("a")).toMatchObject({ capacity: 0.25, errorRate: 0.75 });
     expect(fx.traffic).toBe(6);
     expect(fx.edges.get("e")!.latencyAddMs).toBe(15);
+  });
+
+  it("folds overlapping replica losses by the highest count, not the last one", () => {
+    // [2, 1]: what is gone at most is gone, so the last-wins value (1) would
+    // understate the survivors left (the same graph and faults must agree).
+    const fx = effectsAt(
+      [m({ kind: "lostReplicas", value: 2 }), m({ kind: "lostReplicas", value: 1 })],
+      0,
+    )!;
+    expect(fx.nodes.get("a")!.lostReplicas).toBe(2);
   });
 
   it("recovers an overridden hit rate as h(t) = h(1 − e^(−t/τ))", () => {
@@ -842,6 +881,338 @@ describe("CHS-03 faults in the tick loop (baseline → inject → heal → basel
     expect(mean(snaps.slice(50, 70), (s) => s.nodes.a.rpsIn)).toBe(0);
     expect(Math.max(...aIn)).toBeGreaterThan(0);
     expect(mean(run(engine, 2), (s) => s.nodes.a.rpsIn)).toBeGreaterThan(RPS * 0.4);
+  });
+});
+
+describe("replica loss (CAP under a lost replica)", () => {
+  const replicaLoss = (intensity: number): FaultSpec => ({
+    type: "replica-loss",
+    target: { kind: "node", id: "store" },
+    intensity,
+    durationSec: 120,
+  });
+  const steadyNode = (s: SteadyState, id: string) => s.nodes.find((n) => n.nodeId === id)!;
+
+  it("is offered only to a store with a technology and at least two replicas", () => {
+    const type = getFaultType("replica-loss")!;
+    expect(type).toMatchObject({
+      label: "Replica loss",
+      category: "data",
+      targets: ["node"],
+      defaultDurationSec: 120,
+    });
+    expect(type.intensity).toMatchObject({
+      label: "Replicas lost",
+      min: 1,
+      max: 7,
+      step: 1,
+      default: 1,
+      format: "count",
+    });
+
+    const mixed = compileV3(
+      [
+        comp("lb", "load-balancer"),
+        comp("q", "message-queue"),
+        comp("plain", "nosql-db"),
+        comp("single", "nosql-db", { technology: "cassandra", instances: 1 }),
+        comp("db", "nosql-db", { technology: "cassandra", instances: 3 }),
+        comp("sql", "sql-db", { technology: "postgres", instances: 3 }),
+      ],
+      [],
+    );
+    expect(nodeTargets(type, mixed).map((n) => n.id)).toEqual(["db"]);
+    for (const id of ["lb", "q", "plain", "single", "sql"]) {
+      const r = compileFault({ type: "replica-loss", target: { kind: "node", id } }, 0, {
+        graph: mixed,
+        readRatio: 0.9,
+      });
+      expect(r.ok, id).toBe(false);
+    }
+  });
+
+  it("clamps an out-of-range intensity to replicas - 1 (the picker offers up to 7)", () => {
+    // The picker's range is 1..7 for every store, but a lost primary is
+    // `db-primary-failure`, so `build()` caps the loss at `replicas - 1`. On a
+    // 3-replica set asking for 7 must isolate 2, and the notes the ChaosPanel
+    // renders must say so: an unclamped 7 would report -4 survivors.
+    const g = capStore("one");
+    const r = compileFault(replicaLoss(7), 0, { graph: g, readRatio: 0.9 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // `compileFault` only clamps to the picker's range; the entry clamps again.
+    expect(r.spec.intensity).toBe(7);
+    const lost = r.modifiers.filter((m) => m.kind === "lostReplicas");
+    expect(lost).toHaveLength(1);
+    expect(lost[0]).toMatchObject({ targetIds: ["store"], value: 2, startT: 0 });
+    expect(r.notes[0]).toMatch(/2 of 3 replicas isolated/);
+    expect(r.notes[0]).toMatch(/1 survive/);
+
+    // An in-range intensity passes through unchanged: the clamp is not eager.
+    const one = compileFault(replicaLoss(1), 0, { graph: g, readRatio: 0.9 });
+    expect(one.ok).toBe(true);
+    if (!one.ok) return;
+    expect(one.modifiers.find((m) => m.kind === "lostReplicas")?.value).toBe(1);
+    expect(one.notes[0]).toMatch(/1 of 3 replicas isolated/);
+    expect(one.notes[0]).toMatch(/2 survive/);
+  });
+
+  it("ONE, RF 3, one replica lost: reads are served, stale, and no error above the baseline", () => {
+    const g = capStore("one");
+    const base = steadyNode(analyze(g, RPS), "store");
+    const r = analyzeUnderFault(g, RPS, replicaLoss(1));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    // One of three copies is gone: a third of the SERVED reads may come from a
+    // copy that missed the last write — `read.served × lost / replicas`.
+    const servedReads = store.servedRps * 0.9;
+    expect(store.staleReadRps).toBeGreaterThan(0);
+    expect(store.staleReadRps!).toBeLessThanOrEqual(servedReads);
+    expect(store.staleReadRps!).toBeCloseTo(servedReads * (1 / 3), 6);
+    expect(store.staleReadShare).toBeCloseTo(1 / 3, 9);
+    expect(store.errorRate).toBe(base.errorRate);
+    expect(store.droppedRps).toBe(base.droppedRps);
+  });
+
+  it("an overloaded store counts only the reads it completed, in analyze and in 50 ticks", () => {
+    // 3 × 100 rps of capacity against 1500 rps (90% reads): most reads are
+    // dropped, and a read still queued was not served yet, so it can't be stale.
+    const g = capStore("one", { capacityPerInstance: 100 });
+    const fault = replicaLoss(1);
+    const r = analyzeUnderFault(g, RPS, fault);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    const offeredReads = store.offeredRps * 0.9;
+    expect(store.droppedRps).toBeGreaterThan(0);
+    expect(store.staleReadRps).toBeGreaterThan(0);
+    // Served reads only: at most what left the node, and well below the
+    // third of the OFFERED reads the old (wrong) count would report.
+    expect(store.staleReadRps!).toBeLessThanOrEqual(store.servedRps);
+    expect(store.staleReadRps!).toBeLessThan(offeredReads * (1 / 3));
+    expect(store.staleReadShare).toBeCloseTo(1 / 3, 9);
+
+    // The tick must count COMPLETED reads too: `view(0).served` also holds the
+    // reads still queued, so on a saturated store it overshoots by ~6×.
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(g); // the default seed
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    engine.inject(fault);
+    const during = run(engine, 2.5); // 50 ticks
+    expect(during).toHaveLength(50);
+    const live = mean(during, (s) => s.nodes.store.staleReadRps ?? 0);
+    expect(live).toBeGreaterThan(0);
+    expect(Math.abs(live / store.staleReadRps! - 1)).toBeLessThan(0.05);
+    for (const s of during) {
+      // Stale reads are a share of what the node completed, never more: the
+      // admitted (queued included) reads are not a bound on what was served.
+      expect(s.nodes.store.staleReadRps ?? 0).toBeLessThanOrEqual(s.nodes.store.rpsOut);
+    }
+  });
+
+  it("QUORUM with two lost and ALL with one: every read is refused, none is stale", () => {
+    for (const [level, lost] of [
+      ["quorum", 2],
+      ["all", 1],
+    ] as const) {
+      const r = analyzeUnderFault(capStore(level), RPS, replicaLoss(lost));
+      expect(r.ok, level).toBe(true);
+      if (!r.ok) continue;
+      const store = steadyNode(r.steady, "store");
+      expect(store.errorRate, level).toBeGreaterThan(0);
+      expect(store.droppedRps, level).toBeGreaterThan(0);
+      expect(store.staleReadRps ?? 0, level).toBe(0);
+    }
+  });
+
+  it("QUORUM with two lost: the LIVE tick refuses every read too, and never marks one stale", () => {
+    // The Analyze path is covered above; the tick is the other producer of the
+    // same rule (`refusedByClass` in `core/tick.ts`) and had no test of its
+    // own. Zeroing that block left the whole suite green while the tick served
+    // traffic the quorum can't reach, and then reported it as stale reads.
+    const g = capStore("quorum");
+    const fault = replicaLoss(2);
+    const steady = analyzeUnderFault(g, RPS, fault);
+    expect(steady.ok).toBe(true);
+    if (!steady.ok) return;
+    const store = steadyNode(steady.steady, "store");
+    expect(store.errorRate).toBeGreaterThan(0.9);
+    expect(store.droppedRps).toBeCloseTo(store.offeredRps, 6);
+    expect(store.servedRps).toBeCloseTo(0, 6);
+
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(g); // the default seed
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    engine.inject(fault);
+    const during = run(engine, 2.5); // 50 ticks with the fault active
+    expect(during).toHaveLength(50);
+    // One survivor can't reach a read quorum of two or a write quorum of two:
+    // every request is refused at the store, exactly as `analyzeUnderFault` says.
+    expect(mean(during, (s) => s.nodes.store.errorRate)).toBeGreaterThan(0.9);
+    const offered = mean(during, (s) => s.nodes.store.rpsIn);
+    expect(offered).toBeGreaterThan(RPS * 0.95);
+    // Every offered request is dropped (the refusal is all of them, not a share).
+    expect(mean(during, (s) => s.nodes.store.drops)).toBeGreaterThanOrEqual(offered * 0.999);
+    expect(mean(during, (s) => s.nodes.store.rpsOut)).toBeLessThan(1);
+    expect(mean(during, errorRate)).toBeGreaterThan(0.9);
+    // Refused, never served: no read came back from a copy, so no stale field.
+    expect(during.every((s) => (s.nodes.store.staleReadRps ?? 0) === 0)).toBe(true);
+    expect(during.every((s) => (s.nodes.store.staleReadShare ?? 0) === 0)).toBe(true);
+    expect(store.staleReadRps ?? 0).toBe(0);
+    expect(store.staleReadShare ?? 0).toBe(0);
+  });
+
+  it("QUORUM with one lost (survivors == readQuorum): reads are served FRESH, never stale", () => {
+    // `eventualReads` gates the stale share: a QUORUM read reaches both
+    // survivors, so the answer is fresh even though a third copy is gone.
+    // Dropping that guard made the store report a third of its reads as stale.
+    const g = capStore("quorum");
+    const base = steadyNode(analyze(g, RPS), "store");
+    expect(base.errorRate).toBe(0);
+    const r = analyzeUnderFault(g, RPS, replicaLoss(1));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    // Served, not refused: two of three survivors still reach a quorum of two.
+    expect(store.errorRate).toBe(base.errorRate);
+    expect(store.droppedRps).toBe(base.droppedRps);
+    expect(store.servedRps).toBeGreaterThan(0);
+    // ...and every served read is fresh: a strong read never hits a lagging copy.
+    expect(store.staleReadRps ?? 0).toBe(0);
+    expect(store.staleReadShare ?? 0).toBe(0);
+
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(g); // the default seed
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    engine.inject(replicaLoss(1));
+    const during = run(engine, 2.5); // 50 ticks
+    expect(during).toHaveLength(50);
+    expect(mean(during, (s) => s.nodes.store.errorRate)).toBeLessThan(0.01);
+    expect(mean(during, (s) => s.nodes.store.rpsOut)).toBeGreaterThan(RPS * 0.9);
+    expect(during.every((s) => (s.nodes.store.staleReadRps ?? 0) === 0)).toBe(true);
+    expect(during.every((s) => (s.nodes.store.staleReadShare ?? 0) === 0)).toBe(true);
+  });
+
+  it("reads alone are refused by a lost read quorum, with no write to blame", () => {
+    // A read-only design (`reads` call kind): the error can only come from the
+    // read quorum, never from a write refused by the write quorum.
+    for (const [level, lost] of [
+      ["quorum", 2],
+      ["all", 1],
+    ] as const) {
+      const g = capStore(level, {}, { kind: "reads" });
+      const base = steadyNode(analyze(g, RPS), "store");
+      expect(base.writeRps, level).toBe(0);
+      expect(base.errorRate, level).toBe(0);
+      const r = analyzeUnderFault(g, RPS, replicaLoss(lost));
+      expect(r.ok, level).toBe(true);
+      if (!r.ok) continue;
+      const store = steadyNode(r.steady, "store");
+      expect(store.writeRps, level).toBe(0);
+      expect(store.errorRate, level).toBeGreaterThan(0);
+      expect(store.droppedRps, level).toBeGreaterThan(0);
+      expect(store.staleReadRps ?? 0, level).toBe(0);
+      // Every offered request is a read, and every one is refused.
+      expect(store.servedRps, level).toBe(0);
+    }
+  });
+
+  it("writes alone are refused by a lost write quorum, with no read to blame or mark stale", () => {
+    // A write-only design (`writes` call kind): every request is a write, so an
+    // error here can only come from `refuseWrites` — no read exists that a lost
+    // read quorum could explain, and nothing was served to be stale.
+    const g = capStore("quorum", {}, { kind: "writes" });
+    const base = steadyNode(analyze(g, RPS), "store");
+    expect(base.writeRps).toBeCloseTo(base.offeredRps, 6);
+    expect(base.errorRate).toBe(0);
+    expect(base.servedRps).toBeGreaterThan(0);
+    const r = analyzeUnderFault(g, RPS, replicaLoss(2));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    // Two of three copies gone: a write needs two, so every write is refused.
+    expect(store.writeRps).toBeCloseTo(store.offeredRps, 6);
+    expect(store.errorRate).toBeGreaterThan(0);
+    expect(store.droppedRps).toBeGreaterThan(0);
+    expect(store.droppedRps).toBeCloseTo(store.offeredRps, 6);
+    expect(store.servedRps).toBe(0);
+    // Refused, never served: neither stale field appears.
+    expect(store.staleReadRps).toBeUndefined();
+    expect(store.staleReadShare).toBeUndefined();
+  });
+
+  it("ALL with the whole replica set up (survivors == readQuorum) serves fresh reads", () => {
+    // The boundary of `survivors < readQuorum`: three survivors reach a quorum
+    // of three, so a `<=` would refuse reads even with no replica lost.
+    const g = capStore("all");
+    const base = steadyNode(analyze(g, RPS), "store");
+    expect(base.errorRate).toBe(0);
+    const effects = effectsAt(
+      [{ kind: "lostReplicas", targetIds: ["store"], value: 0, startT: 0 }],
+      0,
+    );
+    expect(effects).not.toBeNull();
+    const store = steadyNode(analyze(g, RPS, undefined, effects), "store");
+    expect(store.errorRate).toBe(base.errorRate);
+    expect(store.errorRate).toBe(0);
+    expect(store.droppedRps).toBe(0);
+    expect(store.staleReadRps ?? 0).toBe(0);
+    expect(store.servedRps).toBeCloseTo(base.servedRps, 6);
+  });
+
+  it("never targets the SQL primary once it carries a replica set (db-primary-failure owns it)", () => {
+    // Slice 1 never gives PostgreSQL a `replicaSet`, so the guard is invisible
+    // through a compiled graph: check the filter directly against the node the
+    // slice-2 profile will produce.
+    const filter = getFaultType("replica-loss")!.nodeFilter!;
+    const graph = capStore("one");
+    const store = (componentId: string): SimNode =>
+      ({
+        componentId,
+        tech: {
+          replicaSet: { replicas: 3, readQuorum: 1, writeQuorum: 1, eventualReads: false },
+        },
+      }) as unknown as SimNode;
+    expect(filter(store("sql-db"), graph)).toBe(false);
+    expect(filter(store("nosql-db"), graph)).toBe(true);
+  });
+
+  it("analyzeUnderFault and 50 ticks agree on the stale reads; healing clears them", () => {
+    const g = capStore("one");
+    const fault = replicaLoss(1);
+    const steady = analyzeUnderFault(g, RPS, fault);
+    expect(steady.ok).toBe(true);
+    if (!steady.ok) return;
+    const store = steadyNode(steady.steady, "store");
+    expect(store.staleReadRps).toBeGreaterThan(0);
+    expect(store.staleReadShare).toBeCloseTo(1 / 3, 9);
+
+    const engine = new FlowEngine({ tickSamples: 100 });
+    engine.load(g); // the default seed
+    engine.setTraffic({ kind: "constant", rps: RPS });
+    const id = engine.inject(fault);
+    const during = run(engine, 2.5); // 50 ticks
+    expect(during).toHaveLength(50);
+    const live = mean(during, (s) => s.nodes.store.staleReadRps ?? 0);
+    expect(live).toBeGreaterThan(0);
+    expect(Math.abs(live / store.staleReadRps! - 1)).toBeLessThan(0.05);
+    // Same key presence in both producers; generic nodes never carry it.
+    expect(Object.keys(store)).toContain("staleReadRps");
+    expect(Object.keys(store)).toContain("staleReadShare");
+    expect(Object.keys(during.at(-1)!.nodes.store)).toContain("staleReadRps");
+    expect(during.at(-1)!.nodes.store.staleReadShare).toBeCloseTo(1 / 3, 9);
+    expect(during.every((s) => s.nodes.app.staleReadRps === undefined)).toBe(true);
+    expect(during.every((s) => s.nodes.app.staleReadShare === undefined)).toBe(true);
+    expect(Object.keys(steadyNode(steady.steady, "app"))).not.toContain("staleReadRps");
+    expect(Object.keys(steadyNode(steady.steady, "app"))).not.toContain("staleReadShare");
+
+    // Healed (no effects active): the field is absent, not 0.
+    engine.heal(id);
+    const healed = run(engine, 1);
+    expect(healed.every((s) => s.nodes.store.staleReadRps === undefined)).toBe(true);
+    expect(healed.every((s) => s.nodes.store.staleReadShare === undefined)).toBe(true);
+    expect(steadyNode(analyze(g, RPS), "store").staleReadRps).toBeUndefined();
   });
 });
 

@@ -169,6 +169,12 @@ export const GENERIC_DRILL_QA: Record<FaultType, { question: string; answer: str
     answer:
       "The target drops in and out of rotation, so the others absorb its share in bursts, connections reset and latency gets jittery. Add hysteresis (several consecutive failures to mark it unhealthy and several successes to bring it back), keep health endpoints shallow and fast (local health, not every dependency), and use slow start when a target rejoins.",
   },
+  "replica-loss": {
+    question:
+      "A data store loses some of its replicas. When do its reads fail, and when can they be stale?",
+    answer:
+      "It depends on the quorum each request asks for. A request that needs R copies is refused while fewer than R survive, whatever the store's CAP label; a read that can be answered by fewer keeps working but may return data from a copy that missed the last write (lost ÷ replicas of the reads) until it catches up. Pick the consistency level per operation — quorum reads and writes (R + W > RF) for read-your-writes, ONE for availability when stale reads are acceptable — and keep the replication factor above the number of copies you plan to lose while still reaching those quorums.",
+  },
 };
 
 export interface ProblemInterviewData {

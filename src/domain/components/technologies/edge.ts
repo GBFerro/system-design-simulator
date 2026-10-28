@@ -79,6 +79,7 @@ export const EDGE_TECHNOLOGIES: readonly Technology[] = [
     description:
       "AWS Network Load Balancer: forwards TCP/UDP flows without parsing HTTP; very high throughput, static IPs, the lowest added latency.",
     consistency: `${STATELESS} a flow hash pins each connection to one target for its life.`,
+    cap: "none",
     billing: "managed",
     managed: {
       capacityPerInstance: 1_000_000,
@@ -117,6 +118,7 @@ export const EDGE_TECHNOLOGIES: readonly Technology[] = [
     description:
       "AWS Application Load Balancer: terminates HTTP(S), routes by host, path and header rules, and health-checks its targets.",
     consistency: `${STATELESS} requests on one connection can reach different targets.`,
+    cap: "none",
     billing: "managed",
     managed: {
       capacityPerInstance: 1_000_000,
@@ -149,6 +151,7 @@ export const EDGE_TECHNOLOGIES: readonly Technology[] = [
     description:
       "Open-source L4/L7 load balancer and reverse proxy: very high request rates per core, many balancing algorithms and health checks.",
     consistency: `${STATELESS} sticky sessions or a hash on a key keep a client on one server.`,
+    cap: "none",
     billing: "instance",
     classes: c6gClasses([20_000, 35_000, 70_000, 140_000], 0.4, "derived"),
     defaultClass: "c6g.xlarge",
@@ -179,6 +182,7 @@ export const EDGE_TECHNOLOGIES: readonly Technology[] = [
     description:
       "Open-source L7 proxy built for service meshes and edge gateways: dynamic configuration over xDS, HTTP/2 and gRPC, rich telemetry.",
     consistency: `${STATELESS} ring hash or Maglev keep a key on one upstream.`,
+    cap: "none",
     billing: "instance",
     classes: c6gClasses([20_000, 35_000, 70_000, 140_000], 0.5, "estimate"),
     defaultClass: "c6g.xlarge",
@@ -219,6 +223,7 @@ export const EDGE_TECHNOLOGIES: readonly Technology[] = [
       "AWS's managed API front door: routing, authorization and throttling with nothing to run, billed per request.",
     consistency:
       "Stateless: it holds no data, so no consistency model applies; the account's throttle is shared by every API in the Region.",
+    cap: "none",
     billing: "managed",
     managed: {
       capacityPerInstance: 10_000,
@@ -262,6 +267,7 @@ export const EDGE_TECHNOLOGIES: readonly Technology[] = [
     description:
       "Open-source API gateway on NGINX/OpenResty: routing plus plugins for authentication, rate limiting and transformations.",
     consistency: `${STATELESS} plugin state such as rate-limit counters lives in its datastore or Redis.`,
+    cap: "none",
     billing: "instance",
     classes: c6gClasses([18_000, 36_000, 72_000, 144_000], 1.5, "derived"),
     defaultClass: "c6g.xlarge",

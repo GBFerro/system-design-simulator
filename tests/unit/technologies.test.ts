@@ -35,6 +35,7 @@ import {
   technologiesOf,
 } from "@/domain/components/technologies";
 import type { Technology } from "@/domain/components/technologies";
+import { techProfileOf } from "@/domain/components/technologies/profile";
 
 /* ---------- T1: lookups over a fixture list (TEC-10, TEC-12) ---------- */
 
@@ -1186,5 +1187,94 @@ describe("createComponentNode with a technology (T13)", () => {
         expect(tech === undefined || tech === "generic", `${problem.id} ${n.id}`).toBe(true);
       }
     }
+  });
+});
+
+/* ---------- CAP label and the Cassandra/ScyllaDB replica set (CAP criteria 1-3) ---------- */
+
+describe("CAP label and the replica set of the quorum stores (CAP-01)", () => {
+  /** The profile of a nosql-db node with raw (unsanitized) params. */
+  const profile = (raw: Params) => techProfileOf("nosql-db", raw);
+
+  it("RF 3, consistencyLevel ONE: one copy answers, so a read may be stale", () => {
+    // instances 5 > RF 3: the set is one copy of each replica, not one per instance.
+    expect(
+      profile({
+        technology: "cassandra",
+        replicationFactor: 3,
+        consistencyLevel: "one",
+        instances: 5,
+      })?.replicaSet,
+    ).toEqual({ replicas: 3, readQuorum: 1, writeQuorum: 1, eventualReads: true });
+  });
+
+  it("RF 3, QUORUM: two copies for reads and writes, never a stale read", () => {
+    // instances 2 < RF 3: the set cannot have more copies than the node has instances.
+    expect(
+      profile({
+        technology: "cassandra",
+        replicationFactor: 3,
+        consistencyLevel: "quorum",
+        instances: 2,
+      })?.replicaSet,
+    ).toEqual({ replicas: 2, readQuorum: 2, writeQuorum: 2, eventualReads: false });
+  });
+
+  it("RF 5, ALL: five copies for reads and writes, never a stale read", () => {
+    expect(
+      profile({
+        technology: "scylladb",
+        replicationFactor: 5,
+        consistencyLevel: "all",
+        instances: 5,
+      })?.replicaSet,
+    ).toEqual({ replicas: 5, readQuorum: 5, writeQuorum: 5, eventualReads: false });
+  });
+
+  it("generic has no profile, and no other mechanic carries a replica set in this slice", () => {
+    expect(profile({ technology: "generic" })).toBeUndefined();
+    for (const [id, params] of [
+      ["nosql-db", { technology: "dynamodb" }],
+      ["nosql-db", { technology: "mongodb" }],
+      ["sql-db", { technology: "postgres" }],
+      ["cache", { technology: "redis" }],
+      ["search", { technology: "opensearch" }],
+      ["object-storage", { technology: "s3" }],
+    ] as const) {
+      expect(techProfileOf(id, params)?.replicaSet, id).toBeUndefined();
+    }
+  });
+
+  it("cap labels: the data stores, the caches and the stateless edge, one each", () => {
+    const caps: [string, string, "cp" | "ap" | "none"][] = [
+      ["nosql-db", "cassandra", "ap"],
+      ["nosql-db", "scylladb", "ap"],
+      ["nosql-db", "dynamodb", "ap"],
+      ["nosql-db", "mongodb", "cp"],
+      ["sql-db", "postgres", "cp"],
+      ["sql-db", "mysql", "cp"],
+      ["sql-db", "aurora-postgres", "cp"],
+      ["read-replica", "postgres", "cp"],
+      ["cache", "redis", "ap"],
+      ["cache", "memcached", "none"],
+      ["search", "opensearch", "ap"],
+      ["object-storage", "s3", "cp"],
+      ["message-queue", "kafka", "none"],
+      ["message-queue", "rabbitmq", "none"],
+      ["message-queue", "sqs-standard", "none"],
+      ["message-queue", "sqs-fifo", "none"],
+      ["pub-sub", "sns", "none"],
+      ["pub-sub", "kafka", "none"],
+      ["load-balancer", "aws-nlb", "none"],
+      ["load-balancer", "aws-alb", "none"],
+      ["load-balancer", "haproxy", "none"],
+      ["load-balancer", "envoy", "none"],
+      ["api-gateway", "aws-api-gateway", "none"],
+      ["api-gateway", "kong", "none"],
+    ];
+    for (const [type, id, cap] of caps) {
+      expect(getTechnology(type, id)?.cap, `${type} ${id}`).toBe(cap);
+    }
+    for (const tech of TECHNOLOGIES) expect(["cp", "ap", "none"], tech.id).toContain(tech.cap);
   });
 });

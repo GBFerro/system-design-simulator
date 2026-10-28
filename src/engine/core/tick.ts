@@ -98,6 +98,8 @@ import {
   classesOf,
   edgeWriteShare,
   kafkaLimit,
+  replicaEffect,
+  replicationLagOf,
   techPercentileMs,
   type ConsumerLimit,
   type TechClassView,
@@ -163,6 +165,10 @@ interface TickFlow extends FlowView {
   queueDepth?: number;
   /** Kafka: its busiest consumer edge on this tick's new messages (TEC-34). */
   consumerLimit?: ConsumerLimit;
+  /** Reads this tick that may come from a copy behind the last write (a replica loss). */
+  staleReadRps?: number;
+  /** Share of this tick's served reads that is stale (with `staleReadRps`). */
+  staleReadShare?: number;
 }
 
 function finite(v: number, fallback = 0): number {
@@ -235,6 +241,10 @@ export interface TechTickInput {
   writeShare: number;
   /** Fault: share of the arrivals failed right away. */
   errorRate?: number;
+  /** Fault: copies of its replica set a `replica-loss` isolated. */
+  lostReplicas?: number;
+  /** The node's `replicationLagMs`, when it has one (a synchronous copy: 0). */
+  replicationLagMs?: number;
   /** Station 0's backlog before this tick. */
   backlog: number;
   /** Station 1's backlog before this tick. */
@@ -266,6 +276,10 @@ export interface TechTick {
   tokens?: number;
   /** Requests waiting over all the stations. */
   queueDepth: number;
+  /** Reads per second that may come from a copy behind the last write (0 without a loss). */
+  staleReadRps: number;
+  /** Share of the served reads that is stale (`lost / replicas`), only with `staleReadRps > 0`. */
+  staleReadShare?: number;
 }
 
 // SPEC_DEVIATION: design.md lists `techTickFlow` in `core/tech.ts`.
@@ -286,7 +300,15 @@ export function techTickFlow(input: TechTickInput): TechTick {
   const ws = clamp01(input.writeShare);
   const failed = clamp01(input.errorRate ?? 0);
   const arrivingByClass = [arriving * (1 - ws), arriving * ws];
-  const refused = arriving * failed;
+  const replica = profile.replicaSet
+    ? replicaEffect(profile.replicaSet, input.lostReplicas, input.replicationLagMs)
+    : undefined;
+  // A refused class is lost to the lost quorum (in `dropped`), like an error.
+  const refusedByClass = [
+    replica?.refuseReads ? arrivingByClass[0] * (1 - failed) : 0,
+    replica?.refuseWrites ? arrivingByClass[1] * (1 - failed) : 0,
+  ];
+  const refused = arriving * failed + refusedByClass[0] + refusedByClass[1];
   const throttle = profile.throttle;
   const bucket =
     throttle?.kind === "quota" && throttle.burst !== undefined
@@ -294,7 +316,10 @@ export function techTickFlow(input: TechTickInput): TechTick {
       : undefined;
   const adm = admit(
     throttle,
-    { read: arrivingByClass[0] * (1 - failed), write: arrivingByClass[1] * (1 - failed) },
+    {
+      read: arrivingByClass[0] * (1 - failed) - refusedByClass[0],
+      write: arrivingByClass[1] * (1 - failed) - refusedByClass[1],
+    },
     capScaleOf(profile, core),
     bucket,
   );
@@ -366,9 +391,16 @@ export function techTickFlow(input: TechTickInput): TechTick {
   // (a quota that let everything through leaves float noise in `throttled`)
   const throttled = isThrottled(adm.throttled, arriving) ? adm.throttled : 0;
   const dropped = Math.min(arriving, refused + throttled + overflow);
+  const read = view(0);
+  const write = view(1);
+  // Only reads COMPLETED this tick can be stale: `view(0).served` also holds
+  // the reads still queued at a saturated store, which never came back from a
+  // copy, and would make the tick disagree with `analyze()`.
+  const staleReadShare = replica?.staleShare ?? 0;
+  const staleReadRps = completedByClass[0] * staleReadShare;
   return {
     stations,
-    view: { ws, read: view(0), write: view(1) },
+    view: { ws, read, write },
     completed: finite(completedByClass[0] + completedByClass[1]),
     served: Math.max(0, arriving - dropped),
     dropped,
@@ -379,6 +411,8 @@ export function techTickFlow(input: TechTickInput): TechTick {
     primaryBacklog: backlogs[1] ?? 0,
     ...(adm.tokens !== undefined ? { tokens: adm.tokens } : {}),
     queueDepth: finite(queueDepth),
+    staleReadRps,
+    ...(staleReadRps > 0 ? { staleReadShare } : {}),
   };
 }
 
@@ -563,6 +597,8 @@ export class TickSimulator {
           arriving,
           writeShare: ws,
           errorRate: fx?.errorRate,
+          lostReplicas: node.lostReplicas,
+          replicationLagMs: replicationLagOf(node),
           backlog: state.backlog,
           primaryBacklog: state.tech.primaryBacklog,
           tokens: state.tech.tokens,
@@ -593,6 +629,9 @@ export class TickSimulator {
           tech: t.view,
           throttled: t.throttled,
           queueDepth: t.queueDepth,
+          ...(t.staleReadRps > 0 && t.staleReadShare !== undefined
+            ? { staleReadRps: t.staleReadRps, staleReadShare: t.staleReadShare }
+            : {}),
         };
       } else {
         let capacityPerInstance = node.capacityPerInstance;
@@ -884,6 +923,14 @@ export class TickSimulator {
               limitKind: limit.kind,
               limitUtilization: finite(util),
               writeRps: finite(flow.offered * ws),
+            }
+          : {}),
+        ...(flow.staleReadRps !== undefined
+          ? {
+              staleReadRps: finite(flow.staleReadRps),
+              ...(flow.staleReadShare !== undefined
+                ? { staleReadShare: finite(flow.staleReadShare) }
+                : {}),
             }
           : {}),
       };

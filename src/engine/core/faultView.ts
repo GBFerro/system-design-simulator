@@ -4,7 +4,9 @@
  * get capacity × multiplier and a longer service time (same concurrency, so
  * capacity shrinks by the same factor), an overridden hit rate, and zero
  * availability when down; faulted edges get extra latency and loss (a
- * severed edge loses every call). Unaffected entries are shared as is.
+ * severed edge loses every call). A store can also carry how many copies of
+ * its replica set a fault isolated (`lostReplicas`), which the technology
+ * math turns into refused or stale reads. Unaffected entries are shared as is.
  *
  * What a topology can't express — a node that is down, a severed edge
  * (nothing arrives), a drained LB edge, the traffic multipliers — the
@@ -36,6 +38,9 @@ export function withEffects(topo: Topology, effects: TickEffects | null): Topolo
       serviceTimeMs,
       capacityPerInstance:
         (node.capacityPerInstance * Math.max(MIN_CAPACITY_FACTOR, fx.capacity)) / slowdown,
+      // A replica loss narrows the set the store's quorums must reach; it
+      // changes no station (the survivors keep their capacity).
+      ...(fx.lostReplicas > 0 ? { lostReplicas: fx.lostReplicas } : {}),
     });
   }
   if (effects.edges.size === 0) return { ...topo, byId };

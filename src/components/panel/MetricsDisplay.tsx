@@ -7,7 +7,7 @@ import { useCanvasStore } from "@/store/canvasStore";
 import { useRecentHistory, useRuntimeStore } from "@/store/runtimeStore";
 import { useChaosStore } from "@/store/chaosStore";
 import type { NodeRuntimeMetrics, TickSnapshot } from "@/engine/types";
-import { abbrev, fmtMs, fmtPct } from "@/lib/runtimeMetrics";
+import { abbrev, fmtMs, fmtPct, fmtStaleReads } from "@/lib/runtimeMetrics";
 import { RUNTIME_STATUS_META, utilizationBarClass } from "@/components/canvas/nodes/runtimeStatus";
 import { TimeSeriesChart } from "./TimeSeriesChart";
 
@@ -293,6 +293,12 @@ export function NodeMetricGrid({
     cells.push({ label: "Pool used", value: fmtPct(x.poolUsage, 0), bad: x.poolUsage >= 0.9 });
   if (x?.replicationLagMs !== undefined)
     cells.push({ label: "Repl. lag", value: fmtMs(x.replicationLagMs) });
+  if (m.staleReadRps !== undefined)
+    cells.push({
+      label: "Stale reads",
+      value: fmtStaleReads(m.staleReadRps, m.staleReadShare ?? 0),
+      bad: m.staleReadRps > 0,
+    });
   if (x?.breakerState !== undefined)
     cells.push({
       label: "Breaker",

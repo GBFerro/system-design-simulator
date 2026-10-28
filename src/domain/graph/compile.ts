@@ -46,6 +46,12 @@ export interface SimNode {
    * what it was (never `tech: undefined`).
    */
   tech?: TechProfile;
+  /**
+   * Faults only (Spec 08, `core/faultView.ts`): how many copies of its
+   * replica set a `replica-loss` has isolated. Absent when none is lost, so
+   * a graph without that fault is exactly what it was.
+   */
+  lostReplicas?: number;
 }
 
 export interface SimEdge {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { analyze, connectSync, open, quickAdd, openTab } from "./helpers";
+import { analyze, connect, connectSync, open, quickAdd, openTab } from "./helpers";
 
 // Spec 07 (OBS-01..04): runtime metrics on nodes, in the Sim panel, and the
 // particle overlay — all read from runtimeStore, never from node.data.
@@ -437,4 +437,68 @@ test("Analyze publishes each edge's link failure: the caller's timeout fails its
   expect(failure[appToDb!]).toBeGreaterThan(0.99);
   // No timeout and no loss on client → app: its link doesn't fail.
   expect(failure[clientToApp!]).toBe(0);
+});
+
+// Criterion 9 (CAP under a replica loss): the "Stale reads" cell, in req/s and
+// % of the served reads, in the Sim panel and in the selected node's card —
+// read from runtimeStore, never from node.data.
+test("replica loss: the Sim panel and the node card show stale reads", async ({ page }) => {
+  await open(page, "/?e2e=1");
+  await quickAdd(page, "Client");
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "NoSQL Database");
+
+  // Cassandra with RF 3 and ONE reads: one isolated copy leaves two serving,
+  // and a third of the reads may come from the copy behind the last write.
+  const store = page.locator('.react-flow__node[data-id^="nosql-db-"]');
+  await store.click();
+  await page.getByLabel("Technology", { exact: true }).selectOption("cassandra");
+  const instances = page.getByLabel("Instances", { exact: true });
+  await instances.fill("3");
+  await instances.press("Enter");
+  await page.getByLabel("Consistency level", { exact: true }).selectOption("one");
+
+  await connect(page, "client", "app-server");
+  await connect(page, "app-server", "nosql-db");
+
+  await openTab(page, "Simulate");
+  const live = page.getByRole("region", { name: "Live traffic" });
+  await live.getByRole("button", { name: "Play live traffic" }).click();
+  await expect(live.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
+
+  // The fault only exists while the run is loaded: inject it on the store.
+  await openTab(page, /Chaos/);
+  const chaos = page.getByTestId("chaos-panel");
+  await chaos.getByRole("button", { name: "Replica loss" }).click();
+  await chaos.getByTestId("chaos-target").selectOption({ label: "NoSQL Database" });
+  await chaos.getByRole("checkbox", { name: "Heal automatically" }).uncheck();
+  const inject = chaos.getByTestId("chaos-inject");
+  await inject.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await inject.click();
+  await expect(
+    chaos.getByTestId("chaos-active").getByText("Replica loss · NoSQL Database"),
+  ).toBeVisible();
+
+  // Selecting the store lists the cell among its numbers, warning-colored.
+  await openTab(page, "Simulate");
+  await page
+    .getByRole("button", { name: /RPS in/ })
+    .filter({ hasText: "NoSQL Database" })
+    .click();
+  const detail = page.getByTestId("selected-node-metrics");
+  const staleCell = detail
+    .getByTestId("node-metric-grid")
+    .getByText("Stale reads", { exact: true });
+  await expect(staleCell).toBeVisible();
+  const staleValue = staleCell.locator("..").locator("dd");
+  await expect(staleValue).toContainText(/\d[\d.]*[KMB]?\/s · \d+%/);
+  // Warning state: styled like the other bad values (errors, drops).
+  await expect(staleValue).toHaveClass(/text-rose-400/);
+  // The card beside the node reuses the same grid.
+  await expect(page.getByTestId("node-insight-card")).toContainText("Stale reads");
+
+  // The persisted canvas carries no runtime metric.
+  const persisted = await page.evaluate(() => localStorage.getItem("systemsim-canvas") ?? "");
+  expect(persisted).not.toMatch(/"staleReadRps"|"staleReadShare"/);
+  expect(persisted).not.toMatch(/"utilization"|"isBottleneck"/);
 });

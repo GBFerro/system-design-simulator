@@ -25,6 +25,17 @@ function withLimit(
   };
 }
 
+/** The same steady state with the stale-read fields set on `db`. */
+function withStale(
+  steady: SteadyState,
+  fields: Pick<NodeSteadyState, "staleReadRps" | "staleReadShare">,
+): SteadyState {
+  return {
+    ...steady,
+    nodes: steady.nodes.map((n) => (n.nodeId === "db" ? { ...n, ...fields } : n)),
+  };
+}
+
 describe("limit fields in the steady state and the snapshot (T26, TEC-41)", () => {
   it("a node's limitKind, limitUtilization and writeRps reach the snapshot unchanged", () => {
     const steady = withLimit(genericSteady(), {
@@ -58,6 +69,23 @@ describe("limit fields in the steady state and the snapshot (T26, TEC-41)", () =
       errorRate: db.errorRate,
       drops: db.droppedRps,
       status: snap.nodes.db.status,
+    });
+  });
+
+  describe("stale reads in the Analyze snapshot (criterion 9)", () => {
+    it("a node's staleReadRps and staleReadShare reach the snapshot unchanged", () => {
+      const steady = withStale(genericSteady(), { staleReadRps: 450, staleReadShare: 1 / 3 });
+      const db = steadyStateToSnapshot(steady).nodes.db;
+      expect(db.staleReadRps).toBe(450);
+      expect(db.staleReadShare).toBeCloseTo(1 / 3, 12);
+    });
+
+    it("without them the snapshot gains neither stale key", () => {
+      const snap = steadyStateToSnapshot(genericSteady());
+      for (const m of Object.values(snap.nodes)) {
+        expect(Object.keys(m)).not.toContain("staleReadRps");
+        expect(Object.keys(m)).not.toContain("staleReadShare");
+      }
     });
   });
 

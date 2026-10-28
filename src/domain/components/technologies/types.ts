@@ -115,6 +115,12 @@ export interface Technology {
   description: string;
   /** One line: its consistency model / CAP classification. */
   consistency: string;
+  /**
+   * CAP label for the UI only. The behavior under a replica loss comes from the
+   * params (`TechReplicaSet`: read/write quorums and eventual reads), never
+   * from this label.
+   */
+  cap?: "cp" | "ap" | "none";
   billing: "instance" | "managed";
   /** billing "instance": its sizes, smallest first. */
   classes?: readonly TechClass[];

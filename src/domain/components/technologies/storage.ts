@@ -36,6 +36,7 @@ export const STORAGE_TECHNOLOGIES: readonly Technology[] = [
       "Full-text search and analytics engine: an inverted index split into shards, with every query fanned out to all of them.",
     consistency:
       "Near real-time: a document becomes searchable after the next refresh (1 s by default); a GET by id is real-time.",
+    cap: "ap",
     billing: "instance",
     classes: OPENSEARCH_CLASSES,
     defaultClass: "r6g.xlarge.search",
@@ -88,6 +89,7 @@ export const STORAGE_TECHNOLOGIES: readonly Technology[] = [
       "AWS object storage: durable blobs by key, effectively unlimited space, and a request rate that grows with key prefixes.",
     consistency:
       "Strong read-after-write consistency for PUTs of new and overwritten objects and for LISTs, since December 2020.",
+    cap: "cp",
     billing: "managed",
     managed: {
       capacityPerInstance: 5_500,

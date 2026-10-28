@@ -109,6 +109,21 @@ export interface PartitionThrottle {
 
 export type TechThrottle = QuotaThrottle | PartitionThrottle;
 
+/**
+ * The copies of one store's data and what a read or a write must reach: the
+ * CAP behavior of a node under a replica loss, resolved from its params.
+ */
+export interface TechReplicaSet {
+  /** Copies of the set (RF, instances, members per shard). */
+  replicas: number;
+  /** Copies a consistent read must reach. */
+  readQuorum: number;
+  /** Copies a write must reach. */
+  writeQuorum: number;
+  /** A read may return from a lagging copy even with the whole set up. */
+  eventualReads: boolean;
+}
+
 export interface TechProfile {
   technology: string;
   /** The node's own capacity and service time: run-time scale = node.x / base.x. */
@@ -116,6 +131,8 @@ export interface TechProfile {
   /** Read and write routes over the stations; absent = the generic station. */
   classes?: TechClasses;
   throttle?: TechThrottle;
+  /** Data stores: the copies of the set and the quorums a request must reach. */
+  replicaSet?: TechReplicaSet;
   /** Kafka: consumers of one group beyond the partition count sit idle. */
   consumerCap?: number;
 }
@@ -242,6 +259,14 @@ export function techProfileOf(componentId: string, params: Params): TechProfile 
         readUnits: replicas * k0,
         writeUnits: replicas * k0,
         nodeBound: true,
+      };
+      // ONE reads one copy, so it can return a value a lagging copy still has;
+      // QUORUM/ALL wait for enough copies to be consistent (CAP behavior).
+      profile.replicaSet = {
+        replicas,
+        readQuorum: k,
+        writeQuorum: k,
+        eventualReads: params[PARAM.consistencyLevel] === "one",
       };
       return profile;
     }

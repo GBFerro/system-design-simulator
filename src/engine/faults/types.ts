@@ -26,7 +26,9 @@ export type FaultType =
   | "deadlock"
   | "tls-expired"
   | "dns-outage"
-  | "health-check-flapping";
+  | "health-check-flapping"
+  // CAP under a lost replica
+  | "replica-loss";
 
 export type FaultCategory = "compute" | "network" | "data" | "traffic";
 
@@ -62,7 +64,9 @@ export type ModifierKind =
   | "drainEdge"
   | "trafficMultiplier"
   | "hitRateOverride"
-  | "nodeDown";
+  | "nodeDown"
+  /** Data stores: how many copies of the set are gone (the survivors keep serving). */
+  | "lostReplicas";
 
 export interface CompiledModifier {
   kind: ModifierKind;

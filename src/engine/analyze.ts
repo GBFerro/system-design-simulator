@@ -47,6 +47,7 @@ import { drainShares, entryShares, withEffects } from "./core/faultView";
 import {
   edgeWriteShare,
   kafkaLimit,
+  replicationLagOf,
   techMeanMs,
   techPercentileMs,
   techSteadyFlow,
@@ -91,6 +92,10 @@ interface NodeFlow {
   throttled?: number;
   /** Kafka: its busiest consumer edge (TEC-34). */
   consumerLimit?: ConsumerLimit;
+  /** Reads per second that may come from a copy behind the last write (a replica loss). */
+  staleReadRps?: number;
+  /** Share of the served reads that is stale, when `staleReadRps` is set. */
+  staleReadShare?: number;
 }
 
 interface Pass {
@@ -279,6 +284,8 @@ export function analyzeWithModel(
           offered,
           writeShare: ws,
           errorRate: fx?.errorRate,
+          lostReplicas: node.lostReplicas,
+          replicationLagMs: replicationLagOf(node),
           maxQueue,
           horizonSec: cfg.horizonSec,
         });
@@ -294,6 +301,9 @@ export function analyzeWithModel(
           tech: t.view,
           stations: t.stations,
           throttled: t.throttled,
+          ...(t.staleReadRps > 0 && t.staleReadShare !== undefined
+            ? { staleReadRps: t.staleReadRps, staleReadShare: t.staleReadShare }
+            : {}),
         };
       } else {
         let capacityPerInstance = node.capacityPerInstance;
@@ -485,6 +495,12 @@ export function analyzeWithModel(
             limitKind: limit.kind,
             limitUtilization: utilization,
             writeRps: finite(offered * ws),
+          }
+        : {}),
+      ...(flow?.staleReadRps !== undefined
+        ? {
+            staleReadRps: flow.staleReadRps,
+            ...(flow.staleReadShare !== undefined ? { staleReadShare: flow.staleReadShare } : {}),
           }
         : {}),
     };

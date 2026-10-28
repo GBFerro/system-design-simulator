@@ -223,6 +223,20 @@ describe("runtimeStore structural sharing", () => {
     expect(grown.nodes.a).toBe(prev.nodes.a);
     expect(grown.nodes).not.toBe(prev.nodes);
   });
+
+  // Criterion 9: the new flat fields take part in the per-node equality, so the
+  // "Stale reads" cell re-renders when they move and is shared when they don't.
+  it("keeps the node record while stale reads are unchanged, and replaces it when they move", () => {
+    const stale = { staleReadRps: 300, staleReadShare: 1 / 3 };
+    const prev = snap(0, { a: metrics(stale) });
+    const same = shareUnchanged(prev, snap(1, { a: metrics({ ...stale }) }));
+    expect(same.nodes.a).toBe(prev.nodes.a);
+    const moved = shareUnchanged(prev, snap(1, { a: metrics({ ...stale, staleReadRps: 400 }) }));
+    expect(moved.nodes.a).not.toBe(prev.nodes.a);
+    // No stale reads: the fields stay absent, and the record is still shared.
+    const none = snap(0, { a: metrics() });
+    expect(shareUnchanged(none, snap(1, { a: metrics() })).nodes.a).toBe(none.nodes.a);
+  });
 });
 
 /* ---------- edge styling ---------- */

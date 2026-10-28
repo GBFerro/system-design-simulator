@@ -630,6 +630,59 @@ export const FAULT_CATALOG: readonly FaultTypeSpec[] = [
   },
 
   {
+    type: "replica-loss",
+    label: "Replica loss",
+    category: "data",
+    description:
+      "Copies of a data store's replica set are isolated (a rack, a disk, a node that stopped replicating). What survives decides: a strong store refuses the requests whose quorum it can no longer reach, and an eventually consistent one keeps serving, counting the reads that may come from a copy behind the last write.",
+    targets: ["node"],
+    // SPEC_DEVIATION: the SQL primary takes `db-primary-failure` (which models
+    // the failover), not a replica loss, so it stays out even once its profile
+    // carries a replica set.
+    nodeFilter: (n) => n.componentId !== "sql-db" && (n.tech?.replicaSet?.replicas ?? 0) >= 2,
+    targetHint:
+      "Needs a data store with a technology and at least two replicas (Cassandra, DynamoDB…).",
+    intensity: {
+      label: "Replicas lost",
+      min: 1,
+      max: 7,
+      step: 1,
+      default: 1,
+      format: "count",
+    },
+    defaultDurationSec: 120,
+    build(spec, id, ctx) {
+      const n = node(ctx, id)!;
+      const set = n.tech!.replicaSet!;
+      // Copies go first, the primary last (a lost primary is `db-primary-failure`):
+      // the same graph and fault always leave the same survivors.
+      const lost = Math.min(Math.round(spec.intensity ?? 1), set.replicas - 1);
+      const survivors = set.replicas - lost;
+      const notes = [
+        `${lost} of ${set.replicas} replicas isolated; ${survivors} survive, and a read needs ${set.readQuorum} while a write needs ${set.writeQuorum}.`,
+      ];
+      if (survivors < set.readQuorum) {
+        notes.push("Reads are refused: the survivors can't reach the read quorum.");
+      } else if (set.eventualReads) {
+        notes.push(
+          `Reads are served; ${Math.round((lost / set.replicas) * 100)}% of them may come from a copy that missed the last write.`,
+        );
+      } else {
+        notes.push("Reads are served fresh: the survivors still reach the read quorum.");
+      }
+      notes.push(
+        survivors < set.writeQuorum
+          ? "Writes are refused: the survivors can't reach the write quorum."
+          : "Writes go through.",
+      );
+      return {
+        modifiers: [{ kind: "lostReplicas", targetIds: [n.id], value: lost }],
+        notes,
+      };
+    },
+  },
+
+  {
     type: "disk-full",
     label: "Disk full",
     category: "data",

@@ -419,6 +419,25 @@ export function mitigationsFor(
       ];
     }
 
+    case "replica-loss":
+      return [
+        tip(
+          t,
+          "replication",
+          "Keep a replication factor of 3 spread over zones, so losing one copy still leaves the quorums the requests ask for (R + W > RF reads your own writes).",
+        ),
+        tip(
+          t,
+          "consistency",
+          "Choose the consistency level per operation: quorum for read-your-writes, ONE when availability matters more than a possibly stale read.",
+        ),
+        tip(
+          t,
+          "repair",
+          "Run anti-entropy repair and watch replication lag, so a copy that comes back catches up instead of serving old data.",
+        ),
+      ];
+
     default: {
       const unhandled: never = t;
       void unhandled;

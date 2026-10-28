@@ -4,8 +4,8 @@
  * active it gets `null` and runs exactly as without chaos.
  *
  * Folding: multipliers multiply, extra latencies add, error rates combine as
- * independent failures (1 − Π(1 − eᵢ)), the lowest hit rate wins, and any
- * `nodeDown` / `severEdge` wins over everything else.
+ * independent failures (1 − Π(1 − eᵢ)), the lowest hit rate wins, the largest
+ * replica loss wins, and any `nodeDown` / `severEdge` wins over everything else.
  */
 import type { CompiledModifier } from "./types";
 
@@ -18,6 +18,8 @@ export interface NodeEffect {
   latencyAddMs: number;
   /** Share of arrivals that fail right away (dead instances still in rotation). */
   errorRate: number;
+  /** Copies of a data store's replica set that are gone (the highest active count). */
+  lostReplicas: number;
   down: boolean;
   /** Overrides the hit rate (cache flush warm-up). */
   hitRate?: number;
@@ -57,6 +59,7 @@ const nodeFx = (): NodeEffect => ({
   latency: 1,
   latencyAddMs: 0,
   errorRate: 0,
+  lostReplicas: 0,
   down: false,
 });
 const edgeFx = (): EdgeEffect => ({
@@ -105,6 +108,14 @@ export function effectsAt(mods: readonly CompiledModifier[], t: number): TickEff
         break;
       case "nodeDown":
         for (const id of m.targetIds) onNode(id).down = true;
+        break;
+      case "lostReplicas":
+        // Overlapping losses don't add up: what is gone at most is gone (the
+        // same graph and faults give the same survivors).
+        for (const id of m.targetIds) {
+          const n = onNode(id);
+          n.lostReplicas = Math.max(n.lostReplicas, Math.max(0, Math.round(v)));
+        }
         break;
       case "hitRateOverride": {
         const h = Math.min(1, Math.max(0, overrideValueAt(m, t)));

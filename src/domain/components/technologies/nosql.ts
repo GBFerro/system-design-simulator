@@ -72,6 +72,7 @@ export const NOSQL_TECHNOLOGIES: readonly Technology[] = [
       "AWS's serverless key-value and document store: reads and writes by partition key in single-digit ms, billed per request.",
     consistency:
       "3 replicas across AZs with quorum writes; strongly consistent reads are linearizable per item (CP-like), default eventually consistent reads may be stale.",
+    cap: "ap",
     billing: "managed",
     managed: {
       capacityPerInstance: 40_000,
@@ -133,6 +134,7 @@ export const NOSQL_TECHNOLOGIES: readonly Technology[] = [
       "Wide-column store with leaderless replication: every write goes to all replicas, and throughput grows by adding nodes; built for write-heavy loads.",
     consistency:
       "AP with tunable consistency: ONE, QUORUM or ALL per query; QUORUM reads with QUORUM writes (R + W > RF) read your own writes.",
+    cap: "ap",
     billing: "instance",
     classes: ec2Classes(
       (size) => `i4i.${size}`,
@@ -176,6 +178,7 @@ export const NOSQL_TECHNOLOGIES: readonly Technology[] = [
       "Cassandra-compatible wide-column store written in C++ with one shard per core: more throughput and a lower tail latency per node.",
     consistency:
       "AP with tunable consistency like Cassandra (ONE, QUORUM or ALL per query); a write is always sent to every replica.",
+    cap: "ap",
     billing: "instance",
     classes: ec2Classes(
       (size) => `i4i.${size}`,
@@ -217,6 +220,7 @@ export const NOSQL_TECHNOLOGIES: readonly Technology[] = [
       "Document database with flexible JSON-like documents and secondary indexes; one primary per replica set (per shard) takes the writes.",
     consistency:
       "CP-leaning: one primary per replica set, majority writes survive a failover, secondary reads may be stale; no writes during an election (median ≤ 12 s).",
+    cap: "cp",
     billing: "instance",
     classes: ec2Classes(
       (size) => `r6g.${size}`,
