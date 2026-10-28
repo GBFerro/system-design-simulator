@@ -393,10 +393,11 @@ export function techTickFlow(input: TechTickInput): TechTick {
   const dropped = Math.min(arriving, refused + throttled + overflow);
   const read = view(0);
   const write = view(1);
-  // Only reads served this tick can be stale: a dropped or refused read never
-  // came back from any copy.
+  // Only reads COMPLETED this tick can be stale: `view(0).served` also holds
+  // the reads still queued at a saturated store, which never came back from a
+  // copy, and would make the tick disagree with `analyze()`.
   const staleReadShare = replica?.staleShare ?? 0;
-  const staleReadRps = read.served * staleReadShare;
+  const staleReadRps = completedByClass[0] * staleReadShare;
   return {
     stations,
     view: { ws, read, write },
