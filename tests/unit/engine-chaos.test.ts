@@ -246,6 +246,16 @@ describe("effectsAt", () => {
     expect(fx.edges.get("e")!.latencyAddMs).toBe(15);
   });
 
+  it("folds overlapping replica losses by the highest count, not the last one", () => {
+    // [2, 1]: what is gone at most is gone, so the last-wins value (1) would
+    // understate the survivors left (the same graph and faults must agree).
+    const fx = effectsAt(
+      [m({ kind: "lostReplicas", value: 2 }), m({ kind: "lostReplicas", value: 1 })],
+      0,
+    )!;
+    expect(fx.nodes.get("a")!.lostReplicas).toBe(2);
+  });
+
   it("recovers an overridden hit rate as h(t) = h(1 − e^(−t/τ))", () => {
     const flush = m({
       kind: "hitRateOverride",
@@ -1012,6 +1022,30 @@ describe("replica loss (CAP under a lost replica)", () => {
       // Every offered request is a read, and every one is refused.
       expect(store.servedRps, level).toBe(0);
     }
+  });
+
+  it("writes alone are refused by a lost write quorum, with no read to blame or mark stale", () => {
+    // A write-only design (`writes` call kind): every request is a write, so an
+    // error here can only come from `refuseWrites` — no read exists that a lost
+    // read quorum could explain, and nothing was served to be stale.
+    const g = capStore("quorum", {}, { kind: "writes" });
+    const base = steadyNode(analyze(g, RPS), "store");
+    expect(base.writeRps).toBeCloseTo(base.offeredRps, 6);
+    expect(base.errorRate).toBe(0);
+    expect(base.servedRps).toBeGreaterThan(0);
+    const r = analyzeUnderFault(g, RPS, replicaLoss(2));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const store = steadyNode(r.steady, "store");
+    // Two of three copies gone: a write needs two, so every write is refused.
+    expect(store.writeRps).toBeCloseTo(store.offeredRps, 6);
+    expect(store.errorRate).toBeGreaterThan(0);
+    expect(store.droppedRps).toBeGreaterThan(0);
+    expect(store.droppedRps).toBeCloseTo(store.offeredRps, 6);
+    expect(store.servedRps).toBe(0);
+    // Refused, never served: neither stale field appears.
+    expect(store.staleReadRps).toBeUndefined();
+    expect(store.staleReadShare).toBeUndefined();
   });
 
   it("ALL with the whole replica set up (survivors == readQuorum) serves fresh reads", () => {

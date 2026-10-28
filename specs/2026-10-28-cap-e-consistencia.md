@@ -16,7 +16,7 @@ Sob uma falha de perda de réplicas, cada store de dados se comporta como a tecn
 
 ## Acceptance criteria
 
-1. O catálogo de chaos oferece **"Replica loss"** para um nó de store com tecnologia e com ≥ 2 réplicas, e não oferece para nó `generic`, LB, gateway, fila ou cliente. A intensidade é o número de réplicas perdidas (1 até réplicas − 1).
+1. O catálogo de chaos oferece **"Replica loss"** para um nó de store com tecnologia e com ≥ 2 réplicas, e não oferece para nó `generic`, LB, gateway, fila ou cliente. A intensidade é o número de réplicas perdidas: o seletor oferece 1–7 e o `build()` a limita a `replicas − 1`.
 2. Cassandra/ScyllaDB com `replicationFactor = 3`, `consistencyLevel = ONE` e 1 réplica perdida: o nó reporta `staleReadRps > 0` no Analyze e no tick, e `errorRate` não sobe acima do baseline sem a falha.
 3. Cassandra/ScyllaDB com `consistencyLevel = QUORUM` e 2 réplicas perdidas: o nó recusa as leituras (`errorRate > 0`, `drops > 0`) e `staleReadRps = 0`; o mesmo vale para `ALL` com 1 réplica perdida.
 4. DynamoDB com `readConsistency = eventual` e 2 de 3 réplicas perdidas: as leituras não são recusadas e `staleReadRps > 0` (as escritas podem ser recusadas por falta de quórum); com `strong`: as leituras são recusadas (`errorRate > 0` no caminho de leitura) e `staleReadRps = 0`.
