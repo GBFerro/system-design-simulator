@@ -29,7 +29,7 @@ import { useCustomComponentsStore } from "@/store/customComponentsStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { defaultTechnologyOf, technologiesOf } from "@/domain/components/technologies";
 import { createComponentNode } from "@/lib/nodeFactory";
-import { visibleCanvasCenter } from "@/lib/placement";
+import { canvasOverlayRects, visibleCanvasCenter } from "@/lib/placement";
 import { useAppStore } from "@/store/appStore";
 import { ICON_MAP } from "@/lib/icons";
 
@@ -108,6 +108,7 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
       placeNode(
         createComponentNode(component, { x: 0, y: 0 }, technology),
         visibleCanvasCenter(screenToFlowPosition),
+        canvasOverlayRects(screenToFlowPosition),
       );
       showToast(`Added ${component.label}`, "success");
     },

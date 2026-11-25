@@ -5,10 +5,10 @@ export interface Size {
   height: number;
 }
 
-interface Rect extends XYPosition, Size {}
+export interface Rect extends XYPosition, Size {}
 
 /** Fallback footprint for nodes ReactFlow hasn't measured yet. */
-export const DEFAULT_NODE_SIZE: Size = { width: 160, height: 72 };
+export const DEFAULT_NODE_SIZE: Size = { width: 160, height: 120 };
 const GAP = 24;
 const MAX_RINGS = 40;
 
@@ -60,17 +60,44 @@ export function findFreePosition(target: XYPosition, size: Size, occupied: Rect[
   return target;
 }
 
-/** Top-left position that centers a `size` box on `center`, spiraled clear of `nodes`. */
+/**
+ * Top-left position that centers a `size` box on `center`, spiraled clear of `nodes`
+ * and of `blocked` (flow-space rects a node must not sit under, e.g. floating overlays).
+ * A blocked rect is kept at the same GAP as a node, so a handle at the box's edge stays reachable.
+ */
 export function freePositionNear(
   center: XYPosition,
   nodes: Node[],
   size: Size = DEFAULT_NODE_SIZE,
+  blocked: readonly Rect[] = [],
 ): XYPosition {
-  return findFreePosition(
-    { x: center.x - size.width / 2, y: center.y - size.height / 2 },
-    size,
-    nodes.map(nodeRect),
-  );
+  return findFreePosition({ x: center.x - size.width / 2, y: center.y - size.height / 2 }, size, [
+    ...nodes.map(nodeRect),
+    ...blocked,
+  ]);
+}
+
+/** The floating cards laid over the canvas that a new node must not land under. */
+const CANVAS_OVERLAY_SELECTORS = [".react-flow__minimap", ".react-flow__controls"] as const;
+
+/**
+ * Flow-space rects of the canvas overlays on screen now (the minimap, the zoom controls),
+ * for `placeNode`. An overlay that is not rendered or is hidden (zero size) is left out.
+ * The store stays DOM-free: this runs in the UI and the rects travel as plain data.
+ */
+export function canvasOverlayRects(
+  screenToFlowPosition: (p: XYPosition) => XYPosition,
+  root: ParentNode = document,
+): Rect[] {
+  const rects: Rect[] = [];
+  for (const selector of CANVAS_OVERLAY_SELECTORS) {
+    const box = root.querySelector(selector)?.getBoundingClientRect();
+    if (!box || box.width <= 0 || box.height <= 0) continue;
+    const a = screenToFlowPosition({ x: box.left, y: box.top });
+    const b = screenToFlowPosition({ x: box.left + box.width, y: box.top + box.height });
+    rects.push({ x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y });
+  }
+  return rects;
 }
 
 /** Flow-space center of the visible canvas (the window center is offset by the sidebars). */

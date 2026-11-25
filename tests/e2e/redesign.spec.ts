@@ -7,7 +7,10 @@ import {
   THEMES,
   type Theme,
 } from "../theme-expected";
-import { open, openTab } from "./helpers";
+import { SYSTEM_COMPONENTS } from "@/data/components";
+import { isoArchetypeOf, isoTintOf } from "@/lib/iso";
+import { DEFAULT_NODE_SIZE } from "@/lib/placement";
+import { center, connect, open, openTab, quickAdd } from "./helpers";
 
 // Papel quente slice 1 (specs/2026-11-24-redesign-papel-quente.md, criteria 1, 2, 4, 5, 6, 7):
 // the tokens, the remapped palettes, the fonts, the canvas colors and the default theme.
@@ -164,13 +167,12 @@ test("canvas colors: edges, minimap, background and the SVG export follow the th
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 
-  const seen: Record<string, string[]> = { edge: [], mask: [], dot: [], line: [], bg: [] };
+  const seen: Record<string, string[]> = { edge: [], mask: [], line: [], bg: [] };
   for (const theme of THEMES) {
     await setTheme(page, theme);
     const want = {
       edge: await computedColor(page, "var(--edge-idle)"),
       mask: await computedColor(page, "var(--minimap-mask)"),
-      dot: await computedColor(page, "var(--grid-dot)"),
       line: await computedColor(page, "var(--grid-line)"),
     };
     const got = await page.evaluate(() => {
@@ -181,12 +183,12 @@ test("canvas colors: edges, minimap, background and the SVG export follow the th
       return {
         edge: css(".react-flow__edge-path", "stroke"),
         mask: css(".react-flow__minimap-mask", "fill"),
-        dot: css(".react-flow__background-pattern.dots", "fill"),
-        line: css(".react-flow__background-pattern.lines", "stroke"),
+        // the isometric background's lines (slice 2 replaced the dot and line patterns)
+        line: css("[data-iso-grid] path", "stroke"),
       };
     });
     expect(got, theme).toEqual(want);
-    for (const k of ["edge", "mask", "dot", "line"] as const) seen[k].push(want[k]);
+    for (const k of ["edge", "mask", "line"] as const) seen[k].push(want[k]);
 
     // The export's background is the theme's --sf-bg (an SVG made by html-to-image).
     await page.getByTitle("Export design (Ctrl+E)").click();
@@ -477,7 +479,7 @@ test("flow overlay legend: the response ring symbol is the response color in bot
   }
 });
 
-test("shadows: the node's drop shadow, the empty state's and the accent card's glow follow their tokens", async ({
+test("shadows: the node's ground shadow, the empty state's and the accent card's glow follow their tokens", async ({
   page,
 }, testInfo) => {
   testInfo.setTimeout(60_000);
@@ -505,14 +507,15 @@ test("shadows: the node's drop shadow, the empty state's and the accent card's g
 
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  // A node has no card, so no box shadow: its shadow is the model's hard ground shadow, `--iso-shadow`.
   for (const theme of THEMES) {
     await setTheme(page, theme);
-    const shadow = await computedProp(page, "boxShadow", "var(--shadow-e2)");
+    const want = await computedColor(page, "var(--iso-shadow)");
     const own = await page
-      .locator(".react-flow__node-component > div")
+      .locator(".react-flow__node-component svg[data-iso-kind] > polygon")
       .first()
-      .evaluate((el) => getComputedStyle(el).boxShadow);
-    expect(own.endsWith(shadow), `${theme} node shadow ${own} vs ${shadow}`).toBe(true);
+      .evaluate((el) => getComputedStyle(el).fill);
+    expect(own, `${theme} node ground shadow`).toBe(want);
   }
 });
 
@@ -559,5 +562,525 @@ test.describe("default theme", () => {
     await expect(page.getByRole("button", { name: TOGGLE })).toBeVisible();
     expect(await isDark(page)).toBe(false);
     await context.close();
+  });
+});
+
+// Papel quente slice 2 (criteria 10, 12, 13, 14, 16, 17): the isometric models, the status halo,
+// the selected ring, the fixed 160 x 120 box, the rest/hover details, the background and the
+// palette's chips.
+
+type RuntimeHandle = { getState(): { pushSnapshot(s: unknown): void } };
+
+/** One snapshot: each node id gets the base metrics plus its own fields (no entry, no snapshot for it). */
+function pushNodes(page: Page, nodes: Record<string, Record<string, unknown>>) {
+  return page.evaluate((extra) => {
+    const store = (window as unknown as { __runtimeStore: RuntimeHandle }).__runtimeStore;
+    const base = {
+      rpsIn: 1234,
+      rpsOut: 1234,
+      utilization: 0.634,
+      queueDepth: 0,
+      p50: 5,
+      p95: 9,
+      p99: 12.4,
+      errorRate: 0,
+      drops: 0,
+      status: "ok",
+    };
+    const metrics: Record<string, unknown> = {};
+    for (const [id, fields] of Object.entries(extra)) metrics[id] = { ...base, ...fields };
+    store.getState().pushSnapshot({
+      t: 0,
+      offeredRps: 1000,
+      nodes: metrics,
+      edges: {},
+      global: {
+        throughput: 1000,
+        goodput: 1000,
+        errorRate: 0,
+        p50: 5,
+        p95: 9,
+        p99: 12,
+        availability: 1,
+      },
+    });
+  }, nodes);
+}
+
+/** The React Flow node of a component id (node ids start with it). */
+const nodeOf = (page: Page, componentId: string) =>
+  page.locator(`.react-flow__node[data-id^="${componentId}-"]`);
+
+type NodeLocator = ReturnType<typeof nodeOf>;
+
+/** The node's id, from its data-id. */
+async function idOf(node: NodeLocator) {
+  return (await node.getAttribute("data-id"))!;
+}
+
+/** A node's measured layout size (unscaled by the viewport zoom). */
+function sizeOf(node: NodeLocator) {
+  return node.evaluate((el) => ({
+    width: (el as HTMLElement).offsetWidth,
+    height: (el as HTMLElement).offsetHeight,
+  }));
+}
+
+/** Park the pointer over the top-left corner of the window, away from every node. */
+const parkMouse = (page: Page) => page.mouse.move(2, 2);
+
+/** Click the empty canvas to deselect everything. */
+const deselect = (page: Page) =>
+  page.locator(".react-flow__pane").click({ position: { x: 20, y: 400 } });
+
+const opacityOf = (el: NodeLocator) => el.evaluate((e) => getComputedStyle(e).opacity);
+
+/** The three elements a node reveals on hover, focus and selection. */
+function detailsOf(node: NodeLocator) {
+  return {
+    capacity: node.getByText(/k qps$/),
+    tech: node.locator("[data-technology]"),
+    metrics: node.getByTestId("node-metrics"),
+  };
+}
+
+test("models: every catalog kind draws one svg of its archetype, tint and viewBox", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "/");
+  for (const c of SYSTEM_COMPONENTS) {
+    await page.getByRole("button", { name: `Add ${c.label} to canvas`, exact: true }).click();
+  }
+  const nodes = page.locator(".react-flow__node");
+  await expect(nodes).toHaveCount(SYSTEM_COMPONENTS.length);
+
+  const got = await nodes.evaluateAll((els) =>
+    els.map((el) => {
+      const svgs = el.querySelectorAll("svg[data-iso-kind]");
+      const svg = svgs[0];
+      return {
+        id: el.getAttribute("data-id") ?? "",
+        count: svgs.length,
+        kind: svg?.getAttribute("data-iso-kind"),
+        tint: svg?.getAttribute("data-iso-tint"),
+        viewBox: svg?.getAttribute("viewBox"),
+        markup: svg?.innerHTML ?? "",
+      };
+    }),
+  );
+  // A node id is the component id, a dash and a 36-character uuid
+  const byComponent = new Map(got.map((g) => [g.id.slice(0, -37), g]));
+  expect(byComponent.size).toBe(SYSTEM_COMPONENTS.length);
+  for (const c of SYSTEM_COMPONENTS) {
+    const g = byComponent.get(c.id)!;
+    expect(g.count, `${c.id} svgs`).toBe(1);
+    expect(g.kind, `${c.id} archetype`).toBe(isoArchetypeOf(c.id));
+    expect(g.tint, `${c.id} tint`).toBe(isoTintOf(c.id, c.category));
+    expect(g.viewBox, `${c.id} viewBox`).toBe("0 0 160 160");
+  }
+  // The catalog reaches all 15 archetypes, and kinds of one archetype share its markup only
+  const kindsOfMarkup = new Map<string, Set<string>>();
+  for (const g of got) {
+    kindsOfMarkup.set(g.markup, (kindsOfMarkup.get(g.markup) ?? new Set()).add(g.kind!));
+  }
+  expect(new Set(got.map((g) => g.kind)).size).toBe(15);
+  for (const kinds of kindsOfMarkup.values()) expect([...kinds], "shared markup").toHaveLength(1);
+});
+
+test("status halo: ok, slow and err in the status token, none without a snapshot", async ({
+  page,
+}) => {
+  await open(page, "/?e2e=1");
+  await stylesApplied(page);
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "Cache / Redis");
+  const app = nodeOf(page, "app-server");
+  const cache = nodeOf(page, "cache");
+  const appId = await idOf(app);
+
+  // No snapshot: no halo
+  await expect(app.locator("[data-iso-status]")).toHaveCount(0);
+  await expect(cache.locator("[data-iso-status]")).toHaveCount(0);
+
+  const cases = [
+    { status: "ok", halo: "ok", token: "--sf-ok", label: "OK" },
+    { status: "warn", halo: "slow", token: "--sf-slow", label: "Warning" },
+    { status: "critical", halo: "err", token: "--sf-err", label: "Critical" },
+    { status: "down", halo: "err", token: "--sf-err", label: "Down" },
+  ];
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    for (const c of cases) {
+      await pushNodes(page, { [appId]: { status: c.status } });
+      const halo = app.locator("[data-iso-status]");
+      await expect(halo, `${theme} ${c.status}`).toHaveAttribute("data-iso-status", c.halo);
+      const want = await computedColor(page, `var(${c.token})`);
+      expect(await halo.evaluate((g) => getComputedStyle(g).stroke), `${theme} ${c.status}`).toBe(
+        want,
+      );
+      // Status stays color AND icon
+      await expect(
+        app.getByTestId("node-metrics").getByRole("img", { name: `Status: ${c.label}` }),
+      ).toBeAttached();
+      // A node the snapshot does not mention has no halo
+      await expect(cache.locator("[data-iso-status]")).toHaveCount(0);
+    }
+  }
+});
+
+test("selected ring: dashed, in the accent color, only while selected", async ({ page }) => {
+  await open(page, "/");
+  await stylesApplied(page);
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "Cache / Redis");
+  const app = nodeOf(page, "app-server");
+  const cache = nodeOf(page, "cache");
+  await deselect(page);
+  await expect(app.locator("[data-iso-selected]")).toHaveCount(0);
+
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    await app.click();
+    const ring = app.locator("[data-iso-selected]");
+    await expect(ring, theme).toHaveCount(1);
+    await expect(app, theme).toHaveClass(/\bselected\b/);
+    const style = await ring.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { stroke: s.stroke, dash: s.strokeDasharray };
+    });
+    expect(style.stroke, theme).toBe(await computedColor(page, "var(--sf-accent)"));
+    expect(style.dash, theme).not.toBe("none");
+    // The other node has none, and neither does this one once the selection moves
+    await expect(cache.locator("[data-iso-selected]")).toHaveCount(0);
+    await cache.click();
+    await expect(app.locator("[data-iso-selected]")).toHaveCount(0);
+    await expect(app).not.toHaveClass(/\bselected\b/);
+    await expect(cache.locator("[data-iso-selected]")).toHaveCount(1);
+  }
+});
+
+test("size: every node is 160 x 120 whatever its label, technology, instances, status, hover or selection", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "/?e2e=1");
+  const long = "Recommendation Feature Store Gateway Service Of Many Words";
+  await page.getByRole("button", { name: "Create custom component" }).click();
+  await page.getByPlaceholder("e.g. Vector Database").fill(long);
+  await page.getByRole("button", { name: "Create Component" }).click();
+  await quickAdd(page, long);
+  await quickAdd(page, "NoSQL Database"); // carries a technology tag
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "Client");
+
+  const all = page.locator(".react-flow__node");
+  const expectAllFixed = async (when: string) => {
+    for (const el of await all.all()) {
+      expect(await sizeOf(el), when).toEqual(DEFAULT_NODE_SIZE);
+    }
+  };
+  await expect(all).toHaveCount(4);
+  expect(DEFAULT_NODE_SIZE).toEqual({ width: 160, height: 120 });
+  await expectAllFixed("at rest");
+
+  const app = nodeOf(page, "app-server");
+  const nosql = nodeOf(page, "nosql-db");
+  // Instances: a x6 button
+  await app.click();
+  for (let i = 0; i < 5; i++) await page.getByRole("button", { name: "Add replica" }).click();
+  await expect(app.getByRole("button", { name: "Show the 6 instances" })).toBeVisible();
+  await expectAllFixed("with instances");
+
+  // Status: a snapshot with every status and the metrics badge
+  const ids = await Promise.all((await all.all()).map((el) => idOf(el)));
+  const statuses = ["ok", "warn", "critical", "down"];
+  await pushNodes(
+    page,
+    Object.fromEntries(ids.map((id, i) => [id, { status: statuses[i % 4], p99: 123456 }])),
+  );
+  await expect(app.getByTestId("node-metrics")).toBeAttached();
+  await expectAllFixed("with status");
+
+  // Hover and selection (reveal the details, which overflow the box)
+  await nosql.hover();
+  await expect.poll(() => opacityOf(detailsOf(nosql).metrics)).toBe("1");
+  await expectAllFixed("hovered");
+  await nosql.click();
+  await parkMouse(page);
+  await expectAllFixed("selected");
+  // The node wrapper's rendered box is the same one
+  const box = (await nosql.boundingBox())!;
+  const scale = await page
+    .locator(".react-flow__viewport")
+    .evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).a);
+  expect(box.width / scale).toBeCloseTo(160, 0);
+  expect(box.height / scale).toBeCloseTo(120, 0);
+});
+
+test("rest and hover: headline per archetype; capacity, tag and badge fade in on hover, focus and selection", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "/?e2e=1");
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "NoSQL Database");
+  await quickAdd(page, "Client");
+  const app = nodeOf(page, "app-server");
+  const db = nodeOf(page, "nosql-db");
+  const client = nodeOf(page, "client");
+  const headline = (n: NodeLocator) => n.locator("[data-node-headline]");
+
+  // Without a snapshot the headline row exists and is empty
+  for (const n of [app, db, client]) await expect(headline(n)).toHaveText("");
+  await expect(headline(app)).toHaveAttribute("data-node-headline", "p99");
+  await expect(headline(db)).toHaveAttribute("data-node-headline", "utilization");
+  await expect(headline(client)).toHaveAttribute("data-node-headline", "rpsIn");
+
+  await pushNodes(page, {
+    [await idOf(app)]: {},
+    [await idOf(db)]: {},
+    [await idOf(client)]: {},
+  });
+  await expect(headline(app)).toHaveText("p99 12 ms");
+  await expect(headline(db)).toHaveText("util 63%");
+  await expect(headline(client)).toHaveText("1.2K/s");
+
+  // At rest the three details are in the DOM with opacity 0
+  await deselect(page);
+  await parkMouse(page);
+  const d = detailsOf(db);
+  const keys = ["capacity", "tech", "metrics"] as const;
+  for (const k of keys) {
+    await expect(d[k], k).toHaveCount(1);
+    await expect.poll(() => opacityOf(d[k]), { message: `${k} at rest` }).toBe("0");
+  }
+  // The name pill and the headline stay visible at rest
+  await expect(db.getByText("NoSQL Database", { exact: true })).toHaveCSS("opacity", "1");
+  await expect(headline(db)).toHaveCSS("opacity", "1");
+
+  // Hover reveals them, leaving hides them again
+  await db.hover();
+  for (const k of keys) {
+    await expect.poll(() => opacityOf(d[k]), { message: `${k} hovered` }).toBe("1");
+  }
+  await parkMouse(page);
+  for (const k of keys) {
+    await expect.poll(() => opacityOf(d[k]), { message: `${k} left` }).toBe("0");
+  }
+
+  // Selection reveals them with the pointer away
+  await db.click();
+  await parkMouse(page);
+  for (const k of keys) {
+    await expect.poll(() => opacityOf(d[k]), { message: `${k} selected` }).toBe("1");
+  }
+
+  // Focus within reveals them too: the x2 button of a node with replicas
+  await deselect(page); // the selected node's insight card would cover the next one
+  await app.click();
+  await page.getByRole("button", { name: "Add replica" }).click();
+  await deselect(page);
+  await parkMouse(page);
+  const da = detailsOf(app);
+  await expect.poll(() => opacityOf(da.metrics)).toBe("0");
+  await app.getByRole("button", { name: "Show the 2 instances" }).focus();
+  await expect.poll(() => opacityOf(da.metrics), { message: "focus-within" }).toBe("1");
+  await expect.poll(() => opacityOf(da.capacity), { message: "focus-within" }).toBe("1");
+});
+
+test.describe("coarse pointer", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, hasTouch: true });
+
+  test("only selection reveals the details", async ({ page }) => {
+    await open(page, "/?e2e=1");
+    // hasTouch makes Chromium report a coarse primary pointer
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+    await quickAdd(page, "NoSQL Database");
+    const db = nodeOf(page, "nosql-db");
+    await pushNodes(page, { [await idOf(db)]: {} });
+    await deselect(page);
+    await parkMouse(page);
+    const d = detailsOf(db);
+    const keys = ["capacity", "tech", "metrics"] as const;
+    for (const k of keys) {
+      await expect.poll(() => opacityOf(d[k]), { message: `${k} at rest` }).toBe("0");
+    }
+    // A mouse over the node (hover) does not reveal on a coarse pointer
+    await db.hover();
+    await page.waitForTimeout(400);
+    for (const k of keys) {
+      expect(await opacityOf(d[k]), `${k} hovered`).toBe("0");
+    }
+    // A tap selects it, and selection reveals them
+    await db.tap();
+    await expect(db).toHaveClass(/\bselected\b/);
+    for (const k of keys) {
+      await expect.poll(() => opacityOf(d[k]), { message: `${k} selected` }).toBe("1");
+    }
+  });
+});
+
+test("custom node: double-click renames it, and the box stays 160 x 120", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await open(page, "/");
+  await quickAdd(page, "Custom Component");
+  const node = nodeOf(page, "custom");
+  await expect(node.locator("svg[data-iso-kind]")).toHaveAttribute("data-iso-kind", "api");
+  await node.getByText("Custom Component", { exact: true }).dblclick();
+  const input = node.locator("input");
+  await expect(input).toBeFocused();
+  await input.fill("Embeddings Store");
+  await input.press("Enter");
+  await expect(node.getByText("Embeddings Store", { exact: true })).toBeVisible();
+  await expect(input).toHaveCount(0);
+  expect(await sizeOf(node)).toEqual(DEFAULT_NODE_SIZE);
+});
+
+test("handles: at the slab's mid-height, and the connect helper still links two nodes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "/");
+  await quickAdd(page, "Client");
+  await quickAdd(page, "App Server");
+  const client = nodeOf(page, "client");
+  const box = (await client.boundingBox())!;
+  const source = (await client.locator(".source:not([data-return-handle])").boundingBox())!;
+  const target = (await client.locator(".target:not([data-return-handle])").boundingBox())!;
+  // Right and left of the box, at about the model's slab (54% of the height)
+  for (const [h, side] of [
+    [source, "right"],
+    [target, "left"],
+  ] as const) {
+    const cy = (h.y + h.height / 2 - box.y) / box.height;
+    expect(cy, `${side} handle height`).toBeGreaterThan(0.5);
+    expect(cy, `${side} handle height`).toBeLessThan(0.6);
+  }
+  await connect(page, "client", "app-server");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+});
+
+test("palette chips: each item's chip is its family's tint, from the same table as the nodes", async ({
+  page,
+}) => {
+  await open(page, "/");
+  await stylesApplied(page);
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    for (const c of ["sql-db", "app-server", "cache", "message-queue", "load-balancer"]) {
+      const comp = SYSTEM_COMPONENTS.find((s) => s.id === c)!;
+      const tint = isoTintOf(comp.id, comp.category);
+      const chip = page.locator(`[data-palette-item="${c}"] [data-palette-tint]`);
+      await expect(chip, `${theme} ${c}`).toHaveAttribute("data-palette-tint", tint);
+      expect(await chip.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+        await computedColor(page, `var(--sf-cat-${tint})`),
+      );
+    }
+  }
+});
+
+test("background: lines at 30 and 150 degrees, 26 px, in --grid-line; nodes still snap to 16 px", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "/");
+  await stylesApplied(page);
+  await quickAdd(page, "App Server");
+
+  const grid = await page.locator("[data-iso-grid]").evaluate((svg) => {
+    const pattern = svg.querySelector("pattern")!;
+    const path = svg.querySelector("path")!;
+    const zoom = new DOMMatrix(
+      getComputedStyle(document.querySelector(".react-flow__viewport")!).transform,
+    ).a;
+    return {
+      w: Number(pattern.getAttribute("width")),
+      h: Number(pattern.getAttribute("height")),
+      d: path.getAttribute("d")!,
+      zoom,
+    };
+  });
+  // Two lines per tile: (0,0)-(w,h) and (0,h)-(w,0), each at atan(h / w) = 30 degrees to the horizontal
+  expect(grid.h / grid.zoom).toBeCloseTo(26, 3);
+  expect((Math.atan2(grid.h, grid.w) * 180) / Math.PI).toBeCloseTo(30, 3);
+  const nums = grid.d.match(/-?[\d.]+/g)!.map(Number);
+  expect(nums).toHaveLength(8);
+  expect(nums[2]).toBeCloseTo(grid.w, 3);
+  expect(nums[3]).toBeCloseTo(grid.h, 3);
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    expect(
+      await page.locator("[data-iso-grid] path").evaluate((p) => getComputedStyle(p).stroke),
+    ).toBe(await computedColor(page, "var(--grid-line)"));
+  }
+
+  // The pattern is decorative: a dragged node lands on the 16 px snap grid
+  const node = nodeOf(page, "app-server");
+  const c = await center(node);
+  await page.mouse.move(c.x, c.y);
+  await page.mouse.down();
+  await page.mouse.move(c.x + 41, c.y + 27, { steps: 6 });
+  await page.mouse.up();
+  const pos = await node.evaluate((el) => {
+    const m = (el as HTMLElement).style.transform.match(/translate\((-?[\d.]+)px, (-?[\d.]+)px\)/)!;
+    return { x: Number(m[1]), y: Number(m[2]) };
+  });
+  expect(pos.x % 16, "x on the 16 px grid").toBe(0);
+  expect(pos.y % 16, "y on the 16 px grid").toBe(0);
+});
+
+test("tap-add: sixteen nodes at 1280 x 720 never land under the minimap or the zoom controls, nor on each other", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await open(page, "/");
+  await stylesApplied(page);
+  const labels = ["App Server", "Cache / Redis", "SQL Database", "Load Balancer", "Auth Service"];
+  for (let i = 0; i < 16; i++) await quickAdd(page, labels[i % labels.length]);
+  await expect(page.locator(".react-flow__node")).toHaveCount(16);
+
+  const boxes = await page.evaluate(() => {
+    const rect = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    };
+    const overlay = (sel: string) => {
+      const el = document.querySelector(sel);
+      return el ? rect(el) : null;
+    };
+    return {
+      minimap: overlay(".react-flow__minimap"),
+      controls: overlay(".react-flow__controls"),
+      nodes: [...document.querySelectorAll(".react-flow__node")].map((n) => ({
+        node: rect(n),
+        handles: [...n.querySelectorAll(".react-flow__handle")].map(rect),
+      })),
+    };
+  });
+  expect(boxes.minimap, "the minimap is on screen").not.toBeNull();
+  expect(boxes.controls, "the zoom controls are on screen").not.toBeNull();
+
+  type Box = { left: number; top: number; right: number; bottom: number };
+  const hit = (a: Box, b: Box) =>
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  boxes.nodes.forEach(({ node, handles }, i) => {
+    for (const [name, overlay] of [
+      ["minimap", boxes.minimap!],
+      ["controls", boxes.controls!],
+    ] as const) {
+      expect(hit(node, overlay), `node ${i} under the ${name}`).toBe(false);
+      handles.forEach((h, k) =>
+        expect(hit(h, overlay), `node ${i} handle ${k} under the ${name}`).toBe(false),
+      );
+    }
+    boxes.nodes.slice(i + 1).forEach((other, j) => {
+      expect(hit(node, other.node), `node ${i} on node ${i + 1 + j}`).toBe(false);
+    });
   });
 });

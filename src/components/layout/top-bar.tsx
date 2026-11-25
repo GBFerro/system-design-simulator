@@ -33,7 +33,7 @@ import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { useReactFlow } from "@xyflow/react";
 import { createTextNode } from "@/lib/nodeFactory";
 import { isTypingTarget } from "@/components/canvas/canvasEvents";
-import { visibleCanvasCenter } from "@/lib/placement";
+import { canvasOverlayRects, visibleCanvasCenter } from "@/lib/placement";
 import { loadReferenceIntoTab } from "@/lib/loadReference";
 import { exportAsPng, exportAsSvg, exportAsJSON } from "@/lib/exportCanvas";
 import { ConfirmDialog } from "@/components/dialogs/ConfirmDialog";
@@ -103,7 +103,11 @@ export function TopBar({
     customProblems.find((p) => p.id === selectedProblemId);
 
   const addTextNote = useCallback(() => {
-    placeNode(createTextNode({ x: 0, y: 0 }), visibleCanvasCenter(screenToFlowPosition));
+    placeNode(
+      createTextNode({ x: 0, y: 0 }),
+      visibleCanvasCenter(screenToFlowPosition),
+      canvasOverlayRects(screenToFlowPosition),
+    );
   }, [screenToFlowPosition, placeNode]);
 
   const handleExportPng = useCallback(async () => {

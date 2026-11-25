@@ -1,5 +1,6 @@
 import { withReturns } from "@/domain/graph/returns";
-import type { Node, Edge } from "@xyflow/react";
+import type { Node, Edge, XYPosition } from "@xyflow/react";
+import { DEFAULT_NODE_SIZE, type Size } from "@/lib/placement";
 import type { Problem } from "@/types/problem";
 import { getComponentById } from "@/data/components";
 import { useCanvasStore, type ComponentNodeData } from "@/store/canvasStore";
@@ -13,6 +14,62 @@ import {
   sanitizeEdgeRule,
 } from "@/domain/graph/edgeRules";
 import { sanitizeParams } from "@/domain/components/registry";
+
+const GRID = 16;
+/** Clearance kept between reference node boxes. */
+const REFERENCE_GAP = 16;
+
+const isClear = (a: XYPosition, b: XYPosition, size: Size, gap: number): boolean =>
+  Math.abs(a.x - b.x) >= size.width + gap || Math.abs(a.y - b.y) >= size.height + gap;
+
+/**
+ * Spread a layout so no two `size` boxes come closer than `gap`: the smallest uniform
+ * scale k >= 1 about the layout's top-left bound, snapped to the 16 px grid (k is raised
+ * in small steps if snapping brings a pair back together). A layout that already fits is
+ * returned unchanged. Pure; pairs at the very same position cannot be separated by
+ * scaling and are ignored.
+ */
+export function spreadReferenceLayout(
+  positions: readonly XYPosition[],
+  size: Size,
+  gap: number,
+): XYPosition[] {
+  const pairs: [number, number][] = [];
+  let k = 1;
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      const a = positions[i];
+      const b = positions[j];
+      const dx = Math.abs(a.x - b.x);
+      const dy = Math.abs(a.y - b.y);
+      if (dx === 0 && dy === 0) continue;
+      pairs.push([i, j]);
+      if (isClear(a, b, size, gap)) continue;
+      const need = Math.min(
+        dx > 0 ? (size.width + gap) / dx : Infinity,
+        dy > 0 ? (size.height + gap) / dy : Infinity,
+      );
+      k = Math.max(k, need);
+    }
+  }
+  if (k === 1) return positions.map((p) => ({ x: p.x, y: p.y }));
+
+  const ox = Math.min(...positions.map((p) => p.x));
+  const oy = Math.min(...positions.map((p) => p.y));
+  const place = (scale: number) =>
+    positions.map((p) => ({
+      x: Math.round((ox + (p.x - ox) * scale) / GRID) * GRID,
+      y: Math.round((oy + (p.y - oy) * scale) / GRID) * GRID,
+    }));
+  let out = place(k);
+  for (let step = 0; step < 400; step++) {
+    if (pairs.every(([i, j]) => isClear(out[i], out[j], size, gap))) break;
+    // (pairs holds every separable pair, so a snap that squeezes a clear pair is caught too)
+    k += 0.02;
+    out = place(k);
+  }
+  return out;
+}
 
 /**
  * Build canvas nodes + edges for a problem's reference solution.
@@ -31,6 +88,12 @@ export function buildReferenceGraph(problem: Problem): {
   const instancesByComponent = new Map<string, string[]>();
   const refNodes: Node<ComponentNodeData>[] = [];
 
+  const spread = spreadReferenceLayout(
+    problem.referenceSolution.nodes,
+    DEFAULT_NODE_SIZE,
+    REFERENCE_GAP,
+  );
+
   problem.referenceSolution.nodes.forEach((ref, index) => {
     const comp = getComponentById(ref.componentId);
     if (!comp) return;
@@ -40,7 +103,7 @@ export function buildReferenceGraph(problem: Problem): {
     list.push(nodeId);
     instancesByComponent.set(ref.componentId, list);
 
-    const created = createComponentNode(comp, { x: ref.x, y: ref.y });
+    const created = createComponentNode(comp, spread[index]);
     const params = ref.params
       ? sanitizeParams(comp.id, { ...created.data.params, ...ref.params })
       : created.data.params;
