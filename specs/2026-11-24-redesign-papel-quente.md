@@ -88,8 +88,9 @@ on `document.documentElement`, trimmed).
    neighbours.
 3. In both themes, every text pair on the passing side of the contrast list (Approach,
    "Contrast") is at least 4.5:1 by the WCAG 2.x formula: `--z-50`..`--z-500`, req, resp, ok,
-   slow and err on panel and panel-2; accent-ink on accent; ink on accent-soft and on each of the
-   seven category pastels. The pairs the list marks as failing are not on it.
+   slow and err on panel; the same on panel-2 except req, ok and slow in light (4.38, 4.50 and
+   4.45: status text on panel-2 uses ink in light); accent-ink on accent; ink on accent-soft and
+   on each of the seven category pastels. The pairs the list marks as failing are not on it.
 4. Elements with `text-rose-400`, `text-amber-400`, `text-emerald-400`, `text-violet-400`,
    `text-orange-400` and `text-blue-400` compute their color to err, slow, ok, resp, accent and
    req of the active theme, and `bg-rose-500`, `bg-amber-500`, `bg-emerald-500`, `bg-violet-500`,
