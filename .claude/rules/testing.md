@@ -11,7 +11,7 @@ Before you call a slice done:
 
 1. For each branch, constant and call site the slice adds or changes, apply one one-line mutation:
    delete the line, flip the condition, or swap the value or argument for another of the same type.
-   Run the tests that cover it, then revert with `git checkout -- <file>`.
+   Make and undo the mutation with Edit, never through the shell, and run the tests that cover it.
 2. Red: go to the next mutation. Green: write the test that kills it, or, if the gap is accepted,
    declare it with its reason under "Mutations accepted on purpose" in the PR body.
 3. In your report, list each mutation, where it was, and red or green with the test that caught it.
