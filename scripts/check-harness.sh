@@ -4,6 +4,7 @@
 #  - AGENTS.md stays under its line cap
 #  - every skill and agent has name + description frontmatter
 #  - every agent pins model + effort, matching its row in docs/model-routing.md
+#  - every path-scoped rule declares paths:, and each glob matches a file in the repo
 #  - test-first exemptions carry a reason
 #  - the lines pinned in scripts/check-harness.pins are still there (repo-specific config values)
 #  - relative markdown links resolve
@@ -69,6 +70,31 @@ for f in .claude/agents/*.md; do
   esac
   grep -qF "| \`$name\` | $model | $effort |" docs/model-routing.md 2>/dev/null ||
     problem "docs/model-routing.md has no row '| \`$name\` | $model | $effort |' matching $f"
+done
+
+# Path-scoped rules: each .claude/rules/*.md lists its globs under 'paths:', and every glob matches a
+# file in the repo. A misspelled key loads the rule everywhere; a glob that matches nothing never
+# loads it. In a [[ == ]] pattern '*' also crosses '/', so '**' works as in the frontmatter.
+for f in .claude/rules/*.md; do
+  [ -f "$f" ] || continue
+  globs="$(tr -d '\r' <"$f" | awk '
+    NR == 1 { if ($0 != "---") exit; next }
+    $0 == "---" { exit }
+    /^paths:[[:space:]]*$/ { p = 1; next }
+    p && /^[[:space:]]+-[[:space:]]/ { sub(/^[[:space:]]+-[[:space:]]*/, ""); gsub(/["\047]/, ""); print; next }
+    { p = 0 }')"
+  if [ -z "$globs" ]; then
+    problem "$f lacks a 'paths:' list in its frontmatter"
+    continue
+  fi
+  while IFS= read -r glob; do
+    matched=0
+    while IFS= read -r t; do
+      # shellcheck disable=SC2053 # the right side is a glob on purpose
+      if [[ $t == $glob ]]; then matched=1 && break; fi
+    done <<<"$files"
+    [ "$matched" = 1 ] || problem "$f: paths glob '$glob' matches no file in the repo"
+  done <<<"$globs"
 done
 
 # Exemptions need reasons.

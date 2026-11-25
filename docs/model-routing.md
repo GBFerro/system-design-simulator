@@ -52,7 +52,9 @@ just the task again.
 1. Work only on what the caller handed you: the slice, its acceptance criteria, the files named.
    Anything outside it, or a decision the caller did not make, goes back as a question.
 2. Test first: write the test for the criterion, watch it fail for the right reason, then make it
-   pass. The `require-test-first` sensor blocks production edits without a test.
+   pass. The `require-test-first` sensor blocks production edits without a test. Then prove the
+   tests protect the change: run the one-line mutations in
+   [.claude/rules/testing.md](../.claude/rules/testing.md) and report each one, red or green.
 3. Edit files with Edit or Write only, never through the shell.
 4. Run the fast checks on your change (`bash scripts/verify.sh lint format test`, or the subset the
    caller named) and fix what they report.
