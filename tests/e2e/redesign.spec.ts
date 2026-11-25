@@ -326,6 +326,196 @@ test("flow tab: the highlighted edge is traced in the request color of the theme
   }
 });
 
+/** How the browser computes a CSS property set to a value (a `var()` becomes its resolved form). */
+function computedProp(page: Page, prop: "boxShadow" | "borderTopColor", value: string) {
+  return page.evaluate(
+    ([p, v]) => {
+      const probe = document.createElement("span");
+      probe.style.setProperty(p === "boxShadow" ? "box-shadow" : "border-top-color", v);
+      if (p === "borderTopColor") probe.style.borderTopStyle = "solid";
+      document.body.appendChild(probe);
+      const out = getComputedStyle(probe)[p as "boxShadow" | "borderTopColor"];
+      probe.remove();
+      return out;
+    },
+    [prop, value] as const,
+  );
+}
+
+/** Every edge's line stroke and arrowhead fill, with the runtime state its group reports. */
+function readEdges(page: Page) {
+  return page.locator(".react-flow__edge").evaluateAll((els) =>
+    els.map((el) => {
+      const g = el.querySelector("g");
+      const line = el.querySelector("path.react-flow__edge-path")!;
+      const head = el.querySelector("marker path")!;
+      return {
+        id: el.getAttribute("data-id") ?? "",
+        ret: (el.getAttribute("data-id") ?? "").startsWith("ret:"),
+        status: g?.getAttribute("data-edge-status") ?? null,
+        rps: Number(g?.getAttribute("data-edge-rps") ?? 0),
+        stroke: getComputedStyle(line).stroke,
+        fill: getComputedStyle(head).fill,
+      };
+    }),
+  );
+}
+
+test("edges: idle lines and their arrowheads, requests and responses alike, are the idle color", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openReference(page);
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    const idle = await computedColor(page, "var(--edge-idle)");
+    const edges = await readEdges(page);
+    expect(edges.some((e) => e.ret)).toBe(true);
+    expect(edges.some((e) => !e.ret)).toBe(true);
+    for (const e of edges) {
+      expect({ stroke: e.stroke, fill: e.fill }, `${theme} ${e.id}`).toEqual({
+        stroke: idle,
+        fill: idle,
+      });
+    }
+  }
+});
+
+test("edges: during a run each line and its arrowhead take the color of its status", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openReference(page);
+  const want: Record<string, string> = {
+    ok: await computedColor(page, "var(--sf-req)"),
+    slow: await computedColor(page, "var(--sf-slow)"),
+    error: await computedColor(page, "var(--sf-err)"),
+  };
+  const idle = await computedColor(page, "var(--edge-idle)");
+  await playLive(page);
+
+  // Requests (with load) are in the color of their status; so is a response, or idle when
+  // nothing comes back; an arrowhead is the color of its line. Both kinds must have been seen.
+  await expect
+    .poll(
+      async () => {
+        const edges = await readEdges(page);
+        let requests = 0;
+        let responses = 0;
+        for (const e of edges) {
+          if (e.fill !== e.stroke) return `${e.id}: head ${e.fill} is not its line ${e.stroke}`;
+          const color = e.status ? want[e.status] : idle;
+          if (!e.ret && e.rps > 0) {
+            if (e.stroke !== color) return `${e.id}: ${e.status} line is ${e.stroke}`;
+            requests++;
+          }
+          if (e.ret && e.stroke !== idle) {
+            if (e.stroke !== color) return `${e.id}: ${e.status} response is ${e.stroke}`;
+            responses++;
+          }
+        }
+        return requests > 0 && responses > 0
+          ? "ok"
+          : `requests ${requests}, responses ${responses}`;
+      },
+      { timeout: 30_000 },
+    )
+    .toBe("ok");
+});
+
+/** Kill App Server from its context menu, in a live run of the reference. */
+async function killAppServer(page: Page) {
+  await openReference(page);
+  await playLive(page);
+  const app = page.locator(".react-flow__node").filter({ hasText: "App Server" }).first();
+  await app.click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Kill node/ }).click();
+  await expect(page.locator('[data-blast="target"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-blast="affected"]').first()).toBeVisible();
+}
+
+test("blast radius: the target, the affected nodes and their edges are outlined in the err color", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await killAppServer(page);
+  const err = await computedColor(page, "var(--sf-err)");
+  const outline = (kind: "target" | "affected") =>
+    page
+      .locator(`[data-blast="${kind}"] > div[aria-hidden]`)
+      .first()
+      .evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { color: s.borderTopColor, style: s.borderTopStyle };
+      });
+  expect(await outline("target")).toEqual({ color: err, style: "dashed" });
+  expect(await outline("affected")).toEqual({ color: err, style: "solid" });
+
+  const edge = await page
+    .locator("g[data-edge-blast] > path[aria-hidden]")
+    .first()
+    .evaluate((p) => getComputedStyle(p).stroke);
+  expect(edge).toBe(err);
+});
+
+test("flow overlay legend: the response ring symbol is the response color in both themes", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openReference(page);
+  await playLive(page);
+  const legend = page.getByTestId("ball-legend");
+  await expect(legend).toBeVisible({ timeout: 20_000 });
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    const want = await computedColor(page, "var(--sf-resp)");
+    await expect(legend.locator("span[style]")).toHaveText("○");
+    expect(
+      await legend.locator("span[style]").evaluate((el) => getComputedStyle(el).color),
+      theme,
+    ).toBe(want);
+  }
+});
+
+test("shadows: the node's drop shadow, the empty state's and the accent card's glow follow their tokens", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page, "/");
+  await stylesApplied(page);
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    const hero = page
+      .getByRole("heading", { name: "Build an architecture that scales" })
+      .locator("xpath=../preceding-sibling::*[1]");
+    await expect(hero).toBeVisible();
+    expect(await hero.evaluate((el) => getComputedStyle(el).boxShadow), `${theme} hero glow`).toBe(
+      await computedProp(page, "boxShadow", "0 0 40px -10px var(--sf-accent)"),
+    );
+
+    const card = page.getByRole("button", { name: /Practice interview/ });
+    await card.hover();
+    const glow = await computedProp(page, "boxShadow", "0 0 24px -8px var(--sf-accent)");
+    await expect
+      .poll(() => card.evaluate((el) => getComputedStyle(el).boxShadow), { message: theme })
+      .toBe(glow);
+    await page.mouse.move(0, 0);
+  }
+
+  await page.getByTitle("Load reference solution").click();
+  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    const shadow = await computedProp(page, "boxShadow", "var(--shadow-e2)");
+    const own = await page
+      .locator(".react-flow__node-component > div")
+      .first()
+      .evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(own.endsWith(shadow), `${theme} node shadow ${own} vs ${shadow}`).toBe(true);
+  }
+});
+
 test.describe("default theme", () => {
   test("a fresh visitor opens in light, with no flash of dark and the light theme-color", async ({
     browser,
