@@ -277,6 +277,8 @@ msg 0 "fixup! feat: add login"
 msg 0 "squash! feat: add login"
 msg 0 "amend! feat: add login"
 msg 0 "$(printf 'feat: windows line ending\r')"
+# A CRLF subject of exactly 100 characters: the CR must not count toward the length.
+msg 0 "$(printf 'feat: %s\r\n\r\nbody\r' "$(printf 'x%.0s' $(seq 1 94))")"
 msg 0 "$(printf '# comment line\nchore: tidy')"
 # AI attribution in the message (AGENTS.md: no Claude/AI attribution or co-author trailers).
 msg 1 "$(printf 'feat: add login\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>')"
