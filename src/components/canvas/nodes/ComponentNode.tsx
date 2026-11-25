@@ -113,8 +113,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
           aria-hidden
           className={`pointer-events-none absolute -inset-1.5 rounded-[14px] border-2 ${
             blast === "target"
-              ? "border-dashed border-orange-400"
-              : "blast-pulse border-orange-400/80"
+              ? "border-dashed border-[var(--sf-err)]"
+              : "blast-pulse border-[var(--sf-err)]"
           }`}
         />
       )}

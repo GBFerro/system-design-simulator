@@ -29,7 +29,7 @@ import { toEdgeChanges, toNodeChanges, withInstances } from "./instanceGraph";
 import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
-import { useAppStore } from "@/store/appStore";
+import { minimapFill } from "@/lib/minimapColor";
 import { visibleCanvasCenter } from "@/lib/placement";
 import {
   BookOpen,
@@ -128,10 +128,6 @@ export function DesignCanvas({
   const activeTabId = useCanvasStore((s) => s.activeTabId);
   const isReadOnly = useIsActiveTabReadOnly();
   const penMode = usePenStore((s) => s.mode);
-  const isDark = useAppStore((s) => s.theme) === "dark";
-  const dotColor = isDark ? "rgba(155,172,205,0.24)" : "rgba(70,85,115,0.20)";
-  const lineColor = isDark ? "rgba(150,165,195,0.05)" : "rgba(70,85,115,0.05)";
-  const minimapMask = isDark ? "rgba(9,11,14,0.7)" : "rgba(228,232,240,0.6)";
   const penActive = penMode !== "off";
 
   // Re-fit the viewport whenever the user switches canvas tabs
@@ -244,15 +240,9 @@ export function DesignCanvas({
   const miniMapNodeColor = useMemo(
     () =>
       // `statusSignature` changes the function identity so the minimap repaints.
-      statusSignature === ""
-        ? () => "#52525b"
-        : (node: Node) => {
-            const status = getLatestSnapshot()?.nodes[node.id]?.status;
-            if (status === "critical" || status === "down") return "#ef4444";
-            if (status === "warn") return "#f59e0b";
-            if (status === "ok") return "#10b981";
-            return "#52525b";
-          },
+      (node: Node) =>
+        minimapFill(node.id, getLatestSnapshot()?.nodes),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the signature is the repaint trigger
     [statusSignature],
   );
 
@@ -322,7 +312,7 @@ export function DesignCanvas({
             variant={BackgroundVariant.Lines}
             gap={120}
             lineWidth={1}
-            color={lineColor}
+            color="var(--grid-line)"
             className="!bg-transparent"
           />
           <Background
@@ -330,7 +320,7 @@ export function DesignCanvas({
             variant={BackgroundVariant.Dots}
             gap={20}
             size={1}
-            color={dotColor}
+            color="var(--grid-dot)"
             className="!bg-transparent"
           />
           <Controls
@@ -339,7 +329,7 @@ export function DesignCanvas({
           />
           <MiniMap
             className="!hidden !rounded-md !border !border-zinc-800 !bg-zinc-900 md:!block"
-            maskColor={minimapMask}
+            maskColor="var(--minimap-mask)"
             nodeColor={miniMapNodeColor}
             position="bottom-right"
             // Lifted above the corner Support FAB so the two don't overlap
@@ -374,7 +364,7 @@ export function DesignCanvas({
           >
             <motion.div
               variants={emptyItem}
-              className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 to-transparent shadow-[0_0_40px_-10px_rgba(6,182,212,0.4)]"
+              className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 to-transparent [box-shadow:0_0_40px_-10px_var(--sf-accent)]"
             >
               <Layers className="h-6 w-6 text-cyan-400" />
             </motion.div>
@@ -477,7 +467,7 @@ function QuickStartCard({
       onClick={onClick}
       className={`group flex flex-col items-start gap-1.5 rounded-lg border bg-zinc-900/60 p-3 text-left transition-all hover:-translate-y-0.5 hover:bg-zinc-900 ${
         accent
-          ? "border-cyan-500/30 hover:border-cyan-400/60 hover:shadow-[0_0_24px_-8px_rgba(6,182,212,0.5)]"
+          ? "border-cyan-500/30 hover:border-cyan-400/60 hover:[box-shadow:0_0_24px_-8px_var(--sf-accent)]"
           : "border-zinc-800 hover:border-zinc-700"
       }`}
     >

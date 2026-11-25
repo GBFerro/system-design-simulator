@@ -5,7 +5,8 @@ import { useStoreApi } from "@xyflow/react";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { usePrefersReducedMotion } from "@/hooks/useBreakpoint";
-import { BALL_COLOR, BALL_OUTLINE, EDGE_STATUS_COLOR } from "@/lib/particles";
+import { drawParticles, type ParticleLayers } from "@/lib/drawParticles";
+import { createThemeColorCache, themeColors, watchTheme } from "@/lib/themeColors";
 import {
   BURST_SEC,
   FlowBalls,
@@ -22,7 +23,7 @@ import { PARAM, instancesOf, routingFor } from "@/domain/components/registry";
 import { formatRps } from "@/components/traffic/format";
 import { edgeRuleOf } from "@/domain/graph/edgeRules";
 import { asyncRequestIds, isReturnEdge } from "@/domain/graph/returns";
-import type { RuntimeEdgeStatus, TickSnapshot } from "@/engine/types";
+import type { TickSnapshot } from "@/engine/types";
 
 /**
  * OBS-04: request balls walking the graph, drawn on ONE <canvas> 2D layer over
@@ -54,17 +55,13 @@ import type { RuntimeEdgeStatus, TickSnapshot } from "@/engine/types";
  *
  * `data-particle-count` reports the balls in the last frame (both directions),
  * `data-balls-req`/`data-balls-res` per direction, `data-ball-quantum` the
- * req/s per ball and `data-draw-ms` the mean cost of drawing one frame (tests,
- * perf checks).
+ * req/s per ball, `data-draw-ms` the mean cost of drawing one frame (tests,
+ * perf checks) and `data-theme-bg` the `--sf-bg` of the theme the last frame was drawn in.
  */
-
-/** Ring color of a response (an ok one; a failed call's is rose). */
-const RESPONSE_COLOR = "#a78bfa";
 
 /** Flow-px between sampled points on an edge path. */
 const SAMPLE_STEP = 8;
 const MAX_SAMPLES = 160;
-const BALL_RADIUS = 4.5;
 /** Longest step of the ball simulation per frame (after a stall), seconds. */
 const MAX_FRAME_DT = 0.1;
 
@@ -280,69 +277,50 @@ export function FlowParticles() {
 
     /* ----- drawing ----- */
     const tmp = new Float32Array(4);
-    const STATUSES: RuntimeEdgeStatus[] = ["ok", "slow", "error"];
 
-    const draw = (snapshot: TickSnapshot) => {
-      const [tx, ty, zoom] = rfStore.getState().transform;
-      clear();
-      ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * tx, dpr * ty);
+    // The theme's colors, read once per theme change (the 2D canvas cannot use var()).
+    const themeCache = createThemeColorCache(themeColors, watchTheme, () => requestFrame());
 
-      // Requests, batched by status: a solid ball with a dark outline.
-      for (const status of STATUSES) {
-        ctx.beginPath();
-        let any = false;
+    // Where the balls are now (`lib/drawParticles.ts` paints them).
+    let snap: TickSnapshot | null = null;
+    const layers: ParticleLayers = {
+      requests: (status, add) => {
         for (const b of balls.balls) {
           const geo = geometry.get(b.drawn);
           if (!geo) continue;
-          if ((snapshot.edges[b.edge]?.status ?? "ok") !== status) continue;
+          if ((snap?.edges[b.edge]?.status ?? "ok") !== status) continue;
           pointAt(geo, Math.min(1, b.pos / geo.length), tmp);
-          ctx.moveTo(tmp[0] + BALL_RADIUS, tmp[1]);
-          ctx.arc(tmp[0], tmp[1], BALL_RADIUS, 0, Math.PI * 2);
-          any = true;
+          add(tmp[0], tmp[1]);
         }
-        if (!any) continue;
-        ctx.fillStyle = BALL_COLOR[status];
-        ctx.fill();
-        ctx.strokeStyle = BALL_OUTLINE;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
-
-      // Responses, batched by outcome: a hollow ring walking its own line, callee → caller.
-      for (const error of [false, true]) {
-        ctx.beginPath();
-        let any = false;
+      },
+      responses: (error, add) => {
         for (const b of balls.responses) {
           if ((b.error === true) !== error) continue;
           const geo = geometry.get(b.drawn);
           if (!geo) continue;
           pointAt(geo, Math.min(1, b.pos / geo.length), tmp);
-          ctx.moveTo(tmp[0] + BALL_RADIUS, tmp[1]);
-          ctx.arc(tmp[0], tmp[1], BALL_RADIUS, 0, Math.PI * 2);
-          any = true;
+          add(tmp[0], tmp[1]);
         }
-        if (!any) continue;
-        ctx.fillStyle = BALL_OUTLINE;
-        ctx.fill();
-        ctx.strokeStyle = error ? EDGE_STATUS_COLOR.error : RESPONSE_COLOR;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
+      },
+      bursts: (add) => {
+        for (const burst of balls.bursts) {
+          const geo = geometry.get(burst.edge);
+          if (!geo) continue;
+          pointAt(geo, 1, tmp);
+          add(tmp[0], tmp[1], burst.age / BURST_SEC);
+        }
+      },
+    };
 
-      // Failed requests: a fading ring where they died (the end of the edge they came in on).
-      ctx.strokeStyle = EDGE_STATUS_COLOR.error;
-      ctx.lineWidth = 1.5;
-      for (const burst of balls.bursts) {
-        const geo = geometry.get(burst.edge);
-        if (!geo) continue;
-        pointAt(geo, 1, tmp);
-        const k = burst.age / BURST_SEC;
-        ctx.globalAlpha = 1 - k;
-        ctx.beginPath();
-        ctx.arc(tmp[0], tmp[1], BALL_RADIUS + 9 * k, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
+    const draw = (snapshot: TickSnapshot) => {
+      const colors = themeCache.get();
+      // The theme the overlay was last drawn in (tests: a theme switch redraws a paused frame).
+      if (overlay.dataset.themeBg !== colors.bg) overlay.dataset.themeBg = colors.bg;
+      const [tx, ty, zoom] = rfStore.getState().transform;
+      clear();
+      ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * tx, dpr * ty);
+      snap = snapshot;
+      drawParticles(ctx, colors, layers);
       const alive = balls.balls.length + balls.responses.length;
       setCount(balls.balls.length, balls.responses.length);
       setLegend(alive > 0 ? balls.quantum : null);
@@ -420,6 +398,7 @@ export function FlowParticles() {
       unsubCanvas();
       unsubExpanded();
       unsubRf();
+      themeCache.dispose();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [reduceMotion, rfStore]);
@@ -448,7 +427,7 @@ export function FlowParticles() {
         </span>
         <span className="text-zinc-400">/</span>
         <span>
-          response <span style={{ color: RESPONSE_COLOR }}>○</span>
+          response <span style={{ color: "var(--sf-resp)" }}>○</span>
         </span>
         <span className="text-zinc-400">·</span>
         <span ref={legendRef} />

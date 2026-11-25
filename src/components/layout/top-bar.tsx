@@ -186,7 +186,7 @@ export function TopBar({
               height={20}
               className="h-5 w-5"
             />
-            <span className="hidden font-display text-[15px] font-bold tracking-[-0.02em] text-zinc-50 sm:inline">
+            <span className="hidden font-display text-sm font-bold tracking-[-0.02em] text-zinc-50 lg:inline">
               SystemForge
             </span>
           </div>
