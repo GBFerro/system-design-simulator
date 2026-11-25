@@ -145,6 +145,36 @@
   --sf-cat-data: #f3e2c6;
   --sf-cat-messaging: #d6ece6;
   --sf-cat-infra: #e1e2d2;
+  /* Isometric model faces, precomputed from the pastels: top = mix(pastel, #fff, .5), left =
+     pastel, right = mix(pastel, ink, .14). Stroke is ink; the hard ground shadow is ink. */
+  --iso-client-top: #f4f1eb;
+  --iso-client-left: #e9e2d6;
+  --iso-client-right: #cec7bc;
+  --iso-network-top: #eef3f8;
+  --iso-network-left: #dce6f1;
+  --iso-network-right: #c3cad3;
+  --iso-compute-top: #f2eff9;
+  --iso-compute-left: #e4def3;
+  --iso-compute-right: #c9c4d5;
+  --iso-cache-top: #faede9;
+  --iso-cache-left: #f5dad2;
+  --iso-cache-right: #d8c0b9;
+  --iso-data-top: #f9f1e3;
+  --iso-data-left: #f3e2c6;
+  --iso-data-right: #d6c7ae;
+  --iso-messaging-top: #ebf6f3;
+  --iso-messaging-left: #d6ece6;
+  --iso-messaging-right: #bdd0ca;
+  --iso-infra-top: #f0f1e9;
+  --iso-infra-left: #e1e2d2;
+  --iso-infra-right: #c7c7b9;
+  --iso-stroke: var(--sf-ink);
+  --iso-shadow: var(--sf-ink);
+  /* The slab every model stands on (mix(panel, ink, .03/.10/.18)) and the cache's gold contacts. */
+  --iso-slab-top: #f4f0ea;
+  --iso-slab-left: #e5e1db;
+  --iso-slab-right: #d4d0ca;
+  --iso-gold: #c9a23a;
   --sf-radius: 14px;
   --sf-radius-sm: 8px;
   --sf-border-w: 1.5px;
@@ -251,6 +281,35 @@
   --sf-cat-data: #5a4a2c;
   --sf-cat-messaging: #2c5049;
   --sf-cat-infra: #47483a;
+  /* Isometric model faces: top = mix(pastel, ink, .14), left = pastel, right = mix(pastel, #000, .35). */
+  --iso-client-top: #61594f;
+  --iso-client-left: #4a4238;
+  --iso-client-right: #302b24;
+  --iso-network-top: #4e5d6c;
+  --iso-network-left: #34465a;
+  --iso-network-right: #222e3b;
+  --iso-compute-top: #5c5570;
+  --iso-compute-left: #443d5e;
+  --iso-compute-right: #2c283d;
+  --iso-cache-top: #735352;
+  --iso-cache-left: #5e3b3b;
+  --iso-cache-right: #3d2626;
+  --iso-data-top: #6f6045;
+  --iso-data-left: #5a4a2c;
+  --iso-data-right: #3b301d;
+  --iso-messaging-top: #48655e;
+  --iso-messaging-left: #2c5049;
+  --iso-messaging-right: #1d342f;
+  --iso-infra-top: #5f5f51;
+  --iso-infra-left: #47483a;
+  --iso-infra-right: #2e2f26;
+  --iso-stroke: #0b0a09;
+  --iso-shadow: #000000;
+  /* The slab: top = mix(panel, ink, .07), left = mix(panel, bg, .4), right = bg. */
+  --iso-slab-top: #312d29;
+  --iso-slab-left: #1f1c18;
+  --iso-slab-right: #1a1714;
+  --iso-gold: #b8933a;
   --sf-btn-shadow: 2px 3px 0 #000000;
   --sf-shadow: #000000;
 
@@ -512,6 +571,43 @@ button:not([disabled]):active {
 .blast-pulse {
   animation: blast-pulse 1.4s ease-in-out infinite;
 }
+/* Isometric models (`IsoModel`): the queue's cubes slide one step along the belt, the status halo
+   ripples outward, the selected ring's dashes march. `.iso-motion` switches them off for users
+   who prefer reduced motion (the global rule below would only freeze them on their last frame). */
+@keyframes iso-conv {
+  from {
+    transform: translate(0px, 0px);
+  }
+  to {
+    transform: translate(13.86px, 8px);
+  }
+}
+@keyframes iso-halo {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+@keyframes iso-dash {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+.iso-conv {
+  animation: iso-conv 1.3s linear infinite;
+}
+.iso-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: iso-halo 1.6s ease-out infinite;
+}
+.iso-dash {
+  animation: iso-dash 0.9s linear infinite;
+}
 /* Advisor quick-fix preview (Spec 12): edges the fix removes fade out dashed
    in err, edges whose rule it changes turn resp. New ones are ghost edges. */
 .react-flow__edge.sf-preview-removed .react-flow__edge-path {
@@ -542,5 +638,8 @@ button:not([disabled]):active {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .iso-motion {
+    animation: none !important;
   }
 }

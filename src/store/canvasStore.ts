@@ -21,7 +21,7 @@ import { safeLocalStorage } from "./safeStorage";
 import { migrateCanvasState } from "./migrations";
 import { STORE_VERSION } from "./persistVersion";
 import { randomId } from "@/lib/nodeFactory";
-import { findFreePosition, freePositionNear, nodeRect } from "@/lib/placement";
+import { findFreePosition, freePositionNear, nodeRect, nodeSize, type Rect } from "@/lib/placement";
 import {
   instancesOf,
   MAX_INSTANCES,
@@ -397,8 +397,11 @@ interface CanvasState {
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
   addNode: (node: Node) => void;
-  /** Add a node centered near `center`, spiraling out to avoid overlaps. */
-  placeNode: (node: Node, center: XYPosition) => void;
+  /**
+   * Add a node centered near `center`, spiraling out to avoid overlaps and the `blocked`
+   * flow-space rects (floating overlays; the caller reads them from the DOM, the store does not).
+   */
+  placeNode: (node: Node, center: XYPosition, blocked?: readonly Rect[]) => void;
 
   // Selection lives on node.selected / edge.selected (single source of truth)
   selectOnly: (nodeIds: string[], edgeIds?: string[]) => void;
@@ -678,13 +681,14 @@ export const useCanvasStore = create<CanvasState>()(
           };
         });
       },
-      placeNode: (node, center) => {
+      placeNode: (node, center, blocked) => {
         set((state) => {
           if (isActiveTabReadOnly(state)) return state;
+          const position = freePositionNear(center, state.nodes, nodeSize(node), blocked);
           return {
             history: pushedHistory(state),
             future: [],
-            nodes: [...state.nodes, { ...node, position: freePositionNear(center, state.nodes) }],
+            nodes: [...state.nodes, { ...node, position }],
           };
         });
       },

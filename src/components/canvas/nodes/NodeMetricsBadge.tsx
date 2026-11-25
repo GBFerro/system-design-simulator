@@ -18,10 +18,13 @@ const SPARK_H = 30;
 function NodeMetricsBadgeInner({
   nodeId,
   showSparkline,
+  className = "",
 }: {
   nodeId: string;
   /** Touch devices have no hover: the node shows it while selected. */
   showSparkline: boolean;
+  /** Where the node puts it (and how it reveals it); the size stays fixed here. */
+  className?: string;
 }) {
   const m = useNodeRuntime(nodeId);
   const [hover, setHover] = useState(false);
@@ -39,7 +42,7 @@ function NodeMetricsBadgeInner({
       data-status={m.status}
       // Fixed size: changing numbers must never resize the node, or ReactFlow
       // would re-measure it and rewrite (re-persist) canvasStore on every tick.
-      className="relative mt-0.5 h-[22px] w-[120px] shrink-0 whitespace-nowrap"
+      className={`pointer-events-auto relative h-[22px] w-[120px] shrink-0 whitespace-nowrap ${className}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >

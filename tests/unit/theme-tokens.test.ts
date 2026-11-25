@@ -182,11 +182,61 @@ describe("the blast outline (Decisions: orange resolves to the accent)", () => {
   });
 });
 
+describe("the isometric face colors (slice 2, criterion 11)", () => {
+  const TINTS = ["client", "network", "compute", "cache", "data", "messaging", "infra"];
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  /** mix(a, b, t): each channel moves from a toward b by t (t is the weight of b). */
+  const mix = (a: string, b: string, t: number) => {
+    const [A, B] = [rgb(a), rgb(b)];
+    return A.map((v, i) => v + (B[i] - v) * t);
+  };
+  const near = (got: string, want: number[], label: string) => {
+    expect(got, label).toMatch(HEX);
+    rgb(got).forEach((c, i) =>
+      expect(Math.abs(c - want[i]), `${label} ch${i}`).toBeLessThanOrEqual(1),
+    );
+  };
+
+  for (const theme of THEMES) {
+    it(`derives every face from its pastel by the mockup rule in ${theme}`, () => {
+      const ink = tok(theme, "--sf-ink");
+      for (const t of TINTS) {
+        const pastel = tok(theme, `--sf-cat-${t}`);
+        const faces =
+          theme === "light"
+            ? {
+                top: mix(pastel, "#FFFFFF", 0.5),
+                left: rgb(pastel),
+                right: mix(pastel, ink, 0.14),
+              }
+            : {
+                top: mix(pastel, ink, 0.14),
+                left: rgb(pastel),
+                right: mix(pastel, "#000000", 0.35),
+              };
+        for (const f of ["top", "left", "right"] as const) {
+          near(tok(theme, `--iso-${t}-${f}`), faces[f], `${theme} ${t} ${f}`);
+        }
+      }
+    });
+
+    it(`sets the stroke and the ground shadow in ${theme}`, () => {
+      expect(
+        same(tok(theme, "--iso-stroke"), theme === "light" ? tok(theme, "--sf-ink") : "#0B0A09"),
+      ).toBe(true);
+      expect(
+        same(tok(theme, "--iso-shadow"), theme === "light" ? tok(theme, "--sf-ink") : "#000000"),
+      ).toBe(true);
+    });
+  }
+});
+
 describe("the canvas files hold no color literal (criterion 6)", () => {
   const FILES = [
     "src/components/canvas/DesignCanvas.tsx",
     "src/components/canvas/edges/AnimatedEdge.tsx",
     "src/components/canvas/FlowParticles.tsx",
+    "src/components/canvas/nodes/IsoModel.tsx",
     "src/lib/particles.ts",
     "src/lib/exportCanvas.ts",
   ];

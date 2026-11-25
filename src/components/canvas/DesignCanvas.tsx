@@ -8,15 +8,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-  ReactFlow,
-  Controls,
-  MiniMap,
-  Background,
-  BackgroundVariant,
-  useReactFlow,
-  type Node,
-} from "@xyflow/react";
+import { ReactFlow, Controls, MiniMap, useReactFlow, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
 import { ChaosTimeline } from "./ChaosTimeline";
@@ -53,6 +45,7 @@ const emptyItem = {
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const } },
 };
 import { CanvasTabBar } from "./CanvasTabBar";
+import { IsoBackground } from "./IsoBackground";
 import { PenOverlay } from "./PenOverlay";
 import { FlowParticles } from "./FlowParticles";
 import { NodeInsightCard } from "./NodeInsightCard";
@@ -306,23 +299,8 @@ export function DesignCanvas({
           snapToGrid
           snapGrid={[16, 16]}
         >
-          {/* Two-tier grid (fine dots + faint coarse lines), both edge-masked. */}
-          <Background
-            id="grid-lines"
-            variant={BackgroundVariant.Lines}
-            gap={120}
-            lineWidth={1}
-            color="var(--grid-line)"
-            className="!bg-transparent"
-          />
-          <Background
-            id="grid-dots"
-            variant={BackgroundVariant.Dots}
-            gap={20}
-            size={1}
-            color="var(--grid-dot)"
-            className="!bg-transparent"
-          />
+          {/* Isometric lines at 30° and 150°, 26 px, edge-masked: decorative; nodes snap to 16 px. */}
+          <IsoBackground />
           <Controls
             className="!rounded-md !border !border-zinc-800 !bg-zinc-900 !shadow-sm [&>button]:!border-zinc-800 [&>button]:!bg-zinc-900 [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-800 [&>button:hover]:!text-zinc-200"
             position="bottom-left"

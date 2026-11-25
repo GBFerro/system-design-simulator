@@ -4,14 +4,21 @@ import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
-import { ChevronDown, Server, TriangleAlert, OctagonAlert } from "lucide-react";
-import { ICON_MAP } from "@/lib/icons";
+import { ChevronDown, TriangleAlert, OctagonAlert } from "lucide-react";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
+import type { RuntimeNodeStatus } from "@/engine/types";
+import {
+  formatHeadline,
+  headlineMetricOf,
+  isoArchetypeOf,
+  isoTintOf,
+  type IsoHeadline,
+} from "@/lib/iso";
+import { IsoModel, type IsoStatus } from "./IsoModel";
 import { NodeActionsToolbar } from "./NodeActionsToolbar";
 import { NodeMetricsBadge } from "./NodeMetricsBadge";
 import { ReturnHandles } from "./ReturnHandles";
-import { RUNTIME_STATUS_META } from "./runtimeStatus";
-import { useNodeBlast, useNodeStatus } from "@/store/runtimeStore";
+import { useNodeBlast, useNodeRuntime, useNodeStatus } from "@/store/runtimeStore";
 import { useNodeFindingSeverity, useNodePreviewChange } from "@/store/advisorStore";
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
 import { technologyOf } from "@/domain/components/params";
@@ -19,27 +26,38 @@ import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
 
-// Each category gets a crisp, tinted icon "chip" so node types are
-// distinguishable at a glance — the identity lives in the chip, not a heavy
-// border, keeping the canvas calm (Linear/Railway-style).
-const CATEGORY_COLORS: Record<string, { chip: string; icon: string; ring: string }> = {
-  networking: { chip: "bg-blue-500/10", icon: "text-blue-400", ring: "ring-blue-500/25" },
-  compute: { chip: "bg-violet-500/10", icon: "text-violet-400", ring: "ring-violet-500/25" },
-  storage: { chip: "bg-amber-500/10", icon: "text-amber-400", ring: "ring-amber-500/25" },
-  messaging: { chip: "bg-emerald-500/10", icon: "text-emerald-400", ring: "ring-emerald-500/25" },
-  infrastructure: { chip: "bg-cyan-500/10", icon: "text-cyan-400", ring: "ring-cyan-500/25" },
+/**
+ * The model's halo by runtime status. A node with no snapshot has no halo; the status icon in the
+ * metrics badge still says it too (color AND icon).
+ */
+const ISO_STATUS: Record<RuntimeNodeStatus, IsoStatus> = {
+  ok: "ok",
+  warn: "slow",
+  critical: "err",
+  down: "err",
 };
+
+/** The one live figure of a node, under its name. Reads only this node's metrics. */
+function NodeHeadline({ nodeId, field }: { nodeId: string; field: IsoHeadline }) {
+  const m = useNodeRuntime(nodeId);
+  return (
+    <div
+      data-node-headline={field}
+      className="pointer-events-none absolute left-0 top-[106px] flex h-3.5 w-full items-center justify-center whitespace-nowrap font-mono text-[10px] leading-none text-zinc-300"
+    >
+      {m ? formatHeadline(field, m) : ""}
+    </div>
+  );
+}
 
 function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   const nodeData = data;
-  const Icon = ICON_MAP[nodeData.icon] ?? Server;
-  const colors = CATEGORY_COLORS[nodeData.category] ?? CATEGORY_COLORS.compute;
+  const archetype = isoArchetypeOf(nodeData.componentId);
+  const tint = isoTintOf(nodeData.componentId, nodeData.category);
   // Runtime metrics come from runtimeStore (Spec 07), never from node.data.
   // Only the status string is read here, so the node itself re-renders just
-  // when its status changes; the numbers live in <NodeMetricsBadge>.
+  // when its status changes; the numbers live in <NodeHeadline> and <NodeMetricsBadge>.
   const status = useNodeStatus(id);
-  const statusDot = status ? RUNTIME_STATUS_META[status].dot : "bg-zinc-600";
-  const isBottleneck = status === "critical" || status === "down";
   // Chaos (Spec 08): the fault's target gets its own outline; nodes it
   // degrades pulse. Advisor (Spec 12): a discreet marker for structure hints.
   const blast = useNodeBlast(id);
@@ -57,6 +75,17 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const isCoarse = useIsCoarsePointer();
   const readOnly = useIsActiveTabReadOnly();
+
+  // The details (capacity line, technology tag, metrics badge) are always rendered and fade in
+  // with opacity: on hover and focus, or while selected. A coarse pointer has no hover, so only
+  // selection reveals them there.
+  const reveal = `transition-opacity duration-150 ${
+    selected
+      ? "opacity-100"
+      : isCoarse
+        ? "opacity-0"
+        : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+  }`;
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -89,23 +118,23 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
     setEditing(true);
   }, [isCoarse, selected, isCustom, editing, nodeData.label]);
 
+  const handleClass = isCoarse ? "!h-5 !w-5" : "!h-2 !w-2";
+
   return (
-    <div
-      data-blast={blast}
-      data-finding={finding}
-      className={`
-        group relative flex flex-col items-center gap-1 rounded-xl border bg-zinc-900 px-4 py-3
-        shadow-[var(--shadow-e2)] transition-[border-color,box-shadow] duration-150
-        ${
-          isBottleneck
-            ? "border-rose-500/60 ring-2 ring-rose-500/20"
-            : selected
-              ? "border-cyan-500/80 ring-2 ring-cyan-500/30"
-              : "border-zinc-700/70 hover:border-zinc-600"
-        }
-      `}
-    >
+    // A fixed 160 x 120 box (DEFAULT_NODE_SIZE): everything that changes with the label, the
+    // technology, the instances, the status, hover or selection is absolutely positioned and may
+    // overflow it, so the box never resizes (a re-measure would rewrite canvasStore).
+    <div data-blast={blast} data-finding={finding} className="group relative h-[120px] w-[160px]">
       <NodeActionsToolbar nodeId={id} />
+
+      {/* The isometric model, ~96 px, with the status halo and the selected ring */}
+      <IsoModel
+        archetype={archetype}
+        tint={tint}
+        status={status ? ISO_STATUS[status] : undefined}
+        selected={selected}
+        className="pointer-events-none absolute left-8 top-0 h-24 w-24"
+      />
 
       {/* Blast radius: outline/pulse drawn outside the box, so the node never resizes */}
       {blast && (
@@ -160,19 +189,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
         </span>
       )}
 
-      {/* Status indicator dot */}
-      <div
-        className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-zinc-900 ${statusDot}`}
-        style={{ animation: status ? "status-pulse 2s infinite" : "none" }}
-      />
-
-      {/* Icon + Label row */}
-      <div className="flex items-center gap-2">
-        <div
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ${colors.chip} ${colors.icon} ${colors.ring}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
+      {/* Name pill */}
+      <div className="absolute left-1/2 top-[88px] flex h-[18px] max-w-[144px] -translate-x-1/2 items-center rounded-full border border-zinc-700 bg-zinc-900 px-2">
         {editing ? (
           <input
             ref={inputRef}
@@ -186,11 +204,12 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
                 setEditing(false);
               }
             }}
-            className="nodrag max-w-[80px] bg-transparent text-[11px] font-medium text-zinc-200 outline-none border-b border-cyan-500"
+            className="nodrag w-[112px] bg-transparent text-[11px] font-medium text-zinc-100 outline-none"
           />
         ) : (
           <span
-            className={`max-w-[96px] whitespace-normal break-words text-center text-[11px] font-medium leading-tight text-zinc-200 ${isCustom ? "cursor-text" : ""}`}
+            title={nodeData.label}
+            className={`truncate whitespace-nowrap text-center text-[11px] font-medium leading-none text-zinc-100 ${isCustom ? "cursor-text" : ""}`}
             onDoubleClick={handleDoubleClick}
             onClick={handleLabelClick}
           >
@@ -199,10 +218,8 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
         )}
       </div>
 
-      {/* Stats */}
-      <span className="font-mono text-[9px] text-zinc-400">
-        {(capacity / 1000).toFixed(0)}k qps
-      </span>
+      {/* The headline metric: one live figure, empty without a snapshot */}
+      <NodeHeadline nodeId={id} field={headlineMetricOf(archetype)} />
 
       {/* Instances: the ×N badge opens the node into one card per instance (a view setting) */}
       {replicas > 1 && (
@@ -215,36 +232,45 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
           aria-expanded={false}
           aria-label={`Show the ${replicas} instances`}
           title="Open into one card per instance, to see how traffic is split"
-          className="nodrag nopan absolute -left-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center gap-px rounded-full bg-cyan-600 px-1 text-[8px] font-bold text-white transition-colors hover:bg-cyan-500"
+          className="nodrag nopan absolute left-1 top-1 flex h-4 min-w-4 items-center justify-center gap-px rounded-full bg-cyan-600 px-1 text-[8px] font-bold text-white transition-colors hover:bg-cyan-500"
         >
           ×{replicas}
           <ChevronDown className="h-2 w-2" aria-hidden />
         </button>
       )}
 
-      {/* Technology tag: on the bottom border, outside the layout, so the node never resizes */}
-      {tech && (
-        <span
-          data-technology={tech.id}
-          className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-zinc-700 bg-zinc-800 px-1.5 font-mono text-[9px] leading-[14px] text-zinc-300"
-        >
-          {tech.layer ? `${tech.short} · ${tech.layer}` : tech.short}
-        </span>
-      )}
+      {/* Details under the box: capacity line, technology tag, metrics badge. They overflow the
+          box (never resize it) and fade in on hover, focus and selection. */}
+      <div className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 flex w-[132px] -translate-x-1/2 flex-col items-center gap-0.5">
+        <div className="flex items-center justify-center gap-1">
+          <span className={`font-mono text-[9px] text-zinc-400 ${reveal}`}>
+            {(capacity / 1000).toFixed(0)}k qps
+          </span>
+          {tech && (
+            <span
+              data-technology={tech.id}
+              className={`whitespace-nowrap rounded-full border border-zinc-700 bg-zinc-800 px-1.5 font-mono text-[9px] leading-[14px] text-zinc-300 ${reveal}`}
+            >
+              {tech.layer ? `${tech.short} · ${tech.layer}` : tech.short}
+            </span>
+          )}
+        </div>
+        {/* Runtime metrics (OBS-01): RPS in, utilization, p99, status icon */}
+        <NodeMetricsBadge nodeId={id} showSparkline={isCoarse && !!selected} className={reveal} />
+      </div>
 
-      {/* Runtime metrics (OBS-01): RPS in, utilization, p99, status icon */}
-      <NodeMetricsBadge nodeId={id} showSparkline={isCoarse && !!selected} />
-
-      {/* Handles — larger visual size on touch devices (44px hit area via CSS ::after) */}
+      {/* Handles at the slab's mid-height; larger visual size on touch devices (44px hit area via CSS ::after) */}
       <Handle
         type="target"
         position={Position.Left}
-        className={`${isCoarse ? "!h-5 !w-5" : "!h-2 !w-2"} !rounded-full !border !border-zinc-600 !bg-zinc-400`}
+        style={{ top: "54%" }}
+        className={`${handleClass} !rounded-full !border !border-zinc-600 !bg-zinc-400`}
       />
       <Handle
         type="source"
         position={Position.Right}
-        className={`${isCoarse ? "!h-5 !w-5" : "!h-2 !w-2"} !rounded-full !border !border-zinc-600 !bg-zinc-400`}
+        style={{ top: "54%" }}
+        className={`${handleClass} !rounded-full !border !border-zinc-600 !bg-zinc-400`}
       />
       <ReturnHandles connectable={!readOnly} coarse={isCoarse} />
     </div>

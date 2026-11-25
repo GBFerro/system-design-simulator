@@ -29,7 +29,7 @@ import { useCustomComponentsStore } from "@/store/customComponentsStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { defaultTechnologyOf, technologiesOf } from "@/domain/components/technologies";
 import { createComponentNode } from "@/lib/nodeFactory";
-import { visibleCanvasCenter } from "@/lib/placement";
+import { placeAtVisibleCenter } from "@/lib/placement";
 import { useAppStore } from "@/store/appStore";
 import { ICON_MAP } from "@/lib/icons";
 
@@ -105,9 +105,10 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
   /** Add a node; a central type starts with `technology` (component-technologies, TEC-22/23). */
   const addComponent = useCallback(
     (component: SystemComponent, technology?: string) => {
-      placeNode(
+      placeAtVisibleCenter(
+        placeNode,
         createComponentNode(component, { x: 0, y: 0 }, technology),
-        visibleCanvasCenter(screenToFlowPosition),
+        screenToFlowPosition,
       );
       showToast(`Added ${component.label}`, "success");
     },

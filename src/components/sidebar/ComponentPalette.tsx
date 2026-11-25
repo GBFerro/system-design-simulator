@@ -22,30 +22,15 @@ import {
   type Technology,
 } from "@/domain/components/technologies";
 import { ICON_MAP } from "@/lib/icons";
+import { ISO_TINT_VAR, isoTintOf } from "@/lib/iso";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 import { createComponentNode } from "@/lib/nodeFactory";
-import { visibleCanvasCenter } from "@/lib/placement";
+import { placeAtVisibleCenter } from "@/lib/placement";
 import type { PaletteDragData } from "@/components/canvas/PaletteDnd";
 import { useAppStore } from "@/store/appStore";
 import { useCustomComponentsStore } from "@/store/customComponentsStore";
 import { useIsCoarsePointer } from "@/hooks/useBreakpoint";
 import type { SystemComponent } from "@/types/component";
-
-const CATEGORY_ACCENT: Record<string, string> = {
-  networking: "text-blue-400",
-  compute: "text-violet-400",
-  storage: "text-amber-400",
-  messaging: "text-emerald-400",
-  infrastructure: "text-cyan-400",
-};
-
-const CATEGORY_BG: Record<string, string> = {
-  networking: "bg-blue-400/10",
-  compute: "bg-violet-400/10",
-  storage: "bg-amber-400/10",
-  messaging: "bg-emerald-400/10",
-  infrastructure: "bg-cyan-400/10",
-};
 
 interface ComponentPaletteProps {
   onCreateCustomComponent?: () => void;
@@ -81,9 +66,10 @@ export function ComponentPalette({
         useAppStore.getState().showToast("Reference tabs are read-only", "info");
         return;
       }
-      placeNode(
+      placeAtVisibleCenter(
+        placeNode,
         createComponentNode(component, { x: 0, y: 0 }, technology),
-        visibleCanvasCenter(screenToFlowPosition),
+        screenToFlowPosition,
       );
       useAppStore.getState().showToast(`Added ${component.label}`, "success");
       onComponentAdded?.();
@@ -173,8 +159,8 @@ export function ComponentPalette({
                   <div className="space-y-0.5">
                     {items.map((item) => {
                       const Icon = ICON_MAP[item.icon] ?? Server;
-                      const accent = CATEGORY_ACCENT[item.category] ?? "text-cyan-400";
-                      const iconBg = CATEGORY_BG[item.category] ?? "bg-cyan-400/10";
+                      // The family's pastel, from the tint table the canvas nodes use too
+                      const tint = isoTintOf(item.id, item.category);
                       const concept = CONCEPT_LIBRARY[item.id];
                       const tipText = concept?.whenToUse[0] ?? item.description;
                       const isCustom = customIds.has(item.id);
@@ -200,11 +186,11 @@ export function ComponentPalette({
                                 >
                                   <GripVertical className="h-3 w-3 shrink-0 text-zinc-600 opacity-0 transition-opacity group-hover:opacity-100" />
                                   <div
-                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${iconBg}`}
+                                    data-palette-tint={tint}
+                                    style={{ backgroundColor: ISO_TINT_VAR[tint] }}
+                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
                                   >
-                                    <Icon
-                                      className={`h-3.5 w-3.5 shrink-0 transition-colors ${accent}`}
-                                    />
+                                    <Icon className="h-3.5 w-3.5 shrink-0 text-zinc-100 transition-colors" />
                                   </div>
                                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                                   {isCustom && (
