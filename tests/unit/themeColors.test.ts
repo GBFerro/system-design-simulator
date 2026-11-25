@@ -1,5 +1,60 @@
 import { describe, expect, it } from "vitest";
-import { THEME_COLOR_TOKENS, readThemeColors } from "@/lib/themeColors";
+import {
+  THEME_COLOR_TOKENS,
+  createThemeColorCache,
+  readThemeColors,
+  type ThemeColors,
+} from "@/lib/themeColors";
+
+describe("createThemeColorCache", () => {
+  const colorsOf = (tag: string) => readThemeColors((name) => `${tag}${name}`);
+
+  it("reads once up front and serves the cached colors until the theme changes", () => {
+    let reads = 0;
+    let theme = "light";
+    const cache = createThemeColorCache(
+      () => {
+        reads++;
+        return colorsOf(theme);
+      },
+      () => () => {},
+    );
+    expect(cache.get().bg).toBe("light--sf-bg");
+    theme = "dark";
+    expect(cache.get().bg).toBe("light--sf-bg");
+    expect(reads).toBe(1);
+  });
+
+  it("re-reads on the watcher callback and then calls onChange", () => {
+    let theme = "light";
+    let fire: () => void = () => {};
+    const seen: string[] = [];
+    const cache = createThemeColorCache(
+      () => colorsOf(theme),
+      (cb) => {
+        fire = cb;
+        return () => {};
+      },
+      () => seen.push(cache.get().bg),
+    );
+    theme = "dark";
+    fire();
+    expect(cache.get().bg).toBe("dark--sf-bg");
+    expect(seen).toEqual(["dark--sf-bg"]);
+  });
+
+  it("dispose unsubscribes the watcher", () => {
+    let unsubscribed = 0;
+    const cache = createThemeColorCache(
+      () => colorsOf("x") as ThemeColors,
+      () => () => {
+        unsubscribed++;
+      },
+    );
+    cache.dispose();
+    expect(unsubscribed).toBe(1);
+  });
+});
 
 // Papel quente slice 1, criterion 6: the 2D particle canvas and the export read the theme's
 // colors from the CSS tokens instead of holding color literals.

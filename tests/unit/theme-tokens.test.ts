@@ -149,12 +149,13 @@ describe("contrast of the text pairs (criterion 3)", () => {
     // Criterion 3 lists req, resp, ok, slow and err on panel-2 too, but the Approach's Contrast
     // list (and the hex values of criterion 1) give only the panel for them: in light, req and
     // slow (and ok, by 0.01) fall just under 4.5:1 on panel-2. They stay usable on the panel;
-    // the floor for the three is pinned here so a change to the values is a conscious one.
+    // the floor is pinned here so a change to the values is a conscious one. Status text on
+    // panel-2 uses ink in light, so req (4.378) and slow (4.449) hold 4.3; ok (4.5011) holds 4.5.
     for (const name of ["--sf-req", "--sf-resp", "--sf-ok", "--sf-slow", "--sf-err"]) {
       atLeast("dark", name, "--sf-panel-2");
     }
-    for (const name of ["--sf-resp", "--sf-err"]) atLeast("light", name, "--sf-panel-2");
-    for (const name of ["--sf-req", "--sf-ok", "--sf-slow"]) {
+    for (const name of ["--sf-resp", "--sf-err", "--sf-ok"]) atLeast("light", name, "--sf-panel-2");
+    for (const name of ["--sf-req", "--sf-slow"]) {
       atLeast("light", name, "--sf-panel-2", 4.3);
     }
   });

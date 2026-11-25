@@ -6,7 +6,7 @@
  * canvas reads the resolved values of the active theme.
  */
 import type { RuntimeEdgeStatus } from "@/engine/types";
-import { cssVar, type ThemeColorToken } from "@/lib/themeColors";
+import { cssVar, type ThemeColors, type ThemeColorToken } from "@/lib/themeColors";
 
 /** Edge stroke width (flow px) ∝ log of the load; the idle width with no load. */
 export function edgeStrokeWidth(rps: number | undefined): number {
@@ -43,3 +43,22 @@ export const BALL_CORE_TOKEN: ThemeColorToken = "panel";
 
 /** Ring color of a response (an ok one; a failed call's is err). */
 export const RESPONSE_TOKEN: ThemeColorToken = "resp";
+
+/** The Flow tab's highlight: the request color of the theme. */
+export const EDGE_HIGHLIGHT_COLOR = cssVar("req");
+
+/** Fill and outline of a request ball of this status, from the resolved theme colors. */
+export function ballPaint(
+  status: RuntimeEdgeStatus,
+  colors: ThemeColors,
+): { fill: string; outline: string } {
+  return { fill: colors[BALL_FILL_TOKEN[status]], outline: colors[BALL_OUTLINE_TOKEN] };
+}
+
+/** Core and ring of a response ball (`error`: the call failed). */
+export function responsePaint(error: boolean, colors: ThemeColors): { fill: string; ring: string } {
+  return {
+    fill: colors[BALL_CORE_TOKEN],
+    ring: colors[error ? EDGE_STATUS_TOKEN.error : RESPONSE_TOKEN],
+  };
+}

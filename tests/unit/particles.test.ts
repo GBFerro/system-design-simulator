@@ -4,12 +4,37 @@ import { describe, expect, it } from "vitest";
 import {
   BALL_FILL_TOKEN,
   BALL_OUTLINE_TOKEN,
+  EDGE_HIGHLIGHT_COLOR,
   EDGE_STATUS_COLOR,
   EDGE_STATUS_TOKEN,
   RESPONSE_TOKEN,
+  ballPaint,
   edgeStrokeWidth,
+  responsePaint,
 } from "@/lib/particles";
-import { THEME_COLOR_TOKENS } from "@/lib/themeColors";
+import { THEME_COLOR_TOKENS, readThemeColors } from "@/lib/themeColors";
+
+// Every token reads back as its own name, so a paint value says which token chose it.
+const NAMES = readThemeColors((n) => n.replace("--sf-", ""));
+
+describe("ballPaint and responsePaint pin the exact token of each part", () => {
+  it("request balls: ok is a panel fill, slow and error fill with their color, all inked outline", () => {
+    expect(ballPaint("ok", NAMES)).toEqual({ fill: "panel", outline: "ink" });
+    expect(ballPaint("slow", NAMES)).toEqual({ fill: "slow", outline: "ink" });
+    expect(ballPaint("error", NAMES)).toEqual({ fill: "err", outline: "ink" });
+  });
+
+  it("response rings: a panel core, ringed in resp, or in err when the call failed", () => {
+    expect(responsePaint(false, NAMES)).toEqual({ fill: "panel", ring: "resp" });
+    expect(responsePaint(true, NAMES)).toEqual({ fill: "panel", ring: "err" });
+  });
+});
+
+describe("EDGE_HIGHLIGHT_COLOR", () => {
+  it("is the request color of the theme", () => {
+    expect(EDGE_HIGHLIGHT_COLOR).toBe("var(--sf-req)");
+  });
+});
 
 // Papel quente slice 1, criterion 6: the edge and ball colors are tokens, not literals.
 

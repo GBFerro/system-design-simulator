@@ -127,7 +127,7 @@ src/
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils, ringBuffer,
                   steps (the wizard's steps and which tools each shows, pure: TOOLS_BY_STEP, canvasVisible, paletteVisible),
                   topology (topologySignature: what structure-dependent views recompute on),
-                  particles (edge width/status color tokens), themeColors (the `--sf-*` tokens as values for the 2D canvas and the export, `watchTheme`), flowBalls (request balls of the flow overlay), instances (instance cards/lanes, edge-copy ids, instances down under faults), runtimeMetrics (snapshot sharing, sparklines, formatters),
+                  particles (edge width/status color tokens, ball paint), minimapColor (minimap node color per runtime status), themeColors (the `--sf-*` tokens as values for the 2D canvas and the export, `watchTheme`, the refreshing color cache), flowBalls (request balls of the flow overlay), instances (instance cards/lanes, edge-copy ids, instances down under faults), runtimeMetrics (snapshot sharing, sparklines, formatters),
                   sequenceLayout (request-flow: a RequestTrace → lifelines, call/response/async arrows, hit/miss marks for the Flow tab)
   types/          shared interfaces
 tests/

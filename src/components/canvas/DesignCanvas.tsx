@@ -29,6 +29,7 @@ import { toEdgeChanges, toNodeChanges, withInstances } from "./instanceGraph";
 import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
+import { minimapNodeColor } from "@/lib/minimapColor";
 import { visibleCanvasCenter } from "@/lib/placement";
 import {
   BookOpen,
@@ -241,13 +242,7 @@ export function DesignCanvas({
       // `statusSignature` changes the function identity so the minimap repaints.
       statusSignature === ""
         ? () => "var(--sf-muted)"
-        : (node: Node) => {
-            const status = getLatestSnapshot()?.nodes[node.id]?.status;
-            if (status === "critical" || status === "down") return "var(--sf-err)";
-            if (status === "warn") return "var(--sf-slow)";
-            if (status === "ok") return "var(--sf-ok)";
-            return "var(--sf-muted)";
-          },
+        : (node: Node) => minimapNodeColor(getLatestSnapshot()?.nodes[node.id]?.status),
     [statusSignature],
   );
 

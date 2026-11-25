@@ -5,14 +5,8 @@ import { useStoreApi } from "@xyflow/react";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { usePrefersReducedMotion } from "@/hooks/useBreakpoint";
-import {
-  BALL_CORE_TOKEN,
-  BALL_FILL_TOKEN,
-  BALL_OUTLINE_TOKEN,
-  EDGE_STATUS_TOKEN,
-  RESPONSE_TOKEN,
-} from "@/lib/particles";
-import { themeColors, watchTheme } from "@/lib/themeColors";
+import { EDGE_STATUS_TOKEN, ballPaint, responsePaint } from "@/lib/particles";
+import { createThemeColorCache, themeColors, watchTheme } from "@/lib/themeColors";
 import {
   BURST_SEC,
   FlowBalls,
@@ -287,13 +281,10 @@ export function FlowParticles() {
     const STATUSES: RuntimeEdgeStatus[] = ["ok", "slow", "error"];
 
     // The theme's colors, read once per theme change (the 2D canvas cannot use var()).
-    let colors = themeColors();
-    const unwatchTheme = watchTheme(() => {
-      colors = themeColors();
-      requestFrame();
-    });
+    const themeCache = createThemeColorCache(themeColors, watchTheme, () => requestFrame());
 
     const draw = (snapshot: TickSnapshot) => {
+      const colors = themeCache.get();
       const [tx, ty, zoom] = rfStore.getState().transform;
       clear();
       ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * tx, dpr * ty);
@@ -312,9 +303,10 @@ export function FlowParticles() {
           any = true;
         }
         if (!any) continue;
-        ctx.fillStyle = colors[BALL_FILL_TOKEN[status]];
+        const paint = ballPaint(status, colors);
+        ctx.fillStyle = paint.fill;
         ctx.fill();
-        ctx.strokeStyle = colors[BALL_OUTLINE_TOKEN];
+        ctx.strokeStyle = paint.outline;
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
@@ -333,9 +325,10 @@ export function FlowParticles() {
           any = true;
         }
         if (!any) continue;
-        ctx.fillStyle = colors[BALL_CORE_TOKEN];
+        const paint = responsePaint(error, colors);
+        ctx.fillStyle = paint.fill;
         ctx.fill();
-        ctx.strokeStyle = colors[error ? EDGE_STATUS_TOKEN.error : RESPONSE_TOKEN];
+        ctx.strokeStyle = paint.ring;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -431,7 +424,7 @@ export function FlowParticles() {
       unsubCanvas();
       unsubExpanded();
       unsubRf();
-      unwatchTheme();
+      themeCache.dispose();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [reduceMotion, rfStore]);

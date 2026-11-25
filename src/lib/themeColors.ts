@@ -43,6 +43,23 @@ export function themeColors(): ThemeColors {
 }
 
 /**
+ * The colors read once and re-read whenever `watch` fires (then `onChange`). `read` and `watch`
+ * are injected (`themeColors`, `watchTheme` in the app) so the refresh is testable.
+ */
+export function createThemeColorCache(
+  read: () => ThemeColors,
+  watch: (onChange: () => void) => () => void,
+  onChange?: () => void,
+): { get: () => ThemeColors; dispose: () => void } {
+  let colors = read();
+  const dispose = watch(() => {
+    colors = read();
+    onChange?.();
+  });
+  return { get: () => colors, dispose };
+}
+
+/**
  * Call `onChange` after the theme class of `<html>` changes (the toggle, the persisted theme
  * applied on load). Returns the unsubscribe.
  */

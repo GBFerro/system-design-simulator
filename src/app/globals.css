@@ -68,10 +68,6 @@
   --color-blue-600: var(--sf-req);
 }
 
-/* Utilities the tests (and a future component) rely on, whether or not a component
-   uses them today: the remapped status text and background classes and the heading font. */
-@source inline("text-{rose,amber,emerald,violet,orange,blue}-400 bg-{rose,amber,emerald,violet,orange,blue}-500 font-heading");
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -11,7 +11,7 @@ import {
 } from "@xyflow/react";
 import { TriangleAlert } from "lucide-react";
 import { useEdgeRuntime } from "@/store/runtimeStore";
-import { EDGE_STATUS_COLOR, edgeStrokeWidth } from "@/lib/particles";
+import { EDGE_HIGHLIGHT_COLOR, EDGE_STATUS_COLOR, edgeStrokeWidth } from "@/lib/particles";
 import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 import { PARAM, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
@@ -113,8 +113,8 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
   return byEdge;
 }
 
-/** The Flow tab's highlight: the request color of the theme. */
-const HIGHLIGHT_COLOR = "var(--sf-req)";
+/** The Flow tab's highlight: the request color of the theme (pinned in particles.test.ts). */
+const HIGHLIGHT_COLOR = EDGE_HIGHLIGHT_COLOR;
 /** An edge with no load: ink at low opacity (a theme-specific canvas color of globals.css). */
 const IDLE_STROKE = "var(--edge-idle)";
 
