@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { IsoModel } from "@/components/canvas/nodes/IsoModel";
-import { ISO_ORIGIN, pt, quad, type IsoArchetype, type IsoTint } from "@/lib/iso";
+import { diamond, ISO_ORIGIN, pt, quad, type IsoArchetype, type IsoTint } from "@/lib/iso";
 
 // Papel quente slice 2 (specs/2026-11-24-redesign-papel-quente.md, criteria 10 to 13): the
 // markup of the fifteen isometric models, their face/stroke/shadow variables, the status halo,
@@ -194,6 +194,26 @@ describe("the selected ring (criterion 13)", () => {
     expect(rings).toHaveLength(1);
     expect(rings[0].attrs["stroke"]).toBe("var(--sf-accent)");
     expect(rings[0].attrs["stroke-dasharray"]).toBeTruthy();
+  });
+
+  it.each(ARCHETYPES)("%s draws the ring at diamond(51, 0), outside the halo's outer ring", (a) => {
+    const all = tags(of(a, "data", { status: "ok", selected: true }));
+    const ring = all.find((t) => t.attrs["data-iso-selected"] !== undefined)!;
+    const halo = all.find((t) => t.attrs["class"]?.split(" ").includes("iso-halo"))!;
+    expect(ring.attrs["points"]).toBe(diamond(51, 0));
+    expect(halo.attrs["points"]).toBe(diamond(46, 0));
+    expect(ring.attrs["points"]).not.toBe(halo.attrs["points"]);
+    // Geometrically wider: every ring vertex is farther from the origin than the halo's
+    const dist = (points: string) =>
+      points
+        .trim()
+        .split(/\s+/)
+        .map((p) => {
+          const [x, y] = p.split(",").map(Number);
+          return Math.hypot(x - ISO_ORIGIN[0], y - ISO_ORIGIN[1]);
+        });
+    const [r, h] = [dist(ring.attrs["points"]), dist(halo.attrs["points"])];
+    r.forEach((d, i) => expect(d).toBeGreaterThan(h[i]));
   });
 
   it("shows the halo and the ring together", () => {

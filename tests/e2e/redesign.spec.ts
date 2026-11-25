@@ -10,7 +10,7 @@ import {
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { isoArchetypeOf, isoTintOf } from "@/lib/iso";
 import { DEFAULT_NODE_SIZE } from "@/lib/placement";
-import { center, connect, open, openTab, quickAdd } from "./helpers";
+import { MOD, center, connect, open, openTab, quickAdd } from "./helpers";
 
 // Papel quente slice 1 (specs/2026-11-24-redesign-papel-quente.md, criteria 1, 2, 4, 5, 6, 7):
 // the tokens, the remapped palettes, the fonts, the canvas colors and the default theme.
@@ -1035,15 +1035,18 @@ test("background: lines at 30 and 150 degrees, 26 px, in --grid-line; nodes stil
   expect(pos.y % 16, "y on the 16 px grid").toBe(0);
 });
 
-test("tap-add: sixteen nodes at 1280 x 720 never land under the minimap or the zoom controls, nor on each other", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await open(page, "/");
-  await stylesApplied(page);
-  const labels = ["App Server", "Cache / Redis", "SQL Database", "Load Balancer", "Auth Service"];
-  for (let i = 0; i < 16; i++) await quickAdd(page, labels[i % labels.length]);
-  await expect(page.locator(".react-flow__node")).toHaveCount(16);
+const TAP_ADD_COUNT = 16;
+const TAP_ADD_LABELS = [
+  "App Server",
+  "Cache / Redis",
+  "SQL Database",
+  "Load Balancer",
+  "Auth Service",
+];
+
+/** Every node (and its handles) is clear of the minimap and the zoom controls, and of each other. */
+async function expectClearOfOverlays(page: Page) {
+  await expect(page.locator(".react-flow__node")).toHaveCount(TAP_ADD_COUNT);
 
   const boxes = await page.evaluate(() => {
     const rect = (el: Element) => {
@@ -1083,4 +1086,46 @@ test("tap-add: sixteen nodes at 1280 x 720 never land under the minimap or the z
       expect(hit(node, other.node), `node ${i} on node ${i + 1 + j}`).toBe(false);
     });
   });
+}
+
+test("tap-add: sixteen nodes at 1280 x 720 never land under the minimap or the zoom controls, nor on each other", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await open(page, "/");
+  await stylesApplied(page);
+  for (let i = 0; i < TAP_ADD_COUNT; i++) await quickAdd(page, TAP_ADD_LABELS[i % 5]);
+  await expectClearOfOverlays(page);
+});
+
+test("tap-add through the command palette: sixteen nodes at 1280 x 720 stay clear of the overlays", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await open(page, "/");
+  await stylesApplied(page);
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  for (let i = 0; i < TAP_ADD_COUNT; i++) {
+    await page.keyboard.press(`${MOD}+k`);
+    await palette
+      .getByPlaceholder("Search problems, components, actions…")
+      .fill(TAP_ADD_LABELS[i % 5]);
+    await page.keyboard.press("Enter");
+    await expect(palette).toHaveCount(0);
+    await expect(page.locator(".react-flow__node")).toHaveCount(i + 1);
+  }
+  await expectClearOfOverlays(page);
+});
+
+test("tap-add through the top bar's Add Note: sixteen notes at 1280 x 720 stay clear of the overlays", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await open(page, "/");
+  await stylesApplied(page);
+  for (let i = 0; i < TAP_ADD_COUNT; i++) {
+    await page.getByRole("button", { name: "Add Note" }).click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(i + 1);
+  }
+  await expectClearOfOverlays(page);
 });

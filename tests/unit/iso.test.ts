@@ -142,6 +142,10 @@ describe("formatHeadline", () => {
   it("p99 is the latency with its label", () => expect(formatHeadline("p99", m)).toBe("p99 12 ms"));
   it("utilization is a whole percent", () =>
     expect(formatHeadline("utilization", m)).toBe("util 63%"));
+  it("utilization never shows below 0%", () =>
+    expect(formatHeadline("utilization", { ...m, utilization: -0.2 })).toBe("util 0%"));
+  it("utilization above 100% is shown as is (no upper clamp: overload is the point)", () =>
+    expect(formatHeadline("utilization", { ...m, utilization: 1.5 })).toBe("util 150%"));
 });
 
 describe("iso geometry (the mockup's pt)", () => {

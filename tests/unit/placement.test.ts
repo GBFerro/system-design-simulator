@@ -1,10 +1,12 @@
 import type { Node } from "@xyflow/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   canvasOverlayRects,
   DEFAULT_NODE_SIZE,
   freePositionNear,
   nodeRect,
+  placeAtVisibleCenter,
+  TEXT_NODE_SIZE,
   type Rect,
 } from "@/lib/placement";
 
@@ -16,6 +18,17 @@ describe("placement footprint", () => {
   it("nodeRect falls back to DEFAULT_NODE_SIZE for an unmeasured node", () => {
     const n = { id: "a", position: { x: 5, y: 7 }, data: {} } as Node;
     expect(nodeRect(n)).toEqual({ x: 5, y: 7, width: 160, height: 120 });
+  });
+
+  it("nodeRect uses the note footprint for an unmeasured text node, the measured size when known", () => {
+    const note = { id: "t", type: "text", position: { x: 1, y: 2 }, data: {} } as Node;
+    expect(nodeRect(note)).toEqual({ x: 1, y: 2, ...TEXT_NODE_SIZE });
+    expect(nodeRect({ ...note, measured: { width: 300, height: 90 } })).toEqual({
+      x: 1,
+      y: 2,
+      width: 300,
+      height: 90,
+    });
   });
 
   it("freePositionNear centers a default-size box on the point", () => {
@@ -69,6 +82,30 @@ describe("freePositionNear blocked rects", () => {
     const p = freePositionNear(center, nodes, undefined, [blocked]);
     expect(hits(p, blocked)).toBe(false);
     expect(hits(p, { x: 120, y: 140, width: 160, height: 120 })).toBe(false);
+  });
+});
+
+describe("placeAtVisibleCenter", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("places at the visible canvas center, blocking the overlays on screen", () => {
+    const box = (left: number, top: number, width: number, height: number) => ({
+      getBoundingClientRect: () => ({ left, top, width, height }),
+    });
+    const found: Record<string, ReturnType<typeof box>> = {
+      ".react-flow": box(100, 50, 800, 600),
+      ".react-flow__minimap": box(300, 250, 140, 90),
+    };
+    vi.stubGlobal("document", { querySelector: (sel: string) => found[sel] ?? null });
+    const toFlow = (p: { x: number; y: number }) => ({ x: p.x / 2, y: p.y / 2 });
+    const place = vi.fn();
+    const node = { id: "n", position: { x: 0, y: 0 }, data: {} } as Node;
+
+    placeAtVisibleCenter(place, node, toFlow);
+
+    expect(place).toHaveBeenCalledExactlyOnceWith(node, { x: 250, y: 175 }, [
+      { x: 150, y: 125, width: 70, height: 45 },
+    ]);
   });
 });
 

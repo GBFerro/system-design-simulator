@@ -21,7 +21,7 @@ import { safeLocalStorage } from "./safeStorage";
 import { migrateCanvasState } from "./migrations";
 import { STORE_VERSION } from "./persistVersion";
 import { randomId } from "@/lib/nodeFactory";
-import { findFreePosition, freePositionNear, nodeRect, type Rect } from "@/lib/placement";
+import { findFreePosition, freePositionNear, nodeRect, nodeSize, type Rect } from "@/lib/placement";
 import {
   instancesOf,
   MAX_INSTANCES,
@@ -684,7 +684,7 @@ export const useCanvasStore = create<CanvasState>()(
       placeNode: (node, center, blocked) => {
         set((state) => {
           if (isActiveTabReadOnly(state)) return state;
-          const position = freePositionNear(center, state.nodes, undefined, blocked);
+          const position = freePositionNear(center, state.nodes, nodeSize(node), blocked);
           return {
             history: pushedHistory(state),
             future: [],

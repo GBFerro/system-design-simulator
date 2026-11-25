@@ -25,7 +25,7 @@ import { ICON_MAP } from "@/lib/icons";
 import { ISO_TINT_VAR, isoTintOf } from "@/lib/iso";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 import { createComponentNode } from "@/lib/nodeFactory";
-import { canvasOverlayRects, visibleCanvasCenter } from "@/lib/placement";
+import { placeAtVisibleCenter } from "@/lib/placement";
 import type { PaletteDragData } from "@/components/canvas/PaletteDnd";
 import { useAppStore } from "@/store/appStore";
 import { useCustomComponentsStore } from "@/store/customComponentsStore";
@@ -66,10 +66,10 @@ export function ComponentPalette({
         useAppStore.getState().showToast("Reference tabs are read-only", "info");
         return;
       }
-      placeNode(
+      placeAtVisibleCenter(
+        placeNode,
         createComponentNode(component, { x: 0, y: 0 }, technology),
-        visibleCanvasCenter(screenToFlowPosition),
-        canvasOverlayRects(screenToFlowPosition),
+        screenToFlowPosition,
       );
       useAppStore.getState().showToast(`Added ${component.label}`, "success");
       onComponentAdded?.();

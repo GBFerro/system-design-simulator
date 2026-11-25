@@ -9,16 +9,25 @@ export interface Rect extends XYPosition, Size {}
 
 /** Fallback footprint for nodes ReactFlow hasn't measured yet. */
 export const DEFAULT_NODE_SIZE: Size = { width: 160, height: 120 };
+/**
+ * What an empty text note measures on the canvas: it is sized by its content (the placeholder
+ * line, a 140 x 48 minimum), not like a component card.
+ */
+export const TEXT_NODE_SIZE: Size = { width: 272, height: 48 };
 const GAP = 24;
 const MAX_RINGS = 40;
 
-export function nodeRect(node: Node): Rect {
+/** Footprint of `node`: measured, else set, else the default for its type. */
+export function nodeSize(node: Node): Size {
+  const fallback = node.type === "text" ? TEXT_NODE_SIZE : DEFAULT_NODE_SIZE;
   return {
-    x: node.position.x,
-    y: node.position.y,
-    width: node.measured?.width ?? node.width ?? DEFAULT_NODE_SIZE.width,
-    height: node.measured?.height ?? node.height ?? DEFAULT_NODE_SIZE.height,
+    width: node.measured?.width ?? node.width ?? fallback.width,
+    height: node.measured?.height ?? node.height ?? fallback.height,
   };
+}
+
+export function nodeRect(node: Node): Rect {
+  return { x: node.position.x, y: node.position.y, ...nodeSize(node) };
 }
 
 function overlaps(a: Rect, b: Rect): boolean {
@@ -109,6 +118,23 @@ export function visibleCanvasCenter(
     x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
     y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
   });
+}
+
+/**
+ * Tap-add: put `node` at the visible canvas center, clear of the other nodes and of the canvas
+ * overlays. Every add-by-click path (palette, command palette, top bar) goes through this, so
+ * the overlay rects are read in this one place.
+ */
+export function placeAtVisibleCenter(
+  placeNode: (node: Node, center: XYPosition, blocked?: readonly Rect[]) => void,
+  node: Node,
+  screenToFlowPosition: (p: XYPosition) => XYPosition,
+): void {
+  placeNode(
+    node,
+    visibleCanvasCenter(screenToFlowPosition),
+    canvasOverlayRects(screenToFlowPosition),
+  );
 }
 
 /** Marks the mobile right panel: a bottom sheet laid over the lower part of the canvas. */
