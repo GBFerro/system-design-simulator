@@ -29,7 +29,7 @@ import { toEdgeChanges, toNodeChanges, withInstances } from "./instanceGraph";
 import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
-import { minimapNodeColor } from "@/lib/minimapColor";
+import { minimapFill } from "@/lib/minimapColor";
 import { visibleCanvasCenter } from "@/lib/placement";
 import {
   BookOpen,
@@ -240,9 +240,9 @@ export function DesignCanvas({
   const miniMapNodeColor = useMemo(
     () =>
       // `statusSignature` changes the function identity so the minimap repaints.
-      statusSignature === ""
-        ? () => "var(--sf-muted)"
-        : (node: Node) => minimapNodeColor(getLatestSnapshot()?.nodes[node.id]?.status),
+      (node: Node) =>
+        minimapFill(node.id, getLatestSnapshot()?.nodes),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the signature is the repaint trigger
     [statusSignature],
   );
 

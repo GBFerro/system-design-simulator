@@ -7,7 +7,7 @@ import {
   THEMES,
   type Theme,
 } from "../theme-expected";
-import { open } from "./helpers";
+import { open, openTab } from "./helpers";
 
 // Papel quente slice 1 (specs/2026-11-24-redesign-papel-quente.md, criteria 1, 2, 4, 5, 6, 7):
 // the tokens, the remapped palettes, the fonts, the canvas colors and the default theme.
@@ -203,6 +203,127 @@ test("canvas colors: edges, minimap, background and the SVG export follow the th
   }
   // Switching theme changed every one of them, with no reload.
   for (const [k, [light, dark]] of Object.entries(seen)) expect(light, k).not.toBe(dark);
+});
+
+/** Open the app in light on a wide screen with the reference loaded (the minimap shows from md). */
+async function openReference(page: Page) {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page, "/");
+  await stylesApplied(page);
+  await setTheme(page, "light");
+  await page.getByTitle("Load reference solution").click();
+  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+}
+
+/** Play the reference's live traffic from the Simulate tab; returns the panel. */
+async function playLive(page: Page) {
+  await openTab(page, "Simulate");
+  const panel = page.getByRole("region", { name: "Live traffic" });
+  await panel.getByRole("button", { name: "Play live traffic" }).click();
+  await expect(panel.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
+  return panel;
+}
+
+/** The `--sf-bg` the particle overlay says its last frame was drawn in (hex, normalized). */
+async function overlayBg(page: Page) {
+  return hex((await page.getByTestId("flow-particles").getAttribute("data-theme-bg")) ?? "");
+}
+
+/** Let frames, observers and timers settle (paused: nothing should be left to draw). */
+function settle(page: Page, ms = 300) {
+  return page.evaluate(
+    (t) =>
+      new Promise<void>((done) =>
+        setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => done())), t),
+      ),
+    ms,
+  );
+}
+
+/** A live run, paused, its last frame drawn in the light theme. */
+async function pausedInLight(page: Page) {
+  const panel = await playLive(page);
+  const light = await rootVar(page, "--sf-bg");
+  await expect.poll(() => overlayBg(page)).toBe(light);
+  await panel.getByRole("button", { name: "Pause live traffic" }).click();
+  await expect(panel.getByRole("button", { name: "Play live traffic" })).toBeVisible();
+  await settle(page);
+  return light;
+}
+
+test("particle overlay: a theme switch redraws a paused frame in the new colors", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openReference(page);
+  const light = await pausedInLight(page);
+
+  // Paused, so only the theme watcher can ask for another frame.
+  await setTheme(page, "dark");
+  const dark = await rootVar(page, "--sf-bg");
+  expect(dark).not.toBe(light);
+  await expect.poll(() => overlayBg(page)).toBe(dark);
+  await setTheme(page, "light");
+  await expect.poll(() => overlayBg(page)).toBe(light);
+});
+
+test("particle overlay: once torn down it stops watching the theme", async ({ page }, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openReference(page);
+  const light = await pausedInLight(page);
+
+  // Reduced motion tears the overlay's effect down (and draws nothing from then on).
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.getByTestId("flow-particles")).toHaveAttribute("data-reduced-motion", "true");
+  await settle(page);
+  await setTheme(page, "dark");
+  await settle(page);
+  expect(await overlayBg(page)).toBe(light);
+});
+
+test("minimap: nodes are muted before a run and take their status color during one", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openReference(page);
+  const fills = () =>
+    page
+      .locator(".react-flow__minimap-node")
+      .evaluateAll((rects) => rects.map((r) => getComputedStyle(r).fill));
+  const muted = await computedColor(page, "var(--sf-muted)");
+  const ok = await computedColor(page, "var(--sf-ok)");
+  expect(muted).not.toBe(ok);
+
+  await expect.poll(async () => (await fills()).length).toBeGreaterThan(0);
+  expect((await fills()).every((f) => f === muted)).toBe(true);
+
+  await playLive(page);
+  await expect
+    .poll(async () => (await fills()).some((f) => f === ok), { timeout: 20_000 })
+    .toBe(true);
+  expect((await fills()).every((f) => f !== muted)).toBe(true);
+});
+
+test("flow tab: the highlighted edge is traced in the request color of the theme", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openReference(page);
+  await openTab(page, "Flow");
+  const panel = page.getByTestId("flow-panel");
+  await expect(panel.locator("[data-arrow]").first()).toBeVisible({ timeout: 20_000 });
+  for (const theme of THEMES) {
+    await setTheme(page, theme);
+    const want = await computedColor(page, "var(--sf-req)");
+    await panel.locator('[data-arrow="call"]').first().hover();
+    const edge = page.locator('.react-flow__edge [data-edge-highlight="req"]');
+    await expect(edge).toHaveCount(1);
+    const got = await edge.evaluate((g) => ({
+      stroke: getComputedStyle(g.querySelector("path[stroke-dasharray]")!).stroke,
+      arrow: getComputedStyle(g.querySelector('marker[id^="flow-hl-"] path')!).fill,
+    }));
+    expect(got, theme).toEqual({ stroke: want, arrow: want });
+  }
 });
 
 test.describe("default theme", () => {

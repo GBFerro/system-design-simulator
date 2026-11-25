@@ -8,3 +8,11 @@ export function minimapNodeColor(status: RuntimeNodeStatus | undefined): string 
   if (status === "ok") return cssVar("ok");
   return "var(--sf-muted)";
 }
+
+/** Minimap fill of a node: its status in the latest snapshot's nodes (none yet, or unknown: muted). */
+export function minimapFill(
+  nodeId: string,
+  nodes: Readonly<Record<string, { status: RuntimeNodeStatus } | undefined>> | undefined,
+): string {
+  return minimapNodeColor(nodes?.[nodeId]?.status);
+}
