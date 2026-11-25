@@ -1,7 +1,7 @@
 # Git hooks: the same signals the agent gets, for every committer.
 # Install once from the main checkout: `lefthook install`. Never set core.hooksPath by hand.
 #   pre-commit  the quick subset (lint + format), seconds; writes no receipt
-#   commit-msg  Conventional Commits subject
+#   commit-msg  Conventional Commits subject, no AI attribution lines
 #   pre-push    the gate: protected branches, secrets, a passed receipt for the pushed tip
 # The harness suite (sensors/test.sh, check-harness) runs inside the full verify that the pre-push
 # receipt requires, so it is not repeated on every commit.
