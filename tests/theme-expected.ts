@@ -1,0 +1,95 @@
+/**
+ * The Papel quente token values of specs/2026-11-24-redesign-papel-quente.md (criteria 1 and 2),
+ * shared by the unit test that parses globals.css and the e2e test that reads getComputedStyle.
+ */
+export type Theme = "light" | "dark";
+export const THEMES: Theme[] = ["light", "dark"];
+
+export const EXPECTED_TOKENS: Record<Theme, Record<string, string>> = {
+  light: {
+    "--sf-bg": "#EEE8DF",
+    "--sf-panel": "#FAF6F0",
+    "--sf-panel-2": "#F3EDE4",
+    "--sf-ink": "#26211C",
+    "--sf-soft": "#4F463D",
+    "--sf-muted": "#6B6155",
+    "--sf-line": "#DDD3C5",
+    "--sf-accent": "#B4502A",
+    "--sf-accent-ink": "#FFFFFF",
+    "--sf-accent-soft": "#F5DCCD",
+    "--sf-req": "#B4502A",
+    "--sf-resp": "#1F6F68",
+    "--sf-ok": "#2F7A4C",
+    "--sf-slow": "#9C5F0C",
+    "--sf-err": "#B3313E",
+    "--sf-cat-client": "#E9E2D6",
+    "--sf-cat-network": "#DCE6F1",
+    "--sf-cat-compute": "#E4DEF3",
+    "--sf-cat-cache": "#F5DAD2",
+    "--sf-cat-data": "#F3E2C6",
+    "--sf-cat-messaging": "#D6ECE6",
+    "--sf-cat-infra": "#E1E2D2",
+    "--sf-radius": "14px",
+    "--sf-radius-sm": "8px",
+    "--sf-border-w": "1.5px",
+    "--sf-btn-shadow": "2px 3px 0 #26211C",
+  },
+  dark: {
+    "--sf-bg": "#1A1714",
+    "--sf-panel": "#231F1B",
+    "--sf-panel-2": "#2A2520",
+    "--sf-ink": "#F1E9DD",
+    "--sf-soft": "#D3C7B7",
+    "--sf-muted": "#AB9D8B",
+    "--sf-line": "#3A332C",
+    "--sf-accent": "#E27D52",
+    "--sf-accent-ink": "#1A1714",
+    "--sf-accent-soft": "#4A2E22",
+    "--sf-req": "#E27D52",
+    "--sf-resp": "#52B8AC",
+    "--sf-ok": "#5CC98A",
+    "--sf-slow": "#E8A84A",
+    "--sf-err": "#EE7A84",
+    "--sf-cat-client": "#4A4238",
+    "--sf-cat-network": "#34465A",
+    "--sf-cat-compute": "#443D5E",
+    "--sf-cat-cache": "#5E3B3B",
+    "--sf-cat-data": "#5A4A2C",
+    "--sf-cat-messaging": "#2C5049",
+    "--sf-cat-infra": "#47483A",
+    "--sf-radius": "14px",
+    "--sf-radius-sm": "8px",
+    "--sf-border-w": "1.5px",
+    "--sf-btn-shadow": "2px 3px 0 #000000",
+  },
+};
+
+/** Names the existing ramps and shadcn tokens must resolve to, as [name, token] (criterion 2). */
+export const NAMED_MAPPINGS: [string, string][] = [
+  ["--z-100", "--sf-ink"],
+  ["--z-400", "--sf-soft"],
+  ["--z-500", "--sf-muted"],
+  ["--z-800", "--sf-line"],
+  ["--z-900", "--sf-panel"],
+  ["--z-950", "--sf-bg"],
+  ["--ac-500", "--sf-accent"],
+  ["--background", "--sf-bg"],
+  ["--foreground", "--sf-ink"],
+  ["--card", "--sf-panel"],
+  ["--popover", "--sf-panel"],
+  ["--border", "--sf-line"],
+  ["--primary", "--sf-accent"],
+  ["--primary-foreground", "--sf-accent-ink"],
+  ["--destructive", "--sf-err"],
+  ["--ring", "--sf-accent"],
+];
+
+/** The status and accent palettes remapped to the tokens, steps 300-600 (criterion 4). */
+export const PALETTE_TOKEN: Record<string, string> = {
+  rose: "--sf-err",
+  amber: "--sf-slow",
+  emerald: "--sf-ok",
+  violet: "--sf-resp",
+  orange: "--sf-accent",
+  blue: "--sf-req",
+};

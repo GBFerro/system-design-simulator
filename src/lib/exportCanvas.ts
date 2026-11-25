@@ -14,6 +14,7 @@ import { usePenStore, type Stroke } from "@/store/penStore";
 import { serializeEdges, serializeNodes } from "@/domain/persistence/serialize";
 import { stringifyEnvelope } from "@/domain/persistence/envelope";
 import { useSloStore } from "@/store/sloStore";
+import { themeColors } from "@/lib/themeColors";
 
 function getTimestamp(): string {
   const d = new Date();
@@ -63,7 +64,6 @@ function strokeToPath(points: [number, number][], size: number): string {
 
 /* ---------- export geometry ---------- */
 
-const BG_COLOR = "#18181b"; // zinc-900 — the app is dark-only
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const PADDING = 0.1;
@@ -158,7 +158,7 @@ export async function exportAsPng(problemName: string): Promise<void> {
   const filename = `${slugify(problemName)}-hld-${getTimestamp()}.png`;
 
   const options = {
-    backgroundColor: BG_COLOR,
+    backgroundColor: themeColors().bg,
     pixelRatio: PIXEL_RATIO,
     width: geom.imageWidth,
     height: geom.imageHeight,
@@ -243,7 +243,7 @@ export async function exportAsSvg(problemName: string): Promise<void> {
   const filename = `${slugify(problemName)}-hld-${getTimestamp()}.svg`;
 
   const dataUrl = await toSvg(viewportEl, {
-    backgroundColor: BG_COLOR,
+    backgroundColor: themeColors().bg,
     width: geom.imageWidth,
     height: geom.imageHeight,
     style: captureStyle(geom),

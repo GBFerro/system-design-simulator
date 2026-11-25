@@ -5,23 +5,19 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ──────────────────────────────────────────────────────────────────────────
-   PALETTE REMAP — the single highest-leverage "de-AI" change.
-   The whole app uses Tailwind `zinc-*` and `cyan-*` utilities. We override
-   those scales here, so every surface/border/text/accent picks up a deliberate,
-   cool-tinted near-black ramp (Radix-Slate-class, OKLCH, hue ~240) and a
-   refined, desaturated cyan accent — with zero per-component churn.
-
-   Principles applied (from the research): colored neutrals (never flat gray),
-   luminance-based elevation, AA-contrast text, and an accent that's calm on
-   dark (full-saturation cyan "burns" on near-black).
+   PAPEL QUENTE (warm paper) — the single switch of the whole look.
+   The app uses Tailwind `zinc-*` and `cyan-*` utilities, the shadcn tokens and
+   six status palettes (`rose`, `amber`, `emerald`, `violet`, `orange`, `blue`).
+   They are all redefined below from the `--sf-*` tokens of `:root` (light, the
+   default) and `.dark`, so changing the identity is a change to the tokens and
+   no component churn. Ink strokes and a terracotta accent on warm paper.
    ────────────────────────────────────────────────────────────────────────── */
 /* Map Tailwind's zinc + cyan utilities to per-theme intermediate vars so the
    whole app (which uses bg-zinc-*, text-zinc-*, bg-cyan-* etc.) flips correctly
-   between dark and light. The actual values live in `:root` (light) and
+   between light and dark. The actual values live in `:root` (light) and
    `.dark` (dark) below — in light mode the neutral ramp is inverted (zinc-900
-   becomes a near-white panel surface, zinc-100 becomes dark text), which lets
-   "dark surface + light text" components become "light surface + dark text"
-   without touching any component. */
+   is the panel, zinc-100 is the ink), which lets "dark surface + light text"
+   components become "paper surface + ink text" without touching any component. */
 @theme inline {
   --color-zinc-50: var(--z-50);
   --color-zinc-100: var(--z-100);
@@ -41,13 +37,48 @@
   --color-cyan-700: var(--ac-700);
 }
 
+/* The status and accent palettes, steps 300-600, follow the tokens of the active
+   theme: rose is err, amber slow, emerald ok, violet resp, orange the accent and
+   blue req. Steps 50-200 and 700-950 keep Tailwind's own values. In Papel quente
+   req and accent are one color, so `orange` and `blue` render alike. */
+@theme inline {
+  --color-rose-300: var(--sf-err);
+  --color-rose-400: var(--sf-err);
+  --color-rose-500: var(--sf-err);
+  --color-rose-600: var(--sf-err);
+  --color-amber-300: var(--sf-slow);
+  --color-amber-400: var(--sf-slow);
+  --color-amber-500: var(--sf-slow);
+  --color-amber-600: var(--sf-slow);
+  --color-emerald-300: var(--sf-ok);
+  --color-emerald-400: var(--sf-ok);
+  --color-emerald-500: var(--sf-ok);
+  --color-emerald-600: var(--sf-ok);
+  --color-violet-300: var(--sf-resp);
+  --color-violet-400: var(--sf-resp);
+  --color-violet-500: var(--sf-resp);
+  --color-violet-600: var(--sf-resp);
+  --color-orange-300: var(--sf-accent);
+  --color-orange-400: var(--sf-accent);
+  --color-orange-500: var(--sf-accent);
+  --color-orange-600: var(--sf-accent);
+  --color-blue-300: var(--sf-req);
+  --color-blue-400: var(--sf-req);
+  --color-blue-500: var(--sf-req);
+  --color-blue-600: var(--sf-req);
+}
+
+/* Utilities the tests (and a future component) rely on, whether or not a component
+   uses them today: the remapped status text and background classes and the heading font. */
+@source inline("text-{rose,amber,emerald,violet,orange,blue}-400 bg-{rose,amber,emerald,violet,orange,blue}-500 font-heading");
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-heading: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-heading: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -87,133 +118,176 @@
 }
 
 /* ── LIGHT THEME (default :root) ────────────────────────────────────────────
-   The neutral ramp is INVERTED vs dark: bg-zinc-900 → near-white panel,
-   text-zinc-100 → dark text. This lets every "dark surface + light text"
-   component render correctly on light without any component edits. */
+   Warm paper, ink strokes, a terracotta accent. The neutral ramp is INVERTED vs
+   dark: bg-zinc-900 → the panel, text-zinc-100 → ink. Names that match a token
+   point at it (so a dark `.dark` override of the token carries them); the steps
+   in between are hex values between their neighbours.
+   Contrast (WCAG 2.x, `tests/unit/theme-tokens.test.ts`): muted, req, resp, ok,
+   slow and err pass 4.5:1 on panel; accent text passes on panel only, not on bg
+   or accent-soft (use ink there); borders use ink, never `line` alone (~1.4:1). */
 :root {
+  --sf-bg: #eee8df;
+  --sf-panel: #faf6f0;
+  --sf-panel-2: #f3ede4;
+  --sf-ink: #26211c;
+  --sf-soft: #4f463d;
+  --sf-muted: #6b6155;
+  --sf-line: #ddd3c5;
+  --sf-accent: #b4502a;
+  --sf-accent-ink: #ffffff;
+  --sf-accent-soft: #f5dccd;
+  --sf-req: #b4502a;
+  --sf-resp: #1f6f68;
+  --sf-ok: #2f7a4c;
+  --sf-slow: #9c5f0c;
+  --sf-err: #b3313e;
+  /* Component families: the seven pastels (the isometric models and the palette chips). */
+  --sf-cat-client: #e9e2d6;
+  --sf-cat-network: #dce6f1;
+  --sf-cat-compute: #e4def3;
+  --sf-cat-cache: #f5dad2;
+  --sf-cat-data: #f3e2c6;
+  --sf-cat-messaging: #d6ece6;
+  --sf-cat-infra: #e1e2d2;
+  --sf-radius: 14px;
+  --sf-radius-sm: 8px;
+  --sf-border-w: 1.5px;
+  --sf-btn-shadow: 2px 3px 0 #26211c;
+  /* Base of the soft drop shadows (--shadow-e1..e4). */
+  --sf-shadow: var(--sf-ink);
+
   /* inverted neutral ramp (text steps dark, surface steps light) */
-  --z-50: oklch(0.3 0.01 240);
-  --z-100: oklch(0.27 0.012 240); /* primary text */
-  --z-200: oklch(0.32 0.012 240);
-  --z-300: oklch(0.4 0.013 240); /* body emphasis */
-  --z-400: oklch(0.46 0.014 240); /* body / labels */
-  --z-500: oklch(0.5 0.015 240); /* muted — AA on white */
-  --z-600: oklch(0.56 0.015 240);
-  --z-700: oklch(0.85 0.007 240); /* strong border / hover surface */
-  --z-800: oklch(0.9 0.006 240); /* border / chip / input */
-  --z-900: oklch(0.965 0.004 240); /* panels / nodes / cards (soft off-white) */
-  --z-950: oklch(0.975 0.003 240); /* deepest well */
-  --ac-300: oklch(0.72 0.13 200);
-  --ac-400: oklch(0.6 0.16 200);
-  --ac-500: oklch(0.52 0.16 200); /* primary accent (button bg) — AA text on white */
-  --ac-600: oklch(0.47 0.15 203);
-  --ac-700: oklch(0.43 0.13 205); /* links / accent text on white */
+  --z-50: #1a1612;
+  --z-100: var(--sf-ink); /* primary text */
+  --z-200: #342d26;
+  --z-300: #413930; /* body emphasis */
+  --z-400: var(--sf-soft); /* body / labels */
+  --z-500: var(--sf-muted); /* muted — AA on panel, panel-2 and bg */
+  --z-600: #8f8478;
+  --z-700: #c9beaf; /* strong border / hover surface */
+  --z-800: var(--sf-line); /* border / chip / input */
+  --z-900: var(--sf-panel); /* panels / nodes / cards */
+  --z-950: var(--sf-bg); /* the paper floor */
+  /* accent ramp: 400 is the accent itself so accent text on panel keeps 4.7:1 */
+  --ac-300: #d98a66;
+  --ac-400: var(--sf-accent);
+  --ac-500: var(--sf-accent); /* primary accent (button bg) — white on it is 5.1:1 */
+  --ac-600: #96431f;
+  --ac-700: #7c3719; /* links / accent text */
 
-  --background: oklch(0.935 0.006 240); /* canvas / app floor (soft gray) */
-  --foreground: oklch(0.25 0.012 240);
-  --card: oklch(0.965 0.004 240); /* panels — soft off-white */
-  --card-foreground: oklch(0.25 0.012 240);
-  --popover: oklch(0.975 0.003 240);
-  --popover-foreground: oklch(0.25 0.012 240);
-  --primary: oklch(0.25 0.012 240);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.905 0.006 240);
-  --secondary-foreground: oklch(0.25 0.012 240);
-  --muted: oklch(0.905 0.006 240);
-  --muted-foreground: oklch(0.5 0.015 240);
-  --accent: oklch(0.905 0.006 240);
-  --accent-foreground: oklch(0.25 0.012 240);
-  --destructive: oklch(0.58 0.2 25);
-  --border: oklch(0.88 0.006 240);
-  --input: oklch(0.87 0.007 240);
-  --ring: oklch(0.57 0.16 200);
-  --chart-1: oklch(0.57 0.16 200);
-  --chart-2: oklch(0.58 0.13 150);
-  --chart-3: oklch(0.62 0.14 85);
-  --chart-4: oklch(0.52 0.16 280);
-  --chart-5: oklch(0.56 0.18 20);
+  --background: var(--sf-bg); /* canvas / app floor */
+  --foreground: var(--sf-ink);
+  --card: var(--sf-panel);
+  --card-foreground: var(--sf-ink);
+  --popover: var(--sf-panel);
+  --popover-foreground: var(--sf-ink);
+  --primary: var(--sf-accent);
+  --primary-foreground: var(--sf-accent-ink);
+  --secondary: var(--sf-panel-2);
+  --secondary-foreground: var(--sf-ink);
+  --muted: var(--sf-panel-2);
+  --muted-foreground: var(--sf-muted);
+  --accent: var(--sf-panel-2);
+  --accent-foreground: var(--sf-ink);
+  --destructive: var(--sf-err);
+  --border: var(--sf-line);
+  --input: var(--sf-line);
+  --ring: var(--sf-accent);
+  --chart-1: var(--sf-accent);
+  --chart-2: var(--sf-ok);
+  --chart-3: var(--sf-slow);
+  --chart-4: var(--sf-resp);
+  --chart-5: var(--sf-err);
   --radius: 0.625rem;
-  --sidebar: oklch(0.96 0.004 240);
-  --sidebar-foreground: oklch(0.25 0.012 240);
-  --sidebar-primary: oklch(0.57 0.16 200);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.905 0.006 240);
-  --sidebar-accent-foreground: oklch(0.25 0.012 240);
-  --sidebar-border: oklch(0.88 0.006 240);
-  --sidebar-ring: oklch(0.57 0.16 200);
+  --sidebar: var(--sf-panel);
+  --sidebar-foreground: var(--sf-ink);
+  --sidebar-primary: var(--sf-accent);
+  --sidebar-primary-foreground: var(--sf-accent-ink);
+  --sidebar-accent: var(--sf-panel-2);
+  --sidebar-accent-foreground: var(--sf-ink);
+  --sidebar-border: var(--sf-line);
+  --sidebar-ring: var(--sf-accent);
 
-  /* canvas atmosphere (subtle on light — soft, no harsh white) */
+  /* canvas atmosphere (subtle on paper — a warm glow and a faint vignette) */
   --canvas-atmos:
-    radial-gradient(72% 46% at 50% -6%, oklch(0.57 0.16 200 / 0.05), transparent 72%),
-    radial-gradient(135% 130% at 50% 42%, transparent 64%, oklch(0.5 0.02 240 / 0.07) 100%);
-  /* theme-specific canvas colors consumed in JS (grid, edges, minimap) */
-  --grid-dot: rgba(70, 85, 115, 0.2);
-  --grid-line: rgba(70, 85, 115, 0.05);
-  --edge-idle: rgba(90, 105, 130, 0.45);
-  --minimap-mask: rgba(228, 232, 240, 0.6);
+    radial-gradient(
+      72% 46% at 50% -6%,
+      color-mix(in srgb, var(--sf-accent) 6%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      135% 130% at 50% 42%,
+      transparent 64%,
+      color-mix(in srgb, var(--sf-ink) 7%, transparent) 100%
+    );
+  /* theme-specific canvas colors, derived from ink and bg (grid, edges, minimap) */
+  --grid-dot: color-mix(in srgb, var(--sf-ink) 20%, transparent);
+  --grid-line: color-mix(in srgb, var(--sf-ink) 6%, transparent);
+  --edge-idle: color-mix(in srgb, var(--sf-ink) 45%, transparent);
+  --minimap-mask: color-mix(in srgb, var(--sf-bg) 65%, transparent);
 }
 
 /* ── DARK THEME (.dark) ─────────────────────────────────────────────────────
-   Cool near-black (hue 240). Canvas floor sits BELOW panels → elevation via
-   luminance, not shadows (the Linear move). */
+   Warm near-black. Canvas floor sits BELOW panels → elevation via luminance. The
+   ink is cream, the accent a lighter terracotta with dark ink on it (white on it
+   is 2.9:1). Mapped names (z-100, shadcn tokens, ...) follow the tokens from
+   `:root`, so only the tokens and the in-between steps are redefined here. */
 .dark {
-  --z-50: oklch(0.98 0.004 240);
-  --z-100: oklch(0.95 0.006 240);
-  --z-200: oklch(0.9 0.008 240);
-  --z-300: oklch(0.82 0.011 240);
-  --z-400: oklch(0.72 0.014 240);
-  --z-500: oklch(0.685 0.016 240);
-  --z-600: oklch(0.55 0.016 240);
-  --z-700: oklch(0.38 0.018 240);
-  --z-800: oklch(0.29 0.017 240);
-  --z-900: oklch(0.225 0.016 240);
-  --z-950: oklch(0.14 0.013 240);
-  --ac-300: oklch(0.87 0.11 200);
-  --ac-400: oklch(0.82 0.13 198);
-  --ac-500: oklch(0.74 0.14 197);
-  --ac-600: oklch(0.66 0.14 200);
-  --ac-700: oklch(0.57 0.12 203);
+  --sf-bg: #1a1714;
+  --sf-panel: #231f1b;
+  --sf-panel-2: #2a2520;
+  --sf-ink: #f1e9dd;
+  --sf-soft: #d3c7b7;
+  --sf-muted: #ab9d8b;
+  --sf-line: #3a332c;
+  --sf-accent: #e27d52;
+  --sf-accent-ink: #1a1714;
+  --sf-accent-soft: #4a2e22;
+  --sf-req: #e27d52;
+  --sf-resp: #52b8ac;
+  --sf-ok: #5cc98a;
+  --sf-slow: #e8a84a;
+  --sf-err: #ee7a84;
+  --sf-cat-client: #4a4238;
+  --sf-cat-network: #34465a;
+  --sf-cat-compute: #443d5e;
+  --sf-cat-cache: #5e3b3b;
+  --sf-cat-data: #5a4a2c;
+  --sf-cat-messaging: #2c5049;
+  --sf-cat-infra: #47483a;
+  --sf-btn-shadow: 2px 3px 0 #000000;
+  --sf-shadow: #000000;
 
-  --background: oklch(0.145 0.012 240); /* canvas / app floor — deepest */
-  --foreground: oklch(0.96 0.008 240);
-  --card: oklch(0.225 0.016 240); /* panels / nodes / cards */
-  --card-foreground: oklch(0.96 0.008 240);
-  --popover: oklch(0.255 0.017 240); /* floating — lightest surface */
-  --popover-foreground: oklch(0.96 0.008 240);
-  --primary: oklch(0.95 0.008 240);
-  --primary-foreground: oklch(0.18 0.013 240);
-  --secondary: oklch(0.27 0.015 240);
-  --secondary-foreground: oklch(0.95 0.008 240);
-  --muted: oklch(0.27 0.015 240);
-  --muted-foreground: oklch(0.72 0.014 240);
-  --accent: oklch(0.27 0.015 240);
-  --accent-foreground: oklch(0.95 0.008 240);
-  --destructive: oklch(0.62 0.2 25);
-  --border: oklch(0.27 0.015 240);
-  --input: oklch(0.3 0.015 240);
-  --ring: oklch(0.74 0.14 197);
-  --chart-1: oklch(0.74 0.14 197);
-  --chart-2: oklch(0.7 0.13 150);
-  --chart-3: oklch(0.74 0.14 85);
-  --chart-4: oklch(0.62 0.16 280);
-  --chart-5: oklch(0.64 0.18 20);
-  --sidebar: oklch(0.185 0.014 240);
-  --sidebar-foreground: oklch(0.95 0.008 240);
-  --sidebar-primary: oklch(0.74 0.14 197);
-  --sidebar-primary-foreground: oklch(0.18 0.013 240);
-  --sidebar-accent: oklch(0.27 0.015 240);
-  --sidebar-accent-foreground: oklch(0.95 0.008 240);
-  --sidebar-border: oklch(0.27 0.015 240);
-  --sidebar-ring: oklch(0.74 0.14 197);
+  --z-50: #faf4ea;
+  --z-200: #e4dacb;
+  --z-300: #dbd0c0;
+  --z-600: #7d7264;
+  --z-700: #554d43;
+  --ac-300: #f2a98a;
+  --ac-400: #ec9470;
+  --ac-600: #c9663c;
+  --ac-700: #a8532f;
 
   --canvas-atmos:
-    radial-gradient(72% 46% at 50% -6%, oklch(0.74 0.14 197 / 0.09), transparent 72%),
-    radial-gradient(60% 55% at 100% 108%, oklch(0.55 0.09 250 / 0.06), transparent 72%),
-    radial-gradient(135% 130% at 50% 42%, transparent 60%, oklch(0.1 0.01 240 / 0.5) 100%);
-  --grid-dot: rgba(155, 172, 205, 0.24);
-  --grid-line: rgba(150, 165, 195, 0.05);
-  --edge-idle: rgba(150, 165, 195, 0.32);
-  --minimap-mask: rgba(9, 11, 14, 0.7);
+    radial-gradient(
+      72% 46% at 50% -6%,
+      color-mix(in srgb, var(--sf-accent) 9%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      60% 55% at 100% 108%,
+      color-mix(in srgb, var(--sf-resp) 6%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      135% 130% at 50% 42%,
+      transparent 60%,
+      color-mix(in srgb, var(--sf-bg) 50%, black) 100%
+    );
+  --grid-dot: color-mix(in srgb, var(--sf-ink) 22%, transparent);
+  --grid-line: color-mix(in srgb, var(--sf-ink) 6%, transparent);
+  --edge-idle: color-mix(in srgb, var(--sf-ink) 32%, transparent);
+  --minimap-mask: color-mix(in srgb, var(--sf-bg) 70%, transparent);
 }
 
 @layer base {
@@ -245,12 +319,19 @@
 
 /* ── Elevation scale ───────────────────────────────────────────────────────
    One consistent shadow ramp for the whole app (cards → panels → sheets →
-   popovers). Tuned for a dark UI: low-spread, slightly cool, never milky. */
+   popovers). Low-spread, tinted by the theme's shadow base (ink on paper,
+   black in dark), never milky. */
 @theme inline {
-  --shadow-e1: 0 1px 2px 0 oklch(0 0 0 / 0.3);
-  --shadow-e2: 0 2px 8px -2px oklch(0 0 0 / 0.4), 0 1px 2px 0 oklch(0 0 0 / 0.3);
-  --shadow-e3: 0 8px 24px -6px oklch(0 0 0 / 0.5), 0 2px 6px -2px oklch(0 0 0 / 0.35);
-  --shadow-e4: 0 16px 48px -12px oklch(0 0 0 / 0.6), 0 4px 12px -4px oklch(0 0 0 / 0.4);
+  --shadow-e1: 0 1px 2px 0 color-mix(in srgb, var(--sf-shadow) 22%, transparent);
+  --shadow-e2:
+    0 2px 8px -2px color-mix(in srgb, var(--sf-shadow) 28%, transparent),
+    0 1px 2px 0 color-mix(in srgb, var(--sf-shadow) 22%, transparent);
+  --shadow-e3:
+    0 8px 24px -6px color-mix(in srgb, var(--sf-shadow) 34%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--sf-shadow) 25%, transparent);
+  --shadow-e4:
+    0 16px 48px -12px color-mix(in srgb, var(--sf-shadow) 42%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--sf-shadow) 28%, transparent);
 }
 
 /* Full viewport height with dvh fallback so mobile browser chrome doesn't shift layout */
@@ -288,7 +369,7 @@ select {
   width: 40px;
   height: 4px;
   border-radius: 9999px;
-  background: oklch(0.4 0.016 240);
+  background: color-mix(in srgb, var(--sf-ink) 28%, transparent);
   margin-inline: auto;
 }
 
@@ -330,18 +411,18 @@ select {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.36 0.016 240);
+  background: color-mix(in srgb, var(--sf-ink) 28%, transparent);
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.46 0.016 240);
+  background: color-mix(in srgb, var(--sf-ink) 45%, transparent);
   background-clip: padding-box;
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: oklch(0.36 0.016 240) transparent;
+  scrollbar-color: color-mix(in srgb, var(--sf-ink) 28%, transparent) transparent;
 }
 
 /* Premium easing curve (easeOutExpo) used across UI motion. */
@@ -349,16 +430,16 @@ select {
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Refined cyan focus ring on a dark UI */
+/* Focus ring in the accent */
 *:focus-visible {
-  outline: 2px solid oklch(0.74 0.14 197);
+  outline: 2px solid var(--sf-accent);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* Text selection picks up the refined accent */
+/* Text selection picks up the accent */
 ::selection {
-  background: oklch(0.72 0.115 200 / 0.28);
+  background: color-mix(in srgb, var(--sf-accent) 28%, transparent);
 }
 
 /* Smooth, consistent micro-interactions on interactive controls (sub-200ms, ease-out) */
@@ -436,14 +517,14 @@ button:not([disabled]):active {
   animation: blast-pulse 1.4s ease-in-out infinite;
 }
 /* Advisor quick-fix preview (Spec 12): edges the fix removes fade out dashed
-   in rose, edges whose rule it changes turn violet. New ones are ghost edges. */
+   in err, edges whose rule it changes turn resp. New ones are ghost edges. */
 .react-flow__edge.sf-preview-removed .react-flow__edge-path {
-  stroke: #fb7185 !important;
+  stroke: var(--sf-err) !important;
   stroke-dasharray: 4 5 !important;
   stroke-opacity: 0.7 !important;
 }
 .react-flow__edge.sf-preview-changed .react-flow__edge-path {
-  stroke: #a78bfa !important;
+  stroke: var(--sf-resp) !important;
   stroke-opacity: 0.9 !important;
 }
 @keyframes spin {

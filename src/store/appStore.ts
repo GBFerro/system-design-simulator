@@ -76,7 +76,8 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       selectedProblemId: "url-shortener",
-      theme: "dark",
+      // Light is the default for a visitor with nothing stored; a stored theme wins on rehydrate.
+      theme: "light",
       leftSidebarOpen: true,
       rightPanelOpen: true,
       activeRightTab: "properties",

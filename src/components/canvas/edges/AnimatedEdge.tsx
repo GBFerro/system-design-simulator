@@ -12,7 +12,6 @@ import {
 import { TriangleAlert } from "lucide-react";
 import { useEdgeRuntime } from "@/store/runtimeStore";
 import { EDGE_STATUS_COLOR, edgeStrokeWidth } from "@/lib/particles";
-import { useAppStore } from "@/store/appStore";
 import { useCanvasStore, type CustomEdgeData } from "@/store/canvasStore";
 import { PARAM, routingFor } from "@/domain/components/registry";
 import type { Params } from "@/domain/components/types";
@@ -114,7 +113,10 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
   return byEdge;
 }
 
-const HIGHLIGHT_COLOR = "#22d3ee";
+/** The Flow tab's highlight: the request color of the theme. */
+const HIGHLIGHT_COLOR = "var(--sf-req)";
+/** An edge with no load: ink at low opacity (a theme-specific canvas color of globals.css). */
+const IDLE_STROKE = "var(--edge-idle)";
 
 /** Arrowhead of a call (at the callee) or of its response (at the caller), the color of the line. */
 function ArrowMarker({ id, color }: { id: string; color: string }) {
@@ -130,7 +132,7 @@ function ArrowMarker({ id, color }: { id: string; color: string }) {
         orient="auto"
         markerUnits="userSpaceOnUse"
       >
-        <path d="M1,1 L9,5 L1,9 z" fill={color} />
+        <path d="M1,1 L9,5 L1,9 z" style={{ fill: color }} />
       </marker>
     </defs>
   );
@@ -169,13 +171,13 @@ function FlowHighlightPath({
           markerHeight="4"
           orient="auto-start-reverse"
         >
-          <path d="M0,0 L10,5 L0,10 z" fill={HIGHLIGHT_COLOR} />
+          <path d="M0,0 L10,5 L0,10 z" style={{ fill: HIGHLIGHT_COLOR }} />
         </marker>
       </defs>
       <path
         d={path}
         fill="none"
-        stroke={HIGHLIGHT_COLOR}
+        style={{ stroke: HIGHLIGHT_COLOR }}
         strokeWidth={width}
         strokeOpacity={0.9}
         strokeLinecap="round"
@@ -219,10 +221,8 @@ function ReturnEdgeInner({
   const runtime = useEdgeRuntime(requestId);
   const rps = runtime ? runtime.rps * (share ?? 1) : undefined;
   const highlight = useFlowHighlight(requestId);
-  const isDark = useAppStore((s) => s.theme) === "dark";
-  const idleStroke = isDark ? "rgba(150, 165, 195, 0.32)" : "rgba(90, 105, 130, 0.45)";
   const flowing = runtime !== undefined && runtime.rps > 0;
-  const stroke = flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke;
+  const stroke = flowing ? EDGE_STATUS_COLOR[runtime.status] : IDLE_STROKE;
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -286,8 +286,6 @@ function RequestEdgeInner({
   const highlight = useFlowHighlight(copy?.instanceOf ?? id);
   const rps = runtime ? runtime.rps * (copy?.share ?? 1) : undefined;
   const flowing = runtime !== undefined && runtime.rps > 0;
-  const isDark = useAppStore((s) => s.theme) === "dark";
-  const idleStroke = isDark ? "rgba(150, 165, 195, 0.32)" : "rgba(90, 105, 130, 0.45)";
   const edgeData = (data ?? {}) as CustomEdgeData;
   const protocol = edgeData.protocol;
   const label = edgeData.label;
@@ -301,7 +299,7 @@ function RequestEdgeInner({
     targetPosition,
   });
 
-  // Blast radius (Spec 08): a dashed orange trace on the fault's target
+  // Blast radius (Spec 08): a dashed err-colored trace (never the accent: that is the selection) on the fault's target
   // edge, a pulsing one on edges it degrades. Drawn under the edge stroke.
   const blast = runtime?.blast;
   const badge = protocol ? protocolBadge[protocol] : null;
@@ -320,7 +318,7 @@ function RequestEdgeInner({
         <path
           d={edgePath}
           fill="none"
-          stroke="#fb923c"
+          stroke="var(--sf-err)"
           strokeWidth={edgeStrokeWidth(rps) + 5}
           strokeLinecap="round"
           strokeOpacity={blast === "target" ? 0.75 : 0.5}
@@ -331,7 +329,7 @@ function RequestEdgeInner({
       )}
       <ArrowMarker
         id={markerIdOf(id)}
-        color={flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke}
+        color={flowing ? EDGE_STATUS_COLOR[runtime.status] : IDLE_STROKE}
       />
       {/* Main edge: always a solid line with the arrow at the callee; no response drawn = async */}
       <BaseEdge
@@ -340,7 +338,7 @@ function RequestEdgeInner({
         markerEnd={`url(#${markerIdOf(id)})`}
         style={{
           ...style,
-          stroke: flowing ? EDGE_STATUS_COLOR[runtime.status] : idleStroke,
+          stroke: flowing ? EDGE_STATUS_COLOR[runtime.status] : IDLE_STROKE,
           strokeOpacity: flowing ? 0.6 : 1,
           strokeWidth: edgeStrokeWidth(rps),
         }}

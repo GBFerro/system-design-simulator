@@ -14,7 +14,7 @@ this map (`architecture-map.test.ts`). When a rule can be a test, prefer the tes
 
 ```
 src/
-  app/            App Router entry, layout, globals.css (dark-only theme)
+  app/            App Router entry, layout, globals.css (Papel quente tokens; light is the default, dark is supported, the top bar has a theme toggle)
   cost/           Spec 10, pure: estimate.ts ($/month per node and area, $/1M requests; priced by
                   `pricingOf`, reads and writes apart for a per-request technology), rightSize.ts
                   (CST-03 suggestions; skips managed technologies), currency.ts (USD/BRL/EUR display, fixed rates)
@@ -127,7 +127,7 @@ src/
   lib/            exportCanvas, loadReference, nodeFactory, placement, icons, utils, ringBuffer,
                   steps (the wizard's steps and which tools each shows, pure: TOOLS_BY_STEP, canvasVisible, paletteVisible),
                   topology (topologySignature: what structure-dependent views recompute on),
-                  particles (edge width/status color), flowBalls (request balls of the flow overlay), instances (instance cards/lanes, edge-copy ids, instances down under faults), runtimeMetrics (snapshot sharing, sparklines, formatters),
+                  particles (edge width/status color tokens), themeColors (the `--sf-*` tokens as values for the 2D canvas and the export, `watchTheme`), flowBalls (request balls of the flow overlay), instances (instance cards/lanes, edge-copy ids, instances down under faults), runtimeMetrics (snapshot sharing, sparklines, formatters),
                   sequenceLayout (request-flow: a RequestTrace → lifelines, call/response/async arrows, hit/miss marks for the Flow tab)
   types/          shared interfaces
 tests/
@@ -135,6 +135,7 @@ tests/
                   architecture-map checks this map against src/)
   e2e/            playwright specs, one per feature area (see tests/e2e/); shared helpers (open, quickAdd,
                   connect, center, MOD) in helpers.ts — import them, don't redefine
+  theme-expected.ts  the Papel quente token values, shared by theme-tokens.test.ts and redesign.spec.ts
 scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 ```
 
@@ -207,4 +208,4 @@ scripts/          bundle-size.mjs (initial-JS budget vs bundle-baseline.json)
 
 ## Conventions
 
-- Dark theme only (`<html class="dark">`); there is no theme toggle. Use zinc-* palette; sub-11px labels use `text-zinc-400`+ for contrast.
+- Light is the default theme (`<html>` without a class) and dark is supported (`<html class="dark">`); the top bar has a theme toggle and the choice is persisted in `appStore`. Colors come from the `--sf-*` tokens of `globals.css`: the `zinc-*`, `cyan-*` and shadcn classes and steps 300-600 of `rose`, `amber`, `emerald`, `violet`, `orange` and `blue` resolve to them (rose = err, amber = slow, emerald = ok, violet = resp, orange = accent, blue = req), so write no color literal: SVG and DOM use `var(--sf-…)`, the 2D particle canvas and the export read them through `lib/themeColors.ts`. The blast outline uses err, never accent (accent is the selection). Sub-11px labels use `text-zinc-400`+ for contrast; accent text is for the panel only, not for bg or accent-soft.
