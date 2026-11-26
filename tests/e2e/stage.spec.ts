@@ -317,6 +317,48 @@ test("below 768 px nothing changes: drawers and a bottom sheet, no cards, no doc
   await expect(page.locator('[data-testid="step-bar"][data-orientation]')).toHaveCount(0);
 });
 
+// The support button would sit on the stage panel's corner, so the stage hides it (the top bar and
+// its menu carry the same action). Everywhere else it keeps its old behaviour.
+// The floating button, not the top bar's own "Buy me a coffee" (which stays on every step).
+const supportFab = (page: Page) =>
+  page.locator('button[aria-label="Buy me a coffee"]:not(header button)');
+
+test("the floating Buy me a coffee button is not rendered on the stage at 1440x900", async ({
+  page,
+}) => {
+  await openStage(page, 1440, 900);
+  await expect(supportFab(page)).toHaveCount(0);
+});
+
+test("the floating Buy me a coffee button is visible on the Problem step at 1440x900", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, "/", "problem");
+  await expect(page.getByTestId("problem-step")).toBeVisible();
+  await expect(supportFab(page)).toBeVisible();
+});
+
+test("below 768 px the floating Buy me a coffee button is visible unless a drawer or the sheet is open", async ({
+  page,
+}) => {
+  const fab = supportFab(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, "/", "design");
+  await expect(page.locator('[data-testid="step-bar"][data-compact]')).toBeVisible();
+  await expect(fab).toBeVisible();
+
+  await page.getByRole("button", { name: "Toggle sidebar" }).click();
+  await expect(page.getByRole("button", { name: "Close sidebar" })).toBeVisible();
+  await expect(fab).toHaveCount(0);
+  await page.getByRole("button", { name: "Close sidebar" }).click();
+  await expect(fab).toBeVisible();
+
+  await page.getByRole("button", { name: "Toggle properties panel" }).click();
+  await expect(page.locator("[data-bottom-sheet]")).toBeVisible();
+  await expect(fab).toHaveCount(0);
+});
+
 // ---------------------------------------------------------------------------------------------
 // Criterion 23 and the canvas under the cards: fitView and tap-add know about the open cards, and
 // the canvas's own overlays (the read-only hint, the pen toolbar, the welcome) sit in what they leave.
