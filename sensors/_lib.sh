@@ -110,8 +110,10 @@ block() {
 # commit messages and heredoc bodies never look like commands, and `cd`, wrappers (env, sudo,
 # bash -c, eval) and separators (; && || | & newlines, parentheses) are followed.
 
-SEP=$'\x1e' # separator token
-OP=$'\x1f'  # prefix of an operator token (a quoted ">" stays a word)
+SEP=$'\x1e'   # separator token
+OP=$'\x1f'    # prefix of an operator token (a quoted ">" stays a word)
+SUB_IN=$'\x1c'  # "(": a subshell starts; a `cd` inside it does not outlive it
+SUB_OUT=$'\x1d' # ")"
 
 # Tokenizes one line into TOKENS: words (quotes removed), "${OP}>" / "${OP}>>" / "${OP}<<" ...
 tokenize_line() {
@@ -155,6 +157,8 @@ tokenize_line() {
             if [ "${s:i+1:1}" = '-' ]; then TOKENS+=("${OP}<<-"); i=$((i + 1)); else TOKENS+=("${OP}<<"); fi ;;
           '>'*) TOKENS+=("${OP}>") ;;
           '<'*) TOKENS+=("${OP}<") ;;
+          '('*) TOKENS+=("$SUB_IN") ;;
+          ')'*) TOKENS+=("$SUB_OUT") ;;
           *) TOKENS+=("$SEP") ;;
         esac ;;
       *) tok+="$c"; intok=1 ;;
@@ -169,11 +173,12 @@ tokenize_line() {
 #   CMD_WORDS   the words, without leading VAR=value and wrappers (env, sudo, command, time, nohup)
 #   CMD_ASSIGNS the VAR=value words that preceded it
 #   CMD_REDIRS  "op target" pairs, op one of > >> >& <
-#   CMD_CWD     the directory it runs in (after any earlier `cd` in the text)
+#   CMD_CWD     the directory it runs in (after any earlier `cd`, `cd -`, `pushd` or `popd` in the
+#               text; a `cd` inside `( … )` ends with the subshell)
 for_each_command() {
   local cb="$1" text="$2" cwd="${3:-$PWD}" line heredoc="" strip_tabs=false
-  local -a words assigns redirs
-  local tok pending="" j
+  local -a words assigns redirs toks sub_cwds=() dir_stack=()
+  local tok pending="" j prev_cwd="${3:-$PWD}"
   while IFS= read -r line || [ -n "$line" ]; do
     if [ -n "$heredoc" ]; then
       local cmp="${line%$'\r'}"
@@ -182,10 +187,25 @@ for_each_command() {
       continue
     fi
     tokenize_line "$line"
-    TOKENS+=("$SEP")
+    toks=("${TOKENS[@]}" "$SEP") # own copy: a nested `bash -c` re-tokenizes into TOKENS
     words=() assigns=() redirs=()
-    for ((j = 0; j < ${#TOKENS[@]}; j++)); do
-      tok="${TOKENS[j]}"
+    for ((j = 0; j < ${#toks[@]}; j++)); do
+      tok="${toks[j]}"
+      case "$tok" in
+        "$SUB_IN" | "$SUB_OUT")
+          if [ ${#words[@]} -gt 0 ] || [ ${#redirs[@]} -gt 0 ]; then
+            _dispatch_command "$cb"
+            cwd="$_NEXT_CWD"
+          fi
+          words=() assigns=() redirs=() pending=""
+          if [ "$tok" = "$SUB_IN" ]; then
+            sub_cwds+=("$cwd")
+          elif [ ${#sub_cwds[@]} -gt 0 ]; then
+            cwd="${sub_cwds[-1]}"
+            unset 'sub_cwds[-1]'
+          fi
+          continue ;;
+      esac
       if [ -n "$pending" ]; then
         case "$tok" in "$SEP" | "$OP"*) pending="" ;; *)
           if [ "$pending" = "<<" ] || [ "$pending" = "<<-" ]; then
@@ -202,6 +222,7 @@ for_each_command() {
         "$SEP")
           if [ ${#words[@]} -gt 0 ] || [ ${#redirs[@]} -gt 0 ]; then
             _dispatch_command "$cb"
+            [ "$_NEXT_CWD" = "$cwd" ] || prev_cwd="$cwd"
             cwd="$_NEXT_CWD"
           fi
           words=() assigns=() redirs=() ;;
@@ -241,7 +262,14 @@ _dispatch_command() {
   case "${words[0]:-}" in
     cd | pushd)
       local dest="${words[1]:-$HOME}"
-      [ "$dest" = "-" ] || _NEXT_CWD="$(canonical_path "$dest" "$cwd")"
+      [ "${words[0]}" = pushd ] && dir_stack+=("$cwd")
+      if [ "$dest" = "-" ]; then _NEXT_CWD="$prev_cwd"; else _NEXT_CWD="$(canonical_path "$dest" "$cwd")"; fi
+      return 0 ;;
+    popd)
+      if [ ${#dir_stack[@]} -gt 0 ]; then
+        _NEXT_CWD="${dir_stack[-1]}"
+        unset 'dir_stack[-1]'
+      fi
       return 0 ;;
     bash | sh | zsh | dash)
       for ((k = 1; k < ${#words[@]}; k++)); do
