@@ -129,6 +129,14 @@ expect 2 $s "update-ref main" "$(bash_cmd 'git update-ref refs/heads/main HEAD')
 git -C "$repo" worktree add -q "$sandbox/mtree" main 2>/dev/null
 expect 2 $s "cd into a main worktree, commit" "$(bash_cmd "cd '$(native "$sandbox/mtree")' && git commit -m x")"
 expect 2 $s "git -C a main worktree commit" "$(bash_cmd "git -C '$(native "$sandbox/mtree")' commit -m x")"
+expect 2 $s "relative git -C into a main worktree" "$(bash_cmd 'git -C ../mtree commit -m x')"
+expect 2 $s "relative git -C from a subdirectory" "$(bash_cmd 'cd src && git -C ../../mtree commit -m x')"
+# Leaving a tree keeps what the command did to it: a switch to main is not undone by a detour.
+git -C "$repo" worktree add -q -b feat/side "$sandbox/ftree" 2>/dev/null
+expect 2 $s "switch main, git -C another tree, commit" "$(bash_cmd "git switch main && git -C '$(native "$sandbox/ftree")' status && git commit -m x")"
+expect 2 $s "switch main, cd away and back, commit" "$(bash_cmd "git switch main && cd '$(native "$sandbox/ftree")' && git status && cd '$(native "$repo")' && git commit -m x")"
+expect 0 $s "switch main elsewhere, commit in the task tree" "$(bash_cmd "git -C '$(native "$sandbox/ftree")' status && git switch main && cd '$(native "$sandbox/ftree")' && git commit -m x")"
+git -C "$repo" worktree remove --force "$sandbox/ftree" 2>/dev/null
 git -C "$repo" worktree remove --force "$sandbox/mtree" 2>/dev/null
 
 # --- block-hook-bypass

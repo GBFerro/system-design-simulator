@@ -15,14 +15,21 @@ start="$(payload_get cwd 2>/dev/null)"
 start="${start:-$PWD}"
 branch="$(git -C "$start" rev-parse --abbrev-ref HEAD 2>/dev/null)" || exit 0
 tree="$(git -C "$start" rev-parse --show-toplevel 2>/dev/null)"
+declare -A tree_branch=() # branch of each work tree as this command leaves it (switch/checkout)
 
-# A `cd` or `git -C` into another work tree (a linked worktree) is judged on that tree's branch.
+# A `cd` or `git -C` into another work tree (a linked worktree) is judged on that tree's branch:
+# the one this command already switched it to, else the one on disk.
 follow_tree() {
   local t
   t="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 0
   [ "$t" = "$tree" ] && return 0
+  tree_branch["$tree"]="$branch"
   tree="$t"
-  branch="$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch=""
+  if [ -n "${tree_branch["$t"]+set}" ]; then
+    branch="${tree_branch["$t"]}"
+  else
+    branch="$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch=""
+  fi
 }
 
 is_protected() {
