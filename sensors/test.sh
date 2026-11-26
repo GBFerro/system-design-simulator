@@ -100,6 +100,16 @@ expect 0 $s "push another branch from main" "$(bash_cmd 'git push origin feat/x'
 expect 0 $s "push tags from main" "$(bash_cmd 'git push origin --tags')"
 expect 0 $s "restore a file on main" "$(bash_cmd 'git checkout main -- README.md')"
 expect 0 $s "echo mentioning git commit" "$(bash_cmd 'echo "remember to git commit"')"
+# A linked worktree on a task branch is judged on its own branch, not on the session's main.
+git -C "$repo" worktree add -q -b feat/wt "$sandbox/ptree" 2>/dev/null
+expect 0 $s "cd into a task-branch worktree, commit" "$(bash_cmd "cd '$(native "$sandbox/ptree")' && git commit -m x")"
+expect 0 $s "git -C a task-branch worktree commit" "$(bash_cmd "git -C '$(native "$sandbox/ptree")' commit -m x")"
+expect 0 $s "cd into a task-branch worktree, push" "$(bash_cmd "cd '$(native "$sandbox/ptree")' && git push -u origin feat/wt")"
+expect 0 $s "switch -c, then a subshell, commit" "$(bash_cmd 'git switch -c feat/y && (true) && git commit -m x')"
+# Conservative on purpose: once a subshell blurs the directory, main (the start) still counts.
+expect 2 $s "a subshell commit in a task tree from main blocks" "$(bash_cmd "(cd '$(native "$sandbox/ptree")' && git commit -m x)")"
+expect 2 $s "back from the worktree to main, commit" "$(bash_cmd "cd '$(native "$sandbox/ptree")' && cd '$(native "$repo")' && git commit -m x")"
+git -C "$repo" worktree remove --force "$sandbox/ptree" 2>/dev/null
 on_branch feat/x
 expect 0 $s "commit on task branch" "$(bash_cmd 'git commit -m "feat: x"')"
 expect 0 $s "push task branch" "$(bash_cmd 'git push -u origin feat/x')"
@@ -118,6 +128,29 @@ expect 2 $s "push --mirror" "$(bash_cmd 'git push --mirror origin')"
 expect 2 $s "push glob refspec" "$(bash_cmd "git push origin 'refs/heads/*:refs/heads/*'")"
 expect 2 $s "branch -f main" "$(bash_cmd 'git branch -f main HEAD')"
 expect 2 $s "update-ref main" "$(bash_cmd 'git update-ref refs/heads/main HEAD')"
+# From a task branch, a linked worktree on main is still main.
+git -C "$repo" worktree add -q "$sandbox/mtree" main 2>/dev/null
+expect 2 $s "cd into a main worktree, commit" "$(bash_cmd "cd '$(native "$sandbox/mtree")' && git commit -m x")"
+expect 2 $s "git -C a main worktree commit" "$(bash_cmd "git -C '$(native "$sandbox/mtree")' commit -m x")"
+expect 2 $s "relative git -C into a main worktree" "$(bash_cmd 'git -C ../mtree commit -m x')"
+expect 2 $s "relative git -C from a subdirectory" "$(bash_cmd 'cd src && git -C ../../mtree commit -m x')"
+# Leaving a tree keeps what the command did to it: a switch to main is not undone by a detour.
+git -C "$repo" worktree add -q -b feat/side "$sandbox/ftree" 2>/dev/null
+expect 2 $s "switch main, git -C another tree, commit" "$(bash_cmd "git switch main && git -C '$(native "$sandbox/ftree")' status && git commit -m x")"
+expect 2 $s "switch main, cd away and back, commit" "$(bash_cmd "git switch main && cd '$(native "$sandbox/ftree")' && git status && cd '$(native "$repo")' && git commit -m x")"
+expect 2 $s "leave a tree twice, switch main between" "$(bash_cmd "git -C '$(native "$sandbox/ftree")' status && git status && git switch main && git -C '$(native "$sandbox/ftree")' status && git commit -m x")"
+expect 0 $s "switch back to a task branch between detours" "$(bash_cmd "git switch main && git -C '$(native "$sandbox/ftree")' status && git status && git switch -c feat/x2 && git -C '$(native "$sandbox/ftree")' status && git commit -m x")"
+expect 2 $s "switch main, detour in a subshell, commit" "$(bash_cmd "git switch main && (cd '$(native "$sandbox/ftree")' && git status) && git commit -m x")"
+expect 2 $s "switch main, pushd and popd, commit" "$(bash_cmd "git switch main && pushd '$(native "$sandbox/ftree")' && git status && popd && git commit -m x")"
+expect 2 $s "switch main, cd away and cd -, commit" "$(bash_cmd "git switch main && cd '$(native "$sandbox/ftree")' && git status && cd - && git commit -m x")"
+expect 2 $s "switch main, bash -c, commit" "$(bash_cmd "git switch main && bash -c 'git status' && git commit -m x")"
+expect 2 $s "a case pattern's ) does not undo a cd" "$(bash_cmd "(cd '$(native "$sandbox/mtree")'; case x in a) true;; esac; git commit -m x)")"
+expect 2 $s "cd - after a subshell detour" "$(bash_cmd "cd '$(native "$sandbox/mtree")' && cd '$(native "$repo")' && ( cd '$(native "$sandbox/ftree")' && true ) && cd - && git commit -m x")"
+expect 2 $s "popd after a pushd inside a subshell" "$(bash_cmd "cd '$(native "$sandbox/mtree")' && (cd '$(native "$repo")'; pushd '$(native "$sandbox/ftree")') ; popd && git commit -m x")"
+expect 0 $s "a plain cd into a task tree stays exact" "$(bash_cmd "cd '$(native "$sandbox/ftree")' && git commit -m x")"
+expect 0 $s "switch main elsewhere, commit in the task tree" "$(bash_cmd "git -C '$(native "$sandbox/ftree")' status && git switch main && cd '$(native "$sandbox/ftree")' && git commit -m x")"
+git -C "$repo" worktree remove --force "$sandbox/ftree" 2>/dev/null
+git -C "$repo" worktree remove --force "$sandbox/mtree" 2>/dev/null
 
 # --- block-hook-bypass
 s=block-hook-bypass.sh
@@ -175,7 +208,23 @@ expect 0 $s "> inside quotes" "$(bash_cmd 'echo "a > README.md"')"
 expect 0 $s "> inside a heredoc body" "$(bash_cmd $'cat > notes.tmp <<\'EOF\'\nx >README.md\nEOF')"
 expect 0 $s "sed -i inside an argument" "$(bash_cmd 'gh pr create --body "use sed -i on README.md"')"
 mkdir -p "$sandbox/wt/src" && echo a >"$sandbox/wt/src/has.ts"
+expect 2 $s "a cd inside ( ) does not outlive it" "$(bash_cmd "(cd '$(native "$sandbox/wt")' && true) && echo hi > README.md")"
+expect 2 $s "a case pattern's ) does not undo a cd (write)" "$(bash_cmd "cd '$(native "$sandbox/wt")' && (cd '$(native "$repo")'; case x in a) true;; esac; echo hi > README.md)")"
+# Conservative on purpose: inside ( … ) the start directory still counts, so a relative write that
+# would be a repo file there blocks. `cd <dir> && …` without the parentheses stays exact.
+expect 2 $s "a subshell's relative write is judged from the start too" "$(bash_cmd "(cd '$(native "$sandbox/wt")' && echo hi > out.txt)")"
+expect 0 $s "the same write without the subshell passes" "$(bash_cmd "cd '$(native "$sandbox/wt")' && echo hi > out.txt")"
+expect 2 $s "bash -c does not hide the rest of the line" "$(bash_cmd "bash -c 'true' && echo hi > README.md")"
 expect 0 $s "sed -i in a worktree outside the repo" "$(bash_cmd "cd '$(native "$sandbox/wt")' && sed -i s/a/b/ src/has.ts")"
+# A linked git worktree of the repo (an audit's throwaway checkout) is its own work tree: its
+# files are not the checkout this session guards. Another git repository is not either.
+git -C "$repo" worktree add -q --detach "$sandbox/linked" 2>/dev/null
+expect 0 $s "sed -i in a linked worktree of the repo" "$(bash_cmd "cd '$(native "$sandbox/linked")' && sed -i s/a/b/ src/has.ts")"
+expect 0 $s "> into a linked worktree, by absolute path" "$(bash_cmd "echo x > '$(native "$sandbox/linked/README.md")'")"
+git init -q "$sandbox/other" 2>/dev/null && echo a >"$sandbox/other/f.ts"
+expect 0 $s "sed -i in another git repository" "$(bash_cmd "sed -i s/a/b/ '$(native "$sandbox/other/f.ts")'")"
+expect 2 $s "absolute path into the guarded checkout still blocks" "$(bash_cmd "echo x > '$(native "$repo/README.md")'")"
+git -C "$repo" worktree remove --force "$sandbox/linked" 2>/dev/null
 
 # --- require-test-first
 s=require-test-first.sh

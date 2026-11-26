@@ -13,15 +13,25 @@ start="$(payload_get cwd 2>/dev/null)"
 start="${start:-$PWD}"
 hits=()
 
+# When the parser lost track of the directory (CMD_UNSURE), a relative path is judged from every
+# directory the command has been in: the real one is among them.
 note() {
-  local t="$1" from="$2"
+  local t="$1" from="$2" d
   case "$t" in '' | /dev/* | -) return ;; esac
-  repo_owned_path "$t" "$from" && hits+=("$t")
+  if [ "$CMD_UNSURE" = 1 ]; then
+    for d in "${CMD_CWDS[@]}"; do repo_owned_path "$t" "$d" && { hits+=("$t"); return; }; done
+  else
+    repo_owned_path "$t" "$from" && hits+=("$t")
+  fi
 }
 
 # In-place edits only touch files that exist; their script argument is not a path.
 note_existing() {
-  local t="$1" from="$2"
+  local t="$1" from="$2" d
+  if [ "$CMD_UNSURE" = 1 ]; then
+    for d in "${CMD_CWDS[@]}"; do [ -e "$(canonical_path "$t" "$d")" ] && { note "$t" "$from"; return; }; done
+    return 0
+  fi
   [ -e "$(canonical_path "$t" "$from")" ] || return 0
   note "$t" "$from"
 }
