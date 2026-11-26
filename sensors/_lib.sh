@@ -173,12 +173,18 @@ tokenize_line() {
 #   CMD_WORDS   the words, without leading VAR=value and wrappers (env, sudo, command, time, nohup)
 #   CMD_ASSIGNS the VAR=value words that preceded it
 #   CMD_REDIRS  "op target" pairs, op one of > >> >& <
-#   CMD_CWD     the directory it runs in (after any earlier `cd`, `cd -`, `pushd` or `popd` in the
-#               text; a `cd` inside `( … )` ends with the subshell)
+#   CMD_CWD     the directory it runs in (after any earlier `cd` in the text)
+#   CMD_CWDS    every directory the text has been in so far, the start included
+#   CMD_UNSURE  1 once the text did something this parser does not follow exactly (any `(` or `)`,
+#               which also covers `case` patterns; `cd -`; `pushd`): CMD_CWD is then a guess, and
+#               the real directory is one of CMD_CWDS. A sensor judging by directory checks them all.
+CMD_UNSURE=0
+CMD_CWDS=()
 for_each_command() {
   local cb="$1" text="$2" cwd="${3:-$PWD}" line heredoc="" strip_tabs=false
-  local -a words assigns redirs toks sub_cwds=() dir_stack=()
-  local tok pending="" j prev_cwd="${3:-$PWD}"
+  local -a words assigns redirs toks
+  local tok pending="" j
+  _seen_cwd "$cwd"
   while IFS= read -r line || [ -n "$line" ]; do
     if [ -n "$heredoc" ]; then
       local cmp="${line%$'\r'}"
@@ -196,14 +202,10 @@ for_each_command() {
           if [ ${#words[@]} -gt 0 ] || [ ${#redirs[@]} -gt 0 ]; then
             _dispatch_command "$cb"
             cwd="$_NEXT_CWD"
+            _seen_cwd "$cwd"
           fi
           words=() assigns=() redirs=() pending=""
-          if [ "$tok" = "$SUB_IN" ]; then
-            sub_cwds+=("$cwd")
-          elif [ ${#sub_cwds[@]} -gt 0 ]; then
-            cwd="${sub_cwds[-1]}"
-            unset 'sub_cwds[-1]'
-          fi
+          CMD_UNSURE=1 # a `)` may close a subshell, a `case` pattern or nothing
           continue ;;
       esac
       if [ -n "$pending" ]; then
@@ -222,8 +224,8 @@ for_each_command() {
         "$SEP")
           if [ ${#words[@]} -gt 0 ] || [ ${#redirs[@]} -gt 0 ]; then
             _dispatch_command "$cb"
-            [ "$_NEXT_CWD" = "$cwd" ] || prev_cwd="$cwd"
             cwd="$_NEXT_CWD"
+            _seen_cwd "$cwd"
           fi
           words=() assigns=() redirs=() ;;
         "$OP"*) pending="${tok#"$OP"}" ;;
@@ -236,6 +238,12 @@ for_each_command() {
       esac
     done
   done <<<"$text"
+}
+
+_seen_cwd() {
+  local d
+  for d in "${CMD_CWDS[@]}"; do [ "$d" = "$1" ] && return 0; done
+  CMD_CWDS+=("$1")
 }
 
 _dispatch_command() {
@@ -262,15 +270,10 @@ _dispatch_command() {
   case "${words[0]:-}" in
     cd | pushd)
       local dest="${words[1]:-$HOME}"
-      [ "${words[0]}" = pushd ] && dir_stack+=("$cwd")
-      if [ "$dest" = "-" ]; then _NEXT_CWD="$prev_cwd"; else _NEXT_CWD="$(canonical_path "$dest" "$cwd")"; fi
+      [ "${words[0]}" = pushd ] && CMD_UNSURE=1
+      if [ "$dest" = "-" ]; then CMD_UNSURE=1; else _NEXT_CWD="$(canonical_path "$dest" "$cwd")"; fi
       return 0 ;;
-    popd)
-      if [ ${#dir_stack[@]} -gt 0 ]; then
-        _NEXT_CWD="${dir_stack[-1]}"
-        unset 'dir_stack[-1]'
-      fi
-      return 0 ;;
+    popd) return 0 ;; # only after a `pushd`, which already made the directory unsure
     bash | sh | zsh | dash)
       for ((k = 1; k < ${#words[@]}; k++)); do
         if [ "${words[k]}" = "-c" ] && [ -n "${words[k + 1]:-}" ]; then
