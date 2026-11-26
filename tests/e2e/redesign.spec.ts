@@ -10,7 +10,7 @@ import {
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { isoArchetypeOf, isoTintOf } from "@/lib/iso";
 import { DEFAULT_NODE_SIZE } from "@/lib/placement";
-import { MOD, center, connect, open, openTab, quickAdd } from "./helpers";
+import { MOD, center, clickEmptyPane, connect, open, openTab, quickAdd } from "./helpers";
 
 // Papel quente slice 1 (specs/2026-11-24-redesign-papel-quente.md, criteria 1, 2, 4, 5, 6, 7):
 // the tokens, the remapped palettes, the fonts, the canvas colors and the default theme.
@@ -166,6 +166,7 @@ test("canvas colors: edges, minimap, background and the SVG export follow the th
   await stylesApplied(page);
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  await showMinimap(page);
 
   const seen: Record<string, string[]> = { edge: [], mask: [], line: [], bg: [] };
   for (const theme of THEMES) {
@@ -207,7 +208,13 @@ test("canvas colors: edges, minimap, background and the SVG export follow the th
   for (const [k, [light, dark]] of Object.entries(seen)) expect(light, k).not.toBe(dark);
 });
 
-/** Open the app in light on a wide screen with the reference loaded (the minimap shows from md). */
+/** The minimap is off on a fresh load (slice 3): show it through its toggle, as a user would. */
+async function showMinimap(page: Page) {
+  await page.getByRole("button", { name: "Show minimap" }).click();
+  await expect(page.locator(".react-flow__minimap")).toBeVisible();
+}
+
+/** Open the app in light on a wide screen with the reference loaded and the minimap shown. */
 async function openReference(page: Page) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await open(page, "/");
@@ -215,6 +222,7 @@ async function openReference(page: Page) {
   await setTheme(page, "light");
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  await showMinimap(page);
 }
 
 /** Play the reference's live traffic from the Simulate tab; returns the panel. */
@@ -629,9 +637,8 @@ function sizeOf(node: NodeLocator) {
 /** Park the pointer over the top-left corner of the window, away from every node. */
 const parkMouse = (page: Page) => page.mouse.move(2, 2);
 
-/** Click the empty canvas to deselect everything. */
-const deselect = (page: Page) =>
-  page.locator(".react-flow__pane").click({ position: { x: 20, y: 400 } });
+/** Click the empty canvas to deselect everything (the pane fills the screen under the cards: find a free spot). */
+const deselect = (page: Page) => clickEmptyPane(page);
 
 const opacityOf = (el: NodeLocator) => el.evaluate((e) => getComputedStyle(e).opacity);
 
@@ -1044,7 +1051,7 @@ const TAP_ADD_LABELS = [
   "Auth Service",
 ];
 
-/** Every node (and its handles) is clear of the minimap and the zoom controls, and of each other. */
+/** Every node (and its handles) is clear of the minimap, the zoom controls and the floating cards, and of each other. */
 async function expectClearOfOverlays(page: Page) {
   await expect(page.locator(".react-flow__node")).toHaveCount(TAP_ADD_COUNT);
 
@@ -1060,6 +1067,9 @@ async function expectClearOfOverlays(page: Page) {
     return {
       minimap: overlay(".react-flow__minimap"),
       controls: overlay(".react-flow__controls"),
+      cards: [...document.querySelectorAll("[data-stage-card]")]
+        .filter((c) => c.getBoundingClientRect().width > 0)
+        .map((c) => [c.getAttribute("data-testid")!, rect(c)] as const),
       nodes: [...document.querySelectorAll(".react-flow__node")].map((n) => ({
         node: rect(n),
         handles: [...n.querySelectorAll(".react-flow__handle")].map(rect),
@@ -1076,6 +1086,8 @@ async function expectClearOfOverlays(page: Page) {
     for (const [name, overlay] of [
       ["minimap", boxes.minimap!],
       ["controls", boxes.controls!],
+      // the floating cards of the stage layout: a node under one is hidden by it
+      ...boxes.cards,
     ] as const) {
       expect(hit(node, overlay), `node ${i} under the ${name}`).toBe(false);
       handles.forEach((h, k) =>
@@ -1094,6 +1106,7 @@ test("tap-add: sixteen nodes at 1280 x 720 never land under the minimap or the z
   await page.setViewportSize({ width: 1280, height: 720 });
   await open(page, "/");
   await stylesApplied(page);
+  await showMinimap(page);
   for (let i = 0; i < TAP_ADD_COUNT; i++) await quickAdd(page, TAP_ADD_LABELS[i % 5]);
   await expectClearOfOverlays(page);
 });
@@ -1104,6 +1117,7 @@ test("tap-add through the command palette: sixteen nodes at 1280 x 720 stay clea
   await page.setViewportSize({ width: 1280, height: 720 });
   await open(page, "/");
   await stylesApplied(page);
+  await showMinimap(page);
   const palette = page.getByRole("dialog", { name: "Command palette" });
   for (let i = 0; i < TAP_ADD_COUNT; i++) {
     await page.keyboard.press(`${MOD}+k`);
@@ -1123,6 +1137,7 @@ test("tap-add through the top bar's Add Note: sixteen notes at 1280 x 720 stay c
   await page.setViewportSize({ width: 1280, height: 720 });
   await open(page, "/");
   await stylesApplied(page);
+  await showMinimap(page);
   for (let i = 0; i < TAP_ADD_COUNT; i++) {
     await page.getByRole("button", { name: "Add Note" }).click();
     await expect(page.locator(".react-flow__node")).toHaveCount(i + 1);

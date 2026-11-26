@@ -3,7 +3,6 @@
 import { ComponentPalette } from "./ComponentPalette";
 
 interface SidebarProps {
-  open?: boolean;
   onCreateCustomComponent?: () => void;
   /** Called after a component is added from the palette (closes the mobile drawer). */
   onComponentAdded?: () => void;
@@ -33,7 +32,6 @@ function SidebarPalette({
 }
 
 export function Sidebar({
-  open = true,
   onCreateCustomComponent,
   onComponentAdded,
   variant = "desktop",
@@ -49,17 +47,10 @@ export function Sidebar({
     );
   }
 
+  // The stage layout's card (`stage-palette` in AppShell) sizes, shows and hides it: this fills it.
   return (
-    <aside
-      className={`hidden shrink-0 flex-col border-r border-zinc-800 bg-zinc-900 overflow-hidden transition-all duration-200 md:flex ${
-        open ? "w-[280px] opacity-100" : "w-0 opacity-0 border-r-0"
-      }`}
-      aria-hidden={!open || undefined}
-      inert={!open || undefined}
-    >
-      <div className="flex w-[280px] flex-1 flex-col min-h-0">
-        <SidebarPalette onCreateCustomComponent={onCreateCustomComponent} />
-      </div>
+    <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+      <SidebarPalette onCreateCustomComponent={onCreateCustomComponent} />
     </aside>
   );
 }

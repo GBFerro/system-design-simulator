@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { X } from "lucide-react";
 import { TopBar } from "./top-bar";
 import { StepBar } from "./StepBar";
+import { StageCard } from "./StageCard";
+import { StageRail } from "./StageRail";
 import { ProblemStep } from "./ProblemStep";
 import { SupportFAB } from "./SupportFAB";
 import { Sidebar } from "@/components/sidebar/Sidebar";
@@ -36,7 +38,9 @@ import { CreateProblemDialog } from "@/components/dialogs/CreateProblemDialog";
 import { CreateComponentDialog } from "@/components/dialogs/CreateComponentDialog";
 import { SupportDialog } from "@/components/dialogs/SupportDialog";
 import { useInterviewStore } from "@/store/interviewStore";
-import { useIsMobile } from "@/hooks/useBreakpoint";
+import { useIsMobile, useMinWidth } from "@/hooks/useBreakpoint";
+import { MEDIUM_MIN, WIDE_MIN, stageCssVars, stageInsets, stageMetrics } from "@/lib/stageLayout";
+import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { CommandPalette } from "@/components/CommandPalette";
 import { HowItWorksDialog } from "@/components/dialogs/HowItWorksDialog";
 import { Walkthrough } from "@/components/Walkthrough";
@@ -67,6 +71,14 @@ export function AppShell() {
   // Mobile drawer state — local, does not persist
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileRightOpen, setMobileRightOpen] = useState(false);
+  // The rail's own choice (stage layout); null follows the screen: collapsed under 1280 px.
+  const [railCollapsedOverride, setRailCollapsedOverride] = useState<boolean | null>(null);
+  const wide = useMinWidth(WIDE_MIN);
+  const medium = useMinWidth(MEDIUM_MIN);
+  const customProblems = useCustomProblemsStore((s) => s.problems);
+  const selectedProblemId = useAppStore((s) => s.selectedProblemId);
+  // The canvas's tab bar shows from the second tab (a reference): the overlays below it make room.
+  const hasTabBar = useCanvasStore((s) => s.tabs.length > 1);
 
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
@@ -174,7 +186,10 @@ export function AppShell() {
           nodes,
           edges,
           config.requestsPerSec,
-          { horizonSec: config.durationSec, ...(latencySlo ? { latencySlo } : {}) },
+          {
+            horizonSec: config.durationSec,
+            ...(latencySlo ? { latencySlo } : {}),
+          },
         );
 
         // Metrics live in runtimeStore (Spec 07), never in node.data.
@@ -344,44 +359,144 @@ export function AppShell() {
   const showCanvas = freeMode ? canvasVisible(step) : interviewCanvasVisible(currentPhase);
   const showPalette = freeMode ? paletteVisible(step) : interviewPaletteVisible(currentPhase);
 
+  // The stage layout: from 768 px, on a canvas step the canvas fills the screen and the top bar,
+  // rail, panel and palette float over it as cards. The Problem step and interview phases 1-4 (no
+  // canvas) stay full screen, and below 768 px the drawers and the bottom sheet stay as they are.
+  const stage = showCanvas && !isMobile;
+  const metrics = stageMetrics({ medium, wide }, railCollapsedOverride);
+  const problemTitle = (
+    PROBLEMS.find((p) => p.id === selectedProblemId) ??
+    customProblems.find((p) => p.id === selectedProblemId)
+  )?.title;
+  const stepBarProps = freeMode
+    ? {
+        steps: STEPS.map((id) => ({ id, label: STEP_LABELS[id] })),
+        current: STEPS.indexOf(step),
+        onGo: (i: number) => useAppStore.getState().goToStep(STEPS[i]),
+        onBack: () => useAppStore.getState().backStep(),
+        onNext: () => useAppStore.getState().nextStep(),
+        label: "Steps",
+      }
+    : {
+        steps: phases.map((p) => ({ id: p.name, label: p.name })),
+        current: currentPhase,
+        onGo: (i: number) => useInterviewStore.getState().setPhase(i),
+        onBack: () => useInterviewStore.getState().prevPhase(),
+        onNext: () => useInterviewStore.getState().nextPhase(),
+        label: "Interview phases",
+      };
+
   return (
     <ReactFlowProvider>
       <PaletteDndProvider onPaletteDragStart={() => setMobileSidebarOpen(false)}>
         <div className="flex h-full flex-col">
           {interviewMode === "interview" && <InterviewBar />}
-          <TopBar
-            onScore={handleScore}
-            onClearCanvas={handleClearCanvas}
-            onSave={handleSave}
-            onLoad={handleLoad}
-            onStartInterview={() => setInterviewDialogOpen(true)}
-            onCreateProblem={() => setCreateProblemDialogOpen(true)}
-            onOpenSupport={() => setSupportDialogOpen(true)}
-            onToggleLeft={handleToggleLeft}
-            onToggleRight={handleToggleRight}
-            showPaletteToggle={showPalette}
-            showPanelToggle={showCanvas}
-          />
+          {/* On the stage this box is the layer the cards float over (the interview bar stays above it). */}
+          <div className={stage ? "relative min-h-0 flex-1 overflow-hidden" : "contents"}>
+            <StageCard
+              flat={!stage}
+              testId="stage-topbar"
+              className="absolute z-30 [&>header]:rounded-[12px] [&>header]:border-b-0 [&>header]:bg-transparent"
+              style={{
+                left: metrics.topbarInset,
+                right: metrics.topbarInset,
+                top: metrics.topbarInset,
+              }}
+            >
+              <TopBar
+                onScore={handleScore}
+                onClearCanvas={handleClearCanvas}
+                onSave={handleSave}
+                onLoad={handleLoad}
+                onStartInterview={() => setInterviewDialogOpen(true)}
+                onCreateProblem={() => setCreateProblemDialogOpen(true)}
+                onOpenSupport={() => setSupportDialogOpen(true)}
+                onToggleLeft={handleToggleLeft}
+                onToggleRight={handleToggleRight}
+                showPaletteToggle={showPalette}
+                showPanelToggle={showCanvas}
+              />
+            </StageCard>
 
-          {freeMode ? (
-            <StepBar
-              steps={STEPS.map((id) => ({ id, label: STEP_LABELS[id] }))}
-              current={STEPS.indexOf(step)}
-              onGo={(i) => useAppStore.getState().goToStep(STEPS[i])}
-              onBack={() => useAppStore.getState().backStep()}
-              onNext={() => useAppStore.getState().nextStep()}
-              label="Steps"
-            />
-          ) : (
-            <StepBar
-              steps={phases.map((p) => ({ id: p.name, label: p.name }))}
-              current={currentPhase}
-              onGo={(i) => useInterviewStore.getState().setPhase(i)}
-              onBack={() => useInterviewStore.getState().prevPhase()}
-              onNext={() => useInterviewStore.getState().nextPhase()}
-              label="Interview phases"
-            />
-          )}
+            {/* On the stage the rail holds the steps; the full-screen screens keep the row under the top bar. */}
+            {!stage && <StepBar {...stepBarProps} />}
+
+            {stage && (
+              <>
+                {/* The canvas, full-bleed. Its tab bar (only with a reference open) floats at the top of
+                    what the cards leave, and the canvas's own overlays read that area from the variables. */}
+                <div
+                  className="absolute inset-0 flex [&_[data-canvas-tabs]]:absolute [&_[data-canvas-tabs]]:left-[calc((var(--stage-inset-left)_+_100%_-_var(--stage-inset-right))/2)] [&_[data-canvas-tabs]]:top-[var(--stage-inset-top)] [&_[data-canvas-tabs]]:z-10 [&_[data-canvas-tabs]]:max-w-[36%] [&_[data-canvas-tabs]]:-translate-x-1/2 [&_[data-canvas-tabs]]:rounded-lg [&_[data-canvas-tabs]]:border"
+                  style={
+                    stageCssVars(
+                      stageInsets(metrics, {
+                        palette: showPalette && leftSidebarOpen,
+                        panel: rightPanelOpen,
+                      }),
+                      hasTabBar,
+                    ) as CSSProperties
+                  }
+                >
+                  <DesignCanvas
+                    onPickProblem={handlePickProblem}
+                    onLoadReference={handleLoadReference}
+                    onStartInterview={() => setInterviewDialogOpen(true)}
+                    onShowGuide={() => setHowItWorksOpen(true)}
+                  />
+                </div>
+
+                {/* Left column: the rail, then the palette under it, so the two never meet. */}
+                <div
+                  className="pointer-events-none absolute z-20 flex flex-col gap-3"
+                  style={{
+                    left: metrics.side,
+                    top: metrics.top,
+                    bottom: metrics.paletteBottom,
+                  }}
+                >
+                  <StageCard
+                    testId="stage-rail"
+                    className="pointer-events-auto shrink-0 overflow-hidden"
+                    style={{ width: metrics.railWidth }}
+                  >
+                    <StageRail
+                      problemTitle={problemTitle}
+                      collapsed={metrics.railCollapsed}
+                      onToggleCollapsed={() => setRailCollapsedOverride(!metrics.railCollapsed)}
+                      {...stepBarProps}
+                    />
+                  </StageCard>
+                  {showPalette && (
+                    <StageCard
+                      testId="stage-palette"
+                      open={leftSidebarOpen}
+                      className="pointer-events-auto flex min-h-[96px] flex-1 flex-col overflow-hidden"
+                      style={{ width: metrics.paletteWidth }}
+                    >
+                      <Sidebar
+                        onCreateCustomComponent={() => setCreateComponentDialogOpen(true)}
+                        variant="desktop"
+                      />
+                    </StageCard>
+                  )}
+                </div>
+
+                <StageCard
+                  testId="stage-panel"
+                  open={rightPanelOpen}
+                  className="absolute z-20 flex flex-col overflow-hidden"
+                  style={{
+                    right: metrics.side,
+                    top: metrics.top,
+                    bottom: metrics.side,
+                    width: metrics.panelWidth,
+                  }}
+                >
+                  <RightPanel onAnalyze={handleAnalyze} variant="desktop" />
+                </StageCard>
+              </>
+            )}
+          </div>
 
           {!showCanvas ? (
             freeMode ? (
@@ -393,17 +508,8 @@ export function AppShell() {
                 </div>
               </main>
             )
-          ) : (
+          ) : !stage ? (
             <div className="relative flex flex-1 overflow-hidden">
-              {/* Desktop inline sidebar (hidden on mobile) */}
-              {showPalette && (
-                <Sidebar
-                  open={leftSidebarOpen}
-                  onCreateCustomComponent={() => setCreateComponentDialogOpen(true)}
-                  variant="desktop"
-                />
-              )}
-
               <DesignCanvas
                 onPickProblem={handlePickProblem}
                 onLoadReference={handleLoadReference}
@@ -411,10 +517,7 @@ export function AppShell() {
                 onShowGuide={() => setHowItWorksOpen(true)}
               />
 
-              {/* Desktop inline right panel (hidden on mobile) */}
-              <RightPanel open={rightPanelOpen} onAnalyze={handleAnalyze} variant="desktop" />
-
-              {/* Mobile: sidebar drawer from left */}
+              {/* Below 768 px: the palette as a drawer and the panel as a bottom sheet */}
               {isMobile && (
                 <>
                   {/* Backdrop */}
@@ -492,11 +595,12 @@ export function AppShell() {
                 </>
               )}
             </div>
-          )}
+          ) : null}
 
+          {/* On the stage it would sit on the panel's corner: the top bar and its menu have the same action. */}
           <SupportFAB
             onClick={() => setSupportDialogOpen(true)}
-            hidden={mobileSidebarOpen || mobileRightOpen}
+            hidden={mobileSidebarOpen || mobileRightOpen || stage}
           />
 
           <Toast />

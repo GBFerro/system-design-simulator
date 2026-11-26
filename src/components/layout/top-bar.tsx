@@ -165,7 +165,9 @@ export function TopBar({
     <>
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900 px-2 md:gap-3 md:px-3">
         {/* Left section */}
-        <div data-testid="topbar-left" className="flex min-w-0 items-center gap-2 lg:gap-3">
+        {/* gap-2 from lg up: on the floating card (16 px in from each edge) the problem selector
+            needs the room (smoke spec, 80 px from 768 to 1920). */}
+        <div data-testid="topbar-left" className="flex min-w-0 items-center gap-2">
           {showPaletteToggle && (
             <button
               onClick={onToggleLeft}

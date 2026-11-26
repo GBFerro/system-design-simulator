@@ -1,6 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 import { MAX_EDGE_CALLS } from "@/domain/graph/edgeRules";
-import { MOD, center, connectSync, edgePoint, open, quickAdd } from "./helpers";
+import {
+  MOD,
+  center,
+  clickEmptyPane,
+  connectSync,
+  edgePoint,
+  open,
+  paletteItemCenter,
+  quickAdd,
+} from "./helpers";
 
 // Spec 02: one test per editor bug from the diagnosis (B1–B6) plus the CAN-05 shortcuts.
 
@@ -22,11 +31,8 @@ async function mouseDrag(
 }
 
 async function dragFromPalette(page: Page, componentId: string, to: { x: number; y: number }) {
-  await mouseDrag(
-    page,
-    await center(page.locator(`[data-palette-item="${componentId}"]`).first()),
-    to,
-  );
+  // (the palette is a short floating card: scroll the item into it first)
+  await mouseDrag(page, await paletteItemCenter(page, componentId), to);
 }
 
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a) {
@@ -40,9 +46,9 @@ test("B1: dropping on the center of the empty canvas (over the empty state) adds
   await expect(
     page.getByRole("heading", { name: "Build an architecture that scales" }),
   ).toBeVisible();
-  // Releasing outside the canvas (back over the palette) adds nothing
-  const row = await center(page.locator('[data-palette-item="app-server"]').first());
-  await mouseDrag(page, row, { x: row.x + 20, y: row.y + 80 });
+  // Releasing outside the canvas, or over a card that floats on it (the panel), adds nothing
+  const row = await paletteItemCenter(page, "app-server");
+  await mouseDrag(page, row, await center(page.getByTestId("stage-panel")));
   await expect(nodes(page)).toHaveCount(0);
   await dragFromPalette(page, "app-server", await center(page.locator(".react-flow")));
   await expect(nodes(page)).toHaveCount(1);
@@ -117,7 +123,7 @@ test("B4: delete from the context menu and from the node toolbar", async ({ page
   await expect(nodes(page)).toHaveCount(0);
 
   // Pane menu + keyboard: Shift+F10 opens it, Escape closes it
-  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } });
+  await clickEmptyPane(page);
   await page.keyboard.press("Shift+F10");
   await expect(menu.getByRole("menuitem", { name: "Add note" })).toBeFocused();
   await page.keyboard.press("Escape");
@@ -344,7 +350,7 @@ test("FLW-17: the context menu edits a one-call edge and sends a several-call ed
   await page.getByRole("button", { name: "Add call" }).click();
   await expect(call(page, 2)).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } });
+  await clickEmptyPane(page);
   await expect(page.getByTestId("edge-calls")).toHaveCount(0);
   await rightClick("sql-db");
   await expect(menu.getByRole("menuitemradio", { name: "Writes only" })).toHaveCount(0);

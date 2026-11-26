@@ -6,9 +6,21 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { ReactFlow, Controls, MiniMap, useReactFlow, type Node } from "@xyflow/react";
+import {
+  ReactFlow,
+  ControlButton,
+  Controls,
+  MiniMap,
+  Panel,
+  useNodesInitialized,
+  useReactFlow,
+  useStoreApi,
+  type Node,
+} from "@xyflow/react";
+import { useAppStore } from "@/store/appStore";
 import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
 import { ChaosTimeline } from "./ChaosTimeline";
@@ -22,12 +34,14 @@ import { useExpandedNodesStore } from "@/store/expandedNodesStore";
 import { getLatestSnapshot, useRuntimeStore } from "@/store/runtimeStore";
 import { usePenStore } from "@/store/penStore";
 import { minimapFill } from "@/lib/minimapColor";
+import { framedViewportNow } from "@/lib/framing";
 import { visibleCanvasCenter } from "@/lib/placement";
 import {
   BookOpen,
   GraduationCap,
   Layers,
   Lock,
+  Maximize,
   MousePointer2,
   Sparkles,
   HelpCircle,
@@ -56,6 +70,27 @@ import { useCanvasShortcuts } from "./useCanvasShortcuts";
 
 const LONG_PRESS_MS = 500;
 const LONG_PRESS_SLOP = 10;
+
+/** The part of the canvas the stage's floating cards leave (AppShell sets the variables; with no cards they are 0). */
+const FREE_AREA: CSSProperties = {
+  top: "var(--stage-inset-top, 0px)",
+  left: "var(--stage-inset-left, 0px)",
+  right: "var(--stage-inset-right, 0px)",
+};
+/** The same, below the tab bar that floats at its top (the read-only hint and the pen toolbar sit there). */
+const BELOW_TABS_TOP = "calc(var(--stage-inset-top, 0px) + var(--stage-tabs, 0px))";
+
+/**
+ * Every fit of the viewport (the first one, the controls' button, a tab change) frames the design in
+ * the part the open cards leave (`lib/framing.ts`), down to this zoom: the widest reference needs
+ * about 0.4 at 1440 px, under the 0.5 a user can zoom out to by hand.
+ */
+const FIT_MIN_ZOOM = 0.2;
+/** The first fit and the controls' button never zoom in past 1; a tab's fit may, as the canvas always did. */
+const FIT_MAX_ZOOM = 1;
+const TAB_FIT_MAX_ZOOM = 2;
+/** Frames a tab change gives the new tab's nodes to be measured before it fits them anyway. */
+const MEASURE_FRAMES = 60;
 
 /** Which canvas element (node, edge or empty pane) an event landed on. */
 function contextTargetOf(el: EventTarget | null): ContextTarget | null {
@@ -88,7 +123,8 @@ export function DesignCanvas({
   onShowGuide,
 }: DesignCanvasProps = {}) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, setViewport, getNodes, getNodesBounds } = useReactFlow();
+  const store = useStoreApi();
 
   const nodes = useCanvasStore((s) => s.nodes);
   const edges = useCanvasStore((s) => s.edges);
@@ -120,22 +156,54 @@ export function DesignCanvas({
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const activeTabId = useCanvasStore((s) => s.activeTabId);
   const isReadOnly = useIsActiveTabReadOnly();
+  const minimapVisible = useAppStore((s) => s.minimapVisible);
+  const toggleMinimap = useAppStore((s) => s.toggleMinimap);
   const penMode = usePenStore((s) => s.mode);
   const penActive = penMode !== "off";
+
+  // Frame the nodes in the part of the canvas the open floating cards leave (see `lib/framing.ts`).
+  // The cards are read when it runs: opening or closing one never moves the view by itself.
+  const frame = useCallback(
+    (maxZoom: number, duration?: number) => {
+      const shown = getNodes();
+      if (shown.length === 0) return;
+      const view = framedViewportNow(getNodesBounds(shown), { minZoom: FIT_MIN_ZOOM, maxZoom });
+      if (view) void setViewport(view, duration ? { duration } : undefined);
+    },
+    [getNodes, getNodesBounds, setViewport],
+  );
+
+  // The first fit: once, when the first nodes are on screen and measured (a persisted design at
+  // load, or the first node added to an empty canvas).
+  const nodesInitialized = useNodesInitialized();
+  const firstFitDone = useRef(false);
+  useEffect(() => {
+    if (!nodesInitialized || firstFitDone.current) return;
+    firstFitDone.current = true;
+    frame(FIT_MAX_ZOOM);
+  }, [nodesInitialized, frame]);
 
   // Re-fit the viewport whenever the user switches canvas tabs
   const initialTabRef = useRef(true);
   useEffect(() => {
     if (initialTabRef.current) {
       initialTabRef.current = false;
-      return; // initial mount already handled by the `fitView` prop
+      return; // the first fit above handles the initial mount
     }
-    // Wait one frame so the new tab's nodes are mounted before fitting
-    const raf = requestAnimationFrame(() => {
-      fitView({ padding: 0.2, duration: 300 });
-    });
+    // Wait until the new tab's nodes are mounted and measured, or the frame misses their size
+    let raf = 0;
+    let frames = 0;
+    const wait = () => {
+      if (getNodes().length === 0) return; // an empty tab: nothing to frame (and the first node's fit is the first fit's)
+      if (store.getState().nodesInitialized || ++frames > MEASURE_FRAMES) {
+        frame(TAB_FIT_MAX_ZOOM, 300);
+      } else {
+        raf = requestAnimationFrame(wait);
+      }
+    };
+    raf = requestAnimationFrame(wait);
     return () => cancelAnimationFrame(raf);
-  }, [activeTabId, fitView]);
+  }, [activeTabId, frame, getNodes, store]);
 
   // Listen for text node edits and persist them to the store
   useEffect(() => {
@@ -266,7 +334,6 @@ export function DesignCanvas({
           multiSelectionKeyCode={["Shift", "Meta", "Control"]}
           selectionOnDrag={!penActive}
           panOnScroll={!penActive}
-          fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
           onNodeContextMenu={(e, node) => {
             e.preventDefault();
             openMenu({ kind: "node", id: node.id }, e.clientX, e.clientY);
@@ -286,7 +353,6 @@ export function DesignCanvas({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           defaultEdgeOptions={{ type: "animated" }}
-          fitView
           proOptions={{ hideAttribution: true }}
           panOnDrag={penActive ? false : [1]}
           zoomOnScroll={!penActive}
@@ -304,15 +370,38 @@ export function DesignCanvas({
           <Controls
             className="!rounded-md !border !border-zinc-800 !bg-zinc-900 !shadow-sm [&>button]:!border-zinc-800 [&>button]:!bg-zinc-900 [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-800 [&>button:hover]:!text-zinc-200"
             position="bottom-left"
-          />
-          <MiniMap
-            className="!hidden !rounded-md !border !border-zinc-800 !bg-zinc-900 md:!block"
-            maskColor="var(--minimap-mask)"
-            nodeColor={miniMapNodeColor}
-            position="bottom-right"
-            // Lifted above the corner Support FAB so the two don't overlap
-            style={{ width: 140, height: 90, bottom: 72 }}
-          />
+            // The button is ours: React Flow's would fit on the whole canvas, under the cards
+            showFitView={false}
+          >
+            <ControlButton
+              onClick={() => frame(FIT_MAX_ZOOM, 300)}
+              title="Fit View"
+              aria-label="Fit View"
+            >
+              <Maximize />
+            </ControlButton>
+          </Controls>
+          {/* Next to the zoom controls (bottom-left): the timeline starts to its right. */}
+          <Panel position="bottom-left" className="!ml-[52px] hidden md:block">
+            <button
+              type="button"
+              onClick={toggleMinimap}
+              data-testid="minimap-toggle"
+              className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] font-medium text-zinc-400 shadow-sm hover:bg-zinc-800 hover:text-zinc-200"
+            >
+              {minimapVisible ? "Hide minimap" : "Show minimap"}
+            </button>
+          </Panel>
+          {minimapVisible && (
+            <MiniMap
+              className="!hidden !rounded-md !border !border-zinc-800 !bg-zinc-900 md:!block"
+              maskColor="var(--minimap-mask)"
+              nodeColor={miniMapNodeColor}
+              position="bottom-left"
+              // Stacked above the zoom controls, so it clears the timeline (to the right of the toggle).
+              style={{ width: 140, height: 90, bottom: 150 }}
+            />
+          )}
           <FlowParticles />
           <NodeInsightCard />
         </ReactFlow>
@@ -322,18 +411,30 @@ export function DesignCanvas({
         <ChaosTimeline />
         {menu && <CanvasContextMenu menu={menu} onClose={closeMenu} />}
 
-        {/* Read-only hint for reference tabs */}
+        {/* Read-only hint for reference tabs: centered at the top of what the cards leave */}
         {isReadOnly && (
-          <div className="pointer-events-none absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-cyan-500/30 bg-zinc-900/90 px-3 py-1 text-[11px] font-medium text-cyan-400 shadow-sm backdrop-blur">
-            <Lock className="h-3 w-3" />
-            Read-only reference
+          <div
+            className="pointer-events-none absolute z-20 flex justify-center"
+            style={{ ...FREE_AREA, top: BELOW_TABS_TOP, paddingTop: 12 }}
+          >
+            <div
+              data-testid="readonly-hint"
+              className="flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-zinc-900/90 px-3 py-1 text-[11px] font-medium text-cyan-400 shadow-sm backdrop-blur"
+            >
+              <Lock className="h-3 w-3" />
+              Read-only reference
+            </div>
           </div>
         )}
       </div>
 
       {/* Welcome / empty state */}
       {isEmpty && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pb-4 md:pb-0">
+        <div
+          data-testid="empty-state"
+          className="pointer-events-none absolute bottom-0 flex items-center justify-center px-4 pb-4 md:pb-0"
+          style={FREE_AREA}
+        >
           <motion.div
             variants={emptyContainer}
             initial="hidden"

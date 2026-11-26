@@ -68,7 +68,6 @@ const FlowPanel = dynamic(() => import("./FlowPanel").then((m) => m.FlowPanel), 
 });
 
 interface RightPanelProps {
-  open?: boolean;
   onAnalyze: () => void;
   variant?: "desktop" | "mobile";
 }
@@ -330,7 +329,7 @@ function RightTabs({
   );
 }
 
-export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: RightPanelProps) {
+export function RightPanel({ onAnalyze, variant = "desktop" }: RightPanelProps) {
   const interviewMode = useInterviewStore((s) => s.mode);
   const currentPhase = useInterviewStore((s) => s.currentPhase);
   const step = useAppStore((s) => s.step);
@@ -351,18 +350,13 @@ export function RightPanel({ open = true, onAnalyze, variant = "desktop" }: Righ
     );
   }
 
+  // The stage layout's card (`stage-panel` in AppShell) sizes, shows and hides it: this fills it.
   return (
-    <aside
-      className={`hidden shrink-0 flex-col border-l border-zinc-800 bg-zinc-900 overflow-hidden transition-all duration-200 md:flex ${
-        open ? "w-[300px] opacity-100" : "w-0 opacity-0 border-l-0"
-      }`}
-      aria-hidden={!open || undefined}
-      inert={!open || undefined}
-    >
+    <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
       {showInterviewPhasePanel ? (
         <InterviewPhasePanel />
       ) : (
-        <div className="flex w-[300px] flex-1 flex-col min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col">
           <RightTabs onAnalyze={onAnalyze} tools={tools} />
         </div>
       )}

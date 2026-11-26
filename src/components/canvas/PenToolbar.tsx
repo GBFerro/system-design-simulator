@@ -19,7 +19,15 @@ export function PenToolbar() {
 
   return (
     <>
-      <div className="pointer-events-auto absolute right-3 top-3 z-20 flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/90 p-1 shadow-lg backdrop-blur">
+      <div
+        data-testid="pen-toolbar"
+        // 12 px in from the top and right of what the stage's cards leave (the whole canvas with none)
+        style={{
+          right: "calc(var(--stage-inset-right, 0px) + 12px)",
+          top: "calc(var(--stage-inset-top, 0px) + var(--stage-tabs, 0px) + 12px)",
+        }}
+        className="pointer-events-auto absolute z-20 flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/90 p-1 shadow-lg backdrop-blur"
+      >
         <button
           onClick={() => setMode(mode === "pen" ? "off" : "pen")}
           className={`flex h-7 w-7 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:w-10 items-center justify-center rounded transition-colors ${

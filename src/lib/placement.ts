@@ -1,4 +1,5 @@
 import type { FitViewOptions, Node, XYPosition } from "@xyflow/react";
+import { cardInsets, type PlainRect } from "@/lib/stageLayout";
 
 export interface Size {
   width: number;
@@ -86,37 +87,75 @@ export function freePositionNear(
   ]);
 }
 
-/** The floating cards laid over the canvas that a new node must not land under. */
+/** The overlays of the canvas itself that a new node must not land under. */
 const CANVAS_OVERLAY_SELECTORS = [".react-flow__minimap", ".react-flow__controls"] as const;
+/** The floating cards of the stage layout (`StageCard`): the canvas runs under them. */
+export const STAGE_CARD_SELECTOR = "[data-stage-card]";
+
+type ScreenBox = Pick<DOMRect, "left" | "top" | "width" | "height">;
+
+const hasSize = (box: ScreenBox) => box.width > 0 && box.height > 0;
+/** A screen box as the left/top/right/bottom rect `stageLayout` works with. */
+export const toPlain = (box: ScreenBox): PlainRect => ({
+  left: box.left,
+  top: box.top,
+  right: box.left + box.width,
+  bottom: box.top + box.height,
+});
+
+/** Screen boxes of the floating cards that are showing (a closed card is `display: none`: no size). */
+export function openCards(root: ParentNode = document): PlainRect[] {
+  return [...root.querySelectorAll(STAGE_CARD_SELECTOR)]
+    .map((el) => el.getBoundingClientRect())
+    .filter(hasSize)
+    .map(toPlain);
+}
 
 /**
- * Flow-space rects of the canvas overlays on screen now (the minimap, the zoom controls),
- * for `placeNode`. An overlay that is not rendered or is hidden (zero size) is left out.
- * The store stays DOM-free: this runs in the UI and the rects travel as plain data.
+ * Flow-space rects of what is laid over the canvas on screen now (the minimap, the zoom controls,
+ * the floating cards), for `placeNode`. One that is not rendered or is hidden (zero size) is left
+ * out. The store stays DOM-free: this runs in the UI and the rects travel as plain data.
  */
 export function canvasOverlayRects(
   screenToFlowPosition: (p: XYPosition) => XYPosition,
   root: ParentNode = document,
 ): Rect[] {
-  const rects: Rect[] = [];
+  const boxes: ScreenBox[] = [];
   for (const selector of CANVAS_OVERLAY_SELECTORS) {
     const box = root.querySelector(selector)?.getBoundingClientRect();
-    if (!box || box.width <= 0 || box.height <= 0) continue;
+    if (box) boxes.push(box);
+  }
+  for (const card of root.querySelectorAll(STAGE_CARD_SELECTOR)) {
+    boxes.push(card.getBoundingClientRect());
+  }
+  return boxes.filter(hasSize).map((box) => {
     const a = screenToFlowPosition({ x: box.left, y: box.top });
     const b = screenToFlowPosition({ x: box.left + box.width, y: box.top + box.height });
-    rects.push({ x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y });
-  }
-  return rects;
+    return { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
+  });
 }
 
-/** Flow-space center of the visible canvas (the window center is offset by the sidebars). */
+/**
+ * Flow-space center of the part of the canvas in view: the canvas minus the floating cards open
+ * over it (the window center is offset by them). With no room left it is the canvas center.
+ */
 export function visibleCanvasCenter(
   screenToFlowPosition: (p: XYPosition) => XYPosition,
 ): XYPosition {
   const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+  if (!rect) {
+    return screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  }
+  const canvas = toPlain(rect);
+  const inset = cardInsets(canvas, openCards(document));
+  const left = canvas.left + inset.left;
+  const right = canvas.right - inset.right;
+  const top = canvas.top + inset.top;
+  const bottom = canvas.bottom - inset.bottom;
+  const roomy = left < right && top < bottom;
   return screenToFlowPosition({
-    x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
-    y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
+    x: roomy ? (left + right) / 2 : (canvas.left + canvas.right) / 2,
+    y: roomy ? (top + bottom) / 2 : (canvas.top + canvas.bottom) / 2,
   });
 }
 
@@ -140,11 +179,36 @@ export function placeAtVisibleCenter(
 /** Marks the mobile right panel: a bottom sheet laid over the lower part of the canvas. */
 export const BOTTOM_SHEET_ATTR = "data-bottom-sheet";
 
+/** Room kept between framed nodes and a floating card: the halo, the handles and the ×N button overflow the box. */
+export const CARD_FIT_MARGIN = 24;
+
+/**
+ * `fitView` padding that keeps the framed nodes out from under the floating cards: pixels per side,
+ * the cards' inset on that side plus `CARD_FIT_MARGIN`. With no card open, or no canvas to measure,
+ * `fallback` (a ratio, as `fitView` reads a number). Read when the fit runs.
+ */
+export function paddingClearOfCards(fallback: number): NonNullable<FitViewOptions["padding"]> {
+  if (typeof document === "undefined") return fallback;
+  const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+  const cards = rect ? openCards(document) : [];
+  if (!rect || cards.length === 0) return fallback;
+  const inset = cardInsets(toPlain(rect), cards);
+  const px = (n: number): `${number}px` => `${n + CARD_FIT_MARGIN}px`;
+  return {
+    top: px(inset.top),
+    right: px(inset.right),
+    bottom: px(inset.bottom),
+    left: px(inset.left),
+  };
+}
+
 /**
  * `fitView` padding for framing nodes from inside a panel: when `from` sits
  * in the mobile bottom sheet (`[data-bottom-sheet]`), the canvas strip above
- * the sheet; otherwise `fallback`. Every panel that frames nodes goes through
- * this, or on a phone it frames them under the sheet.
+ * the sheet; otherwise clear of the floating cards (`paddingClearOfCards`), or
+ * `fallback` when none is open. Every panel that frames nodes goes through
+ * this, or on a phone it frames them under the sheet and on a desktop under
+ * the cards.
  */
 export function paddingAboveSheet(
   from: Element | null | undefined,
@@ -155,5 +219,5 @@ export function paddingAboveSheet(
   const covered = sheet && canvas ? Math.max(0, canvas.bottom - sheet.top) : 0;
   return covered > 0
     ? { top: "10%", left: "10%", right: "10%", bottom: `${Math.round(covered) + 16}px` }
-    : fallback;
+    : paddingClearOfCards(fallback);
 }

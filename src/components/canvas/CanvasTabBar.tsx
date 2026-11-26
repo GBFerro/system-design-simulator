@@ -13,7 +13,10 @@ export function CanvasTabBar() {
   if (tabs.length <= 1) return null;
 
   return (
-    <div className="flex h-8 shrink-0 items-center gap-0.5 border-b border-zinc-800 bg-zinc-950 px-2 overflow-x-auto">
+    <div
+      data-canvas-tabs
+      className="flex h-8 shrink-0 items-center gap-0.5 border-b border-zinc-800 bg-zinc-950 px-2 overflow-x-auto"
+    >
       {tabs.map((tab) => (
         // div[role=button] so the close X can be a real, focusable <button>
         // (nesting a button inside a button is invalid HTML)

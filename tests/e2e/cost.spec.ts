@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { analyze, MOD, openTab, open } from "./helpers";
+import { analyze, clickEmptyPane, MOD, openTab, open } from "./helpers";
 
 // Spec 10: live cost, its breakdown, the budget and right-size with one undo step.
 
@@ -86,7 +86,7 @@ test("cost follows instances and load; right-size applies in one undo step", asy
   await expect(rightSize.getByText("Every tier is already sized for this load.")).toBeVisible();
 
   // One ⌘Z undoes the whole right-size.
-  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } });
+  await clickEmptyPane(page);
   await page.keyboard.press(`${MOD}+z`);
   await expect(monthly).toHaveText("$140");
 
