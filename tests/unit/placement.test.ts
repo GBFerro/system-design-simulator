@@ -2,11 +2,16 @@ import type { Node } from "@xyflow/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   canvasOverlayRects,
+  CARD_FIT_MARGIN,
   DEFAULT_NODE_SIZE,
   freePositionNear,
   nodeRect,
+  paddingAboveSheet,
+  paddingClearOfCards,
   placeAtVisibleCenter,
+  STAGE_CARD_SELECTOR,
   TEXT_NODE_SIZE,
+  visibleCanvasCenter,
   type Rect,
 } from "@/lib/placement";
 
@@ -85,21 +90,40 @@ describe("freePositionNear blocked rects", () => {
   });
 });
 
+const el = (left: number, top: number, width: number, height: number) => ({
+  getBoundingClientRect: () => ({
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+  }),
+});
+/** A stand-in for `document`: elements by selector, and the floating cards (`[data-stage-card]`). */
+const fakeRoot = (
+  found: Record<string, ReturnType<typeof el>>,
+  cards: ReturnType<typeof el>[] = [],
+) =>
+  ({
+    querySelector: (sel: string) => found[sel] ?? null,
+    querySelectorAll: (sel: string) => (sel === STAGE_CARD_SELECTOR ? cards : []),
+  }) as unknown as ParentNode;
+
 describe("placeAtVisibleCenter", () => {
   afterEach(() => vi.unstubAllGlobals());
+  const node = { id: "n", position: { x: 0, y: 0 }, data: {} } as Node;
 
   it("places at the visible canvas center, blocking the overlays on screen", () => {
-    const box = (left: number, top: number, width: number, height: number) => ({
-      getBoundingClientRect: () => ({ left, top, width, height }),
-    });
-    const found: Record<string, ReturnType<typeof box>> = {
-      ".react-flow": box(100, 50, 800, 600),
-      ".react-flow__minimap": box(300, 250, 140, 90),
-    };
-    vi.stubGlobal("document", { querySelector: (sel: string) => found[sel] ?? null });
+    vi.stubGlobal(
+      "document",
+      fakeRoot({
+        ".react-flow": el(100, 50, 800, 600),
+        ".react-flow__minimap": el(300, 250, 140, 90),
+      }),
+    );
     const toFlow = (p: { x: number; y: number }) => ({ x: p.x / 2, y: p.y / 2 });
     const place = vi.fn();
-    const node = { id: "n", position: { x: 0, y: 0 }, data: {} } as Node;
 
     placeAtVisibleCenter(place, node, toFlow);
 
@@ -107,14 +131,128 @@ describe("placeAtVisibleCenter", () => {
       { x: 150, y: 125, width: 70, height: 45 },
     ]);
   });
+
+  it("centers on the canvas minus the open cards, and blocks each card (criterion 23)", () => {
+    // 1000 x 800 canvas at the origin; top bar 0..60, a left card to x 200, a right card from x 700
+    const bar = el(0, 0, 1000, 60);
+    const left = el(0, 80, 200, 400);
+    const right = el(700, 80, 300, 700);
+    vi.stubGlobal("document", fakeRoot({ ".react-flow": el(0, 0, 1000, 800) }, [bar, left, right]));
+    const toFlow = (p: { x: number; y: number }) => p; // zoom 1, no pan
+    const place = vi.fn();
+
+    placeAtVisibleCenter(place, node, toFlow);
+
+    // x: (200 + 700) / 2 = 450; y: (60 + 800) / 2 = 430
+    expect(place).toHaveBeenCalledExactlyOnceWith(node, { x: 450, y: 430 }, [
+      { x: 0, y: 0, width: 1000, height: 60 },
+      { x: 0, y: 80, width: 200, height: 400 },
+      { x: 700, y: 80, width: 300, height: 700 },
+    ]);
+  });
+
+  it("a closed card (zero size) neither moves the center nor blocks anything", () => {
+    vi.stubGlobal(
+      "document",
+      fakeRoot({ ".react-flow": el(0, 0, 1000, 800) }, [el(0, 0, 0, 0), el(700, 80, 0, 0)]),
+    );
+    const place = vi.fn();
+    placeAtVisibleCenter(place, node, (p) => p);
+    expect(place).toHaveBeenCalledExactlyOnceWith(node, { x: 500, y: 400 }, []);
+  });
+
+  it("falls back to the canvas center when the cards leave no room", () => {
+    vi.stubGlobal(
+      "document",
+      fakeRoot({ ".react-flow": el(0, 0, 400, 300) }, [el(0, 0, 250, 300), el(150, 0, 250, 300)]),
+    );
+    const place = vi.fn();
+    placeAtVisibleCenter(place, node, (p) => p);
+    expect(place.mock.calls[0][1]).toEqual({ x: 200, y: 150 });
+  });
+});
+
+describe("visibleCanvasCenter", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is the center of the canvas minus the open cards, converted to flow space", () => {
+    vi.stubGlobal(
+      "document",
+      fakeRoot({ ".react-flow": el(100, 50, 800, 600) }, [el(116, 90, 210, 300)]),
+    );
+    const toFlow = (p: { x: number; y: number }) => ({ x: p.x - 100, y: p.y - 50 });
+    // The card is a left strip ending at x 326: the visible x runs 326..900, centered at 613
+    // (flow x 513); nothing covers the top or the bottom, so y stays at 50 + 300 (flow y 300).
+    expect(visibleCanvasCenter(toFlow)).toEqual({ x: 513, y: 300 });
+  });
+});
+
+describe("paddingClearOfCards (criterion 23: fitView keeps nodes out from under the cards)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is the fallback ratio when no card is open", () => {
+    vi.stubGlobal("document", fakeRoot({ ".react-flow": el(0, 0, 1440, 900) }));
+    expect(paddingClearOfCards(0.2)).toBe(0.2);
+    vi.stubGlobal("document", fakeRoot({ ".react-flow": el(0, 0, 1440, 900) }, [el(0, 0, 0, 0)]));
+    expect(paddingClearOfCards(0.2)).toBe(0.2);
+  });
+
+  it("is the fallback ratio with no canvas (server render)", () => {
+    vi.stubGlobal("document", fakeRoot({}, [el(16, 16, 100, 100)]));
+    expect(paddingClearOfCards(0.2)).toBe(0.2);
+  });
+
+  it("is pixels per side: each side's cards plus the fallback's own margin", () => {
+    // 1440 x 900, and a 24 px margin between the nodes and a card
+    expect(CARD_FIT_MARGIN).toBe(24);
+    vi.stubGlobal(
+      "document",
+      fakeRoot({ ".react-flow": el(0, 0, 1440, 900) }, [
+        el(16, 16, 1408, 51), // top bar: bottom edge at 67
+        el(16, 84, 260, 242), // palette: right edge at 276
+        el(1084, 84, 340, 800), // panel: left edge at 1084, so 356 from the right
+      ]),
+    );
+    expect(paddingClearOfCards(0.2)).toEqual({
+      top: "91px", // 67 + 24
+      right: "380px", // 356 + 24
+      bottom: "24px",
+      left: "300px", // 276 + 24
+    });
+  });
+});
+
+describe("paddingAboveSheet", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps the strip above the mobile sheet, as before", () => {
+    vi.stubGlobal("document", fakeRoot({ ".react-flow": el(0, 0, 390, 700) }));
+    const from = { closest: () => el(0, 400, 390, 300) } as unknown as Element;
+    expect(paddingAboveSheet(from, 0.6)).toEqual({
+      top: "10%",
+      left: "10%",
+      right: "10%",
+      bottom: "316px",
+    });
+  });
+
+  it("with no sheet, frames clear of the floating cards", () => {
+    vi.stubGlobal(
+      "document",
+      fakeRoot({ ".react-flow": el(0, 0, 1000, 800) }, [el(700, 0, 300, 800)]),
+    );
+    const from = { closest: () => null } as unknown as Element;
+    const padding = paddingAboveSheet(from, 0.2) as { right: string };
+    expect(padding.right).toBe("324px");
+    // and without cards, the fallback
+    vi.stubGlobal("document", fakeRoot({ ".react-flow": el(0, 0, 1000, 800) }));
+    expect(paddingAboveSheet(from, 0.2)).toBe(0.2);
+  });
 });
 
 describe("canvasOverlayRects", () => {
-  const el = (left: number, top: number, width: number, height: number) => ({
-    getBoundingClientRect: () => ({ left, top, width, height }),
-  });
-  const root = (found: Record<string, ReturnType<typeof el>>) =>
-    ({ querySelector: (sel: string) => found[sel] ?? null }) as unknown as ParentNode;
+  const root = (found: Record<string, ReturnType<typeof el>>, cards?: ReturnType<typeof el>[]) =>
+    fakeRoot(found, cards);
   // screen -> flow: shifted by (-100, -50), zoom 2
   const toFlow = (p: { x: number; y: number }) => ({ x: (p.x - 100) / 2, y: (p.y - 50) / 2 });
 
@@ -129,6 +267,20 @@ describe("canvasOverlayRects", () => {
     expect(rects).toEqual([
       { x: 100, y: 100, width: 70, height: 45 },
       { x: 10, y: 200, width: 15, height: 50 },
+    ]);
+  });
+
+  it("reports every open floating card after the overlays, and skips a closed one", () => {
+    const rects = canvasOverlayRects(
+      toFlow,
+      root({ ".react-flow__controls": el(120, 450, 30, 100) }, [
+        el(300, 250, 140, 90),
+        el(0, 0, 0, 0), // display: none
+      ]),
+    );
+    expect(rects).toEqual([
+      { x: 10, y: 200, width: 15, height: 50 },
+      { x: 100, y: 100, width: 70, height: 45 },
     ]);
   });
 

@@ -18,14 +18,19 @@ import { ICON_MAP } from "@/lib/icons";
 import { getTechnology } from "@/domain/components/technologies";
 import { createComponentNode } from "@/lib/nodeFactory";
 import { DEFAULT_NODE_SIZE } from "@/lib/placement";
+import { pointOverCanvas } from "@/lib/stageLayout";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
 
 /** Marks the element that accepts palette drops (the canvas area in DesignCanvas). */
 export const CANVAS_DROP_ATTR = "data-canvas-drop";
 
+/** Over the canvas, but not over a floating card (stage layout) that covers part of it. */
 function isOverCanvas(p: { x: number; y: number }): boolean {
-  const r = document.querySelector(`[${CANVAS_DROP_ATTR}]`)?.getBoundingClientRect();
-  return !!r && p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
+  return pointOverCanvas(
+    p,
+    document.querySelector(`[${CANVAS_DROP_ATTR}]`)?.getBoundingClientRect(),
+    [...document.querySelectorAll("[data-stage-card]")].map((c) => c.getBoundingClientRect()),
+  );
 }
 
 export interface PaletteDragData {

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { open, openTab } from "./helpers";
+import { clickEmptyPane, open, openTab } from "./helpers";
 
 // Spec 06 (TRF-01..03): live traffic runs the tick loop in the engine worker.
 
@@ -72,7 +72,7 @@ test("speed 20× runs the clock faster; the P shortcut toggles playback", async 
     "true",
   );
   // Focus the canvas area (not an input) and press P
-  await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } });
+  await clickEmptyPane(page);
   await page.keyboard.press("p");
   await expect(panel.getByRole("button", { name: "Pause live traffic" })).toBeVisible();
   // ~20 simulated seconds per wall second

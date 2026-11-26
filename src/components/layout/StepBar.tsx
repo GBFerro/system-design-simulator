@@ -21,43 +21,66 @@ interface StepBarProps {
   trailing?: React.ReactNode;
   /** Label of the bar for assistive tech. */
   label?: string;
+  /** `vertical` stacks the steps (the stage layout's rail); the default is the row under the top bar. */
+  orientation?: "horizontal" | "vertical";
+  /** Vertical only: icons without text (the names stay for assistive tech). */
+  collapsed?: boolean;
 }
 
 /**
  * The steps in order, the current one highlighted (WIZ-01). A step before the
  * current one is a button that goes back; one after it is not clickable, so
  * the only way ahead is Next (WIZ-05, WIZ-06). Below 768 px only the current
- * step's name, "n / total" and Back/Next remain (WIZ-13).
+ * step's name, "n / total" and Back/Next remain (WIZ-13). In the stage layout
+ * the rail holds it vertically, and collapsed to icons below 1280 px.
  */
-export function StepBar({ steps, current, onGo, onBack, onNext, trailing, label }: StepBarProps) {
+export function StepBar({
+  steps,
+  current,
+  onGo,
+  onBack,
+  onNext,
+  trailing,
+  label,
+  orientation = "horizontal",
+  collapsed = false,
+}: StepBarProps) {
   const isMobile = useIsMobile();
   const last = steps.length - 1;
+  const vertical = orientation === "vertical";
+  const iconOnly = vertical && collapsed;
   const navButton =
     "flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+  const iconNav = iconOnly ? "justify-center !px-0 w-6" : "";
+  const text = (t: string) => (iconOnly ? <span className="sr-only">{t}</span> : t);
   const controls = (
-    <div className="flex shrink-0 items-center gap-1.5">
+    <div
+      className={`flex shrink-0 items-center gap-1.5 ${
+        iconOnly ? "flex-col" : vertical ? "w-full [&>button]:flex-1 [&>button]:justify-center" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={onBack}
         disabled={current <= 0}
-        className={`${navButton} border-zinc-700 text-zinc-300 enabled:hover:bg-zinc-800`}
+        className={`${navButton} ${iconNav} border-zinc-700 text-zinc-300 enabled:hover:bg-zinc-800`}
       >
         <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-        Back
+        {text("Back")}
       </button>
       <button
         type="button"
         onClick={onNext}
         disabled={current >= last}
-        className={`${navButton} border-cyan-600/60 bg-cyan-600/20 text-cyan-300 enabled:hover:bg-cyan-600/30`}
+        className={`${navButton} ${iconNav} border-cyan-600/60 bg-cyan-600/20 text-cyan-300 enabled:hover:bg-cyan-600/30`}
       >
-        Next
+        {text("Next")}
         <ChevronRight className="h-3.5 w-3.5" aria-hidden />
       </button>
     </div>
   );
 
-  if (isMobile) {
+  if (isMobile && !vertical) {
     return (
       <nav
         aria-label={label ?? "Steps"}
@@ -82,23 +105,38 @@ export function StepBar({ steps, current, onGo, onBack, onNext, trailing, label 
     <nav
       aria-label={label ?? "Steps"}
       data-testid="step-bar"
-      className="flex h-10 shrink-0 items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900/80 px-4"
+      {...(vertical ? { "data-orientation": "vertical" } : {})}
+      {...(iconOnly ? { "data-collapsed": "" } : {})}
+      className={
+        vertical
+          ? "flex flex-col gap-2"
+          : "flex h-10 shrink-0 items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900/80 px-4"
+      }
     >
-      <ol className="flex min-w-0 items-center gap-1">
+      <ol className={vertical ? "flex flex-col gap-0.5" : "flex min-w-0 items-center gap-1"}>
         {steps.map((step, i) => {
           const done = i < current;
           const active = i === current;
           const reachable = i <= current;
+          const hint = reachable
+            ? iconOnly
+              ? step.label
+              : undefined
+            : iconOnly
+              ? `${step.label}: use Next to get here`
+              : "Use Next to get here";
           return (
-            <li key={step.id} className="flex items-center">
+            <li key={step.id} className={`flex items-center ${vertical ? "w-full" : ""}`}>
               <button
                 type="button"
                 data-step={step.id}
                 aria-current={active ? "step" : undefined}
                 disabled={!reachable}
                 onClick={() => onGo(i)}
-                title={reachable ? undefined : "Use Next to get here"}
+                title={hint}
                 className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${
+                  vertical ? "w-full" : ""
+                } ${iconOnly ? "justify-center !px-0" : ""} ${
                   active
                     ? "bg-cyan-600/20 text-cyan-300"
                     : done
@@ -117,14 +155,22 @@ export function StepBar({ steps, current, onGo, onBack, onNext, trailing, label 
                 >
                   {done ? <Check className="h-2.5 w-2.5" aria-hidden /> : i + 1}
                 </span>
-                {step.label}
+                {text(step.label)}
               </button>
-              {i < last && <ChevronRight className="mx-0.5 h-3 w-3 text-zinc-600" aria-hidden />}
+              {i < last && !vertical && (
+                <ChevronRight className="mx-0.5 h-3 w-3 text-zinc-600" aria-hidden />
+              )}
             </li>
           );
         })}
       </ol>
-      <div className="flex shrink-0 items-center gap-3">
+      <div
+        className={
+          vertical
+            ? `flex shrink-0 flex-col gap-3 ${iconOnly ? "items-center" : "items-stretch"}`
+            : "flex shrink-0 items-center gap-3"
+        }
+      >
         {trailing}
         {controls}
       </div>

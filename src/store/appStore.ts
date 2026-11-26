@@ -39,7 +39,10 @@ interface AppState {
   /** Display currency of the cost estimates (Spec 10, CST-04). */
   currency: Currency;
   toast: ToastData | null;
+  /** Whether the canvas minimap is rendered. Session-only: not persisted (slice 3, criterion 27). */
+  minimapVisible: boolean;
 
+  toggleMinimap: () => void;
   setSelectedProblem: (id: string) => void;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
@@ -84,7 +87,9 @@ export const useAppStore = create<AppState>()(
       step: "problem",
       currency: "USD",
       toast: null,
+      minimapVisible: false,
 
+      toggleMinimap: () => set((s) => ({ minimapVisible: !s.minimapVisible })),
       setSelectedProblem: (id) => set({ selectedProblemId: id }),
       setTheme: (theme) => {
         applyThemeClass(theme);

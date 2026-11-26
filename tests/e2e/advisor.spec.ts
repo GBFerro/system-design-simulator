@@ -32,6 +32,22 @@ test("quick fixes: ghost preview, apply in one undo step, apply all", async ({ p
   await expect(page.locator("[data-ghost-edge]")).toHaveCount(2);
   await expect(page.locator(".react-flow__edge.sf-preview-removed")).toHaveCount(1);
   await expect(page.locator(".react-flow__edge.sf-preview-changed")).toHaveCount(0);
+  // The preview frames the fix's nodes, the ghost with them, in what the floating cards leave.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const cards = [...document.querySelectorAll("[data-stage-card]")].map((c) =>
+          c.getBoundingClientRect(),
+        );
+        return [...document.querySelectorAll(".react-flow__node")].filter((n) => {
+          const r = n.getBoundingClientRect();
+          return cards.some(
+            (c) => r.left < c.right && c.left < r.right && r.top < c.bottom && c.top < r.bottom,
+          );
+        }).length;
+      }),
+    )
+    .toBe(0);
   await expect(page.getByText("reads", { exact: true })).toHaveCount(1);
   await expect(page.getByText("writes", { exact: true })).toHaveCount(1);
   // Ghosts aren't part of the design.

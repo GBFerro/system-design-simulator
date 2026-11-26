@@ -55,6 +55,8 @@ The user answered the draft's open questions on 2026-11-24:
 10. The 16 px snap grid stays; the isometric pattern is decorative only.
 11. Nodes are about 160 × 120 px on the canvas; the reference layouts are re-spaced only if the
     no-overlap test fails.
+12. **No dock in slice 3** (2026-11-25). The palette stays a floating card in slice 3 and the dock,
+    with its tile criteria, lands in slice 4, so no palette layout is built only to be thrown away.
 
 ## Acceptance criteria
 
@@ -152,20 +154,19 @@ on `document.documentElement`, trimmed).
 18. At 1440×900 and 1280×800 on a canvas step, the `.react-flow` box spans the full viewport width
     and the height below the interview bar (when one is shown), and `[data-testid=stage-topbar]`,
     `[data-testid=stage-rail]` (210 px wide), `[data-testid=stage-panel]` (340 px wide) and
-    (Design only) `[data-testid=stage-dock]` are boxes inside it, with border radius 14 px and a
+    `[data-testid=stage-palette]` (when open) are boxes inside it, with border radius 14 px and a
     1.5 px border, none intersecting another.
 19. At 1024×768 on the Design step the rail starts collapsed to icons (at most 56 px wide) and can
-    be expanded, the panel is 300 px wide, the dock's computed `overflow-x` is `auto` and every
-    tile can be scrolled into view, and no two floating cards intersect.
+    be expanded, the panel is 300 px wide, and no two floating cards intersect.
 20. The rail holds the problem and the steps: `[data-testid=step-bar]` and the Back/Next buttons
     keep their roles and names, and navigation keeps "only the order" (the wizard spec passes).
 21. Changing step only changes what is visible: across a step change the undo count, the node and
-    edge counts and a live run's clock are unchanged; the dock shows only where `paletteVisible`
-    (free mode) or `interviewPaletteVisible` (interview) is true.
+    edge counts and a live run's clock are unchanged; the palette card shows only where
+    `paletteVisible` (free mode) or `interviewPaletteVisible` (interview) is true.
 22. Collapsing or opening the rail or the panel (the existing toggles) shows or hides its card and
     leaves the `.react-flow` box size unchanged.
 23. After loading a reference at 1440×900, no component node box intersects the top bar, the rail,
-    the panel or the dock.
+    the panel or the palette card.
 24. The Problem step and interview phases 1–4 stay full screen with no canvas.
 25. The top bar keeps its groups apart and the problem selector at least 80 px wide from 768 to
     1920 px with a live run (the smoke spec passes unchanged).
@@ -173,8 +174,7 @@ on `document.documentElement`, trimmed).
     bottom sheet, no dock is rendered, and the mobile flows in the e2e suite pass.
 27. The zoom controls sit at the canvas's bottom-left and no floating card covers them. The minimap
     is not rendered on a fresh load; a "Show minimap" toggle renders it, uncovered, and a "Hide
-    minimap" toggle removes it. The chaos timeline is uncovered and, when the dock is shown, its
-    box bottom is at or above the dock's top.
+    minimap" toggle removes it. The chaos timeline is uncovered.
 
 **Slice 4: dock and add/connect motion**
 
@@ -212,6 +212,8 @@ on `document.documentElement`, trimmed).
     stay off as today.
 38. The existing motion stays: the status pulse, the blast pulse and the packets run as today (the
     traffic and chaos e2e specs pass).
+
+Moved from slice 3 (decision of 2026-11-25): `[data-testid=stage-dock]` is a box inside the canvas at desktop widths with border radius 14 px and a 1.5 px border, intersecting no other card; at 1024×768 its computed `overflow-x` is `auto` and every tile can be scrolled into view; the chaos timeline's box bottom is at or above the dock's top. The `stage-palette` card of slice 3 is replaced by the dock and its "All components" panel.
 
 **Every slice**
 
@@ -327,17 +329,15 @@ formatted with the existing `lib/runtimeMetrics` formatters):
 - `rpsIn`: client, dns, cdn, lb, bucket, monitor, control (how much passes through).
 
 **Stage layout (slice 3).** `AppShell` renders the canvas as a full-bleed layer and the top bar,
-rail (problem + vertical `StepBar`), right panel and dock as absolutely positioned cards over it,
+rail (problem + vertical `StepBar`), right panel and component palette as absolutely positioned cards over it,
 with the mockup's geometry at 1440×900: top bar 16 px from the edges; rail 210 px at left 16, top
-84; panel 340 px at right 16, top 84, bottom 16; dock bottom-centered. From 768 to 1279 px the rail
-starts collapsed to an icon column (at most 56 px, expandable), the panel is 300 px and the dock
-scrolls horizontally. Toggling a card never resizes the React Flow host, so no re-measure and no
+84; panel 340 px at right 16, top 84, bottom 16; palette card on the left below the rail. From 768 to 1279 px the rail
+starts collapsed to an icon column (at most 56 px, expandable), the panel is 300 px. Toggling a card never resizes the React Flow host, so no re-measure and no
 store write. `fitView` and `placeNode`'s visible center take a padding for the open cards, the way
 `paddingAboveSheet` does for the mobile sheet. The zoom controls move to the canvas's bottom-left;
 the minimap is off by default and a "Show minimap" / "Hide minimap" button next to the zoom
 controls toggles it (an unpersisted `appStore` field, left out of `partialize`, so the persisted
-shape does not change); the `ChaosTimeline` floats just above the dock's slot (at the bottom when
-no dock is shown). Below 768 px nothing structural changes. The right panel keeps its base-ui Tabs
+shape does not change); the `ChaosTimeline` sits at the bottom of the canvas (slice 4 moves it above the dock). Below 768 px nothing structural changes. The right panel keeps its base-ui Tabs
 and `TOOLS_BY_STEP`; step changes keep AD-004. Dialogs stay in `ModalShell`.
 
 **Dock and motion (slice 4).** `components/canvas/ComponentDock.tsx` renders the eight tiles and
@@ -461,8 +461,8 @@ slice 4).
 2. **Isometric models** (9–17, 39, 40): `lib/iso.ts`, `IsoModel` with all 15 archetypes,
    `ComponentNode` on the model with the headline and the hover details, 160 × 120 node size, iso
    background, reference layout check (re-spacing only if it fails). One PR, with screenshots.
-3. **Stage layout** (18–27, 39, 40): floating top bar, rail, panel and dock slot at desktop and
-   tablet widths; fitView padding; controls, minimap toggle, chaos timeline. Separate from slice 4
+3. **Stage layout** (18–27, 39, 40): floating top bar, rail, panel and palette card at desktop and
+   tablet widths (no dock: moved to slice 4 on 2026-11-25); fitView padding; controls, minimap toggle, chaos timeline. Separate from slice 4
    because it touches navigation and the whole e2e suite.
 4. **Dock and add/connect motion** (28–38, 39, 40): the dock and its "All components" panel with
    the helper changes, the lift/landing/press/flash/edge-draw marks in the unpersisted

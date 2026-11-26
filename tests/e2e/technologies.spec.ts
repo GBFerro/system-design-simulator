@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { MOD, center, connect, open, openTab, quickAdd } from "./helpers";
+import { MOD, center, connect, open, openTab, paletteItemCenter, quickAdd } from "./helpers";
 
 // component-technologies: choosing the real product behind a node.
 
@@ -256,7 +256,7 @@ test("TEC-20/21: a central type's technologies open from the palette and drag on
   ]);
 
   // Mouse drag (dnd-kit starts after 6 px of movement)
-  const from = await center(page.locator('[data-palette-item="nosql-db:cassandra"]').first());
+  const from = await paletteItemCenter(page, "nosql-db:cassandra");
   const to = await center(page.locator(".react-flow"));
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();

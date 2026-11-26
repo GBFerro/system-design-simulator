@@ -87,6 +87,42 @@ export async function center(locator: Locator) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/**
+ * Click a spot of the empty canvas (the pane itself is what the click lands on): the pane fills the
+ * screen under the floating cards, so a fixed corner of it is a card or a node now. Searches a grid
+ * of the canvas outward from its center; throws when nothing on it is free.
+ */
+export async function clickEmptyPane(page: Page) {
+  const spot = await page.evaluate(() => {
+    const flow = document.querySelector(".react-flow")!.getBoundingClientRect();
+    const cx = flow.left + flow.width / 2;
+    const cy = flow.top + flow.height / 2;
+    const points: { x: number; y: number }[] = [];
+    for (let x = flow.left + 8; x < flow.right; x += 24) {
+      for (let y = flow.top + 8; y < flow.bottom; y += 24) points.push({ x, y });
+    }
+    points.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
+    return (
+      points.find((p) => {
+        const hit = document.elementFromPoint(p.x, p.y);
+        return !!hit && hit.classList.contains("react-flow__pane");
+      }) ?? null
+    );
+  });
+  if (!spot) throw new Error("no empty spot on the canvas pane");
+  await page.mouse.click(spot.x, spot.y);
+}
+
+/**
+ * The center of a palette item on screen, scrolled into view first: the palette is a short
+ * floating card (the rest of its list is below its edge), so an item's box can be out of sight.
+ */
+export async function paletteItemCenter(page: Page, id: string) {
+  const item = page.locator(`[data-palette-item="${id}"]`).first();
+  await item.scrollIntoViewIfNeeded();
+  return center(item);
+}
+
 /** Drag from one node's source handle to another's target handle (node ids start with the component id). */
 export async function connect(page: Page, from: string, to: string) {
   const a = await center(
