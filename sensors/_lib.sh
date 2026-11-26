@@ -82,8 +82,10 @@ canonical_path() {
   printf '%s' "$p"
 }
 
-# Exit 0 when the path is inside a git work tree and not ignored there (a file the repo owns
-# or would pick up). Prints nothing. $2 = directory relative paths are resolved from.
+# Exit 0 when the path is inside the guarded checkout ($FACTORY_ROOT) and not ignored there (a
+# file the repo owns or would pick up). Another work tree is not this checkout: a linked worktree
+# (an audit's throwaway copy) or another repository passes. Prints nothing.
+# $2 = directory relative paths are resolved from.
 repo_owned_path() {
   local abs dir top rel
   abs="$(canonical_path "$1" "${2:-$PWD}")"
@@ -91,6 +93,7 @@ repo_owned_path() {
   while [ -n "$dir" ] && [ ! -d "$dir" ]; do dir="${dir%/*}"; done
   top="$(git -C "${dir:-/}" rev-parse --show-toplevel 2>/dev/null)" || return 1
   top="$(canonical_path "$top")"
+  [ "$top" = "$(canonical_path "$FACTORY_ROOT")" ] || return 1
   case "$abs" in "$top"/*) rel="${abs#"$top"/}" ;; *) return 1 ;; esac
   case "$rel" in .git | .git/*) return 0 ;; esac
   git -C "$top" check-ignore -q --no-index -- "$rel" 2>/dev/null && return 1

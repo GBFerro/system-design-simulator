@@ -100,6 +100,13 @@ expect 0 $s "push another branch from main" "$(bash_cmd 'git push origin feat/x'
 expect 0 $s "push tags from main" "$(bash_cmd 'git push origin --tags')"
 expect 0 $s "restore a file on main" "$(bash_cmd 'git checkout main -- README.md')"
 expect 0 $s "echo mentioning git commit" "$(bash_cmd 'echo "remember to git commit"')"
+# A linked worktree on a task branch is judged on its own branch, not on the session's main.
+git -C "$repo" worktree add -q -b feat/wt "$sandbox/ptree" 2>/dev/null
+expect 0 $s "cd into a task-branch worktree, commit" "$(bash_cmd "cd '$(native "$sandbox/ptree")' && git commit -m x")"
+expect 0 $s "git -C a task-branch worktree commit" "$(bash_cmd "git -C '$(native "$sandbox/ptree")' commit -m x")"
+expect 0 $s "cd into a task-branch worktree, push" "$(bash_cmd "cd '$(native "$sandbox/ptree")' && git push -u origin feat/wt")"
+expect 2 $s "back from the worktree to main, commit" "$(bash_cmd "cd '$(native "$sandbox/ptree")' && cd '$(native "$repo")' && git commit -m x")"
+git -C "$repo" worktree remove --force "$sandbox/ptree" 2>/dev/null
 on_branch feat/x
 expect 0 $s "commit on task branch" "$(bash_cmd 'git commit -m "feat: x"')"
 expect 0 $s "push task branch" "$(bash_cmd 'git push -u origin feat/x')"
@@ -118,6 +125,11 @@ expect 2 $s "push --mirror" "$(bash_cmd 'git push --mirror origin')"
 expect 2 $s "push glob refspec" "$(bash_cmd "git push origin 'refs/heads/*:refs/heads/*'")"
 expect 2 $s "branch -f main" "$(bash_cmd 'git branch -f main HEAD')"
 expect 2 $s "update-ref main" "$(bash_cmd 'git update-ref refs/heads/main HEAD')"
+# From a task branch, a linked worktree on main is still main.
+git -C "$repo" worktree add -q "$sandbox/mtree" main 2>/dev/null
+expect 2 $s "cd into a main worktree, commit" "$(bash_cmd "cd '$(native "$sandbox/mtree")' && git commit -m x")"
+expect 2 $s "git -C a main worktree commit" "$(bash_cmd "git -C '$(native "$sandbox/mtree")' commit -m x")"
+git -C "$repo" worktree remove --force "$sandbox/mtree" 2>/dev/null
 
 # --- block-hook-bypass
 s=block-hook-bypass.sh
@@ -176,6 +188,15 @@ expect 0 $s "> inside a heredoc body" "$(bash_cmd $'cat > notes.tmp <<\'EOF\'\nx
 expect 0 $s "sed -i inside an argument" "$(bash_cmd 'gh pr create --body "use sed -i on README.md"')"
 mkdir -p "$sandbox/wt/src" && echo a >"$sandbox/wt/src/has.ts"
 expect 0 $s "sed -i in a worktree outside the repo" "$(bash_cmd "cd '$(native "$sandbox/wt")' && sed -i s/a/b/ src/has.ts")"
+# A linked git worktree of the repo (an audit's throwaway checkout) is its own work tree: its
+# files are not the checkout this session guards. Another git repository is not either.
+git -C "$repo" worktree add -q --detach "$sandbox/linked" 2>/dev/null
+expect 0 $s "sed -i in a linked worktree of the repo" "$(bash_cmd "cd '$(native "$sandbox/linked")' && sed -i s/a/b/ src/has.ts")"
+expect 0 $s "> into a linked worktree, by absolute path" "$(bash_cmd "echo x > '$(native "$sandbox/linked/README.md")'")"
+git init -q "$sandbox/other" 2>/dev/null && echo a >"$sandbox/other/f.ts"
+expect 0 $s "sed -i in another git repository" "$(bash_cmd "sed -i s/a/b/ '$(native "$sandbox/other/f.ts")'")"
+expect 2 $s "absolute path into the guarded checkout still blocks" "$(bash_cmd "echo x > '$(native "$repo/README.md")'")"
+git -C "$repo" worktree remove --force "$sandbox/linked" 2>/dev/null
 
 # --- require-test-first
 s=require-test-first.sh

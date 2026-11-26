@@ -3,7 +3,8 @@
 # protected branch, no push to one, no moving one by hand (branch -f, update-ref).
 # Work happens on a task branch; the trunk changes only through a PR that a human merges.
 # The branch is followed through the command itself: `git switch main && git commit` is judged
-# on main, `git switch -c feat/x && git commit` on feat/x.
+# on main, `git switch -c feat/x && git commit` on feat/x. A `cd` or `git -C` into a linked
+# worktree is judged on that worktree's branch.
 set -uf # -f: command words must never glob-expand here
 . "$(dirname "$0")/_lib.sh"
 factory_load_config >/dev/null 2>&1 || exit 0
@@ -13,6 +14,16 @@ case "$cmd" in *git*) ;; *) exit 0 ;; esac
 start="$(payload_get cwd 2>/dev/null)"
 start="${start:-$PWD}"
 branch="$(git -C "$start" rev-parse --abbrev-ref HEAD 2>/dev/null)" || exit 0
+tree="$(git -C "$start" rev-parse --show-toplevel 2>/dev/null)"
+
+# A `cd` or `git -C` into another work tree (a linked worktree) is judged on that tree's branch.
+follow_tree() {
+  local t
+  t="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  [ "$t" = "$tree" ] && return 0
+  tree="$t"
+  branch="$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch=""
+}
 
 is_protected() {
   local b
@@ -31,15 +42,20 @@ explain() {
 judge() {
   [ "${CMD_WORDS[0]:-}" = git ] || return 0
   local -a a=("${CMD_WORDS[@]:1}")
+  local dir="$CMD_CWD"
   # Global options come before the subcommand: -C <dir> -c <k=v> take a value, the rest do not.
   while [ ${#a[@]} -gt 0 ]; do
     case "${a[0]}" in
-      -C | -c | --git-dir | --work-tree | --namespace) a=("${a[@]:2}") ;;
+      -C)
+        case "${a[1]:-.}" in /* | [A-Za-z]:*) dir="${a[1]}" ;; *) dir="$dir/${a[1]:-.}" ;; esac
+        a=("${a[@]:2}") ;;
+      -c | --git-dir | --work-tree | --namespace) a=("${a[@]:2}") ;;
       -*) a=("${a[@]:1}") ;;
       *) break ;;
     esac
   done
   [ ${#a[@]} -gt 0 ] || return 0
+  follow_tree "$dir"
   local sub="${a[0]}" w
   local -a args=("${a[@]:1}") pos=()
   local after_dashdash=false
