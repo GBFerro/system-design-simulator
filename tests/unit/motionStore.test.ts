@@ -70,7 +70,10 @@ describe("the edge mark", () => {
     markEdgeConnected("e1");
     expect(state().edge?.id).toBe("e1");
     expect(state().node).toBeNull();
-    vi.advanceTimersByTime(EDGE_MARK_TTL_MS);
+    expect(EDGE_MARK_TTL_MS).toBeLessThan(1000);
+    vi.advanceTimersByTime(EDGE_MARK_TTL_MS - 1);
+    expect(state().edge?.id).toBe("e1");
+    vi.advanceTimersByTime(1);
     expect(state().edge).toBeNull();
   });
 
