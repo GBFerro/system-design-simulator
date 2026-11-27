@@ -181,6 +181,17 @@
   --sf-btn-shadow: 2px 3px 0 #26211c;
   /* Base of the soft drop shadows (--shadow-e1..e4). */
   --sf-shadow: var(--sf-ink);
+  /* Motion tokens (slice 4): enter 320 ms, move 460 ms, confirm 240 ms (a small overshoot),
+     drop 600 ms with the confirm curve, pick 120 ms, edge draw 450 ms. */
+  --sf-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --sf-ease-move: cubic-bezier(0.4, 0, 0.2, 1);
+  --sf-ease-confirm: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --sf-dur-enter: 320ms;
+  --sf-dur-move: 460ms;
+  --sf-dur-confirm: 240ms;
+  --sf-dur-drop: 600ms;
+  --sf-dur-pick: 120ms;
+  --sf-dur-draw: 450ms;
 
   /* inverted neutral ramp (text steps dark, surface steps light) */
   --z-50: #1a1612;
@@ -627,6 +638,92 @@ button:not([disabled]):active {
     transform: rotate(360deg);
   }
 }
+/* The dock (slice 4): a clicked tile is pressed in (scale .92 by the pick time, 120 ms of 300) and
+   springs back, and its "+1" badge floats up and fades. `dock-motion` switches them off for users
+   who prefer reduced motion (the components also skip setting them). */
+@keyframes dock-press {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(0.92);
+  }
+}
+@keyframes dock-plus {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(1);
+  }
+}
+/* Landing (slice 4): a node just added drops onto the canvas with a small overshoot (transform and
+   opacity only, so its box never changes), a ground ripple spreads under it, the cost chip flashes
+   and a connection the user just drew draws itself. Each is switched off for reduced motion below. */
+@keyframes node-land {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes node-ripple {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+@keyframes cost-flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  25% {
+    background-color: color-mix(in srgb, var(--sf-accent) 28%, transparent);
+  }
+}
+@keyframes edge-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+[data-landing] {
+  animation: node-land var(--sf-dur-drop) var(--sf-ease-confirm);
+}
+[data-landing-ripple] {
+  animation: node-ripple var(--sf-dur-drop) var(--sf-ease-enter) forwards;
+}
+[data-testid="cost-mini"][data-flash] {
+  animation: cost-flash 600ms var(--sf-ease-move);
+}
+path[data-drawing] {
+  animation: edge-draw var(--sf-dur-draw) var(--sf-ease-enter);
+}
+.dock-press {
+  animation: dock-press 300ms var(--sf-ease-confirm);
+}
+.dock-plus {
+  animation: dock-plus 700ms var(--sf-ease-move) forwards;
+}
 
 /* Respect users who prefer reduced motion (a11y) — collapse all animation
    to near-instant while keeping final states intact. */
@@ -640,6 +737,14 @@ button:not([disabled]):active {
     scroll-behavior: auto !important;
   }
   .iso-motion {
+    animation: none !important;
+  }
+  .dock-press,
+  .dock-plus,
+  [data-landing],
+  [data-landing-ripple],
+  [data-testid="cost-mini"][data-flash],
+  path[data-drawing] {
     animation: none !important;
   }
 }

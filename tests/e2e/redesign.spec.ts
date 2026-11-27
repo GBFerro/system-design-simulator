@@ -10,7 +10,17 @@ import {
 import { SYSTEM_COMPONENTS } from "@/data/components";
 import { isoArchetypeOf, isoTintOf } from "@/lib/iso";
 import { DEFAULT_NODE_SIZE } from "@/lib/placement";
-import { MOD, center, clickEmptyPane, connect, open, openTab, quickAdd } from "./helpers";
+import {
+  MOD,
+  center,
+  clickEmptyPane,
+  connect,
+  connectSync,
+  open,
+  openPalette,
+  openTab,
+  quickAdd,
+} from "./helpers";
 
 // Papel quente slice 1 (specs/2026-11-24-redesign-papel-quente.md, criteria 1, 2, 4, 5, 6, 7):
 // the tokens, the remapped palettes, the fonts, the canvas colors and the default theme.
@@ -168,7 +178,12 @@ test("canvas colors: edges, minimap, background and the SVG export follow the th
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await showMinimap(page);
 
-  const seen: Record<string, string[]> = { edge: [], mask: [], line: [], bg: [] };
+  const seen: Record<string, string[]> = {
+    edge: [],
+    mask: [],
+    line: [],
+    bg: [],
+  };
   for (const theme of THEMES) {
     await setTheme(page, theme);
     const want = {
@@ -309,7 +324,9 @@ test("minimap: nodes are muted before a run and take their status color during o
 
   await playLive(page);
   await expect
-    .poll(async () => (await fills()).some((f) => f === ok), { timeout: 20_000 })
+    .poll(async () => (await fills()).some((f) => f === ok), {
+      timeout: 20_000,
+    })
     .toBe(true);
   expect((await fills()).every((f) => f !== muted)).toBe(true);
 });
@@ -321,7 +338,9 @@ test("flow tab: the highlighted edge is traced in the request color of the theme
   await openReference(page);
   await openTab(page, "Flow");
   const panel = page.getByTestId("flow-panel");
-  await expect(panel.locator("[data-arrow]").first()).toBeVisible({ timeout: 20_000 });
+  await expect(panel.locator("[data-arrow]").first()).toBeVisible({
+    timeout: 20_000,
+  });
   for (const theme of THEMES) {
     await setTheme(page, theme);
     const want = await computedColor(page, "var(--sf-req)");
@@ -440,7 +459,9 @@ async function killAppServer(page: Page) {
   const app = page.locator(".react-flow__node").filter({ hasText: "App Server" }).first();
   await app.click({ button: "right" });
   await page.getByRole("menuitem", { name: /Kill node/ }).click();
-  await expect(page.locator('[data-blast="target"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-blast="target"]')).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(page.locator('[data-blast="affected"]').first()).toBeVisible();
 }
 
@@ -508,7 +529,9 @@ test("shadows: the node's ground shadow, the empty state's and the accent card's
     await card.hover();
     const glow = await computedProp(page, "boxShadow", "0 0 24px -8px var(--sf-accent)");
     await expect
-      .poll(() => card.evaluate((el) => getComputedStyle(el).boxShadow), { message: theme })
+      .poll(() => card.evaluate((el) => getComputedStyle(el).boxShadow), {
+        message: theme,
+      })
       .toBe(glow);
     await page.mouse.move(0, 0);
   }
@@ -657,9 +680,7 @@ test("models: every catalog kind draws one svg of its archetype, tint and viewBo
   testInfo.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await open(page, "/");
-  for (const c of SYSTEM_COMPONENTS) {
-    await page.getByRole("button", { name: `Add ${c.label} to canvas`, exact: true }).click();
-  }
+  for (const c of SYSTEM_COMPONENTS) await quickAdd(page, c.label);
   const nodes = page.locator(".react-flow__node");
   await expect(nodes).toHaveCount(SYSTEM_COMPONENTS.length);
 
@@ -775,6 +796,7 @@ test("size: every node is 160 x 120 whatever its label, technology, instances, s
   await page.setViewportSize({ width: 1440, height: 900 });
   await open(page, "/?e2e=1");
   const long = "Recommendation Feature Store Gateway Service Of Many Words";
+  await openPalette(page);
   await page.getByRole("button", { name: "Create custom component" }).click();
   await page.getByPlaceholder("e.g. Vector Database").fill(long);
   await page.getByRole("button", { name: "Create Component" }).click();
@@ -978,6 +1000,7 @@ test("palette chips: each item's chip is its family's tint, from the same table 
 }) => {
   await open(page, "/");
   await stylesApplied(page);
+  await openPalette(page);
   for (const theme of THEMES) {
     await setTheme(page, theme);
     for (const c of ["sql-db", "app-server", "cache", "message-queue", "load-balancer"]) {
@@ -1143,4 +1166,774 @@ test("tap-add through the top bar's Add Note: sixteen notes at 1280 x 720 stay c
     await expect(page.locator(".react-flow__node")).toHaveCount(i + 1);
   }
   await expectClearOfOverlays(page);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Slice 4, the dock (criteria 28, 29, 30, 31, 33 press and +1, 36). The geometry of the dock (a box
+// inside the canvas, 14 px radius, 1.5 px border, scrolling at 1024, clear of the timeline) is in
+// stage.spec.ts and stage-minimap.spec.ts.
+// ---------------------------------------------------------------------------------------------
+
+const DOCK_TILES = [
+  ["client", "Client"],
+  ["cdn", "CDN"],
+  ["load-balancer", "Load Balancer"],
+  ["app-server", "App Server"],
+  ["cache", "Cache / Redis"],
+  ["sql-db", "SQL Database"],
+  ["read-replica", "Read Replica"],
+  ["message-queue", "Message Queue"],
+] as const;
+
+/** Half a cell of the canvas's 16 px snap grid: how far a dropped node's center is from the pointer, at most. */
+const SNAP = 8;
+
+const dockOf = (page: Page) => page.getByTestId("stage-dock");
+const tileOf = (page: Page, label: string) =>
+  dockOf(page).getByRole("button", {
+    name: `Add ${label} to canvas`,
+    exact: true,
+  });
+const allNodes = (page: Page) => page.locator(".react-flow__node");
+const announcer = (page: Page) => page.getByTestId("add-announcer");
+const allComponents = (page: Page) =>
+  page.getByRole("button", { name: "All components", exact: true });
+
+async function openDesign(page: Page, width = 1440, height = 900) {
+  await page.setViewportSize({ width, height });
+  await open(page, "/");
+  await stylesApplied(page);
+  await expect(dockOf(page)).toBeVisible();
+}
+
+/** Wait for the viewport to stop moving: the first node of a canvas fits the view (300 ms). */
+async function settled(page: Page) {
+  const read = () =>
+    page.locator(".react-flow__viewport").evaluate((el) => (el as HTMLElement).style.transform);
+  let last = await read();
+  for (let i = 0; i < 40; i++) {
+    await page.waitForTimeout(150);
+    const now = await read();
+    if (now === last) return;
+    last = now;
+  }
+  throw new Error("the viewport never settled");
+}
+
+/** A mouse drag with the moves dnd-kit needs (it starts after 6 px); `hold` leaves the button down. */
+async function dragTo(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  hold = false,
+) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 10, from.y - 10, { steps: 3 });
+  await page.mouse.move(to.x, to.y, { steps: 10 });
+  if (!hold) await page.mouse.up();
+}
+
+/**
+ * A spot on the empty canvas, clear of every card and of the first node (which sits at the visible
+ * center): the center of what the rail, the panel, the top bar and the dock leave, moved by dx, dy.
+ */
+async function freeSpot(page: Page, dx = 260, dy = -100) {
+  return page.evaluate(
+    ([ox, oy]) => {
+      const rect = (id: string) => {
+        const r = document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect();
+        return r && r.width > 0 ? r : null;
+      };
+      const flow = document.querySelector(".react-flow")!.getBoundingClientRect();
+      const left = rect("stage-rail")?.right ?? flow.left;
+      const right = rect("stage-panel")?.left ?? flow.right;
+      const top = rect("stage-topbar")?.bottom ?? flow.top;
+      const bottom = rect("stage-dock")?.top ?? flow.bottom;
+      return { x: (left + right) / 2 + ox, y: (top + bottom) / 2 + oy };
+    },
+    [dx, dy],
+  );
+}
+
+test("dock (28): a toolbar named Components with the eight tiles in order, each a model, a name and a button", async ({
+  page,
+}) => {
+  await openDesign(page);
+  const toolbar = page.getByRole("toolbar", { name: "Components" });
+  await expect(toolbar).toBeVisible();
+  expect(await toolbar.getAttribute("data-testid")).toBe("stage-dock");
+
+  const tiles = toolbar.locator("[data-palette-item]");
+  await expect(tiles).toHaveCount(8);
+  await expect(tiles).toHaveText(DOCK_TILES.map(([, label]) => label));
+  for (const [i, [id, label]] of DOCK_TILES.entries()) {
+    const tile = tiles.nth(i);
+    await expect(tile, id).toHaveAttribute("data-palette-item", id);
+    // a button named "Add {label} to canvas", showing the kind's isometric model
+    await expect(tileOf(page, label), id).toHaveCount(1);
+    await expect(tile.locator(`svg[data-iso-kind="${isoArchetypeOf(id)}"]`), id).toHaveCount(1);
+  }
+  // After the tiles, the All components button
+  const all = allComponents(page);
+  await expect(all).toHaveAttribute("aria-expanded", "false");
+  const lastTile = (await tiles.nth(7).boundingBox())!;
+  expect((await all.boundingBox())!.x).toBeGreaterThan(lastTile.x + lastTile.width - 1);
+});
+
+test("dock (28): All components opens the panel with the palette and its search; the button, Escape and a drag from it close it", async ({
+  page,
+}) => {
+  await openDesign(page);
+  const panel = page.getByTestId("stage-dock-panel");
+  const all = allComponents(page);
+  const search = page.getByPlaceholder("Search components...");
+
+  // Mounted while closed, its items hidden
+  await expect(panel).toHaveCount(1);
+  await expect(panel).toBeHidden();
+  await expect(search).toBeHidden();
+  await expect(panel.locator('[data-palette-item="sql-db"]')).toBeHidden();
+
+  await all.click();
+  await expect(all).toHaveAttribute("aria-expanded", "true");
+  await expect(panel).toBeVisible();
+  await expect(search).toBeVisible();
+  await expect(panel.locator('[data-palette-item="sql-db"]')).toBeVisible();
+  // it floats over the canvas above the dock
+  const p = (await panel.boundingBox())!;
+  const d = (await dockOf(page).boundingBox())!;
+  expect(p.y + p.height).toBeLessThanOrEqual(d.y);
+  // the search keeps working
+  await search.fill("kafka");
+  await expect(panel.locator('[data-palette-item="message-queue:kafka"]')).toBeVisible();
+  await search.fill("");
+
+  // the button closes it
+  await all.click();
+  await expect(all).toHaveAttribute("aria-expanded", "false");
+  await expect(panel).toBeHidden();
+
+  // Escape closes it, with the focus in the search field or on the page
+  await all.click();
+  await expect(search).toBeVisible();
+  await search.focus();
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(all).toHaveAttribute("aria-expanded", "false");
+  await all.click();
+  await expect(panel).toBeVisible();
+  await page.locator("body").press("Escape");
+  await expect(panel).toBeHidden();
+
+  // the start of a drag from it closes it (and the drop still adds the node)
+  await all.click();
+  const item = panel.locator('[data-palette-item="sql-db"]');
+  await item.scrollIntoViewIfNeeded(); // the panel is a short card: the item may be below its edge
+  const from = await center(item);
+  await dragTo(page, from, await freeSpot(page), true);
+  await expect(panel).toBeHidden();
+  await expect(all).toHaveAttribute("aria-expanded", "false");
+  await page.mouse.up();
+  await expect(allNodes(page)).toHaveCount(1);
+});
+
+test("dock (29): a click on a tile adds one node and announces it; one Undo removes it", async ({
+  page,
+}) => {
+  await openDesign(page);
+  const live = announcer(page);
+  await expect(live).toHaveAttribute("role", "status");
+  await expect(live).toHaveAttribute("aria-live", "polite");
+  await expect(live).toHaveText("");
+
+  await tileOf(page, "App Server").click();
+  await expect(allNodes(page)).toHaveCount(1);
+  await expect(live).toHaveText("Added App Server");
+  await expect(nodeOf(page, "app-server")).toHaveCount(1);
+
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(0);
+});
+
+test("dock (29): Enter and Space on a focused tile each add one node", async ({ page }) => {
+  await openDesign(page);
+  await tileOf(page, "Cache / Redis").focus();
+  await page.keyboard.press("Enter");
+  await expect(allNodes(page)).toHaveCount(1);
+  await expect(announcer(page)).toHaveText("Added Cache / Redis");
+
+  await tileOf(page, "SQL Database").focus();
+  await page.keyboard.press("Space");
+  await expect(allNodes(page)).toHaveCount(2);
+  await expect(announcer(page)).toHaveText("Added SQL Database");
+  await expect(nodeOf(page, "sql-db")).toHaveCount(1);
+
+  // one Undo per add
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(1);
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(0);
+});
+
+test("dock (29): a tap on a palette row's add button goes the same way, announces too, and closes the panel", async ({
+  page,
+}) => {
+  await openDesign(page);
+  await allComponents(page).click();
+  const panel = page.getByTestId("stage-dock-panel");
+  await panel.getByRole("button", { name: "Add Auth Service to canvas" }).click();
+  await expect(allNodes(page)).toHaveCount(1);
+  await expect(announcer(page)).toHaveText("Added Auth Service");
+  await expect(panel).toBeHidden();
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(0);
+});
+
+test("dock (30): dragging a tile adds one node centered under the pointer, announced; one Undo removes it", async ({
+  page,
+}) => {
+  await openDesign(page);
+  // the first node of an empty canvas fits the view: add one, let it settle, then drag
+  await tileOf(page, "Client").click();
+  await expect(allNodes(page)).toHaveCount(1);
+  await settled(page);
+
+  const to = await freeSpot(page);
+  await dragTo(page, await center(tileOf(page, "Cache / Redis")), to);
+  await expect(allNodes(page)).toHaveCount(2);
+  await expect(announcer(page)).toHaveText("Added Cache / Redis");
+  const dropped = await center(nodeOf(page, "cache"));
+  // (the drop point snaps to the canvas's 16 px grid, so up to half a cell off)
+  expect(Math.abs(dropped.x - to.x), "x under the pointer").toBeLessThanOrEqual(SNAP);
+  expect(Math.abs(dropped.y - to.y), "y under the pointer").toBeLessThanOrEqual(SNAP);
+
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(1);
+  await expect(nodeOf(page, "cache")).toHaveCount(0);
+});
+
+test("dock (29, 30): a tile starts a central type with its default technology, clicked or dragged, as the palette does", async ({
+  page,
+}) => {
+  await openDesign(page);
+  await tileOf(page, "Load Balancer").click();
+  await expect(allNodes(page)).toHaveCount(1);
+  await settled(page);
+  await dragTo(page, await center(tileOf(page, "Load Balancer")), await freeSpot(page));
+  await expect(allNodes(page)).toHaveCount(2);
+  await expect(page.locator('.react-flow__node [data-technology="aws-alb"]')).toHaveCount(2);
+});
+
+test("dock (30): a palette item dragged from the panel goes the same way, and the panel closes", async ({
+  page,
+}) => {
+  await openDesign(page);
+  await tileOf(page, "Client").click();
+  await expect(allNodes(page)).toHaveCount(1);
+  await settled(page);
+
+  await allComponents(page).click();
+  const to = await freeSpot(page);
+  const item = page.getByTestId("stage-dock-panel").locator('[data-palette-item="auth-service"]');
+  await item.scrollIntoViewIfNeeded(); // the panel is a short card: the item may be below its edge
+  await dragTo(page, await center(item), to);
+  await expect(allNodes(page)).toHaveCount(2);
+  await expect(announcer(page)).toHaveText("Added Auth Service");
+  const dropped = await center(nodeOf(page, "auth-service"));
+  expect(Math.abs(dropped.x - to.x)).toBeLessThanOrEqual(SNAP);
+  expect(Math.abs(dropped.y - to.y)).toBeLessThanOrEqual(SNAP);
+  await expect(page.getByTestId("stage-dock-panel")).toBeHidden();
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(1);
+});
+
+test("dock (30): a drop on a floating card, the dock included, adds nothing", async ({ page }) => {
+  await openDesign(page);
+  const tile = tileOf(page, "App Server");
+  for (const id of ["stage-panel", "stage-topbar", "stage-rail", "stage-dock"]) {
+    await dragTo(page, await center(tile), await center(page.getByTestId(id)));
+    await page.waitForTimeout(100);
+    await expect(allNodes(page), `a drop on ${id}`).toHaveCount(0);
+  }
+  await expect(announcer(page)).toHaveText("");
+  // and the same drop on the free canvas does add
+  await dragTo(page, await center(tile), await freeSpot(page));
+  await expect(allNodes(page)).toHaveCount(1);
+});
+
+test("dock (31): a dragged tile is lifted, and the canvas is drop-active only over a place that takes the drop", async ({
+  page,
+}) => {
+  await openDesign(page);
+  const canvas = page.locator("[data-canvas-drop]");
+  await expect(canvas).not.toHaveAttribute("data-drop-active", /.*/);
+  await expect(page.locator("[data-drag-lift]")).toHaveCount(0);
+
+  const free = await freeSpot(page);
+  const panel = await center(page.getByTestId("stage-panel"));
+  await dragTo(page, await center(tileOf(page, "Load Balancer")), free, true);
+
+  // the model, lifted: scaled 1.06 with a ground shadow
+  const lift = page.locator("[data-drag-lift]");
+  await expect(lift).toBeVisible();
+  await expect(lift.locator(`svg[data-iso-kind="${isoArchetypeOf("load-balancer")}"]`)).toHaveCount(
+    1,
+  );
+  await expect(lift.locator("[data-drag-shadow]")).toHaveCount(1);
+  const matrix = await lift.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform));
+  expect(matrix.a).toBeCloseTo(1.06, 2);
+  expect(matrix.d).toBeCloseTo(1.06, 2);
+  await expect(canvas).toHaveAttribute("data-drop-active", "true");
+
+  // over a floating card: not active
+  await page.mouse.move(panel.x, panel.y, { steps: 5 });
+  await expect(canvas).not.toHaveAttribute("data-drop-active", /.*/);
+  // and active again over the free canvas
+  await page.mouse.move(free.x, free.y, { steps: 5 });
+  await expect(canvas).toHaveAttribute("data-drop-active", "true");
+
+  await page.mouse.up();
+  await expect(canvas).not.toHaveAttribute("data-drop-active", /.*/);
+  await expect(page.locator("[data-drag-lift]")).toHaveCount(0);
+  await expect(allNodes(page)).toHaveCount(1);
+});
+
+test("dock (33): a clicked tile is pressed and shows a +1 badge, both gone within a second", async ({
+  page,
+}) => {
+  await openDesign(page);
+  const tile = tileOf(page, "App Server");
+  await expect(tile).not.toHaveAttribute("data-pressed", /.*/);
+  await expect(tile.locator("[data-dock-plus]")).toHaveCount(0);
+
+  // The click and both readings happen inside the page, so the dev server's slowness cannot eat
+  // into the second the feedback has to be gone in.
+  const seen = await tile.evaluate(async (el) => {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+    const read = () => {
+      const plus = el.querySelector("[data-dock-plus]");
+      const model = el.querySelector("[data-dock-model]")!;
+      const press = model
+        .getAnimations()
+        .find((a) => (a as CSSAnimation).animationName === "dock-press");
+      const frames = (press?.effect as KeyframeEffect | undefined)?.getKeyframes() ?? [];
+      return {
+        pressed: el.hasAttribute("data-pressed"),
+        plus: plus?.textContent ?? null,
+        plusHidden: plus?.getAttribute("aria-hidden") ?? null,
+        duration: press ? Number(press.effect?.getTiming().duration) : null,
+        scales: frames.map((f) => String(f.transform)),
+      };
+    };
+    (el as HTMLElement).click();
+    await frame();
+    await frame();
+    const during = read();
+    await new Promise((r) => setTimeout(r, 1000));
+    return { during, after: read() };
+  });
+  expect(seen.during.pressed).toBe(true);
+  expect(seen.during.plus).toBe("+1");
+  expect(seen.during.plusHidden).toBe("true");
+  // scale 0.92 and back, 300 ms
+  expect(seen.during.duration).toBe(300);
+  expect(seen.during.scales).toEqual(["scale(1)", "scale(0.92)", "scale(1)"]);
+  // gone within a second
+  expect(seen.after).toMatchObject({
+    pressed: false,
+    plus: null,
+    duration: null,
+  });
+
+  // a second click plays it again
+  await tile.click();
+  await expect(tile.locator("[data-dock-plus]")).toHaveCount(1);
+});
+
+test("dock (33, 37): with reduced motion a click still adds and announces, with no press and no +1", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openDesign(page);
+  const tile = tileOf(page, "App Server");
+  // (read in the page, a few frames after the click: the press and the +1 would last 900 ms)
+  const feedback = await tile.evaluate(async (el) => {
+    (el as HTMLElement).click();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return {
+      plus: el.querySelector("[data-dock-plus]") !== null,
+      pressed: el.hasAttribute("data-pressed"),
+      press: el.querySelector(".dock-press") !== null,
+    };
+  });
+  expect(feedback).toEqual({ plus: false, pressed: false, press: false });
+  await expect(allNodes(page)).toHaveCount(1);
+  await expect(announcer(page)).toHaveText("Added App Server");
+});
+
+test("dock (36): on a reference tab the tiles are disabled, a click says it is read-only, a drag adds nothing", async ({
+  page,
+}) => {
+  await openDesign(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(allNodes(page).first()).toBeVisible();
+  await settled(page);
+  const before = await allNodes(page).count();
+  await expect(page.getByTestId("readonly-hint")).toBeVisible();
+
+  for (const [, label] of DOCK_TILES) {
+    await expect(tileOf(page, label), label).toHaveAttribute("aria-disabled", "true");
+  }
+
+  // a click: the toast, no node, no announcement, no press
+  const tile = tileOf(page, "App Server");
+  // (aria-disabled, not disabled: the click still lands, and says why nothing happens; Playwright
+  // calls an aria-disabled button not enabled, so the click is forced)
+  // (read in the page, a few frames after the click: the press and the +1 would last 900 ms)
+  const feedback = await tile.evaluate(async (el) => {
+    (el as HTMLElement).click();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return {
+      plus: el.querySelector("[data-dock-plus]") !== null,
+      pressed: el.hasAttribute("data-pressed"),
+    };
+  });
+  expect(feedback).toEqual({ plus: false, pressed: false });
+  await expect(page.getByText("Reference tabs are read-only")).toBeVisible();
+  await expect(allNodes(page)).toHaveCount(before);
+  await expect(announcer(page)).toHaveText("");
+  // Enter does the same
+  await tile.focus();
+  await page.keyboard.press("Enter");
+  await expect(allNodes(page)).toHaveCount(before);
+
+  // a drag: nothing is added, and the canvas is never drop-active
+  const canvas = page.locator("[data-canvas-drop]");
+  await dragTo(page, await center(tile), await freeSpot(page), true);
+  await expect(canvas).not.toHaveAttribute("data-drop-active", /.*/);
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  await expect(allNodes(page)).toHaveCount(before);
+  await expect(announcer(page)).toHaveText("");
+});
+
+test("dock: a toast rides above the dock, so it never covers a tile", async ({ page }) => {
+  await openDesign(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(allNodes(page).first()).toBeVisible();
+  await tileOf(page, "App Server").click({ force: true });
+  const toast = page.getByText("Reference tabs are read-only");
+  await expect(toast).toBeVisible();
+  // (past its 0.2 s entrance, which slides it up from below)
+  await page.waitForTimeout(400);
+  const t = (await toast.boundingBox())!;
+  const d = (await dockOf(page).boundingBox())!;
+  expect(t.y + t.height, "the toast ends above the dock").toBeLessThanOrEqual(d.y);
+});
+
+test("dock (36): the design tab's tiles are enabled again after a reference tab", async ({
+  page,
+}) => {
+  await openDesign(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(tileOf(page, "App Server")).toHaveAttribute("aria-disabled", "true");
+  await page.locator("[data-canvas-tabs]").getByText("My Design").click();
+  await expect(tileOf(page, "App Server")).not.toHaveAttribute("aria-disabled", /.*/);
+  await tileOf(page, "App Server").click();
+  await expect(allNodes(page)).toHaveCount(1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Slice 4, motion (criteria 32, 33 flash, 34, 35, 37). Every transient attribute is read inside the
+// page, by a sampler that starts before the action: the dev server is too slow to catch a 600 ms
+// landing from a Playwright poll.
+// ---------------------------------------------------------------------------------------------
+
+type MotionSample = {
+  t: number;
+  landing: boolean;
+  ripple: boolean;
+  flash: boolean;
+  drawing: string[];
+  size: { width: number; height: number } | null;
+};
+type MotionProbe = {
+  /** Each edge that drew, by test id: its animation name, duration and the path's pathLength. */
+  drawn: Record<string, string>;
+  samples: MotionSample[];
+  landing: {
+    name: string;
+    duration: string;
+    easing: string;
+    rippleName: string;
+    ripplePosition: string;
+  } | null;
+};
+
+/** Start sampling the page every frame: before the action. `stopMotion` ends it and returns what it saw. */
+async function watchMotion(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __probe?: { done: boolean; result: Promise<MotionProbe> };
+    };
+    const probe = { done: false } as {
+      done: boolean;
+      result: Promise<MotionProbe>;
+    };
+    probe.result = new Promise<MotionProbe>((resolve) => {
+      const t0 = performance.now();
+      const samples: MotionSample[] = [];
+      let landing: MotionProbe["landing"] = null;
+      const drawn = new Map<string, string>();
+      const frame = () => {
+        const wrap = document.querySelector<HTMLElement>("[data-landing]");
+        const ripple = document.querySelector<HTMLElement>("[data-landing-ripple]");
+        const node = wrap?.closest<HTMLElement>(".react-flow__node");
+        if (wrap && !landing) {
+          const cs = getComputedStyle(wrap);
+          landing = {
+            name: cs.animationName,
+            duration: cs.animationDuration,
+            easing: cs.animationTimingFunction,
+            rippleName: ripple ? getComputedStyle(ripple).animationName : "",
+            ripplePosition: ripple ? getComputedStyle(ripple).position : "",
+          };
+        }
+        samples.push({
+          t: performance.now() - t0,
+          landing: !!wrap,
+          ripple: !!ripple,
+          flash: !!document.querySelector("[data-testid=cost-mini][data-flash]"),
+          drawing: [...document.querySelectorAll("path[data-drawing]")].map(
+            (p) => p.closest(".react-flow__edge")?.getAttribute("data-testid") ?? "?",
+          ),
+          size: node ? { width: node.offsetWidth, height: node.offsetHeight } : null,
+        });
+        for (const p of document.querySelectorAll("path[data-drawing]")) {
+          const key = p.closest(".react-flow__edge")?.getAttribute("data-testid") ?? "?";
+          if (drawn.has(key)) continue;
+          const cs = getComputedStyle(p);
+          drawn.set(
+            key,
+            `${cs.animationName}|${cs.animationDuration}|${p.getAttribute("pathLength")}`,
+          );
+        }
+        if (probe.done) resolve({ samples, landing, drawn: Object.fromEntries(drawn) });
+        else requestAnimationFrame(frame);
+      };
+      frame();
+    });
+    w.__probe = probe;
+  });
+}
+
+/** Let the effects run their course (past a second), stop the sampler and return its samples. */
+async function stopMotion(page: Page): Promise<MotionProbe> {
+  await page.waitForTimeout(1600);
+  return page.evaluate(() => {
+    const w = window as unknown as {
+      __probe: { done: boolean; result: Promise<MotionProbe> };
+    };
+    w.__probe.done = true;
+    return w.__probe.result;
+  });
+}
+
+/** How long a flag stayed up: from its first sample to its last, in ms (null when never seen). */
+function lasted(samples: MotionSample[], on: (s: MotionSample) => boolean): number | null {
+  const up = samples.filter(on);
+  return up.length ? up[up.length - 1].t - up[0].t : null;
+}
+
+async function waitForQuiet(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.querySelector("[data-landing], [data-drawing]") !== null),
+    )
+    .toBe(false);
+}
+
+test("motion (32): an added node lands for 600 ms with a ground ripple, and its size never changes", async ({
+  page,
+}) => {
+  await openDesign(page, 1920, 1000);
+  await watchMotion(page);
+  await tileOf(page, "App Server").click();
+  const { samples, landing } = await stopMotion(page);
+  expect(landing).toEqual({
+    name: "node-land",
+    duration: "0.6s",
+    easing: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+    rippleName: "node-ripple",
+    ripplePosition: "absolute",
+  });
+  expect(samples.some((s) => s.landing && s.ripple)).toBe(true);
+  // gone within a second, both of them
+  expect(lasted(samples, (s) => s.landing)).toBeLessThan(1000);
+  expect(lasted(samples, (s) => s.ripple)).toBeLessThan(1000);
+  expect(samples[samples.length - 1]).toMatchObject({
+    landing: false,
+    ripple: false,
+  });
+  // the box is the node's 160 x 120 all along: only a transform moves
+  const sizes = samples.filter((s) => s.size).map((s) => s.size);
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const size of sizes) expect(size).toEqual({ width: 160, height: 120 });
+});
+
+test("motion (32): only the node just added lands: the first one does not land again", async ({
+  page,
+}) => {
+  await openDesign(page, 1920, 1000);
+  await quickAdd(page, "Client");
+  await waitForQuiet(page);
+  await watchMotion(page);
+  await tileOf(page, "Cache / Redis").click();
+  const { samples } = await stopMotion(page);
+  expect(samples.some((s) => s.landing)).toBe(true);
+  expect(await page.locator("[data-landing]").count()).toBe(0);
+  // the first node was never marked again
+  expect(await page.evaluate(() => document.querySelectorAll("[data-landing-ripple]").length)).toBe(
+    0,
+  );
+});
+
+test("motion (33): the cost chip flashes when an add changes its figure, not on a load", async ({
+  page,
+}) => {
+  await openDesign(page, 1920, 1000);
+  await quickAdd(page, "Client");
+  await waitForQuiet(page);
+  const chip = page.getByTestId("cost-mini");
+  await expect(chip).toBeVisible();
+  const before = await chip.innerText();
+  await expect(chip).not.toHaveAttribute("data-flash", /.*/);
+  await watchMotion(page);
+  await tileOf(page, "App Server").click();
+  const { samples } = await stopMotion(page);
+  expect(await chip.innerText()).not.toBe(before);
+  expect(samples.some((s) => s.flash)).toBe(true);
+  expect(lasted(samples, (s) => s.flash)).toBeLessThan(1000);
+  expect(samples[samples.length - 1].flash).toBe(false);
+
+  // loading a reference changes the figure too, and must not flash
+  await waitForQuiet(page);
+  await watchMotion(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(allNodes(page).first()).toBeVisible();
+  expect((await stopMotion(page)).samples.some((s) => s.flash)).toBe(false);
+});
+
+test("motion (34): a connection the user draws draws itself for 450 ms; only that edge does", async ({
+  page,
+}) => {
+  await openDesign(page, 1920, 1000);
+  await quickAdd(page, "Client");
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "SQL Database");
+  await waitForQuiet(page);
+  await watchMotion(page);
+  await connect(page, "client", "app-server");
+  const a = await stopMotion(page);
+  const edge = Object.keys(a.drawn);
+  expect(edge).toHaveLength(1);
+  expect(a.drawn[edge[0]]).toBe("edge-draw|0.45s|1");
+  expect(lasted(a.samples, (s) => s.drawing.length > 0)).toBeLessThan(1000);
+  expect(a.samples[a.samples.length - 1].drawing).toEqual([]);
+
+  // a second connection: only the new edge draws, the first one (already there) does not
+  await watchMotion(page);
+  await connect(page, "app-server", "sql-db");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+  const b = await stopMotion(page);
+  expect(Object.keys(b.drawn)).toHaveLength(1);
+  expect(Object.keys(b.drawn)).not.toContain(edge[0]);
+});
+
+test("motion (34): edges that load with a design, a reference or a quick fix never draw", async ({
+  page,
+}) => {
+  await openDesign(page, 1920, 1000);
+  await quickAdd(page, "Client");
+  await quickAdd(page, "App Server");
+  await quickAdd(page, "SQL Database");
+  await connectSync(page, "client", "app-server");
+  await connectSync(page, "app-server", "sql-db");
+  await waitForQuiet(page);
+  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+
+  // a reload restores the design with its edges
+  await page.reload();
+  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+  await watchMotion(page);
+  expect((await stopMotion(page)).samples.some((s) => s.drawing.length)).toBe(false);
+
+  // a reference solution
+  await watchMotion(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(allNodes(page).first()).toBeVisible();
+  expect((await stopMotion(page)).samples.some((s) => s.drawing.length)).toBe(false);
+  await page.locator("[data-canvas-tabs]").getByText("My Design").click();
+
+  // the Advisor's quick fix adds a node and edges
+  await openTab(page, /Advisor/);
+  const panel = page.getByTestId("advisor-panel");
+  const readCache = panel.locator('[data-finding^="read-cache:"]');
+  await expect(readCache).toBeVisible();
+  await readCache.getByRole("button", { name: /^Preview/ }).click();
+  await expect(page.getByTestId("advisor-preview")).toBeVisible();
+  await watchMotion(page);
+  await page.getByTestId("advisor-preview").getByRole("button", { name: "Apply" }).click();
+  await expect(page.locator('.react-flow__node[data-id^="cache-"]')).toHaveCount(1);
+  const done = await stopMotion(page);
+  expect(done.samples.some((s) => s.drawing.length)).toBe(false);
+  expect(done.samples.some((s) => s.landing)).toBe(false);
+});
+
+test("motion (35): the marks are never saved, and an add is one undo entry", async ({ page }) => {
+  await openDesign(page, 1920, 1000);
+  await quickAdd(page, "Client");
+  await quickAdd(page, "App Server");
+  await connect(page, "client", "app-server");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  // read right away, while the landing and the drawing may still be running
+  const saved = await page.evaluate(() =>
+    JSON.stringify(Object.fromEntries(Object.entries(localStorage))),
+  );
+  expect(saved).toContain("app-server");
+  expect(saved).not.toMatch(/landing|drawing|flash|ripple|justAdded|motion/i);
+  await waitForQuiet(page);
+  // client, app server, edge: three entries, no more
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(page.locator(".react-flow__edge")).toHaveCount(0);
+  await expect(allNodes(page)).toHaveCount(2);
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(1);
+  await page.keyboard.press(`${MOD}+z`);
+  await expect(allNodes(page)).toHaveCount(0);
+});
+
+test.describe("reduced motion", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  test("motion (37): an add and a connection still happen, but nothing animates", async ({
+    page,
+  }) => {
+    await openDesign(page, 1920, 1000);
+    await watchMotion(page);
+    await tileOf(page, "Client").click();
+    await expect(allNodes(page)).toHaveCount(1);
+    await expect(announcer(page)).toHaveText("Added Client");
+    await tileOf(page, "App Server").click();
+    await expect(allNodes(page)).toHaveCount(2);
+    await expect(announcer(page)).toHaveText("Added App Server");
+    await connect(page, "client", "app-server");
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    const { samples } = await stopMotion(page);
+    expect(samples.length).toBeGreaterThan(10);
+    expect(samples.some((s) => s.landing || s.ripple || s.flash || s.drawing.length)).toBe(false);
+    // the dock's press and +1 stay off as well
+    await expect(page.locator("[data-dock-plus]")).toHaveCount(0);
+  });
 });

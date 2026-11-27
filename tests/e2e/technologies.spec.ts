@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
-import { MOD, center, connect, open, openTab, paletteItemCenter, quickAdd } from "./helpers";
+import {
+  MOD,
+  center,
+  connect,
+  open,
+  openPalette,
+  openTab,
+  paletteItemCenter,
+  quickAdd,
+} from "./helpers";
 
 // component-technologies: choosing the real product behind a node.
 
@@ -241,6 +250,7 @@ test("TEC-20/21: a central type's technologies open from the palette and drag on
   page,
 }) => {
   await open(page);
+  await openPalette(page);
   const toggle = page.getByRole("button", { name: "NoSQL Database technologies" }).first();
   // Closed by default
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -267,6 +277,10 @@ test("TEC-20/21: a central type's technologies open from the palette and drag on
   await expect(await technologyOfNode(page, "nosql-db")).toHaveValue("cassandra");
   await expect(page.getByLabel("Capacity per instance", { exact: true })).toHaveValue("16000");
 
+  // The drag closed the panel; it keeps what was open in it
+  await expect(page.getByTestId("stage-dock-panel")).toBeHidden();
+  await openPalette(page);
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator('[data-palette-item="nosql-db:cassandra"]')).toHaveCount(0);
@@ -290,6 +304,7 @@ test("TEC-23: searching the palette for a technology lists it under every type t
   page,
 }) => {
   await open(page);
+  await openPalette(page);
   await page.getByLabel("Search components").first().fill("kafka");
   const queue = page.getByRole("group", { name: "Message Queue technologies" }).first();
   const pubsub = page.getByRole("group", { name: "Pub/Sub technologies" }).first();
@@ -306,6 +321,7 @@ test.describe("touch", () => {
 
   test("TEC-21: tapping a technology in the palette adds it", async ({ page }) => {
     await open(page);
+    await openPalette(page);
     await page.getByRole("button", { name: "NoSQL Database technologies" }).first().tap();
     const row = page.locator('[data-palette-item="nosql-db:scylladb"]').first();
     await row.scrollIntoViewIfNeeded();

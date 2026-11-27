@@ -74,12 +74,45 @@ export async function openTab(page: Page, name: string | RegExp) {
   await tab.click();
 }
 
-/** Add a component through the palette's "Add X to canvas" button. */
+/**
+ * Open the dock's "All components" panel (the whole palette with its search) and wait for it. A no-op
+ * when it is already open, and below 768 px, where there is no dock: the palette is the drawer the
+ * test opens itself.
+ */
+export async function openPalette(page: Page) {
+  const toggle = page.getByRole("button", { name: "All components", exact: true });
+  if ((await toggle.count()) === 0) return;
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(page.getByPlaceholder("Search components...")).toBeVisible();
+}
+
+/** Close the dock's panel if it is open (so it does not sit over the canvas a drop is aimed at). */
+export async function closePalette(page: Page) {
+  const toggle = page.getByRole("button", { name: "All components", exact: true });
+  if ((await toggle.count()) === 0) return;
+  if ((await toggle.getAttribute("aria-expanded")) === "true") await toggle.click();
+  await expect(page.getByPlaceholder("Search components...")).toBeHidden();
+}
+
+/**
+ * Add a component through an "Add X to canvas" button: the dock's tile when it shows one for the label,
+ * else the palette's, in the "All components" panel it opens first (and closes after).
+ */
 export async function quickAdd(page: Page, label: string) {
-  await page
-    .getByRole("button", { name: `Add ${label} to canvas` })
-    .first()
-    .click();
+  const name = `Add ${label} to canvas`;
+  const tile = page.getByTestId("stage-dock").getByRole("button", { name });
+  if (await tile.isVisible()) {
+    await tile.click();
+    return;
+  }
+  const panel = page.getByTestId("stage-dock-panel");
+  if ((await panel.count()) > 0) {
+    await openPalette(page);
+    await panel.getByRole("button", { name }).first().click();
+    await closePalette(page);
+    return;
+  }
+  await page.getByRole("button", { name }).first().click();
 }
 
 export async function center(locator: Locator) {

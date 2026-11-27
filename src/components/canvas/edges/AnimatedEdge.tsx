@@ -20,13 +20,26 @@ import { isReturnEdge, requestsWithAsync, responseToOf } from "@/domain/graph/re
 import { planFor, type PlanEdge } from "@/domain/graph/callPlan";
 import { useFlowHighlight, type FlowDirection } from "@/store/flowHighlightStore";
 import { usePrefersReducedMotion } from "@/hooks/useBreakpoint";
+import { clearEdgeConnected, useEdgeDrawing } from "@/store/motionStore";
 
 const protocolBadge: Record<string, { text: string; color: string } | null> = {
   http: null,
-  grpc: { text: "gRPC", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
-  websocket: { text: "WS", color: "bg-green-500/20 text-green-400 border-green-500/30" },
-  pubsub: { text: "pub/sub", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
-  tcp: { text: "TCP", color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" },
+  grpc: {
+    text: "gRPC",
+    color: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  },
+  websocket: {
+    text: "WS",
+    color: "bg-green-500/20 text-green-400 border-green-500/30",
+  },
+  pubsub: {
+    text: "pub/sub",
+    color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  },
+  tcp: {
+    text: "TCP",
+    color: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+  },
   custom: null,
 };
 
@@ -57,7 +70,11 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
   const data = new Map<string, { componentId: string; label: string; params?: Params }>();
   for (const n of nodes) {
     if (n.type === "text") continue;
-    const d = n.data as { componentId?: string; label?: string; params?: Params };
+    const d = n.data as {
+      componentId?: string;
+      label?: string;
+      params?: Params;
+    };
     data.set(n.id, {
       componentId: d.componentId ?? "custom",
       label: d.label ?? n.id,
@@ -72,7 +89,12 @@ function planBadges(nodes: readonly Node[], edges: readonly Edge[]): Map<string,
     const rule = edgeRuleOf({ nodes, edges }, e);
     conditions.set(e.id, edgeCallsBadge(rule, labelOf));
     const list = out.get(e.source) ?? out.set(e.source, []).get(e.source)!;
-    list.push({ id: e.id, target: e.target, async: isAsyncEdge(e), calls: rule.calls });
+    list.push({
+      id: e.id,
+      target: e.target,
+      async: isAsyncEdge(e),
+      calls: rule.calls,
+    });
   }
   const byEdge = new Map<string, PlanBadge>();
   for (const [source, outs] of out) {
@@ -284,6 +306,8 @@ function RequestEdgeInner({
   const plan = useCanvasStore((s) => planBadges(s.nodes, s.edges).get(copy?.instanceOf ?? id));
   // The Flow tab's hovered step (FLW-39): a string per edge, so only it re-renders.
   const highlight = useFlowHighlight(copy?.instanceOf ?? id);
+  // A copy drawn to an instance card has another id: it never draws.
+  const drawing = useEdgeDrawing(id) && !copy?.instanceOf;
   const rps = runtime ? runtime.rps * (copy?.share ?? 1) : undefined;
   const flowing = runtime !== undefined && runtime.rps > 0;
   const edgeData = (data ?? {}) as CustomEdgeData;
@@ -342,6 +366,15 @@ function RequestEdgeInner({
           strokeOpacity: flowing ? 0.6 : 1,
           strokeWidth: edgeStrokeWidth(rps),
         }}
+        // The edge the user just connected draws itself (450 ms, `edge-draw`, a dash over the
+        // path normalized to length 1); only this edge, only after a user connect (`motionStore`).
+        {...(drawing
+          ? {
+              "data-drawing": "",
+              pathLength: 1,
+              onAnimationEnd: () => clearEdgeConnected(id),
+            }
+          : null)}
       />
       {highlight === "req" && (
         <FlowHighlightPath

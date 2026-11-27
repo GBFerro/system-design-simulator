@@ -14,7 +14,8 @@ const tabs = (page: Page) =>
     .getByRole("tab")
     .allInnerTexts()
     .then((names) => names.map((n) => n.replace(/\s*\d+$/, "").trim()));
-const palette = (page: Page) => page.getByPlaceholder("Search components...");
+// the palette is the dock (and its "All components" panel, closed until asked for)
+const palette = (page: Page) => page.getByTestId("stage-dock");
 
 const TABS_BY_STEP: Record<string, string[]> = {
   design: ["Props", "Flow"],

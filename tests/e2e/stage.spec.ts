@@ -2,14 +2,14 @@ import { expect, test, type Page } from "@playwright/test";
 import { SCHEMA_VERSION } from "@/domain/persistence/version";
 import { MOD, goToStep, open, quickAdd } from "./helpers";
 
-// Papel quente slice 3 (specs/2026-11-24-redesign-papel-quente.md, criteria 18, 19, 20, 22, 24, 26):
-// the stage layout. The canvas fills the screen below the interview bar; the top bar, the rail, the
-// panel and the palette float over it as cards. Slice 3 has no dock: the palette is a floating card
-// on the left, below the rail, opened and closed by the "Toggle sidebar" button.
+// Papel quente slices 3 and 4 (specs/2026-11-24-redesign-papel-quente.md, criteria 18, 19, 20, 22,
+// 24, 26): the stage layout. The canvas fills the screen below the interview bar; the top bar, the
+// rail, the panel and the dock float over it as cards. The dock (slice 4, in place of slice 3's
+// palette card) is at the bottom of the canvas, opened and closed by the "Toggle sidebar" button.
 
 type Box = { x: number; y: number; width: number; height: number };
 
-const CARDS = ["stage-topbar", "stage-rail", "stage-panel", "stage-palette"] as const;
+const CARDS = ["stage-topbar", "stage-rail", "stage-panel", "stage-dock"] as const;
 
 const boxOf = async (page: Page, testId: string): Promise<Box> => {
   const box = await page.getByTestId(testId).boundingBox();
@@ -38,7 +38,7 @@ async function openStage(page: Page, width: number, height: number) {
   await open(page, "/", "design");
   await expect(page.getByTestId("stage-rail")).toBeVisible();
   await expect(page.getByTestId("stage-panel")).toBeVisible();
-  await expect(page.getByTestId("stage-palette")).toBeVisible();
+  await expect(page.getByTestId("stage-dock")).toBeVisible();
 }
 
 /** No two of the visible cards intersect. */
@@ -88,13 +88,12 @@ for (const [width, height] of [
     expect(panel.x + panel.width).toBe(width - 16);
     expect(panel.y).toBe(84);
     expect(panel.y + panel.height).toBe(height - 16);
-    // The palette card is on the left, under the rail.
-    const palette = await boxOf(page, "stage-palette");
-    expect(palette.x).toBe(16);
-    expect(palette.y).toBeGreaterThanOrEqual(rail.y + rail.height);
-
-    // No dock in this slice.
-    await expect(page.getByTestId("stage-dock")).toHaveCount(0);
+    // The dock is a strip at the canvas's bottom, between the zoom controls and the panel.
+    const dock = await boxOf(page, "stage-dock");
+    expect(dock.height).toBe(100);
+    expect(dock.y + dock.height).toBe(height - 16);
+    expect(dock.x).toBeGreaterThanOrEqual(238);
+    expect(dock.x + dock.width).toBeLessThanOrEqual(panel.x - 16);
   });
 }
 
@@ -152,6 +151,44 @@ test("1024x768: the rail starts collapsed to icons and expands, the panel is 300
   await expect.poll(async () => (await boxOf(page, "stage-rail")).width).toBeLessThanOrEqual(56);
 });
 
+test("1024x768: the dock scrolls sideways, every tile and the All components button can be brought into view, and nothing meets the panel opened over it (criterion 19, moved from slice 3)", async ({
+  page,
+}) => {
+  await openStage(page, 1024, 768);
+  const dock = page.getByTestId("stage-dock");
+  expect(await dock.evaluate((el) => getComputedStyle(el).overflowX)).toBe("auto");
+  // more tiles than the room between the controls and the panel holds
+  expect(await dock.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+
+  const flow = await flowBox(page);
+  for (const name of [
+    "Add Client to canvas",
+    "Add Message Queue to canvas",
+    "All components",
+  ] as const) {
+    const control = dock.getByRole("button", { name, exact: true });
+    await control.scrollIntoViewIfNeeded();
+    const b = (await control.boundingBox())!;
+    const d = await boxOf(page, "stage-dock");
+    expect(inside(b, d), `${name} is inside the dock once scrolled to`).toBe(true);
+    expect(inside(d, flow), "the dock stays on the canvas").toBe(true);
+  }
+
+  // with the panel open above it, still no two cards meet (the expanded rail is the widest left card)
+  await page.getByRole("button", { name: "Expand steps" }).click();
+  await expect.poll(async () => (await boxOf(page, "stage-rail")).width).toBe(210);
+  await page.getByRole("button", { name: "All components", exact: true }).click();
+  await expect(page.getByTestId("stage-dock-panel")).toBeVisible();
+  const boxes: [string, Box][] = [];
+  for (const id of [...CARDS, "stage-dock-panel"]) {
+    if (await page.getByTestId(id).isVisible()) boxes.push([id, await boxOf(page, id)]);
+  }
+  expect(boxes.length).toBe(5);
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++)
+      expect(hit(boxes[i][1], boxes[j][1]), `${boxes[i][0]} over ${boxes[j][0]}`).toBe(false);
+});
+
 test("no two cards meet at 1024x768 with a reference open either (criterion 19)", async ({
   page,
 }) => {
@@ -200,8 +237,8 @@ test("opening or closing the rail, the panel or the palette shows or hides its c
   const before = await flowBox(page);
   const rf = async () => expect(await flowBox(page)).toEqual(before);
 
-  // the palette: the top bar's "Toggle sidebar"
-  const palette = page.getByTestId("stage-palette");
+  // the dock: the top bar's "Toggle sidebar"
+  const palette = page.getByTestId("stage-dock");
   await page.getByRole("button", { name: "Toggle sidebar" }).click();
   await expect(palette).toBeHidden();
   await rf();
@@ -248,8 +285,8 @@ test("changing step moves no card and does not resize the canvas (criterion 22, 
   expect(await flowBox(page)).toEqual(before);
   expect(await boxOf(page, "stage-rail")).toEqual(rail);
   expect(await boxOf(page, "stage-topbar")).toEqual(topbar);
-  // the palette is the Design step's tool
-  await expect(page.getByTestId("stage-palette")).toHaveCount(0);
+  // the dock is the Design step's tool
+  await expect(page.getByTestId("stage-dock")).toHaveCount(0);
 });
 
 test("the Problem step is full screen with no canvas and no card (criterion 24)", async ({
@@ -381,7 +418,7 @@ async function openWithProblem(page: Page, width: number, height: number, proble
     { key: APP_KEY, id: problemId, version: SCHEMA_VERSION },
   );
   await open(page, "/", "design");
-  await expect(page.getByTestId("stage-palette")).toBeVisible();
+  await expect(page.getByTestId("stage-dock")).toBeVisible();
 }
 
 /** The boxes of every component node on screen. */
@@ -505,9 +542,13 @@ test("opening or closing a card never re-fits; the controls' fit-view button fra
   await openWithProblem(page, 1440, 900, "url-shortener");
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  // A tab's own fit may zoom in past 1 where the button's never does (the dock leaves the free area
+  // wider than the palette card did): the baseline is the button's frame.
+  await viewportSettled(page);
+  await page.getByRole("button", { name: /fit view/i }).click();
   const framed = await viewportSettled(page);
 
-  // Closing and reopening the palette, the panel and the rail moves no node: the viewport is the
+  // Closing and reopening the dock, the panel and the rail moves no node: the viewport is the
   // user's, and no toggle asks for a fit.
   for (const name of ["Toggle sidebar", "Toggle properties panel", "Collapse steps"]) {
     await page.getByRole("button", { name }).click();
@@ -529,20 +570,17 @@ test("opening or closing a card never re-fits; the controls' fit-view button fra
   expect(await nodesUnderCards(page)).toEqual([]);
 });
 
-/** The visible center: the canvas minus the open cards (the left card edges, the panel, the top bar). */
+/** The visible center: the canvas minus the open cards (the rail, the panel, the top bar, the dock). */
 async function visibleCenter(page: Page) {
   const cards = new Map(await openCards(page));
   const flow = await flowBox(page);
-  const right = (id: string) => {
-    const b = cards.get(id);
-    return b ? b.x + b.width : 0;
-  };
-  const left = Math.max(right("stage-rail"), right("stage-palette"));
+  const rail = cards.get("stage-rail");
   const panel = cards.get("stage-panel");
   const top = cards.get("stage-topbar");
+  const dock = cards.get("stage-dock");
   return {
-    x: (left + (panel ? panel.x : flow.x + flow.width)) / 2,
-    y: ((top ? top.y + top.height : flow.y) + flow.y + flow.height) / 2,
+    x: ((rail ? rail.x + rail.width : 0) + (panel ? panel.x : flow.x + flow.width)) / 2,
+    y: ((top ? top.y + top.height : flow.y) + (dock ? dock.y : flow.y + flow.height)) / 2,
   };
 }
 
@@ -573,20 +611,20 @@ test("tap-add lands at the center of the canvas minus the open cards, and follow
   // and not where the whole canvas's center is
   expect(Math.abs(want.x - 720) + Math.abs(want.y - 450)).toBeGreaterThan(40);
 
-  // With the panel and the palette closed, the visible area is bigger and so is where it centers.
+  // With the panel and the dock closed, the visible area is bigger and so is where it centers.
   await page.keyboard.press(`${MOD}+z`);
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
   await page.getByRole("button", { name: "Toggle properties panel" }).click();
   await page.getByRole("button", { name: "Toggle sidebar" }).click();
   await expect(page.getByTestId("stage-panel")).toBeHidden();
-  await expect(page.getByTestId("stage-palette")).toBeHidden();
+  await expect(page.getByTestId("stage-dock")).toBeHidden();
   await page.getByRole("button", { name: "Add Note" }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(1);
   want = await visibleCenter(page);
   got = await lastNodeCenter(page);
   // (a note is placed by its 272 x 48 estimate and then measured by its content: a few px apart)
-  expect(Math.abs(got.x - want.x), "x, panel and palette closed").toBeLessThanOrEqual(12);
-  expect(Math.abs(got.y - want.y), "y, panel and palette closed").toBeLessThanOrEqual(12);
+  expect(Math.abs(got.x - want.x), "x, panel and dock closed").toBeLessThanOrEqual(12);
+  expect(Math.abs(got.y - want.y), "y, panel and dock closed").toBeLessThanOrEqual(12);
 });
 
 test("1024x768: sixteen tap-adds never land under a card, nor on each other (criterion 23)", async ({
@@ -626,7 +664,7 @@ test("the read-only hint and the pen toolbar sit under the top bar, clear of the
   }
   expect(tabs.y).toBeGreaterThanOrEqual(bar);
   const panelNow = await boxOf(page, "stage-panel");
-  const railNow = await boxOf(page, "stage-palette");
+  const railNow = await boxOf(page, "stage-rail");
   expect(tabs.x + tabs.width / 2).toBeCloseTo((railNow.x + railNow.width + panelNow.x) / 2, -1);
   for (const open of [true, false]) {
     if (!open) {
@@ -652,8 +690,7 @@ test("the read-only hint and the pen toolbar sit under the top bar, clear of the
   // the hint is centered on the part of the canvas the rail and the panel leave
   const hintBox = (await hint.boundingBox())!;
   const rail = await boxOf(page, "stage-rail");
-  const palette = await boxOf(page, "stage-palette");
-  const leftEdge = Math.max(rail.x + rail.width, palette.x + palette.width);
+  const leftEdge = rail.x + rail.width;
   expect(hintBox.x + hintBox.width / 2).toBeCloseTo((leftEdge + 1440) / 2, -1);
 });
 
@@ -678,11 +715,12 @@ for (const [width, height] of [
       expect(hit(box, card), `the welcome under ${id}`).toBe(false);
     }
     const cards = new Map(await openCards(page));
-    const left = Math.max(
-      (cards.get("stage-rail")?.x ?? 0) + (cards.get("stage-rail")?.width ?? 0),
-      (cards.get("stage-palette")?.x ?? 0) + (cards.get("stage-palette")?.width ?? 0),
-    );
+    const left = (cards.get("stage-rail")?.x ?? 0) + (cards.get("stage-rail")?.width ?? 0);
     const right = cards.get("stage-panel")!.x;
     expect(box.x + box.width / 2).toBeCloseTo((left + right) / 2, -1);
+    // and down the free area: from the top bar's row (the rail's top) to the dock's top
+    const top = cards.get("stage-rail")!.y;
+    const dockTop = cards.get("stage-dock")!.y;
+    expect(box.y + box.height / 2).toBeCloseTo((top + dockTop) / 2, -1);
   });
 }

@@ -23,9 +23,7 @@ import {
 } from "@/domain/components/technologies";
 import { ICON_MAP } from "@/lib/icons";
 import { ISO_TINT_VAR, isoTintOf } from "@/lib/iso";
-import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
-import { createComponentNode } from "@/lib/nodeFactory";
-import { placeAtVisibleCenter } from "@/lib/placement";
+import { addComponentNode } from "@/lib/addComponent";
 import type { PaletteDragData } from "@/components/canvas/PaletteDnd";
 import { useAppStore } from "@/store/appStore";
 import { useCustomComponentsStore } from "@/store/customComponentsStore";
@@ -44,7 +42,6 @@ export function ComponentPalette({
 }: ComponentPaletteProps = {}) {
   const [search, setSearch] = useState("");
   const { screenToFlowPosition } = useReactFlow();
-  const placeNode = useCanvasStore((s) => s.placeNode);
   // Two palettes can be mounted at once (desktop sidebar + mobile drawer)
   const dragIdPrefix = useId();
   const customComponents = useCustomComponentsStore((s) => s.components);
@@ -60,21 +57,13 @@ export function ComponentPalette({
    */
   const handleQuickAdd = useCallback(
     (componentId: string, technology?: string) => {
+      // The one add function (lib/addComponent.ts): it places, announces, and says no on a reference tab
+      if (addComponentNode(componentId, { tap: screenToFlowPosition }, technology) === null) return;
       const component = getComponentById(componentId);
-      if (!component) return;
-      if (isActiveTabReadOnly(useCanvasStore.getState())) {
-        useAppStore.getState().showToast("Reference tabs are read-only", "info");
-        return;
-      }
-      placeAtVisibleCenter(
-        placeNode,
-        createComponentNode(component, { x: 0, y: 0 }, technology),
-        screenToFlowPosition,
-      );
-      useAppStore.getState().showToast(`Added ${component.label}`, "success");
+      if (component) useAppStore.getState().showToast(`Added ${component.label}`, "success");
       onComponentAdded?.();
     },
-    [screenToFlowPosition, placeNode, onComponentAdded],
+    [screenToFlowPosition, onComponentAdded],
   );
 
   const query = search.toLowerCase().trim();

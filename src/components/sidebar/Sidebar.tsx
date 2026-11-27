@@ -47,10 +47,13 @@ export function Sidebar({
     );
   }
 
-  // The stage layout's card (`stage-palette` in AppShell) sizes, shows and hides it: this fills it.
+  // The dock's "All components" panel (`ComponentDock`) sizes, shows and hides it: this fills it.
   return (
     <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
-      <SidebarPalette onCreateCustomComponent={onCreateCustomComponent} />
+      <SidebarPalette
+        onCreateCustomComponent={onCreateCustomComponent}
+        onComponentAdded={onComponentAdded}
+      />
     </aside>
   );
 }

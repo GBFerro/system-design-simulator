@@ -151,6 +151,20 @@ describe("placeAtVisibleCenter", () => {
     ]);
   });
 
+  it("centers above the dock (a bar at the bottom) and blocks it (slice 4)", () => {
+    // 1000 x 800 canvas; the dock is a strip at the bottom, as wide as 600 of the 1000
+    const dock = el(200, 700, 600, 84);
+    vi.stubGlobal("document", fakeRoot({ ".react-flow": el(0, 0, 1000, 800) }, [dock]));
+    const place = vi.fn();
+
+    placeAtVisibleCenter(place, node, (p) => p);
+
+    // y: (0 + 700) / 2 = 350, x the canvas's own (nothing covers a side)
+    expect(place).toHaveBeenCalledExactlyOnceWith(node, { x: 500, y: 350 }, [
+      { x: 200, y: 700, width: 600, height: 84 },
+    ]);
+  });
+
   it("a closed card (zero size) neither moves the center nor blocks anything", () => {
     vi.stubGlobal(
       "document",

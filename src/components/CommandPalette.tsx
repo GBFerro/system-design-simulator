@@ -28,8 +28,7 @@ import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { useCustomComponentsStore } from "@/store/customComponentsStore";
 import { useCanvasStore } from "@/store/canvasStore";
 import { defaultTechnologyOf, technologiesOf } from "@/domain/components/technologies";
-import { createComponentNode } from "@/lib/nodeFactory";
-import { placeAtVisibleCenter } from "@/lib/placement";
+import { addComponentNode } from "@/lib/addComponent";
 import { useAppStore } from "@/store/appStore";
 import { ICON_MAP } from "@/lib/icons";
 
@@ -94,7 +93,6 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
   const listRef = useRef<HTMLDivElement>(null);
 
   const { screenToFlowPosition } = useReactFlow();
-  const placeNode = useCanvasStore((s) => s.placeNode);
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
   const setSelectedProblem = useAppStore((s) => s.setSelectedProblem);
@@ -105,14 +103,12 @@ export function CommandPalette({ open, onClose, actions }: CommandPaletteProps) 
   /** Add a node; a central type starts with `technology` (component-technologies, TEC-22/23). */
   const addComponent = useCallback(
     (component: SystemComponent, technology?: string) => {
-      placeAtVisibleCenter(
-        placeNode,
-        createComponentNode(component, { x: 0, y: 0 }, technology),
-        screenToFlowPosition,
-      );
+      // The one add function (lib/addComponent.ts); a reference tab gets its read-only toast there
+      if (addComponentNode(component.id, { tap: screenToFlowPosition }, technology) === null)
+        return;
       showToast(`Added ${component.label}`, "success");
     },
-    [screenToFlowPosition, placeNode, showToast],
+    [screenToFlowPosition, showToast],
   );
 
   const allComponents = useMemo<SystemComponent[]>(

@@ -39,13 +39,24 @@ import { CreateComponentDialog } from "@/components/dialogs/CreateComponentDialo
 import { SupportDialog } from "@/components/dialogs/SupportDialog";
 import { useInterviewStore } from "@/store/interviewStore";
 import { useIsMobile, useMinWidth } from "@/hooks/useBreakpoint";
-import { MEDIUM_MIN, WIDE_MIN, stageCssVars, stageInsets, stageMetrics } from "@/lib/stageLayout";
+import {
+  DOCK_GAP,
+  DOCK_HEIGHT,
+  DOCK_LEFT,
+  MEDIUM_MIN,
+  WIDE_MIN,
+  dockRight,
+  stageCssVars,
+  stageInsets,
+  stageMetrics,
+} from "@/lib/stageLayout";
 import { useCustomProblemsStore } from "@/store/customProblemsStore";
 import { CommandPalette } from "@/components/CommandPalette";
 import { HowItWorksDialog } from "@/components/dialogs/HowItWorksDialog";
 import { Walkthrough } from "@/components/Walkthrough";
 import { ShortcutsDialog } from "@/components/dialogs/ShortcutsDialog";
 import { PaletteDndProvider } from "@/components/canvas/PaletteDnd";
+import { AddAnnouncer, ComponentDock } from "@/components/canvas/ComponentDock";
 import { OPEN_PROPERTIES_EVENT, isTypingTarget } from "@/components/canvas/canvasEvents";
 import { rehydrateAllStores } from "@/store/hydration";
 import { togglePlayback } from "@/components/traffic/simActions";
@@ -71,6 +82,8 @@ export function AppShell() {
   // Mobile drawer state — local, does not persist
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileRightOpen, setMobileRightOpen] = useState(false);
+  // The dock's "All components" panel (stage layout, slice 4): local, does not persist
+  const [dockPanelOpen, setDockPanelOpen] = useState(false);
   // The rail's own choice (stage layout); null follows the screen: collapsed under 1280 px.
   const [railCollapsedOverride, setRailCollapsedOverride] = useState<boolean | null>(null);
   const wide = useMinWidth(WIDE_MIN);
@@ -336,13 +349,14 @@ export function AppShell() {
       if (e.key === "Escape") {
         if (mobileSidebarOpen) setMobileSidebarOpen(false);
         else if (mobileRightOpen) setMobileRightOpen(false);
+        else if (dockPanelOpen) setDockPanelOpen(false);
         else useCanvasStore.getState().clearSelection();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleScore, mobileSidebarOpen, mobileRightOpen]);
+  }, [handleScore, mobileSidebarOpen, mobileRightOpen, dockPanelOpen]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -364,6 +378,11 @@ export function AppShell() {
   // canvas) stay full screen, and below 768 px the drawers and the bottom sheet stay as they are.
   const stage = showCanvas && !isMobile;
   const metrics = stageMetrics({ medium, wide }, railCollapsedOverride);
+  // The dock (with its panel) is the Design step's tool, on the stage only
+  const dockShown = stage && showPalette;
+  const dockOpen = dockShown && leftSidebarOpen;
+  // (render-time adjustment: leaving the Design step or the stage closes the panel for good)
+  if (!dockShown && dockPanelOpen) setDockPanelOpen(false);
   const problemTitle = (
     PROBLEMS.find((p) => p.id === selectedProblemId) ??
     customProblems.find((p) => p.id === selectedProblemId)
@@ -388,8 +407,23 @@ export function AppShell() {
 
   return (
     <ReactFlowProvider>
-      <PaletteDndProvider onPaletteDragStart={() => setMobileSidebarOpen(false)}>
-        <div className="flex h-full flex-col">
+      <PaletteDndProvider
+        onPaletteDragStart={() => {
+          setMobileSidebarOpen(false);
+          setDockPanelOpen(false);
+        }}
+      >
+        <div
+          className="flex h-full flex-col"
+          // On the stage the toast rides above the dock instead of covering its middle tiles
+          style={
+            dockOpen
+              ? ({
+                  "--toast-bottom": `${metrics.side + DOCK_HEIGHT + DOCK_GAP}px`,
+                } as CSSProperties)
+              : undefined
+          }
+        >
           {interviewMode === "interview" && <InterviewBar />}
           {/* On the stage this box is the layer the cards float over (the interview bar stays above it). */}
           <div className={stage ? "relative min-h-0 flex-1 overflow-hidden" : "contents"}>
@@ -429,10 +463,7 @@ export function AppShell() {
                   className="absolute inset-0 flex [&_[data-canvas-tabs]]:absolute [&_[data-canvas-tabs]]:left-[calc((var(--stage-inset-left)_+_100%_-_var(--stage-inset-right))/2)] [&_[data-canvas-tabs]]:top-[var(--stage-inset-top)] [&_[data-canvas-tabs]]:z-10 [&_[data-canvas-tabs]]:max-w-[36%] [&_[data-canvas-tabs]]:-translate-x-1/2 [&_[data-canvas-tabs]]:rounded-lg [&_[data-canvas-tabs]]:border"
                   style={
                     stageCssVars(
-                      stageInsets(metrics, {
-                        palette: showPalette && leftSidebarOpen,
-                        panel: rightPanelOpen,
-                      }),
+                      stageInsets(metrics, { panel: rightPanelOpen, dock: dockOpen }),
                       hasTabBar,
                     ) as CSSProperties
                   }
@@ -445,41 +476,34 @@ export function AppShell() {
                   />
                 </div>
 
-                {/* Left column: the rail, then the palette under it, so the two never meet. */}
-                <div
-                  className="pointer-events-none absolute z-20 flex flex-col gap-3"
-                  style={{
-                    left: metrics.side,
-                    top: metrics.top,
-                    bottom: metrics.paletteBottom,
-                  }}
+                <StageCard
+                  testId="stage-rail"
+                  className="absolute z-20 overflow-hidden"
+                  style={{ left: metrics.side, top: metrics.top, width: metrics.railWidth }}
                 >
-                  <StageCard
-                    testId="stage-rail"
-                    className="pointer-events-auto shrink-0 overflow-hidden"
-                    style={{ width: metrics.railWidth }}
-                  >
-                    <StageRail
-                      problemTitle={problemTitle}
-                      collapsed={metrics.railCollapsed}
-                      onToggleCollapsed={() => setRailCollapsedOverride(!metrics.railCollapsed)}
-                      {...stepBarProps}
-                    />
-                  </StageCard>
-                  {showPalette && (
-                    <StageCard
-                      testId="stage-palette"
-                      open={leftSidebarOpen}
-                      className="pointer-events-auto flex min-h-[96px] flex-1 flex-col overflow-hidden"
-                      style={{ width: metrics.paletteWidth }}
-                    >
-                      <Sidebar
-                        onCreateCustomComponent={() => setCreateComponentDialogOpen(true)}
-                        variant="desktop"
-                      />
-                    </StageCard>
-                  )}
-                </div>
+                  <StageRail
+                    problemTitle={problemTitle}
+                    collapsed={metrics.railCollapsed}
+                    onToggleCollapsed={() => setRailCollapsedOverride(!metrics.railCollapsed)}
+                    {...stepBarProps}
+                  />
+                </StageCard>
+
+                {/* The dock, at the bottom of the canvas, and the "All components" panel over it. */}
+                {dockShown && (
+                  <ComponentDock
+                    open={leftSidebarOpen}
+                    panelOpen={dockPanelOpen}
+                    onPanelOpenChange={setDockPanelOpen}
+                    onCreateCustomComponent={() => setCreateComponentDialogOpen(true)}
+                    style={{
+                      left: DOCK_LEFT,
+                      right: dockRight(metrics, rightPanelOpen),
+                      top: metrics.top,
+                      bottom: metrics.side,
+                    }}
+                  />
+                )}
 
                 <StageCard
                   testId="stage-panel"
@@ -604,6 +628,7 @@ export function AppShell() {
           />
 
           <Toast />
+          <AddAnnouncer />
 
           <SaveDialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} />
           <LoadDialog open={loadDialogOpen} onClose={() => setLoadDialogOpen(false)} />

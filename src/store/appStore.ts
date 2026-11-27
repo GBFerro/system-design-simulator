@@ -41,7 +41,13 @@ interface AppState {
   toast: ToastData | null;
   /** Whether the canvas minimap is rendered. Session-only: not persisted (slice 3, criterion 27). */
   minimapVisible: boolean;
+  /**
+   * What the live region says last (slice 4, criterion 29: "Added App Server"). `n` makes a repeat
+   * of the same text a new announcement. Session-only: not persisted.
+   */
+  announcement: { text: string; n: number } | null;
 
+  announce: (text: string) => void;
   toggleMinimap: () => void;
   setSelectedProblem: (id: string) => void;
   setTheme: (theme: Theme) => void;
@@ -88,7 +94,9 @@ export const useAppStore = create<AppState>()(
       currency: "USD",
       toast: null,
       minimapVisible: false,
+      announcement: null,
 
+      announce: (text) => set((s) => ({ announcement: { text, n: (s.announcement?.n ?? 0) + 1 } })),
       toggleMinimap: () => set((s) => ({ minimapVisible: !s.minimapVisible })),
       setSelectedProblem: (id) => set({ selectedProblemId: id }),
       setTheme: (theme) => {

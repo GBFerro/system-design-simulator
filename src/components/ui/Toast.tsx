@@ -37,7 +37,8 @@ export function Toast() {
           animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
           exit={{ opacity: 0, y: 10, scale: 0.95, x: "-50%" }}
           transition={{ duration: 0.2 }}
-          className="pointer-events-none fixed bottom-6 left-1/2 z-50"
+          // (the stage lifts it above the dock with `--toast-bottom`)
+          className="pointer-events-none fixed bottom-[var(--toast-bottom,1.5rem)] left-1/2 z-50"
         >
           <div
             className={`pointer-events-auto flex items-center gap-2 rounded-md border px-4 py-2.5 shadow-sm ${COLORS[toast.type]}`}
