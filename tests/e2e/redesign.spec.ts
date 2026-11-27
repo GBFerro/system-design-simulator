@@ -1622,6 +1622,75 @@ test("dock (36): on a reference tab the tiles are disabled, a click says it is r
   await expect(announcer(page)).toHaveText("");
 });
 
+/** Record, inside the page, every text node that ever reads "Added …" (a toast is short-lived). */
+async function watchAdded(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __added: string[] };
+    w.__added = [];
+    const seen = () => {
+      const text = document.body.innerText;
+      for (const m of text.matchAll(/Added [^\n]+/g)) w.__added.push(m[0]);
+    };
+    new MutationObserver(seen).observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  });
+}
+const addedSeen = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __added: string[] }).__added);
+
+test("dock (36): on a reference tab a palette row's add says read-only, shows no Added toast, adds nothing and keeps the panel open", async ({
+  page,
+}) => {
+  await openDesign(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(allNodes(page).first()).toBeVisible();
+  await settled(page);
+  const before = await allNodes(page).count();
+
+  await allComponents(page).click();
+  const panel = page.getByTestId("stage-dock-panel");
+  await expect(panel).toBeVisible();
+  await watchAdded(page);
+  await panel
+    .getByRole("button", { name: "Add Auth Service to canvas" })
+    .evaluate((el) => (el as HTMLElement).click());
+  await expect(page.getByText("Reference tabs are read-only")).toBeVisible();
+  await page.waitForTimeout(600);
+  expect(await addedSeen(page)).toEqual([]);
+  await expect(page.getByText(/^Added /)).toHaveCount(0);
+  await expect(allNodes(page)).toHaveCount(before);
+  await expect(panel).toBeVisible();
+});
+
+test("dock (36): on a reference tab the command palette's add says read-only, shows no Added toast and adds nothing", async ({
+  page,
+}) => {
+  await openDesign(page);
+  await page.getByTitle("Load reference solution").click();
+  await expect(allNodes(page).first()).toBeVisible();
+  await settled(page);
+  const before = await allNodes(page).count();
+
+  await page.keyboard.press(`${MOD}+k`);
+  const input = page.getByLabel("Search commands");
+  await expect(input).toBeVisible();
+  await input.fill("Auth Service");
+  await watchAdded(page);
+  await page
+    .getByRole("dialog", { name: "Command palette" })
+    .getByRole("button", { name: /^Auth Service/ })
+    .first()
+    .click();
+  await expect(page.getByText("Reference tabs are read-only")).toBeVisible();
+  await page.waitForTimeout(600);
+  expect(await addedSeen(page)).toEqual([]);
+  await expect(page.getByText(/^Added /)).toHaveCount(0);
+  await expect(allNodes(page)).toHaveCount(before);
+});
+
 test("dock: a toast rides above the dock, so it never covers a tile", async ({ page }) => {
   await openDesign(page);
   await page.getByTitle("Load reference solution").click();
