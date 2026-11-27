@@ -239,11 +239,22 @@ test("opening or closing the rail, the panel or the palette shows or hides its c
 
   // the dock: the top bar's "Toggle sidebar"
   const palette = page.getByTestId("stage-dock");
+  // the stage sets its insets on the canvas's wrapper, the one element with a "--stage-inset-bottom:" in its style
+  const stageVars = page.locator('[style*="--stage-inset-bottom:"]');
+  await expect(stageVars).toHaveCount(1);
+  const varOf = (name: string) =>
+    stageVars.evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
+
   await page.getByRole("button", { name: "Toggle sidebar" }).click();
   await expect(palette).toBeHidden();
+  // the dock is gone, so the canvas gives its bottom strip back
+  await expect.poll(() => varOf("--stage-inset-bottom")).toBe("0px");
+  await expect.poll(() => varOf("--toast-bottom")).toBe("");
   await rf();
   await page.getByRole("button", { name: "Toggle sidebar" }).click();
   await expect(palette).toBeVisible();
+  await expect.poll(() => varOf("--stage-inset-bottom")).toBe("116px");
+  await expect.poll(() => varOf("--toast-bottom")).toBe("128px");
   await rf();
 
   // the panel: "Toggle properties panel"

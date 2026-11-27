@@ -1292,12 +1292,16 @@ test("dock (28): All components opens the panel with the palette and its search;
   // Mounted while closed, its items hidden
   await expect(panel).toHaveCount(1);
   await expect(panel).toBeHidden();
+  await expect(panel).toHaveAttribute("inert", "");
+  await expect(panel).toHaveAttribute("aria-hidden", "true");
   await expect(search).toBeHidden();
   await expect(panel.locator('[data-palette-item="sql-db"]')).toBeHidden();
 
   await all.click();
   await expect(all).toHaveAttribute("aria-expanded", "true");
   await expect(panel).toBeVisible();
+  await expect(panel).not.toHaveAttribute("inert");
+  await expect(panel).not.toHaveAttribute("aria-hidden");
   await expect(search).toBeVisible();
   await expect(panel.locator('[data-palette-item="sql-db"]')).toBeVisible();
   // it floats over the canvas above the dock
