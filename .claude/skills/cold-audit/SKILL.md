@@ -39,6 +39,11 @@ Cite `file:line`. A claim with no code is a **false claim**; a claim with code b
 
 - Create a detached worktree outside the repo:
   `git worktree add --detach <temp-dir-outside-the-repo> <head-sha>`.
+- Sweep before you sample. On the first round, list from the hunks of `git diff -U0
+  <base>...<head> -- src/` every changed condition (`if`, `&&`, `||`, `??`, a ternary, an early
+  `return`), constant and call, and every caller of a function the PR adds or rewrites. Mutate
+  each item on that list, then add whatever else you suspect. One round that finds every gap is
+  cheaper than one round per gap (#51 took four).
 - For each changed behavior, make one small mutation that should break it (flip a condition,
   drop a branch, change a constant, return early), run the relevant tests there, then revert it.
 - **A mutation that leaves every test green is a finding**, unless the PR body already declares
