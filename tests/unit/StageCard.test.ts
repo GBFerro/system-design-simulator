@@ -46,6 +46,13 @@ describe("StageCard", () => {
     expect(card()).toContain("data-stage-card");
   });
 
+  it("can be a landmark of its own: the dock is a toolbar named Components (slice 4, criterion 28)", () => {
+    const html = card({ role: "toolbar", ariaLabel: "Components" });
+    expect(html).toContain('role="toolbar"');
+    expect(html).toContain('aria-label="Components"');
+    expect(card()).not.toContain("role=");
+  });
+
   it("flat: a display:contents wrapper with no test id, no chrome and no card mark", () => {
     const html = card({
       flat: true,

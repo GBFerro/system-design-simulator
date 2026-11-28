@@ -11,6 +11,9 @@ interface StageCardProps {
   children: ReactNode;
   /** Not a card: only a layout-free wrapper (`display: contents`), so the children keep their place. */
   flat?: boolean;
+  /** The card's own landmark role and name (the dock is a toolbar named "Components"). */
+  role?: string;
+  ariaLabel?: string;
 }
 
 /**
@@ -24,6 +27,8 @@ export function StageCard({
   style,
   children,
   flat = false,
+  role,
+  ariaLabel,
 }: StageCardProps) {
   // The same element either way, so a bar that is a card on the stage and a plain row elsewhere
   // is not remounted when the layout changes.
@@ -32,6 +37,8 @@ export function StageCard({
     <div
       data-testid={testId}
       data-stage-card=""
+      role={role}
+      aria-label={ariaLabel}
       className={`bg-zinc-900 shadow-lg ${className}`.trim()}
       style={{
         borderRadius: "var(--sf-radius)",

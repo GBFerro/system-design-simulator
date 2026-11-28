@@ -1,9 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
-import { open, openTab } from "./helpers";
+import { goToStep, open, openTab } from "./helpers";
 
 // Papel quente slice 3, criterion 27: the zoom controls sit at the canvas's bottom-left, the
 // minimap is off on a fresh load and a toggle shows and hides it, and the chaos timeline covers
-// neither (and is covered by neither). Slice 3 has no dock: the timeline sits at the canvas bottom.
+// neither (and is covered by neither). Slice 4 adds the dock, which the timeline sits above.
 
 type Box = { left: number; top: number; right: number; bottom: number };
 
@@ -68,12 +68,8 @@ test("Show minimap renders it uncovered; Hide minimap removes it", async ({ page
   await expect(page.getByRole("button", { name: "Show minimap" })).toBeVisible();
 });
 
-test("the chaos timeline covers neither the controls nor the minimap, nor the toggle", async ({
-  page,
-}, testInfo) => {
-  testInfo.setTimeout(60_000);
-  await openWide(page);
-  await page.getByRole("button", { name: "Show minimap" }).click();
+/** Load the reference, run it live and kill the App Server for good: the chaos timeline shows. */
+async function injectKillNode(page: Page) {
   await page.getByTitle("Load reference solution").click();
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await openTab(page, "Simulate");
@@ -89,6 +85,38 @@ test("the chaos timeline covers neither the controls nor the minimap, nor the to
   await inject.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await inject.click();
   await expect(page.getByTestId("chaos-timeline")).toBeVisible();
+}
+
+test("the chaos timeline sits above the dock when the Design step is back (slice 4, moved from slice 3)", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openWide(page);
+  await injectKillNode(page);
+  // the run and its faults go on while the step changes; the Design step has the dock
+  await goToStep(page, "design");
+  await expect(page.getByTestId("stage-dock")).toBeVisible();
+  const timeline = (await box(page, '[data-testid="chaos-timeline"]'))!;
+  const dock = (await box(page, '[data-testid="stage-dock"]'))!;
+  expect(
+    timeline.bottom,
+    "the timeline's bottom is at or above the dock's top",
+  ).toBeLessThanOrEqual(dock.top);
+  expect(hit(timeline, dock), "timeline over the dock").toBe(false);
+  // (the injection's toast rides above the dock for four seconds: it is not a card, wait it out)
+  await expect
+    .poll(() => uncovered(page, '[data-testid="chaos-timeline"]'), { timeout: 8000 })
+    .toBe(true);
+  expect(await uncovered(page, '[data-testid="stage-dock"]')).toBe(true);
+});
+
+test("the chaos timeline covers neither the controls nor the minimap, nor the toggle", async ({
+  page,
+}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  await openWide(page);
+  await page.getByRole("button", { name: "Show minimap" }).click();
+  await injectKillNode(page);
 
   const timeline = (await box(page, '[data-testid="chaos-timeline"]'))!;
   for (const [name, sel] of [

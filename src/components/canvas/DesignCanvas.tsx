@@ -25,7 +25,8 @@ import "@xyflow/react/dist/style.css";
 import { nodeTypes } from "./nodes/nodeTypes";
 import { ChaosTimeline } from "./ChaosTimeline";
 import { edgeTypes } from "./edges/edgeTypes";
-import { isValidHandlePair } from "@/domain/graph/returns";
+import { isReturnEdge, isValidHandlePair } from "@/domain/graph/returns";
+import { markEdgeConnected, prefersReducedMotion } from "@/store/motionStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
 import { useAdvisorStore } from "@/store/advisorStore";
 import { isGhostId, withoutGhostChanges, withPreview } from "./previewGraph";
@@ -56,7 +57,11 @@ const emptyContainer = {
 };
 const emptyItem = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const } },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const },
+  },
 };
 import { CanvasTabBar } from "./CanvasTabBar";
 import { IsoBackground } from "./IsoBackground";
@@ -152,7 +157,21 @@ export function DesignCanvas({
     },
     [onEdgesChange, previewDiff],
   );
-  const onConnect = useCanvasStore((s) => s.onConnect);
+  const connectEdges = useCanvasStore((s) => s.onConnect);
+  // A connection the user draws: the new request edge draws itself (motionStore). Loads, references
+  // and quick fixes never come through here.
+  const onConnect = useCallback<typeof connectEdges>(
+    (connection) => {
+      const before = new Set(useCanvasStore.getState().edges.map((e) => e.id));
+      connectEdges(connection);
+      if (prefersReducedMotion()) return;
+      const added = useCanvasStore
+        .getState()
+        .edges.find((e) => !before.has(e.id) && !isReturnEdge(e));
+      if (added) markEdgeConnected(added.id);
+    },
+    [connectEdges],
+  );
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const activeTabId = useCanvasStore((s) => s.activeTabId);
   const isReadOnly = useIsActiveTabReadOnly();
@@ -167,7 +186,10 @@ export function DesignCanvas({
     (maxZoom: number, duration?: number) => {
       const shown = getNodes();
       if (shown.length === 0) return;
-      const view = framedViewportNow(getNodesBounds(shown), { minZoom: FIT_MIN_ZOOM, maxZoom });
+      const view = framedViewportNow(getNodesBounds(shown), {
+        minZoom: FIT_MIN_ZOOM,
+        maxZoom,
+      });
       if (view) void setViewport(view, duration ? { duration } : undefined);
     },
     [getNodes, getNodesBounds, setViewport],
@@ -262,9 +284,11 @@ export function DesignCanvas({
 
   useCanvasShortcuts({ getPasteCenter, openMenuForSelection });
 
-  const longPress = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(
-    null,
-  );
+  const longPress = useRef<{
+    timer: ReturnType<typeof setTimeout>;
+    x: number;
+    y: number;
+  } | null>(null);
   const cancelLongPress = useCallback(() => {
     if (longPress.current) clearTimeout(longPress.current.timer);
     longPress.current = null;
@@ -276,7 +300,11 @@ export function DesignCanvas({
       const target = contextTargetOf(e.target);
       if (!target) return;
       const { clientX: x, clientY: y } = e;
-      longPress.current = { x, y, timer: setTimeout(() => openMenu(target, x, y), LONG_PRESS_MS) };
+      longPress.current = {
+        x,
+        y,
+        timer: setTimeout(() => openMenu(target, x, y), LONG_PRESS_MS),
+      };
     },
     [cancelLongPress, openMenu],
   );
@@ -433,7 +461,7 @@ export function DesignCanvas({
         <div
           data-testid="empty-state"
           className="pointer-events-none absolute bottom-0 flex items-center justify-center px-4 pb-4 md:pb-0"
-          style={FREE_AREA}
+          style={{ ...FREE_AREA, bottom: "var(--stage-inset-bottom, 0px)" }}
         >
           <motion.div
             variants={emptyContainer}

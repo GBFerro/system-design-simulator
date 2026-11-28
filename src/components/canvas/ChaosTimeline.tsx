@@ -28,7 +28,9 @@ export function ChaosTimeline() {
 
   return (
     <div
-      className="pointer-events-auto absolute bottom-3 left-14 right-4 z-10 rounded-lg border border-zinc-800 bg-zinc-900/90 px-2.5 py-2 shadow-lg backdrop-blur md:left-[184px] md:right-[332px] min-[1280px]:right-[372px]"
+      className="pointer-events-auto absolute left-14 right-4 z-10 rounded-lg border border-zinc-800 bg-zinc-900/90 px-2.5 py-2 shadow-lg backdrop-blur md:left-[184px] md:right-[332px] min-[1280px]:right-[372px]"
+      // 12 px above the dock's strip (`--stage-inset-bottom`, set by the stage while the dock is shown), else the canvas's bottom
+      style={{ bottom: "calc(var(--stage-inset-bottom, 0px) + 0.75rem)" }}
       role="region"
       aria-label="Fault timeline"
       data-testid="chaos-timeline"

@@ -4,8 +4,9 @@ import {
   stageCssVars,
   stageInsets,
   STAGE_TABS_HEIGHT,
-  PALETTE_BOTTOM,
-  PALETTE_WIDTH,
+  DOCK_HEIGHT,
+  DOCK_LEFT,
+  dockRight,
   PANEL_WIDTH_NARROW,
   PANEL_WIDTH_WIDE,
   pointOverCanvas,
@@ -123,7 +124,7 @@ describe("cardInsets: how much of the canvas's edges the floating cards cover (c
     expect(cardInsets(lower, [moved]).top).toBe(67);
   });
 
-  it("puts a wide card on the bottom edge when it is nearest to it (the dock of a later slice)", () => {
+  it("puts a wide card on the bottom edge when it is nearest to it (the dock)", () => {
     const strip = { left: 200, top: 820, right: 1240, bottom: 884 };
     expect(cardInsets(canvas, [strip])).toEqual({ top: 0, right: 0, bottom: 80, left: 0 });
   });
@@ -145,37 +146,35 @@ describe("cardInsets: how much of the canvas's edges the floating cards cover (c
 describe("stageInsets: what the stage's overlays keep clear of (criterion 23)", () => {
   const wide = stageMetrics({ medium: true, wide: true }, null);
 
-  it("is the top bar, the rail and the panel at 1440 px", () => {
-    expect(stageInsets(wide, { palette: false, panel: true })).toEqual({
+  it("is the top bar, the rail and the panel at 1440 px, and the dock's strip at the bottom", () => {
+    expect(stageInsets(wide, { panel: true, dock: true })).toEqual({
       top: 84,
       left: 16 + 210,
       right: 16 + 340,
+      bottom: 16 + DOCK_HEIGHT,
     });
   });
 
-  it("an open palette widens the left side to its own width", () => {
-    expect(stageInsets(wide, { palette: true, panel: true }).left).toBe(16 + 260);
+  it("a closed dock frees the bottom and a closed panel frees the right side", () => {
+    expect(stageInsets(wide, { panel: true, dock: false }).bottom).toBe(0);
+    expect(stageInsets(wide, { panel: false, dock: true }).right).toBe(0);
   });
 
-  it("a closed panel frees the right side", () => {
-    expect(stageInsets(wide, { palette: false, panel: false }).right).toBe(0);
-  });
-
-  it("a collapsed rail is narrower than the palette, so the palette decides when it is open", () => {
+  it("a collapsed rail narrows the left side, and the panel is 300 px under 1280 px", () => {
     const narrow = stageMetrics({ medium: true, wide: false }, null);
-    expect(stageInsets(narrow, { palette: false, panel: true }).left).toBe(16 + 56);
-    expect(stageInsets(narrow, { palette: true, panel: true }).left).toBe(16 + 260);
-    expect(stageInsets(narrow, { palette: true, panel: true }).right).toBe(16 + 300);
+    expect(stageInsets(narrow, { panel: true, dock: true }).left).toBe(16 + 56);
+    expect(stageInsets(narrow, { panel: true, dock: true }).right).toBe(16 + 300);
   });
 });
 
 describe("stageCssVars", () => {
   it("names the free area's insets and the tab bar's height for the canvas's overlays", () => {
-    const insets = { top: 84, left: 226, right: 356 };
+    const insets = { top: 84, left: 226, right: 356, bottom: 116 };
     expect(stageCssVars(insets, false)).toEqual({
       "--stage-inset-top": "84px",
       "--stage-inset-left": "226px",
       "--stage-inset-right": "356px",
+      "--stage-inset-bottom": "116px",
       "--stage-tabs": "0px",
     });
     expect(stageCssVars(insets, true)["--stage-tabs"]).toBe(`${STAGE_TABS_HEIGHT}px`);
@@ -183,13 +182,39 @@ describe("stageCssVars", () => {
   });
 });
 
-describe("the palette card", () => {
-  it("sits left of the canvas and ends above the minimap's bottom-left zone", () => {
-    expect(PALETTE_WIDTH).toBeGreaterThanOrEqual(240);
-    expect(PALETTE_WIDTH).toBeLessThanOrEqual(300);
-    // controls (to ~120 px), the minimap stacked above them (bottom 150 + 90 high)
-    expect(PALETTE_BOTTOM).toBeGreaterThanOrEqual(250);
-    expect(stageMetrics({ medium: true, wide: true }, null).paletteBottom).toBe(PALETTE_BOTTOM);
-    expect(stageMetrics({ medium: true, wide: true }, null).paletteWidth).toBe(PALETTE_WIDTH);
+describe("the dock (slice 4, criterion 28 and the geometry moved from slice 3)", () => {
+  const wide = stageMetrics({ medium: true, wide: true }, null);
+  const medium = stageMetrics({ medium: true, wide: false }, null);
+
+  it("is a fixed-height strip that starts to the right of the zoom controls and the minimap toggle", () => {
+    expect(DOCK_HEIGHT).toBe(100);
+    // controls (to ~50 px), the toggle (to ~150 px): the dock starts after them, and after the
+    // expanded rail so the "All components" panel above it never meets the rail
+    expect(DOCK_LEFT).toBeGreaterThanOrEqual(16 + RAIL_WIDTH);
+    expect(DOCK_LEFT).toBeGreaterThanOrEqual(160);
+  });
+
+  it("ends 16 px before the panel when the panel is open, and 16 px from the edge when not", () => {
+    expect(dockRight(wide, true)).toBe(16 + 340 + 16);
+    expect(dockRight(medium, true)).toBe(16 + 300 + 16);
+    expect(dockRight(wide, false)).toBe(16);
+  });
+
+  it("counts as the bottom bar for fit and tap-add: its strip, not a side, is what it covers", () => {
+    const canvas = { left: 0, top: 0, right: 1440, bottom: 900 };
+    const bottom = 900 - 16;
+    const top = bottom - DOCK_HEIGHT;
+    // as wide as it grows at 1440 (the room between DOCK_LEFT and the panel), and as narrow as at 1024
+    const grown = { left: DOCK_LEFT + 40, top, right: DOCK_LEFT + 40 + 800, bottom };
+    expect(cardInsets(canvas, [grown])).toEqual({
+      top: 0,
+      right: 0,
+      bottom: 16 + DOCK_HEIGHT,
+      left: 0,
+    });
+    const small = { left: 0, top: 0, right: 1024, bottom: 768 };
+    const narrow = { left: DOCK_LEFT, top: 768 - 16 - DOCK_HEIGHT, right: 700, bottom: 768 - 16 };
+    expect(cardInsets(small, [narrow]).bottom).toBe(16 + DOCK_HEIGHT);
+    expect(cardInsets(small, [narrow]).left).toBe(0);
   });
 });

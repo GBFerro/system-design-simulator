@@ -12,17 +12,33 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useReactFlow } from "@xyflow/react";
-import { Server } from "lucide-react";
 import { getComponentById } from "@/data/components";
-import { ICON_MAP } from "@/lib/icons";
 import { getTechnology } from "@/domain/components/technologies";
-import { createComponentNode } from "@/lib/nodeFactory";
-import { DEFAULT_NODE_SIZE } from "@/lib/placement";
+import { addComponentNode } from "@/lib/addComponent";
+import { isoArchetypeOf, isoTintOf } from "@/lib/iso";
 import { pointOverCanvas } from "@/lib/stageLayout";
 import { isActiveTabReadOnly, useCanvasStore } from "@/store/canvasStore";
+import { IsoModel } from "./nodes/IsoModel";
 
 /** Marks the element that accepts palette drops (the canvas area in DesignCanvas). */
 export const CANVAS_DROP_ATTR = "data-canvas-drop";
+/**
+ * Set on that element ("true") only while a drag's pointer is over a place that accepts the drop:
+ * on the canvas, under no floating card, on a tab that can be edited (slice 4, criterion 31).
+ */
+export const DROP_ACTIVE_ATTR = "data-drop-active";
+
+/** Whether a drop at `p` would add a node: over the canvas, clear of the cards, on an editable tab. */
+function acceptsDrop(p: { x: number; y: number } | null): boolean {
+  return !!p && isOverCanvas(p) && !isActiveTabReadOnly(useCanvasStore.getState());
+}
+
+function markDropActive(on: boolean) {
+  const el = document.querySelector(`[${CANVAS_DROP_ATTR}]`);
+  if (!el) return;
+  if (on) el.setAttribute(DROP_ACTIVE_ATTR, "true");
+  else el.removeAttribute(DROP_ACTIVE_ATTR);
+}
 
 /** Over the canvas, but not over a floating card (stage layout) that covers part of it. */
 function isOverCanvas(p: { x: number; y: number }): boolean {
@@ -79,9 +95,12 @@ export function PaletteDndProvider({
     if (!data) return;
     setActive(data);
     lastPoint.current = clientPoint(event.activatorEvent);
+    markDropActive(acceptsDrop(lastPoint.current));
     const track = (e: Event) => {
       const p = clientPoint(e);
-      if (p) lastPoint.current = p;
+      if (!p) return;
+      lastPoint.current = p;
+      markDropActive(acceptsDrop(p));
     };
     const opts = { capture: true, passive: true } as const;
     window.addEventListener("mousemove", track, opts);
@@ -89,6 +108,7 @@ export function PaletteDndProvider({
     stopTracking.current = () => {
       window.removeEventListener("mousemove", track, opts);
       window.removeEventListener("touchmove", track, opts);
+      markDropActive(false);
       stopTracking.current = null;
     };
     onPaletteDragStart?.();
@@ -102,31 +122,16 @@ export function PaletteDndProvider({
     // Geometry, not DOM hit-testing: the empty-state overlay sits on top of the
     // canvas and must not swallow drops (bug B1)
     if (!data || !point || !isOverCanvas(point)) return;
-    const canvas = useCanvasStore.getState();
-    if (isActiveTabReadOnly(canvas)) return;
+    if (isActiveTabReadOnly(useCanvasStore.getState())) return;
 
-    const component = getComponentById(data.componentId);
-    if (!component) return;
-
-    const drop = screenToFlowPosition(point);
-    // Center the new node under the pointer
-    canvas.addNode(
-      createComponentNode(
-        component,
-        {
-          x: drop.x - DEFAULT_NODE_SIZE.width / 2,
-          y: drop.y - DEFAULT_NODE_SIZE.height / 2,
-        },
-        data.technology,
-      ),
-    );
+    // Centered under the pointer; the one add function announces it and returns the node's id
+    addComponentNode(data.componentId, { drop: screenToFlowPosition(point) }, data.technology);
   }
 
   const activeComponent = active ? getComponentById(active.componentId) : undefined;
   const activeTech = active?.technology
     ? getTechnology(active.componentId, active.technology)
     : undefined;
-  const Icon = activeComponent ? (ICON_MAP[activeComponent.icon] ?? Server) : Server;
 
   return (
     <DndContext
@@ -142,9 +147,25 @@ export function PaletteDndProvider({
       {children}
       <DragOverlay dropAnimation={null}>
         {activeComponent && (
-          <div className="flex w-max items-center gap-2 rounded-lg border border-cyan-500/50 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 shadow-lg">
-            <Icon className="h-3.5 w-3.5 text-cyan-400" />
-            {activeTech ? activeTech.label : activeComponent.label}
+          // The model, lifted off the ground: scaled up with its shadow cast on the floor below it
+          <div
+            data-drag-lift=""
+            className="pointer-events-none relative flex w-[88px] flex-col items-center"
+            style={{ transform: "scale(1.06)", transformOrigin: "50% 100%" }}
+          >
+            <span
+              data-drag-shadow=""
+              aria-hidden="true"
+              className="absolute bottom-[22px] left-1/2 h-3 w-12 -translate-x-1/2 rounded-[50%] bg-[var(--iso-shadow)] opacity-25 blur-[3px]"
+            />
+            <IsoModel
+              archetype={isoArchetypeOf(activeComponent.id)}
+              tint={isoTintOf(activeComponent.id, activeComponent.category)}
+              className="relative h-[64px] w-[64px] [filter:drop-shadow(0_8px_6px_color-mix(in_srgb,var(--iso-shadow)_30%,transparent))]"
+            />
+            <span className="relative mt-0.5 max-w-full truncate rounded-md border border-zinc-800 bg-zinc-900 px-1.5 text-[10px] font-medium text-zinc-200">
+              {activeTech ? activeTech.label : activeComponent.label}
+            </span>
           </div>
         )}
       </DragOverlay>

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { currentStep, open } from "./helpers";
+import { currentStep, open, openPalette } from "./helpers";
 
 // Spec 09: a whole interview on URL Shortener — answer phases 1–4, run the
 // failure drill at 20× (~12 s of wall time), finish, and read the report
@@ -75,12 +75,15 @@ test("full interview: phase answers, drill, report and attempt history", async (
   // Phase 5: the canvas appears, with the palette (WIZ-22).
   await nextPhase(page);
   await expect(page.locator(".react-flow")).toBeVisible();
+  await expect(page.getByTestId("stage-dock")).toBeVisible();
+  await openPalette(page);
   await expect(page.getByPlaceholder("Search components...")).toBeVisible();
   await expect(page.getByTestId("interview-screen")).toHaveCount(0);
 
   // Phase 6: the drill at 20×, on the canvas, with Finish (WIZ-23).
   await nextPhase(page);
   await expect(page.locator(".react-flow")).toBeVisible();
+  await expect(page.getByTestId("stage-dock")).toHaveCount(0);
   await expect(page.getByPlaceholder("Search components...")).toHaveCount(0);
   const drill = page.getByTestId("drill-panel");
   await drill.getByTestId("drill-start").click();

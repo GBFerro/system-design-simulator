@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useCallback, useRef, useEffect } from "react";
+import { memo, useState, useCallback, useRef, useEffect, type AnimationEvent } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import type { ComponentNodeData } from "@/store/canvasStore";
 import { useCanvasStore, useIsActiveTabReadOnly } from "@/store/canvasStore";
@@ -23,6 +23,7 @@ import { useNodeFindingSeverity, useNodePreviewChange } from "@/store/advisorSto
 import { capacityPerInstanceOf, instancesOf } from "@/domain/components/registry";
 import { technologyOf } from "@/domain/components/params";
 import { useExpandedNodesStore } from "@/store/expandedNodesStore";
+import { clearNodeAdded, useNodeLanding } from "@/store/motionStore";
 
 type ComponentNode = Node<ComponentNodeData, "component">;
 
@@ -61,6 +62,15 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
   // Chaos (Spec 08): the fault's target gets its own outline; nodes it
   // degrades pulse. Advisor (Spec 12): a discreet marker for structure hints.
   const blast = useNodeBlast(id);
+  // Motion: just added by the dock, the palette, a drop or the command palette (`motionStore`,
+  // never node.data). Cleared when the landing ends (the ripple's end bubbles up here too).
+  const landing = useNodeLanding(id);
+  const onLandingEnd = useCallback(
+    (e: AnimationEvent<HTMLDivElement>) => {
+      if (e.animationName === "node-land") clearNodeAdded(id);
+    },
+    [id],
+  );
   const finding = useNodeFindingSeverity(id);
   const previewChange = useNodePreviewChange(id);
   const replicas = instancesOf(nodeData);
@@ -128,13 +138,27 @@ function ComponentNodeInner({ id, data, selected }: NodeProps<ComponentNode>) {
       <NodeActionsToolbar nodeId={id} />
 
       {/* The isometric model, ~96 px, with the status halo and the selected ring */}
-      <IsoModel
-        archetype={archetype}
-        tint={tint}
-        status={status ? ISO_STATUS[status] : undefined}
-        selected={selected}
+      <div
+        data-landing={landing ? "" : undefined}
+        onAnimationEnd={landing ? onLandingEnd : undefined}
         className="pointer-events-none absolute left-8 top-0 h-24 w-24"
-      />
+      >
+        <IsoModel
+          archetype={archetype}
+          tint={tint}
+          status={status ? ISO_STATUS[status] : undefined}
+          selected={selected}
+          className="h-24 w-24"
+        />
+        {/* The ground ripple of the landing: outside the box's flow, so the node never resizes */}
+        {landing && (
+          <span
+            aria-hidden
+            data-landing-ripple=""
+            className="pointer-events-none absolute left-1/2 top-[62%] h-8 w-16 -translate-x-1/2 rounded-[50%] border-2 border-[var(--sf-accent)]"
+          />
+        )}
+      </div>
 
       {/* Blast radius: outline/pulse drawn outside the box, so the node never resizes */}
       {blast && (
